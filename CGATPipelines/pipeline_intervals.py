@@ -952,13 +952,23 @@ def exportMotifSequences(infile, outfile):
     dbhandle = connect()
 
     p = P.substituteParameters(**locals())
+
+    # Want to enable the use of variable width peaks 
+    # writeSequencesForIntervals will take NONE for
+    # maxsize if supplied, but int() won't
+
+    try:
+        halfwidth = int(p["motifs_halfwidth"])
+    except ValueError:
+        halfwidth = None
+
     nseq = PipelineMotifs.writeSequencesForIntervals(
         track,
         outfile,
         dbhandle,
         full=False,
         masker=P.asList(p['motifs_masker']),
-        halfwidth=int(p["motifs_halfwidth"]),
+        halfwidth=halfwidth,
         maxsize=int(p["motifs_max_size"]),
         proportion=p["motifs_proportion"],
         min_sequences=p["motifs_min_sequences"],
@@ -1823,22 +1833,33 @@ def annotate_intervals():
 # def views():
 #     pass
 
-###################################################################
-###################################################################
-###################################################################
 
-
-@follows(annotate_intervals,
-         annotate_withreads,
-         loadByIntervalProfiles,
-         runMeme,
+###################################################################
+###################################################################
+###################################################################
+@follows(runMeme,
          loadMemeSummary,
          loadTomTom,
          loadMotifInformation,
-         loadMast,
-         loadMotifInformation,
-         loadMotifSequenceComposition,
-         loadOverlap,
+         loadMotifSequenceComposition)
+def motifs():
+    pass
+
+
+@follows(annotate_intervals,
+         annotate_withreads)
+def annotation():
+    pass
+
+
+@follows(loadByIntervalProfiles)
+def profiles():
+    pass
+
+
+@follows(annotation,
+         profiles,
+         motifs,
          gat)
 def full():
     '''run the full pipeline.'''
