@@ -45,6 +45,7 @@ import tempfile
 import collections
 import shutil
 import glob
+import xml.etree.ElementTree
 
 import logging as L
 import CGAT.Experiment as E
@@ -933,13 +934,18 @@ def runMEMEOnSequences(infile, outfile):
         E.warn("%s: no sequences - meme skipped" % outfile)
         P.touch(outfile)
         return
+    
+    if PARAMS.get("meme_revcomp", True):
+        revcomp = "-revcomp"
+    else:
+        revcomp = ""
 
     target_path = os.path.join(
         os.path.abspath(PARAMS["exportdir"]), "meme", outfile)
     tmpdir = P.getTempDir(".")
 
     statement = '''
-    meme %(infile)s -dna -revcomp
+    meme %(infile)s -dna %(revcomp)s
     -mod %(meme_model)s
     -nmotifs %(meme_nmotifs)s
     -oc %(tmpdir)s
@@ -985,3 +991,49 @@ def runTomTom(infile, outfile):
     shutil.move(tmpdir, target_path)
 
     shutil.copyfile(os.path.join(target_path, "tomtom.txt"), outfile)
+
+
+def loadTomTom(infile, outfile):
+    '''load tomtom results'''
+
+    tablename = P.toTable(outfile)
+
+    resultsdir = os.path.join(
+        os.path.abspath(PARAMS["exportdir"]), "tomtom", infile)
+    xml_file = os.path.join(resultsdir, "tomtom.xml")
+
+    if not os.path.exists(xml_file):
+        E.warn("no tomtom output - skipped loading ")
+        P.touch(outfile)
+        return
+
+    # get the motif name from the xml file
+
+    tree = xml.etree.ElementTree.ElementTree()
+    tree.parse(xml_file)
+    motifs = tree.find("targets")
+    name2alt = {}
+    for motif in motifs.getiterator("motif"):
+        name = motif.get("name")
+        alt = motif.get("alt")
+        name2alt[name] = alt
+
+    tmpfile = P.getTempFile(".")
+
+    # parse the text file
+    for line in IOTools.openFile(infile):
+        if line.startswith("#Query"):
+            tmpfile.write('\t'.join(
+                ("target_name", "query_id", "target_id",
+                 "optimal_offset", "pvalue", "evalue",
+                 "qvalue", "Overlap", "query_consensus",
+                 "target_consensus", "orientation")) + "\n")
+            continue
+        data = line[:-1].split("\t")
+        target_name = name2alt[data[1]]
+        tmpfile.write("%s\t%s" % (target_name, line))
+    tmpfile.close()
+
+    P.load(tmpfile.name, outfile)
+
+    os.unlink(tmpfile.name)
