@@ -834,7 +834,8 @@ def runGLAM2(infile, outfile, dbhandle):
     shutil.copyfile(os.path.join(target_path, "glam2.txt"), outfile)
 
 
-def collectMEMEResults(tmpdir, target_path, outfile):
+def collectMEMEResults(tmpdir, target_path, outfile,
+                       dreme=False):
     '''collect output from a MEME run in tmpdir
     and copy all over to target_path
 
@@ -852,7 +853,10 @@ def collectMEMEResults(tmpdir, target_path, outfile):
         shutil.rmtree(target_path)
     shutil.move(tmpdir, target_path)
 
-    shutil.copyfile(os.path.join(target_path, "meme.txt"), outfile)
+    if dreme:
+        shutil.copyfile(os.path.join(target_path, "dreme.txt"), outfile)
+    else:
+        shutil.copyfile(os.path.join(target_path, "meme.txt"), outfile)
 
     # convert images to png
     epsfiles = glob.glob(os.path.join(target_path, "*.eps"))
@@ -1037,3 +1041,36 @@ def loadTomTom(infile, outfile):
     P.load(tmpfile.name, outfile)
 
     os.unlink(tmpfile.name)
+
+
+def runDREME(infile, outfile, neg_file = "", options = ""):
+    ''' Run DREME on fasta file. If a neg_file is passed
+    then DREME will use this as the negative set, otherwise
+    the default is to shuffle the input '''
+
+    nseqs = int(FastaIterator.count(infile))
+    if nseqs == 0:
+        E.warn("%s: no sequences - meme skipped" % outfile)
+        P.touch(outfile)
+        return
+    
+    outpath = P.snip(outfile, ".txt")
+    logfile = outpath + ".log"
+    target_path = os.path.join(PARAMS["exportdir"],
+                               "dreme",
+                               os.path.basename(outpath))
+
+    if neg_file:
+        neg_file = "-n %s" % neg_file
+
+    statement = '''
+    dreme -p %(infile)s %(neg_file)s -png
+        -oc %(outpath)s
+            %(dreme_options)s
+            %(options)s
+       > %(logfile)s
+    '''
+
+    P.run()
+
+    collectMEMEResults(outpath, target_path, outfile, dreme=True)
