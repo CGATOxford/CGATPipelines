@@ -917,7 +917,7 @@ def runMEME(track, outfile, dbhandle):
         collectMEMEResults(tmpdir, target_path, outfile)
 
 
-def runMEMEOnSequences(infile, outfile):
+def runMEMEOnSequences(infile, outfile, background=None):
     '''run MEME to find motifs.
 
     In order to increase the signal/noise ratio,
@@ -947,6 +947,10 @@ def runMEMEOnSequences(infile, outfile):
     target_path = os.path.join(
         os.path.abspath(PARAMS["exportdir"]), "meme", outfile)
     tmpdir = P.getTempDir(".")
+    if background:
+        background_model = "-bfile %s" % background
+    else:
+        background_model = ""
 
     statement = '''
     meme %(infile)s -dna %(revcomp)s
@@ -954,6 +958,7 @@ def runMEMEOnSequences(infile, outfile):
     -nmotifs %(meme_nmotifs)s
     -oc %(tmpdir)s
     -maxsize %(motifs_max_size)s
+    %(background_model)s
     %(meme_options)s
        > %(outfile)s.log
     '''
@@ -995,8 +1000,6 @@ def runTomTom(infile, outfile):
     shutil.move(tmpdir, target_path)
 
     shutil.copyfile(os.path.join(target_path, "tomtom.txt"), outfile)
-
-
 def loadTomTom(infile, outfile):
     '''load tomtom results'''
 
@@ -1074,3 +1077,63 @@ def runDREME(infile, outfile, neg_file = "", options = ""):
     P.run()
 
     collectMEMEResults(outpath, target_path, outfile, dreme=True)
+
+def runFIMO(motifs, database, outfile, exportdir, options={}):
+    '''run fimo to look for occurances of motifs supplied in sequence database.
+    :param:`motifs` is the path to a MEME formated motif file.
+    :param:`database` is a fasta file.
+    :param:`outfile` is the text output from fimo
+    :param:`exportdir` specifies the directory to put exported files (html,gff)
+    :param:options is a dictionary: {'option':'value'} will be passed as
+                    --option=value and will overwrite options specified in the
+                     PARAMs'''
+
+
+    # if the motifs file is empty, then fimo will return an error
+    # this isn't very useful behavoir.
+
+    inlines = IOTools.openFile(motifs).read()
+    #print inlines
+    if not re.search("MOTIF", inlines):
+        E.warning("No motifs found in %s" % motifs)
+        P.touch(outfile)
+        return
+    else:
+        E.debug("%s: %i motifs found" % 
+                (motifs, len(re.findall("MOTIF", inlines))))
+
+
+    fimo_options = PARAMS.get("fimo_options", "")
+    for option, value in options.iteritems():
+        fimo_options = re.sub("%s=\S+" % option, "", fimo_options)
+        if value is None:
+            fimo_options += " --%s" % option
+        else:
+            fimo_options += " --%s=%s" % (option, value)
+
+    tmpout = P.getTempFilename()
+    
+    track = os.path.basename(outfile)
+    exportdir = os.path.abspath(exportdir)
+
+    xmlout = P.snip(outfile,".txt") + ".xml"
+    logfile = P.snip(outfile,".txt") + ".log"
+    gffout = os.path.join(exportdir, track + ".gff")
+    htmlout = os.path.join(exportdir, track + ".html")
+    
+    statement = ''' fimo --oc %(tmpout)s
+                         %(fimo_options)s
+                         %(motifs)s
+                         %(database)s &> %(logfile)s;
+                     checkpoint;
+                     mv %(tmpout)s/fimo.txt %(outfile)s;
+                     checkpoint;
+                     mv %(tmpout)s/fimo.xml %(xmlout)s;
+                     checkpoint;
+                     mv %(tmpout)s/fimo.gff %(gffout)s
+                     checkpoint;
+                     mv %(tmpout)s/fimo.html %(htmlout)s;
+                     checkpoint;
+                     rm -r %(tmpout)s '''
+
+    P.run()
