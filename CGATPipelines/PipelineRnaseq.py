@@ -45,8 +45,10 @@ import itertools
 import glob
 import collections
 import re
-
+import math
 import numpy
+import sqlite3
+
 import CGAT.GTF as GTF
 import CGAT.BamTools as BamTools
 import CGAT.IOTools as IOTools
@@ -992,7 +994,7 @@ def parseCuffdiff(infile, min_fpkm=1.0):
     return results
 
 
-def loadCuffdiff(infile, outfile, min_fkpm=1.0):
+def loadCuffdiff(infile, outfile, min_fpkm=1.0):
     '''load results from differential expression analysis and produce
     summary plots.
 
