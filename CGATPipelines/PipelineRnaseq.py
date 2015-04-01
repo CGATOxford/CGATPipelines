@@ -621,7 +621,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
 
     if merge:
         statement = '''
-        %(scriptsdir)s/gff_sort pos < %(tmpfilename)s
+        %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
         | python %(scriptsdir)s/gtf2gtf.py
             --method=unset-genes --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
@@ -638,12 +638,12 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
         | python %(scriptsdir)s/gtf2gtf.py
             --method=renumber-transcripts --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
-        | %(scriptsdir)s/gff_sort genepos
+        | %(pipeline_scriptsdir)s/gff_sort genepos
         | gzip > %(outfile)s
         '''
     else:
         statement = '''
-        %(scriptsdir)s/gff_sort pos < %(tmpfilename)s
+        %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
         | gzip > %(outfile)s
         '''
 

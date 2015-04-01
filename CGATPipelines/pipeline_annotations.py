@@ -579,7 +579,7 @@ import CGAT.IndexedFasta as IndexedFasta
 import CGAT.IOTools as IOTools
 import CGAT.GTF as GTF
 import CGAT.Database as Database
-import CGATPipelines.Biomart as Biomart
+import CGAT.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineGO as PipelineGO
 import CGATPipelines.PipelineDatabase as PipelineDatabase

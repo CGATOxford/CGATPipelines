@@ -270,7 +270,7 @@ def buildIntronTrack(infile, outfile):
 
     statement = '''gunzip 
     < %(infile)s 
-    | %(scriptsdir)s/gff_sort pos
+    | %(pipeline_scriptsdir)s/gff_sort pos
     | python %(scriptsdir)s/gff2gff.py --join=100,10000,2,5 --log=%(outfile)s.log 
     | python %(scriptsdir)s/gtf2gtf.py 
     --method=filter --filter-method=gene --sample-size=%(ancestral_repeats_samplesize)i --log=%(outfile)s.log 
@@ -581,7 +581,7 @@ def makeSegments(infile, outfile):
     to_cluster = True
 
     statement = '''gunzip < %(infile)s 
-    | %(scriptsdir)s/gff_sort pos 
+    | %(pipeline_scriptsdir)s/gff_sort pos 
     | python %(scriptsdir)s/gff2histogram.py 
     --method=values 
     --output-filename-pattern="%(outfile)s.%%s"

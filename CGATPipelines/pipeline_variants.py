@@ -894,7 +894,7 @@ def buildGeneAnnotations(infile, outfile):
     --sanitize-method=genome
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
-    | %(scriptsdir)s/gff_sort gene-pos
+    | %(pipeline_scriptsdir)s/gff_sort gene-pos
     > %(outfile)s
     """
     P.run()

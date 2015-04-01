@@ -339,7 +339,7 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
     to_cluster = USECLUSTER
 
     statement = '''cat %(tmpfilename)s
-    | %(scriptsdir)s/gff_sort pos
+    | %(pipeline_scriptsdir)s/gff_sort pos
     | python %(scriptsdir)s/gff2gff.py
     --method=sanitize
     --sanitize-method=genome
@@ -370,7 +370,7 @@ def importRepeatsFromEnsembl(infile, outfile,
     -p %(ensembl_password)s
     -d %(ensembl_database)s
     --repeattypes %(repeattypes)s
-    | %(scriptsdir)s/gff_sort pos
+    | %(pipeline_scriptsdir)s/gff_sort pos
     | python %(scriptsdir)s/gff2gff.py
     --method=sanitize
     --sanitize-method=genome
