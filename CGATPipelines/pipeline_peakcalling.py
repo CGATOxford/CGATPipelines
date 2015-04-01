@@ -307,7 +307,7 @@ import glob
 import sqlite3
 
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.Bed as Bed
 import CGAT.IOTools as IOTools
 import CGAT.Database as Database

@@ -182,7 +182,7 @@ import re
 from rpy2.robjects import r as R
 
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineLncRNA as PipelineLncRNA
@@ -557,7 +557,7 @@ def runCPC(infile, outfile):
 
     result_evidence = P.snip(outfile, ".result") + ".evidence"
     working_dir = "cpc"
-    statement = ("%(scriptsdir)s/cpc.sh"
+    statement = ("%(pipeline_scriptsdir)s/cpc.sh"
                  " %(infile)s"
                  " %(outfile)s"
                  " %(working_dir)s"
@@ -1168,7 +1168,7 @@ def runControlCPC(infile, outfile):
 
     result_evidence = P.snip(outfile, ".result") + ".evidence"
     working_dir = "lncRNA_control/cpc"
-    statement = ("%(scriptsdir)s/cpc.sh"
+    statement = ("%(pipeline_scriptsdir)s/cpc.sh"
                  " %(infile)s"
                  " %(outfile)s"
                  " %(working_dir)s"

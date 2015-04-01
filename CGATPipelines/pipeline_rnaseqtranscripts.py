@@ -282,7 +282,7 @@ import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineRnaseq as PipelineRnaseq
 import CGAT.Stats as Stats
 import CGATPipelines.PipelineTracks as PipelineTracks
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 ###################################################
 ###################################################

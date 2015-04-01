@@ -13,7 +13,7 @@ import gzip
 import collections
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.IndexedFasta as IndexedFasta
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import sqlite3
 import tempfile

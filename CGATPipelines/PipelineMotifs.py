@@ -48,7 +48,7 @@ import glob
 
 import logging as L
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.Masker as Masker
 import CGAT.Glam2Scan as Glam2Scan

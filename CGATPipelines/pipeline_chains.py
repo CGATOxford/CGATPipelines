@@ -81,7 +81,7 @@ import glob
 import os
 from ruffus import *
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.IndexedFasta as IndexedFasta
 

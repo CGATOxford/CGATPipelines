@@ -3,7 +3,7 @@ import re
 import pysam
 import random
 
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineTracks as PipelineTracks
 

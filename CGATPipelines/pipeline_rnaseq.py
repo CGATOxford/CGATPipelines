@@ -431,7 +431,7 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineRnaseq as PipelineRnaseq
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGAT.Stats as Stats
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 # levels of cuffdiff analysis
 # (no promotor and splice -> no lfold column)

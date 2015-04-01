@@ -168,7 +168,7 @@ import CGAT.IOTools as IOTools
 ###################################################
 
 # load options from the config file
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
@@ -304,7 +304,7 @@ def buildCheckSums(infile, outfile):
     -type f
     -not -regex ".*.log"
     -regex %(regex_pattern)s
-    -exec %(scriptsdir)s/cgat_file_apply.sh {} md5sum \;
+    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
     | perl -p -e "s/ +/\\t/g"
     | sort -k1,1
     > %(outfile)s'''
@@ -339,7 +339,7 @@ def buildLineCounts(infile, outfile):
     -type f
     -not -regex ".*.log"
     -regex %(regex_pattern)s
-    -exec %(scriptsdir)s/cgat_file_apply.sh {} wc -l \;
+    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
     | sort -k1,1
     > %(outfile)s'''
     P.run()

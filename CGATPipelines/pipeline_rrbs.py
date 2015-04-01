@@ -161,7 +161,7 @@ import sqlite3
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineRrbs as RRBS
 import pandas as pd
 import CGATPipelines.PipelineTracks as PipelineTracks

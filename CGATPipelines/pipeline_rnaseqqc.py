@@ -173,7 +173,7 @@ import itertools as iter
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.CSV2DB as CSV2DB
 
 ###################################################

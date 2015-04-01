@@ -31,7 +31,7 @@ import CGAT.Experiment as E
 import os
 import re
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 
 def getPicardOptions():

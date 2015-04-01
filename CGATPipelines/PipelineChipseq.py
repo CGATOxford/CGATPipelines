@@ -18,7 +18,7 @@ import sqlite3
 import pysam
 import numpy
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed

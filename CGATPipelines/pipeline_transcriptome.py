@@ -92,7 +92,7 @@ import gzip
 from ruffus import *
 import sqlite3
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.Database as Database
 import CGAT.GTF as GTF

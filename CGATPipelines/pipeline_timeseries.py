@@ -175,7 +175,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 ###################################################
 
 # load options from the config file
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",

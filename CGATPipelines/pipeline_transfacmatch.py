@@ -149,7 +149,7 @@ import pandas.io.sql as pdsql
 from rpy2.robjects import r as R
 import rpy2.robjects as robjects
 import CGATPipelines.PipelineTransfacMatch as PipelineTFM
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 ###############################################################################
 ###############################################################################

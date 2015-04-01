@@ -127,9 +127,9 @@ import CGAT.GTF as GTF
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGAT.Database as Database
+import CGAT.Biomart as Biomart
 import CGAT.FastaIterator as FastaIterator
 import PipelineEnrichment as PEnrichment
-import PipelineBiomart as PBiomart
 import PipelineDatabase as PipelineDatabase
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import scipy.stats
@@ -139,7 +139,7 @@ import pysam
 # only update R if called as pipeline
 # otherwise - failure with sphinx
 from rpy2.robjects import r as R
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################
@@ -639,7 +639,7 @@ def importMGI(infile, outfile):
             # remove rows where only the first field is set
             statement = '''
             perl -p -e "s/\\s+\\n/\\n/" < %(filename)s
-            | %(scriptsdir)s/hsort 1
+            | %(pipeline_scriptsdir)s/hsort 1
             | uniq
             | awk '{ for (x=2; x<=NF; x++) { if ($x != "") { print; break;} } }'
             |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
@@ -672,7 +672,7 @@ def loadGene2Omim(infile, outfile):
         "mim_morbid_description": "mim_morbid_description",
     }
 
-    data = PBiomart.biomart_iterator(
+    data = Biomart.biomart_iterator(
         columns.keys(), biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
     def transform_data(data):
@@ -705,7 +705,7 @@ def loadHumanOrthologs(infile, outfile):
             "%s_homolog_ds" % species: "ds",
         }
 
-        data = PBiomart.biomart_iterator(
+        data = Biomart.biomart_iterator(
             columns.keys(), biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
         PipelineDatabase.importFromIterator(

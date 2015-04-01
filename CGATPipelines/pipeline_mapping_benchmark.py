@@ -49,7 +49,7 @@ import CGAT.Experiment as E
 from ruffus import *
 import pysam
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 USECLUSTER = True
 

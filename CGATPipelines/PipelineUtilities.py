@@ -28,7 +28,7 @@ Code
 """
 import sqlite3
 try:
-    import CGAT.Pipeline as P
+    import CGATPipelines.Pipeline as P
 except AttributeError, OSError:
     pass
 import CGAT.IOTools as IOTools
@@ -212,7 +212,7 @@ def biomart_iterator(attributes,
 
     # Use PipelineBiomant.biomart_iterator
     raise NotImplementedError(
-        "deprecated, use PipelineBiomart.biomart_iterator")
+        "deprecated, use Biomart.biomart_iterator")
 
 # ########################## File Utitilies
 

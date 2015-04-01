@@ -5,7 +5,7 @@ PipelineDatabase.py - utility functions for working with a database
 '''
 
 import os
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 # set from calling module
 PARAMS = {}

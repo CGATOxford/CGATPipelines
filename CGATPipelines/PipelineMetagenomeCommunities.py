@@ -12,7 +12,7 @@ import collections
 import shutil
 
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.FastaIterator as FastaIterator
 import CGAT.Fastq as Fastq

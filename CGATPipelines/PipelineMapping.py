@@ -61,7 +61,7 @@ import collections
 import re
 import gzip
 import itertools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import logging as L
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools

@@ -203,78 +203,14 @@ Operating System :: Unix
 Operating System :: MacOS
 """
 
-##########################################################
-##########################################################
-# Extensions
-# Connected components cython extension
-Components = Extension(
-    'CGAT.Components',
-    ['CGAT/Components/Components.pyx',
-     'CGAT/Components/connected_components.cpp',],
-    library_dirs=[],
-    libraries=[],            
-    language="c++",
-)
-
-# Nested containment lists
-NCL = Extension(
-    "CGAT.NCL.cnestedlist",              
-    ["CGAT/NCL/cnestedlist.pyx",
-     "CGAT/NCL/intervaldb.c"],
-    library_dirs=[],
-    libraries=[],
-    language="c",
-)
-
-# Nubiscan motif mapping
-#Nubiscan = Extension(
-#    "CGAT.Nubiscan.cnubiscan",                   
-#    [ 'CGAT/Nubiscan/cnubiscan.pyx'],
-#    library_dirs=[],
-#    libraries=[],            
-#    include_dirs = [numpy.get_include()], 
-#    language="c",               
-# )
-
-# Automatically build script extensions
-pyx_files = glob.glob("scripts/*.pyx")
-script_extensions = []
-pysam_dirname = os.path.dirname(pysam.__file__)
-include_dirs = [numpy.get_include()] + pysam.get_include()
-
-if IS_OSX:
-    # linking against bundles does no work (and apparently is not needed)
-    # within OS X
-    extra_link_args = []
-else:
-    extra_link_args = [os.path.join(pysam_dirname, x) for x in (
-        'libchtslib.so',
-        'TabProxies.so',
-        'cfaidx.so',
-        'csamfile.so',
-        'cvcf.so',
-        'ctabix.so')]
-
-for pyx_file in pyx_files:
-    script_name = os.path.basename(pyx_file)
-    script_prefix = script_name[:-4]
-    script_extensions.append(
-        Extension("CGAT.%s" % (script_prefix),
-                  sources=[pyx_file],
-                  extra_link_args=extra_link_args,
-                  include_dirs=include_dirs,
-                  define_macros=pysam.get_defines())
-    )
-
-
 setup(
     # package information
-    name='CGAT',
+    name='CGATPipelines',
     version=version,
     description='CGAT : the Computational Genomics Analysis Toolkit',
     author='Andreas Heger',
     author_email='andreas.heger@gmail.com',
-    license="BSD",
+    license="MIT",
     platforms=["any"],
     keywords="computational genomics",
     long_description='CGAT : the Computational Genomics Analysis Toolkit',
@@ -283,18 +219,15 @@ setup(
     # package contents
     packages=cgat_packages,
     package_dir=cgat_package_dirs,
-    # package_data = {'CGATScripts':['./scripts/*.py', './scripts/*.pyx',
-    #                                './scripts/*.pyxbld', './scripts/*.pl'],
-    #                },
     include_package_data=True,
     entry_points={
-        'console_scripts': ['cgat = CGATScripts.cgat:main']
+        'console_scripts': ['cgat = CGATPipelines.cgat:main']
     },
     # dependencies
     install_requires=install_requires,
     dependency_links=dependency_links,
     # extension modules
-    ext_modules=[Components, NCL] + script_extensions,
+    ext_modules=[],
     cmdclass={'build_ext': build_ext},
     # other options
     zip_safe=False,

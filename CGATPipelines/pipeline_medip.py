@@ -139,7 +139,7 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelineMedip as PipelineMedip
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 from rpy2.robjects import r as R
 

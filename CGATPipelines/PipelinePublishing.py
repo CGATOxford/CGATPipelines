@@ -17,7 +17,7 @@ API
 import os
 import collections
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 

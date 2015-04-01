@@ -133,7 +133,7 @@ import math
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
@@ -1247,7 +1247,7 @@ def outputGWASFiles(infile, outfile):
     | awk 'BEGIN {printf("chr\\tpos\\tsnp\\tpvalue\\n")}
     !/^test_id/ {split($1,a,":");
     printf("%%s\\t%%i\\t%%s\\t%%s\\n", a[1], a[2], $1, $8)}'
-    | %(scriptsdir)s/hsort 1 -k1,1 -k2,2n
+    | %(pipeline_scriptsdir)s/hsort 1 -k1,1 -k2,2n
     > %(outfile)s
     '''
 

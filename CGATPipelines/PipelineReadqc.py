@@ -4,7 +4,7 @@ import glob
 import collections
 import cStringIO
 import pandas as pd
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.CSV2DB as CSV2DB
 

@@ -17,7 +17,7 @@ import tempfile
 import collections
 import shutil
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import sqlite3
 
 try:

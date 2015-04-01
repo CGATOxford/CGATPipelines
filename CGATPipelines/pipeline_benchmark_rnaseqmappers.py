@@ -139,7 +139,7 @@ import os
 import glob
 import sqlite3
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################
@@ -1142,7 +1142,7 @@ def buildReadStats(infile, outfile):
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/fastq2table.py
          --log=%(outfile)s.log
-    | %(scriptsdir)s/hsort 1
+    | %(pipeline_scriptsdir)s/hsort 1
     | gzip
     > %(outfile)s
     '''

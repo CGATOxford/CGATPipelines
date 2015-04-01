@@ -574,14 +574,14 @@ from ruffus import *
 from bx.bbi.bigwig_file import BigWigFile
 import sqlite3
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.IOTools as IOTools
 import CGAT.GTF as GTF
 import CGAT.Database as Database
+import CGATPipelines.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineGO as PipelineGO
-import CGATPipelines.PipelineBiomart as PipelineBiomart
 import CGATPipelines.PipelineDatabase as PipelineDatabase
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import CGATPipelines.PipelineKEGG as PipelineKEGG
@@ -993,7 +993,7 @@ def downloadTranscriptInformation(infile, outfile):
     if PARAMS["genome"].startswith("sac"):
         del columns["uniprot_genename"]
 
-    data = PipelineBiomart.biomart_iterator(
+    data = Biomart.biomart_iterator(
         columns.keys(),
         biomart=PARAMS[
             "ensembl_biomart_mart"],
@@ -1068,7 +1068,7 @@ def downloadEntrezToEnsembl(infile, outfile):
         "ensembl_gene_id": "gene_id",
         "entrezgene": "entrez_id"}
 
-    data = PipelineBiomart.biomart_iterator(
+    data = Biomart.biomart_iterator(
         columns.keys(),
         biomart="ensembl",
         dataset=PARAMS["ensembl_biomart_dataset"])
@@ -1096,7 +1096,7 @@ def downloadTranscriptSynonyms(infile, outfile):
         "refseq_mrna": "refseq_id",
     }
 
-    data = PipelineBiomart.biomart_iterator(
+    data = Biomart.biomart_iterator(
         columns.keys(),
         biomart=PARAMS[
             "ensembl_biomart_mart"],

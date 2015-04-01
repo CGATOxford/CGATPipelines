@@ -39,7 +39,7 @@ import os
 import collections
 import MySQLdb
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 

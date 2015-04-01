@@ -7,7 +7,7 @@ import CGAT.Experiment as E
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
 import CGAT.IOTools as IOTools
-import PipelineBiomart as PipelineBiomart
+import CGAT.Biomart as Biomart
 import re
 
 
@@ -27,7 +27,7 @@ def importKEGGAssignments(outfile, mart, host, biomart_dataset):
     R.library("KEGG.db")
 
     E.info("getting entrez to ensembl mapping ...")
-    entrez2ensembl = PipelineBiomart.biomart_iterator(
+    entrez2ensembl = Biomart.biomart_iterator(
         ("ensembl_gene_id", "entrezgene"),
         biomart=mart,
         dataset=biomart_dataset,

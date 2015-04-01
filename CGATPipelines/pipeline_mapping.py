@@ -203,7 +203,7 @@ import sqlite3
 import collections
 
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools

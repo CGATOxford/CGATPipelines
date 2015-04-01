@@ -132,7 +132,7 @@ import sqlite3
 # import modules from the CGAT code collection
 import CGAT.Experiment as E
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineReadqc as PipelineReadqc
 import CGATPipelines.PipelinePreprocess as PipelinePreprocess
 import CGAT.IOTools as IOTools

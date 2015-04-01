@@ -163,7 +163,7 @@ import rpy2.robjects as ro
 ###################################################################
 ###################################################################
 # Pipeline configuration
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 P.getParameters(["pipeline_capseq.ini"])
 PARAMS = P.PARAMS
 USECLUSTER = True

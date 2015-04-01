@@ -45,7 +45,7 @@ except ImportError:
 
 ##########################
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools

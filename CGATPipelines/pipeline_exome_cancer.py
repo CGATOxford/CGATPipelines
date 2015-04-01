@@ -152,7 +152,7 @@ import sqlite3
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import glob
 import pandas as pd
 import itertools

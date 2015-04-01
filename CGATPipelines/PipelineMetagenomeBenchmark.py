@@ -3,7 +3,7 @@ import collections
 import sqlite3
 
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.FastaIterator as FastaIterator
 import CGAT.Fastq as Fastq

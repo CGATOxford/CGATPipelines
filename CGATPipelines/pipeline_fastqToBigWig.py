@@ -158,7 +158,7 @@ import CGAT.Experiment as E
 import PipelineChipseq as PIntervals
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 USECLUSTER = True
 

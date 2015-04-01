@@ -43,7 +43,7 @@ import collections
 import ConfigParser
 
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 from ruffus import *
 import csv
 import sqlite3

@@ -78,7 +78,7 @@ import os
 import gzip
 from ruffus import *
 
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGAT.IOTools as IOTools
 

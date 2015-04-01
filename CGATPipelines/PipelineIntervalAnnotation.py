@@ -30,7 +30,7 @@ import CGAT.Bed as Bed
 import pysam
 import numpy
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 ############################################################
 ############################################################

@@ -54,7 +54,7 @@ import CGAT.Database as Database
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
 import rpy2.rinterface as ri
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 # AH: commented as I thought we wanted to avoid to
 # enable this automatically due to unwanted side
@@ -751,7 +751,7 @@ def mergeCufflinksFPKM(infiles, outfile,
         --header-names=%(headers)s
         --take=FPKM fpkm.dir/%(prefix)s_*.%(tracking)s.gz
     | perl -p -e "s/tracking_id/%(identifier)s/"
-    | %(scriptsdir)s/hsort 1
+    | %(pipeline_scriptsdir)s/hsort 1
     | gzip
     > %(outfile)s
     '''

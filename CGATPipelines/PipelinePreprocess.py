@@ -40,7 +40,7 @@ Code
 import re
 import os
 import collections
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGAT.Fastq as Fastq

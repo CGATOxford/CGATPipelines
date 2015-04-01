@@ -83,7 +83,7 @@ import logging as L
 from CGAT import Experiment as E
 from CGAT import IOTools as IOTools
 from CGAT import Requirements as Requirements
-from CGAT import Local as Local
+from CGATPipelines import Local as Local
 
 # global options and arguments - set but currently not
 # used as relevant sections are entered into the PARAMS
@@ -93,17 +93,27 @@ GLOBAL_OPTIONS, GLOBAL_ARGS = None, None
 # global drmaa session
 GLOBAL_SESSION = None
 
-# Sort out script paths
-LIB_DIR = os.path.dirname(__file__)
-ROOT_DIR = os.path.dirname(LIB_DIR)
-SCRIPTS_DIR = os.path.join(ROOT_DIR, "scripts")
-PIPELINE_DIR = os.path.join(os.path.dirname(LIB_DIR), "CGATPipelines")
+# sort out script paths
 
-# if Pipeline.py is from an installed version,
-# scripts are located in the "bin" directory.
-if not os.path.exists(SCRIPTS_DIR):
+# root directory of CGAT Code collection
+CGATSCRIPTS_ROOT_DIR = os.path.dirname(os.path.dirname(E.__file__))
+# CGAT Code collection scripts
+CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
+
+# root directory of CGAT Pipelines
+CGATPIPELINES_ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+# CGAT Pipeline scripts
+CGATPIPELINES_SCRIPTS_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "scripts")
+# Directory of CGAT pipelines
+CGATPIPELINES_PIPELINE_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "CGATPipelines")
+
+# if Pipeline.py is called from an installed version, scripts are
+# located in the "bin" directory.
+if not os.path.exists(CGATSCRIPTS_SCRIPTS_DIR):
     SCRIPTS_DIR = os.path.join(sys.exec_prefix, "bin")
 
+if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
+    PIPELINE_SCRIPTS_DIR = os.path.join(sys.exec_prefix, "bin")
 
 # Global variable for configuration file data
 CONFIG = ConfigParser.ConfigParser()
@@ -122,13 +132,14 @@ else:
 # These can be overwritten by command line options and
 # configuration files
 HARDCODED_PARAMS = {
-    'scriptsdir': SCRIPTS_DIR,
-    'toolsdir': SCRIPTS_DIR,
-    'pipelinedir': PIPELINE_DIR,
+    'scriptsdir': CGATSCRIPTS_SCRIPTS_DIR,
+    'toolsdir': CGATSCRIPTS_SCRIPTS_DIR,
+    'pipeline_scriptsdir': CGATPIPELINES_SCRIPTS_DIR,
+    'pipelinedir': CGATPIPELINES_PIPELINE_DIR,
     # script to perform map/reduce like computation.
-    'cmd-farm': """python %(scriptsdir)s/farm.py
+    'cmd-farm': """python %(pipeline_scriptsdir)s/farm.py
                 --method=drmaa
-                --bashrc=%(scriptsdir)s/bashrc.cgat
+                --bashrc=%(pipeline_scriptsdir)s/bashrc.cgat
                 --cluster-options=%(cluster_options)s
                 --cluster-queue=%(cluster_queue)s
                 --cluster-num-jobs=%(cluster_num_jobs)i
@@ -137,7 +148,7 @@ HARDCODED_PARAMS = {
     # command to get tab-separated output from sqlite3
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
     # wrapper around non-CGAT scripts
-    'cmd-run': """%(scriptsdir)s/run.py""",
+    'cmd-run': """%(pipeline_scriptsdir)s/run.py""",
     # directory used for temporary local files
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
@@ -268,7 +279,7 @@ def getParameters(filenames=["pipeline.ini", ],
         # 1. config files into CGAT module directory?
         # 2. Pipeline.py into CGATPipelines module directory?
         filenames.insert(0,
-                         os.path.join(PIPELINE_DIR,
+                         os.path.join(CGATPIPELINES_PIPELINE_DIR,
                                       'configuration',
                                       'pipeline.ini'))
 
@@ -1557,7 +1568,7 @@ def submit(module, function, params=None,
     else:
         params = ""
 
-    statement = '''python %(scriptsdir)s/run_function.py
+    statement = '''python %(pipeline_scriptsdir)s/run_function.py
                           --module=%(module)s
                           --function=%(function)s
                           %(logfile)s
@@ -1738,7 +1749,7 @@ def peekParameters(workingdir,
     # pipeline directory if directory is not specified
     # working dir is set to "?!"
     if "config" in sys.argv or "check" in sys.argv and workingdir == "?!":
-        workingdir = os.path.join(PIPELINE_DIR,
+        workingdir = os.path.join(CGATPIPELINES_PIPELINE_DIR,
                                   snip(pipeline, ".py"))
 
     if not os.path.exists(workingdir):
@@ -2300,7 +2311,7 @@ def main(args=sys.argv):
     try:
         # this is for backwards compatibility
         # get mercurial version
-        repo = hgapi.Repo(PARAMS["scriptsdir"])
+        repo = hgapi.Repo(PARAMS["pipeline_scriptsdir"])
         version = repo.hg_id()
 
         status = repo.hg_status()
@@ -2309,7 +2320,7 @@ def main(args=sys.argv):
                 raise ValueError(
                     ("uncommitted change in code "
                      "repository at '%s'. Either commit or "
-                     "use --force-output") % PARAMS["scriptsdir"])
+                     "use --force-output") % PARAMS["pipeline_scriptsdir"])
             else:
                 E.warn("uncommitted changes in code repository - ignored ")
         version = version[:-1]
@@ -2317,7 +2328,7 @@ def main(args=sys.argv):
         # try git:
         try:
             stdout, stderr = execute(
-                "git rev-parse HEAD", cwd=PARAMS["scriptsdir"])
+                "git rev-parse HEAD", cwd=PARAMS["pipeline_scriptsdir"])
         except:
             stdout = "NA"
         version = stdout
@@ -2395,7 +2406,7 @@ def main(args=sys.argv):
                 #
                 # session_mutex = manager.Lock()
                 L.info(E.GetHeader())
-                L.info("code location: %s" % PARAMS["scriptsdir"])
+                L.info("code location: %s" % PARAMS["pipeline_scriptsdir"])
                 L.info("code version: %s" % version)
                 pipeline_run(
                     options.pipeline_targets,

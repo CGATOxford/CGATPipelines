@@ -16,7 +16,7 @@ import sqlite3
 import collections
 import pandas as pd
 import pandas.io.sql as pdsql
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import numpy as np
 from rpy2.robjects import r as R
 from rpy2.robjects.packages import importr

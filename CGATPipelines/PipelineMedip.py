@@ -10,7 +10,7 @@ import collections
 import sqlite3
 
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 import CGAT.Database as Database
 import CGAT.IOTools as IOTools

@@ -20,7 +20,7 @@ import gzip
 import sqlite3
 
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.GTF as GTF
 import CGAT.IndexedFasta as IndexedFasta
@@ -403,7 +403,7 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
     --attributes-as-columns --output-only-attributes -v 0
     | python %(toolsdir)s/csv_cut.py
     --remove exon_id transcript_id transcript_name protein_id exon_number
-    | %(scriptsdir)s/hsort 1 | uniq
+    | %(pipeline_scriptsdir)s/hsort 1 | uniq
     | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
               --add-index=gene_id
               --add-index=gene_name
@@ -437,7 +437,7 @@ def loadTranscriptInformation(infile, outfile,
     | python %(scriptsdir)s/gtf2tsv.py
     --attributes-as-columns --output-only-attributes -v 0
     | python %(toolsdir)s/csv_cut.py --remove exon_id exon_number
-    | %(scriptsdir)s/hsort 1 | uniq
+    | %(pipeline_scriptsdir)s/hsort 1 | uniq
     | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
               --add-index=transcript_id
               --add-index=gene_id

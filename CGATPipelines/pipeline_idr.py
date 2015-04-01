@@ -167,7 +167,7 @@ import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineUtilities as PU
 import CGATPipelines.PipelineIDR as IDR
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 ##########################################################################
 ##########################################################################
