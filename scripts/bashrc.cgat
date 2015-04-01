@@ -21,7 +21,8 @@ export LC_ALL
 USER=`whoami`
 export USER
 
-# add CGAT path
+# add CGAT Pipelines scripts directory to PATH
+# by taking location of this script (bashrc.cgat)
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 PATH=$DIR:$PATH

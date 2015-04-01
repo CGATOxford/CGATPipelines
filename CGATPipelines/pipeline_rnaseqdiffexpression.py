@@ -478,7 +478,7 @@ def runCuffdiff(infiles, outfile):
     options = PARAMS["cuffdiff_options"] + \
         " --library-type %s" % PARAMS["cufflinks_library_type"]
 
-    Expression.runCuffdiff(bamfiles,
+    PipelineRnaseq.runCuffdiff(bamfiles,
                            design_file,
                            geneset_file,
                            outfile,
@@ -509,7 +509,7 @@ def loadCuffdiff(infile, outfile):
 
     '''
 
-    Expression.loadCuffdiff(infile, outfile)
+    PipelineRnaseq.loadCuffdiff(infile, outfile)
 
 
 @follows(mkdir(os.path.join(PARAMS["exportdir"], "cuffdiff")))
