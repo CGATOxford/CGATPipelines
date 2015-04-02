@@ -59,17 +59,11 @@ Glossary
    liftover
       ucsc_ tool to convert coordinates between assemblies
 
-.. _ucsc: http://genome.ucsc.edu/
-
-
 .. todo::
    * make the merging step optional. Currently overlapping intervals are merged.
 
-
 Code
 ====
-
-
 
 """
 import sys

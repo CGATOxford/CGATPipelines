@@ -1,86 +1,108 @@
 .. _contents:
 
-=====================================
-Welcome to the CGAT code collection
-=====================================
+==================================================================
+CGATPipelines |version| - NGS and Genomics pipelines
+==================================================================
 
 This document brings together the various pipelines and scripts
 written before and during CGAT. This documentation has two
 parts. Below is the general documentation covering the complete
-code collection. A different view on the code collection centering
-on the scripts published in 
-`Bioinformatics <http://www.ncbi.nlm.nih.gov/pubmed/24395753>`_ is
-:ref:`here <cgat>`.
+code collection. 
 
 Overview
 ========
 
-The CGAT code collection has grown out of the work in comparative genomics
-by the Ponting group in the last decade. Now, CGAT has added
-functionality to do next-generation sequencing analysis. 
+The CGAT pipeline collection has grown out of the work in comparative
+genomics by the `Ponting
+<http://www.dpag.ox.ac.uk/team/group-leaders/chris-ponting>`_ group in
+the last decade. Now, CGAT_ has added functionality for
+next-generation sequencing analysis (NGS).
 
-The collection has three major components, these are directories in 
-the package.
-
-* :ref:`scripts`
-  A collection of useful scripts for genomics and NGS analysis
-
-* :ref:`modules`
-  A collection of modules with utility functions for genomics and NGS analysis.
-  
-* :ref:`pipelines`
-  A collection of pipelines for common workflows in genomics and NGS analysis.
-
-Scripts and modules
-===================
-
-The CGAT code collection is as set of tools and modules for genomics.
-Most of these scripts are written in python. The tools are grouped by topic:
-
-.. toctree::
-   :maxdepth: 2
-
-   scripts.rst
-   modules.rst
+CGAT pipelines perform basic tasks, are fairly generic and might be of
+wider interest.
 
 .. _cgatpipelines:
 
-CGAT Pipelines
-==============
+Active Pipelines
+================
 
-CGAT pipelines perform basic tasks, are fairly generic and might be of wider interest. 
+The pipelines in this section are being used and maintained.
 
-.. toctree::
-   :maxdepth: 2
-
-   Pipelines.rst
-
-Developer's guide
-=================
+NGS Pipelines
+-------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1	
 
-   developing.rst
-   testing.rst
-   styleguide.rst
-   documenting.rst
-   pipelines.rst
-   release.rst
-   galaxy.rst
+   pipeline_readqc: Read QC and processing before mapping <pipelines/pipeline_readqc.rst>
+   pipeline_mapping: Short read mapping and QC <pipelines/pipeline_mapping.rst>
+   pipeline_rnaseqtranscripts: RNA-seq transcript construction <pipelines/pipeline_rnaseqtranscripts.rst>
+   pipeline_rnaseqdiffexpression: RNA-seq differential expression <pipelines/pipeline_rnaseqdiffexpression.rst>
+   pipline_rnaseqlncrna: RNA-seq lncRNA analysis <pipelines/pipeline_rnaseqlncrna.rst>
+   pipeline_peakcalling: ChIP-seq Peak calling <pipelines/pipeline_peakcalling.rst>
+   pipeline_windows: Genomic read distribution <pipelines/pipeline_windows.rst>
+   pipeline_exome: Exome-seq <pipelines/pipeline_exome.rst>
 
-Glossary
-========
+Genomics Pipelines
+------------------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1	
 
-   glossary.rst   
+   pipeline_annotations: Building genomic annotations <pipelines/pipeline_annotations.rst>
+   pipeline_intervals: Annotating genomic intervals <pipelines/pipeline_intervals.rst>
+   pipeline_ancestral_repeats: Deriving ancestral repeats <pipelines/pipeline_ancestral_repeats.rst>
+   pipeline_chains: Processing genomic alignments <pipelines/pipeline_chains.rst>
+   pipeline_liftover: Mapping genomic features <pipelines/pipeline_liftover.rst>
+
+Meta pipelines
+--------------
+
+.. toctree::
+   :maxdepth: 1	
+
+   pipeline_testing: Regression testing of pipelines <pipelines/pipeline_testing.rst>
+
+Other Pipelines
+===============
+
+.. toctree::
+   :maxdepth: 1
+
+   CGATPipelines.rst
+
+Background
+==========
+
+.. toctree::
+   :maxdepth: 1
+
+   InstallingPipelines.rst
+   UsingPipelines.rst
+   BuildingPipelines.rst
+   PipelineReports.rst
+   PipelinesBackground.rst   
+   Release.rst
+
+For information on how to contribute to the pipeline collection,
+please see the `CGAT code collection
+<https://www.cgat.org/downloads/public/cgat/documentation/>`_.
+
+Reference
+=========
+
+This section contains a reference to the complete contents
+of the pipeline collection.
+
+.. toctree::
+   :maxdepth: 1
+
+   Reference.rst
 
 Disclaimer
 ==========
 
-The collection of scripts and tools is the outcome of 10 years working in various 
+This collection of pipelines is the outcome of 10 years working in various 
 fields in bioinformatics. It contains both the good, the bad and the ugly. 
 Use at your own risk.
 

@@ -158,7 +158,7 @@ Building pipeline reports
 
 Some of the pipelines are associated with an automated report generator to display
 summary information as a set of nicely formatted html pages. In order to
-build the documentation, drop the appropriate :file:`conf.py` and :file:`sphinxreport.ini`
+build the documentation, drop the appropriate :file:`conf.py` and :file:`cgatreport.ini`
 configuration files into the :term:`working directory` and run the pipeline command:
 
    nice -19 pipeline_<name>.py make build_report
@@ -166,14 +166,14 @@ configuration files into the :term:`working directory` and run the pipeline comm
 This will create the report from scratch in the current directory. The report can
 be viewed opening the file :file:`<work>/report/html/contents.html` in your browser.
 
-Sphinxreport is quite powerful, but also runs quite slowly on large projects that
+CGATReport is powerful and can take its time on large projects that
 need to generate a multitude of plots and tables. In order to speed up this process,
-there are some advanced features that Sphinxreport offers:
+there are some advanced features that CGATReport offers:
 
    * caching of results
    * multiprocessing
    * incremental builds
    * separate build directory
 
-Please see the sphinxreport_ documentation for more information.
+Please see the CGATReport_ documentation for more information.
 

@@ -1,23 +1,19 @@
-
-"""====================
+"""
+======================
 Exome Cancer pipeline
-====================
+======================
 
 :Author: Tom Smith
 :Release: $Id$
 :Date: |today|
 :Tags: Python
 
-###########
-To do:
+.. todo::
 
-Document fully
-make phone home/key option work - GATK public key?
-Summarise Indel calling (size of indels called)
-Example
-
-######
-
+   Document fully
+   make phone home/key option work - GATK public key?
+   Summarise Indel calling (size of indels called)
+   Example
 
 The exome cancer pipeline imports unmapped reads from matched sample fastqs or
 sra files and aligns them to the genome using BWA.  Post alignment

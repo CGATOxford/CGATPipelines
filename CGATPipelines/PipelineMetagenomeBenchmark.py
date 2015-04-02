@@ -1,3 +1,7 @@
+"""PipelineMetagenomeBenchmark.py
+======================================
+"""
+
 import os
 import collections
 import sqlite3

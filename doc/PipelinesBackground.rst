@@ -60,5 +60,5 @@ tools to build a pipeline:
 
    * ruffus_ to control the main computational steps
    * sqlite_ to store the results of the computational steps
-   * sphinxreport_ to visualize the data in the sqlite database
+   * CGATReport_ to visualize the data in the sqlite database
 

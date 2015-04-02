@@ -1,4 +1,6 @@
-'''
+'''PipelineMetagenomeCommunities.py
+=======================================
+
 classes and utility functions for pipeline_metagenomecommunities.py
 
 Different assembly tools will use different inputs. Some can take
@@ -9,16 +11,10 @@ paired-end (in the same or different files) or single end
 
 import os
 import collections
-import shutil
 
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
-import CGAT.FastaIterator as FastaIterator
-import CGAT.Fastq as Fastq
-import glob
-import CGAT.Metaphlan as Metaphlan
-import numpy as np
 from rpy2.robjects import r as R
 import CGAT.GTF as GTF
 

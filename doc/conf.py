@@ -37,8 +37,13 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.pngmath', 
               'sphinx.ext.ifconfig',
 	      'sphinx.ext.inheritance_diagram',
-	      'sphinxcontrib.programoutput',
-	      'sphinx.ext.intersphinx' ]
+              'CGATReport.only_directives',
+              'CGATReport.report_directive',
+              'CGATReport.errors_directive',
+              'CGATReport.warnings_directive',
+              'CGATReport.roles',
+              'sphinxcontrib.programoutput',
+              'sphinx.ext.intersphinx' ]
 
 intersphinx_mapping = {'python': ('http://docs.python.org/2.7', None)}
 
@@ -82,7 +87,7 @@ rst_epilog = '''
 .. _pyximport: http://www.prescod.net/pyximport/
 .. _sphinx: http://sphinx-doc.org/
 .. _ruffus: http://www.ruffus.org.uk/
-.. _sphinxreport: http://code.google.com/p/sphinx-report/
+.. _cgatreport: https://github.com/AndreasHeger/CGATReport/
 .. _sqlite: http://www.sqlite.org/
 .. _make: http://www.gnu.org/software/make
 .. _UCSC: http://genome.ucsc.edu
@@ -97,6 +102,7 @@ rst_epilog = '''
 .. _git: http://git-scm.com/
 .. _sge: http://wikis.sun.com/display/GridEngine/Home
 .. _alignlib: https://github.com/AndreasHeger/alignlib
+.. _ipython: http://ipython.org
 '''
 
 sys.path.insert(0, "../scripts")

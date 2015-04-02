@@ -33,7 +33,7 @@ import os
 import sys
 import re
 import CGAT.Experiment as E
-from CGAT.Local import getMakefiles, getScripts
+from CGATPipelines.Local import getMakefiles
 
 
 class Parameter:

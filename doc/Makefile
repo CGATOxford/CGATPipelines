@@ -12,8 +12,7 @@ PAPEROPT_letter = -D latex_paper_size=letter
 ALLSPHINXOPTS   = -d _build/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 
 DIR_PUBLISH=/ifs/public/cgat/documentation
-URL_SUB="s/\/ifs\/devel\/cgat\/doc/http:\/\/www.cgat.org\/downloads\/public\/cgat\/documentation/"                                                                                  
-
+URL_SUB="s/\/ifs.*/CGATPipelines\/doc/http:\/\/www.cgat.org\/downloads\/public\/cgatpipelines\/documentation/"                                                                                  
 .PHONY: help clean html dirhtml pickle json htmlhelp qthelp latex changes linkcheck doctest
 
 help:
@@ -33,20 +32,9 @@ clean:
 	-rm -rf _build/*
 	-rm -f _static/*.svg *.dot
 
-_static/toolmap.svg:
-	@echo building toolmap
-	python ../scripts/cgat2dot.py \
-		../scripts/bam2*.py ../scripts/bed2*.py \
-		../scripts/gtf2*.py ../scripts/gff2*.py \
-		../scripts/fastq2*.py ../scripts/fastqs2*.py \
-		--log=toolmap.log \
-	> toolmap.dot
-	-mkdir _static
-	neato -Tsvg toolmap.dot > $@
-
 # remove the pyc file - otherwise errors when importing pipeline and other scripts
-html: _static/toolmap.svg
-	rm -f ../{CGAT,CGATPipelines,scripts}/*.pyc
+html:
+	rm -f ../{CGATPipelines,scripts}/*.pyc
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) _build/html
 	@echo
 	@echo "Build finished. The HTML pages are in _build/html."
@@ -105,12 +93,12 @@ doctest:
 	      "results in _build/doctest/output.txt."
 
 publish:
-	-mkdir -p $(DIR_PUBLISH)																													  
-	@echo "copying data"																													      
-	rsync --size-only -acvz _build/html/ $(DIR_PUBLISH)																									   
-	@echo "setting permissions"																												      
-	chmod -R a+x $(DIR_PUBLISH)																												      
-	chmod -R a+r $(DIR_PUBLISH)																												      
-	@echo "fixing URLs"																														
+	-mkdir -p $(DIR_PUBLISH)
+	@echo "copying data"
+	rsync --size-only -acvz _build/html/ $(DIR_PUBLISH)
+	@echo "setting permissions"
+	chmod -R a+x $(DIR_PUBLISH)
+	chmod -R a+r $(DIR_PUBLISH)
+	@echo "fixing URLs"
 	find $(DIR_PUBLISH)/ -name "*.html" -exec \
 		perl -p -i -e $(URL_SUB) {} \;	

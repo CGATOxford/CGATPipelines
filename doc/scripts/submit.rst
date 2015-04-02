@@ -1,5 +1,5 @@
 
 .. automodule:: submit
 
-.. program-output:: python ../scripts/submit.py --no-usage --help
+.. program-output:: python ../scripts/submit.py --help
 

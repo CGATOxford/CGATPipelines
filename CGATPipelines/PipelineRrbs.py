@@ -1,6 +1,6 @@
 '''
 PipelineRrbs.py - Utility functions for analysing rrbs sequence data
-==============================================================
+=====================================================================
 
 :Author: Tom Smith
 :Release: $Id$
@@ -54,7 +54,7 @@ import CGAT.IndexedFasta as IndexedFasta
 import CGAT.Fasta as Fa
 import pysam
 import pandas as pd
-from CGAT.Pipeline import cluster_runnable
+from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
 import pandas.rpy.common as com
 from rpy2.robjects import r

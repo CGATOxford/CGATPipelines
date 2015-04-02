@@ -1,4 +1,3 @@
-
 ##########################################################################
 #
 #   MRC FGU Computational Genomics Group
@@ -194,7 +193,7 @@ Sample = PipelineTracks.AutoSample
 
 # define tracks based on all samples in .bamfile that are not input or index
 TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
-    glob.glob(os.path.join(PARAMS["location_bamfiles"], "*.bam")),
+    glob.glob(os.path.join(PARAMS.get("location_bamfiles", ""), "*.bam")),
     "(\S+).bam",
     exclude=[".+input.+"])
 

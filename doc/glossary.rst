@@ -1,3 +1,7 @@
+========
+Glossary
+========
+
 File formats
 =============
 
@@ -118,9 +122,6 @@ Other terms
 
     task
         pass
-
-    sphinxreport
-        sphinxreport
 
     query
         pass

@@ -4,9 +4,9 @@
 Writing pipeline reports
 ========================
 
-CGAT pipelines use SphinxReport_ to report the outcome of a pipeline
+CGAT pipelines use CGATReport_ to report the outcome of a pipeline
 run. Conceptually, the workflow is that a CGAT pipeline creates data
-and uploads it into a database. SphinxReport_ then creates a report
+and uploads it into a database. CGATReport_ then creates a report
 from the database.
 
 Background
@@ -14,7 +14,7 @@ Background
 
 .. todo::
 
-   Some text here about why sphinxreport
+   Some text here about why CGATReport
 
 Advanced topics
 ===============
@@ -38,7 +38,7 @@ inclusion of sections of the report depending on the mapper chosen::
     	app.add_config_value('MAPPERS', '', True)
 
     # Set the value of custom configuration variables
-    import CGAT.Pipeline as P
+    import CGATPipelines.Pipeline as P
     P.getParameters(
 	["%s/pipeline.ini" % os.path.splitext(__file__)[0],
 	     "../pipeline.ini",
@@ -89,7 +89,7 @@ Referring to other reports
 
 
 The intersphinx_ extension permits referring to other
-sphinxreport documents. To use this extension you will need to include
+CGATReport_ documents. To use this extension you will need to include
 the intersphinx_ extension in your :file:`conf.py` configuration file::
 
     # add sphinx.ext.ifconfig to the list of extensions
@@ -115,7 +115,7 @@ Next, you can add a section called ``intersphinx`` to
 	 }
 
    The benefit of using :file:`pipeline.ini` is that when a report is
-   published :doc:`modules.Pipeline` is aware of the links and will
+   published :doc:`pipelinemodules.Pipeline` is aware of the links and will
    update the file URLs to web URLs.
    	
 This will link to three other reports. The three reports are

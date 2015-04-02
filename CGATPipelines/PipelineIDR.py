@@ -1,3 +1,7 @@
+'''PipelineIDR.py
+========================
+'''
+
 import os
 import re
 import pysam
@@ -6,12 +10,6 @@ import random
 import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineTracks as PipelineTracks
-
-###############################################################################
-###############################################################################
-###############################################################################
-# Pre Process bamfiles
-###############################################################################
 
 
 def splitBam(infile, outfile_stub, params):

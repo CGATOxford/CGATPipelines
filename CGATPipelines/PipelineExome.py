@@ -30,7 +30,7 @@ Code
 import os
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
-from CGAT.Pipeline import cluster_runnable
+from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
 import pandas as pd
 import CGAT.CSV as csv
