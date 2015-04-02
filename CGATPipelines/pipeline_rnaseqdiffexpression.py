@@ -479,13 +479,13 @@ def runCuffdiff(infiles, outfile):
         " --library-type %s" % PARAMS["cufflinks_library_type"]
 
     PipelineRnaseq.runCuffdiff(bamfiles,
-                           design_file,
-                           geneset_file,
-                           outfile,
-                           threads=PARAMS.get("cuffdiff_threads", 4),
-                           cuffdiff_options=options,
-                           fdr=PARAMS["cuffdiff_fdr"],
-                           mask_file=mask_file)
+                               design_file,
+                               geneset_file,
+                               outfile,
+                               threads=PARAMS.get("cuffdiff_threads", 4),
+                               cuffdiff_options=options,
+                               fdr=PARAMS["cuffdiff_fdr"],
+                               mask_file=mask_file)
 
 #########################################################################
 #########################################################################
@@ -1152,29 +1152,30 @@ def runDESeq2(infiles, outfile):
     design_file, count_file = infiles
     track = P.snip(outfile, ".tsv.gz")
 
-    statement = ("python %(scriptsdir)s/runExpression.py"
-                 " --method=deseq2"
-                 " --outfile=%(outfile)s"
-                 " --output-filename-pattern=%(track)s_"
-                 " --fdr=%(deseq2_fdr)f"
-                 " --tags-tsv-file=%(count_file)s"
-                 " --design-tsv-file=%(design_file)s"
-                 " --deseq2-design-formula=%(deseq2_model)s"
-                 " --deseq2-contrasts=%(deseq2_contrasts)s"
-                 " --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i"
-                 " --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i"
-                 " --filter-percentile-rowsums=%(deseq2_filter_percentile_rowsums)i"
-                 " > %(outfile)s.log")
+    statement = (
+        "python %(scriptsdir)s/runExpression.py"
+        " --method=deseq2"
+        " --outfile=%(outfile)s"
+        " --output-filename-pattern=%(track)s_"
+        " --fdr=%(deseq2_fdr)f"
+        " --tags-tsv-file=%(count_file)s"
+        " --design-tsv-file=%(design_file)s"
+        " --deseq2-design-formula=%(deseq2_model)s"
+        " --deseq2-contrasts=%(deseq2_contrasts)s"
+        " --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i"
+        " --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i"
+        " --filter-percentile-rowsums=%(deseq2_filter_percentile_rowsums)i"
+        " > %(outfile)s.log")
     P.run()
 
 
 @transform(runDESeq2, suffix(".tsv.gz"), "_deseq2.load")
 def loadDESeq2(infile, outfile):
-    """
-    Generate globally adjusted pvalue for all contrasts in a design.
-    To avoid confusion, drop the DESeq2 generated padj, which is for single contrast.
-    Load table
-    NB. Empty pvalues are due to DESeq2's default outlier detection
+    """Generate globally adjusted pvalue for all contrasts in a design.
+    To avoid confusion, drop the DESeq2 generated padj, which is for
+    single contrast.  Load table NB. Empty pvalues are due to DESeq2's
+    default outlier detection
+
     """
     # get R p.adjust
     rstats = importr("stats")
@@ -1203,8 +1204,6 @@ def loadDESeq2(infile, outfile):
     P.run()
 
     os.unlink(tmpf)
-
-###############################################################################
 
 
 @follows(loadCufflinks,

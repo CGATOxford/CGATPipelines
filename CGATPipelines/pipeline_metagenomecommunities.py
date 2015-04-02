@@ -668,9 +668,9 @@ def mergeKrakenCountsAcrossSamples(infiles, outfiles):
             "counts.dir/*.%(level)s.kraken.counts.tsv.gz" % locals())
         prefixes = ",".join(
             [P.snip(
-                    os.path.basename(x),
-                    ".%(level)s.kraken.counts.tsv.gz" % locals()
-                    ) for x in prefixes])
+                os.path.basename(x),
+                ".%(level)s.kraken.counts.tsv.gz" % locals()
+            ) for x in prefixes])
 
         outname = os.path.join(
             "counts.dir", level + ".kraken.aggregated.counts.tsv.gz")
@@ -1226,7 +1226,7 @@ def countAlignments(infiles, outfile):
 
     # assume that files are named without any other R[0-9]
     track = os.path.basename(re.match(
-            "(.*-R[0-9]).(.*.counts.load)", infile).groups()[0])
+        "(.*-R[0-9]).(.*.counts.load)", infile).groups()[0])
     table = P.toTable(infile)
 
     # connect to database
@@ -1242,9 +1242,9 @@ def countAlignments(infiles, outfile):
 
     outf = open(outfile, "w")
     outf.write("total_reads\taligned_reads\tpaligned_reads\n")
-    outf.write("\t".join(map(
-                str, [nreads, alignments, (float(alignments)/nreads)*100])) +
-               "\n")
+    outf.write("\t".join(
+        map(str,
+            [nreads, alignments, (float(alignments)/nreads)*100])) + "\n")
     outf.close()
 
 ###################################################################
@@ -1333,9 +1333,9 @@ def runMetagenomeSeq(infile, outfile):
             infile = temp.name
 
     statement = '''%(rscript)s %(rscriptsdir)s/run_metagenomeseq.R
-                   -c %(infile)s 
+                   -c %(infile)s
                    -p %(prefix)s
-                   --k %(k)i 
+                   --k %(k)i
                    --a %(a)f > %(outfile)s.log'''
 
     P.run()

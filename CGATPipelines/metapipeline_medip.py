@@ -7,8 +7,8 @@ MeDIP pipeline - Meta
 :Date: |today|
 :Tags: Python
 
-Meta pipeline for :doc:`pipeline_medip`. A meta pipeline analysis the output of multiple
-runs of the same pipeline.
+Meta pipeline for :doc:`pipeline_medip`. A meta pipeline analysis the
+output of multiple runs of the same pipeline.
 
 Methods
 =======
@@ -18,7 +18,8 @@ Methods
 Usage
 =====
 
-See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general information how to use CGAT pipelines.
+See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general
+information how to use CGAT pipelines.
 
 Configuration
 -------------
@@ -56,7 +57,7 @@ Code
 # load modules
 from ruffus import *
 
-import Experiment as E
+import CGAT.Experiment as E
 import logging as L
 import sys
 import os

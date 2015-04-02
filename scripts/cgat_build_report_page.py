@@ -2,7 +2,7 @@
 cgat_build_report_page.py - build report page for all projects
 =======================================================================
 
-:Author: 
+:Author: Andreas Heger
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -10,15 +10,16 @@ cgat_build_report_page.py - build report page for all projects
 Purpose
 -------
 
-This script scans all of :file:`/ifs/projects/sftp` for :file:`index.html` files 
-and outputs an html formatted summary table into :file:`/ifs/projects/overview`.
+This script scans all of :file:`/ifs/projects/sftp` for
+:file:`index.html` files and outputs an html formatted summary table
+into :file:`/ifs/projects/overview`.
 
 Usage
 -----
 
 Example::
 
-   python cgat_build_report_page.py 
+   python cgat_build_report_page.py
 
 Type::
 
@@ -34,7 +35,6 @@ Command line options
 import os
 import sys
 import re
-import optparse
 import subprocess
 
 import CGAT.Experiment as E
@@ -51,7 +51,7 @@ def main(argv=None):
         argv = sys.argv
 
     # setup command line parser
-    parser = E.OptionParser(version="%prog version: $Id: cgat_script_template.py 2871 2010-03-03 10:20:44Z andreas $",
+    parser = E.OptionParser(version="%prog version: $Id",
                             usage=globals()["__doc__"])
 
     parser.add_option("-p", "--path", dest="path", type="string",
@@ -82,7 +82,7 @@ def main(argv=None):
 
     outfile = IOTools.openFile(os.path.join(options.dest, "index.html"), "w")
 
-    outfile.write( '''
+    outfile.write('''
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
   "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
@@ -111,15 +111,15 @@ def main(argv=None):
  <div class="section" id="cgat-pipelines">
 <H1>CGAT exported project pages</H1>
 
-<p>
-This page is for internal use only. Do not distribute outside of CGAT and 
-do not make this page available on the world wide web.
+<p> 
+This page is for internal use only. Do not distribute outside of
+CGAT and do not make this page available on the world wide web.
 </p>
 
-<table class="sortable">\n''' )
+<table class="sortable">\n''')
 
     outfile.write(
-        '''<tr><th>Project</th><th>Report</th><th>Title</th></tr>\n''' )
+        '''<tr><th>Project</th><th>Report</th><th>Title</th></tr>\n''')
 
     for f in files:
         if f == '':
@@ -143,7 +143,7 @@ do not make this page available on the world wide web.
         outfile.write(
             '<tr><td>%(proj)s</td><td><a HREF="%(url)s">%(report)s</td><td>%(title)s</td></tr>\n' % locals())
 
-    outfile.write( '''
+    outfile.write('''
 </table>
 
 </div>
@@ -164,7 +164,7 @@ do not make this page available on the world wide web.
 
 
 </body>
-</html>\n''' )
+</html>\n''')
 
     outfile.close()
 

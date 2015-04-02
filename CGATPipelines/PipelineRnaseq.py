@@ -117,7 +117,7 @@ def buildUTRExtension(infile, outfile):
 
     Parameter estimation
 
-    Parameters are derived from known UTRs within full length 
+    Parameters are derived from known UTRs within full length
     territories.
 
     Transitions and emissions for the otherTranscript state
@@ -137,7 +137,7 @@ def buildUTRExtension(infile, outfile):
 
     The method could be improved.
 
-        * base level resolution? 
+        * base level resolution?
             * longer chains result in more data and longer running times.
             * the averaging in windows smoothes the data, which might have
                 a beneficial effect.
@@ -182,7 +182,8 @@ def buildUTRExtension(infile, outfile):
         parts = os.path.basename(filename).split(".")
 
         data = R(
-            '''data = read.table( gzfile( "%(filename)s"), header=TRUE, fill=TRUE, row.names=1)''' % locals())
+            '''data = read.table(gzfile( "%(filename)s"), header=TRUE,
+            fill=TRUE, row.names=1)''' % locals())
 
         ##########################################
         ##########################################
@@ -197,11 +198,13 @@ def buildUTRExtension(infile, outfile):
         R('''d = d[-c(1,2)]''')
         # remove those which are completely empty, logtransform or scale data
         # and export
-        R('''lraw = log10( d[-which( apply(d,1,function(x)all(x==0))),] + 1 )''')
+        R('''lraw = log10(
+        d[-which(apply(d, 1, function(x)all(x==0))),] + 1)''')
 
         utrs = R('''utrs = utrs[-which( apply(d,1,function(x)all(x==0)))]''')
         scaled = R(
-            '''lscaled = t(scale(t(lraw), center=FALSE, scale=apply(lraw,1,max)))''')
+            '''lscaled = t(scale(t(lraw), center=FALSE,
+            scale=apply(lraw,1,max)))''')
         exons = R('''lraw[,1]''')
 
         #######################################################
@@ -249,7 +252,8 @@ def buildUTRExtension(infile, outfile):
         transitions[2][1] = 900
         transitions[2][2] = 100
 
-        E.info("counting: (n,mean): within utr=%i,%f, outside utr=%i,%f, otherTranscript=%i,%f" %
+        E.info("counting: (n,mean): within utr=%i,%f, "
+               "outside utr=%i,%f, otherTranscript=%i,%f" %
                (len(within_utr), numpy.mean(within_utr),
                 len(outside_utr), numpy.mean(outside_utr),
                 len(otherTranscript), numpy.mean(otherTranscript)))
@@ -273,7 +277,8 @@ def buildUTRExtension(infile, outfile):
         fit_outside_utr = R(
             '''fit_outside_utr = suppressMessages(doFit( outside_utr))''')
         fit_other = R(
-            '''fit_otherTranscript = suppressMessages(doFit( otherTranscript))''')
+            '''fit_otherTranscript = suppressMessages(
+            doFit(otherTranscript))''')
 
         within_a, within_b = list(fit_within_utr.rx("estimate"))[0]
         outside_a, outside_b = list(fit_outside_utr.rx("estimate"))[0]
@@ -290,15 +295,18 @@ def buildUTRExtension(infile, outfile):
         R('''x=seq(0,1,0.02)''')
         R('''hist( within_utr, 50, col=rgb( 0,0,1,0.2) )''')
         R('''par(new=TRUE)''')
-        R('''plot( x, dbeta( x, fit_within_utr$estimate['shape1'], fit_within_utr$estimate['shape2']), type='l', col='blue')''')
+        R('''plot(x, dbeta(x, fit_within_utr$estimate['shape1'],
+        fit_within_utr$estimate['shape2']), type='l', col='blue')''')
 
         R('''hist( outside_utr, 50, col=rgb( 1,0,0,0.2 ) )''')
         R('''par(new=TRUE)''')
-        R('''plot( x, dbeta( x, fit_outside_utr$estimate['shape1'], fit_outside_utr$estimate['shape2']), type='l', col='red')''')
+        R('''plot( x, dbeta( x, fit_outside_utr$estimate['shape1'],
+        fit_outside_utr$estimate['shape2']), type='l', col='red')''')
 
         R('''hist( otherTranscript, 50, col=rgb( 0,1,0,0.2 ) )''')
         R('''par(new=TRUE)''')
-        R('''plot( x, dbeta( x, fit_otherTranscript$estimate['shape1'], fit_otherTranscript$estimate['shape2']), type='l', col='green')''')
+        R('''plot( x, dbeta( x, fit_otherTranscript$estimate['shape1'],
+        fit_otherTranscript$estimate['shape2']), type='l', col='green')''')
         R['dev.off']()
 
         #####################################################
@@ -309,11 +317,11 @@ def buildUTRExtension(infile, outfile):
         # state 2 = notUTR
         # state 3 = other transcript
         p = R('''betaparams = list( shape1=c(fit_within_utr$estimate['shape1'],
-                                         fit_outside_utr$estimate['shape1'],
-                                         fit_otherTranscript$estimate['shape1']),
-                                shape2=c(fit_within_utr$estimate['shape2'],
-                                         fit_outside_utr$estimate['shape2'],
-                                         fit_otherTranscript$estimate['shape2'])) ''')
+        fit_outside_utr$estimate['shape1'],
+        fit_otherTranscript$estimate['shape1']),
+        shape2=c(fit_within_utr$estimate['shape2'],
+        fit_outside_utr$estimate['shape2'],
+        fit_otherTranscript$estimate['shape2'])) ''')
         R('''hmm = dthmm(NULL, transitions, c(1,0,0), "beta", betaparams )''')
 
         E.info("fitting starts")
@@ -387,11 +395,12 @@ def buildUTRExtension(infile, outfile):
 
     outf = IOTools.openFile(outfile, "w")
 
-    outf.write("\t".join(["gene_id", "contig", "strand", "status5", "status3"] +
-                         ["%s_%s_%s" % (x, y, z) for x, y, z in itertools.product(
-                             ("old", "new", "max"),
-                             ("5utr", "3utr"),
-                             ("length", "start", "end"))]) + "\n")
+    outf.write("\t".join(
+        ["gene_id", "contig", "strand", "status5", "status3"] +
+        ["%s_%s_%s" % (x, y, z) for x, y, z in itertools.product(
+            ("old", "new", "max"),
+            ("5utr", "3utr"),
+            ("length", "start", "end"))]) + "\n")
 
     def _write(coords, strand):
 
@@ -496,7 +505,8 @@ def plotGeneLevelReadExtension(infile, outfile):
         parts = os.path.basename(filename).split(".")
 
         data = R(
-            '''data = read.table( gzfile( "%(filename)s"), header=TRUE, fill=TRUE, row.names=1)''' % locals())
+            '''data = read.table(gzfile("%(filename)s"),
+            header=TRUE, fill=TRUE, row.names=1)''' % locals())
 
         ##########################################
         ##########################################
@@ -511,11 +521,12 @@ def plotGeneLevelReadExtension(infile, outfile):
         R('''d = d[-c(1,2)]''')
         # remove those which are completely empty, logtransform or scale data
         # and export
-        R('''lraw = log10( d[-which( apply(d,1,function(x)all(x==0))),] + 1 )''')
+        R('''lraw = log10(d[-which( apply(d,1,function(x)all(x==0))),] + 1)''')
 
         utrs = R('''utrs = utrs[-which( apply(d,1,function(x)all(x==0)))]''')
         scaled = R(
-            '''lscaled = t(scale(t(lraw), center=FALSE, scale=apply(lraw,1,max) ))''')
+            '''lscaled = t(scale(t(lraw), center=FALSE,
+            scale=apply(lraw,1,max)))''')
         exons = R('''lraw[,1]''')
 
         if len(utrs) == 0:
@@ -532,11 +543,12 @@ def plotGeneLevelReadExtension(infile, outfile):
                   xlab = "", ylab = "",
                   col=brewer.pal(9,"Greens"),
                   axes=FALSE)
-           # axis(BELOW<-1, at=1:nrow(oreads), labels=rownames(oreads), cex.axis=0.7)
+           # axis(BELOW<-1, at=1:nrow(oreads), labels=rownames(oreads),
+           # cex.axis=0.7)
            par(new=TRUE)
-           plot( outrs, 1:length(outrs), yaxs="i", xaxs="i", 
-                 ylab="genes", xlab="len(utr) / bp", 
-                 type="S", 
+           plot( outrs, 1:length(outrs), yaxs="i", xaxs="i",
+                 ylab="genes", xlab="len(utr) / bp",
+                 type="S",
                  xlim=c(0,nrow(oreads)*%(binsize)i))
         }''' % locals())
 
@@ -1039,7 +1051,6 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
         infile = os.path.join(indir, fn)
         results = parseCuffdiff(infile,
                                 min_fpkm=min_fpkm)
-
 
         Expression.writeExpressionResults(tmpname, results)
 

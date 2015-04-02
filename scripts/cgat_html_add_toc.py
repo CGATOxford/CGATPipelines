@@ -36,8 +36,8 @@ import os
 import re
 import sys
 import time
-import getopt
 import StringIO
+import getopt
 from types import *
 
 

@@ -753,8 +753,7 @@ def mergeIntervalsWithScores(infile, outfile, dist, method):
             elif method == "length_weighted_mean":
                 length1 = end - start
                 length2 = last_end - last_start
-                newscore = ((
-                    (score * length1) + (last_score * length2)) /
+                newscore = (((score * length1) + (last_score * length2)) /
                             (length1 + length2))
             elif method == "max":
                 newscore = max(last_score, score)
@@ -770,10 +769,6 @@ def mergeIntervalsWithScores(infile, outfile, dist, method):
             last_score = int(last_score)
     intervals.close()
     merged.close()
-
-############################################################
-############################################################
-############################################################
 
 
 def intersectBedFiles(infiles, outfile):

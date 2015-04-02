@@ -1,7 +1,7 @@
 '''cgat_zap.py - replace files with empty placeholders
 ===================================================
 
-:Author:
+:Author: Andreas Heger
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -48,8 +48,8 @@ import CGAT.Experiment as E
 def main(argv=None):
     """script main.
 
-parses command line options in sys.argv, unless *argv* is given.
-"""
+    parses command line options in sys.argv, unless *argv* is given.
+    """
 
     if argv is None:
         argv = sys.argv

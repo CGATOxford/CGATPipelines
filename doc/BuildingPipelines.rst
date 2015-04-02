@@ -291,7 +291,7 @@ Reports
 =======
 
 The :meth:`Pipeline.run_report` method builds or updates reports using
-SphinxReport_. Usually, a pipeline will simply contain the following::
+CGATreport_. Usually, a pipeline will simply contain the following::
 
     @follows( mkdir( "report" ) )
     def build_report():
