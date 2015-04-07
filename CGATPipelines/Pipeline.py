@@ -204,7 +204,7 @@ def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
                   user_ini=True,
                   default_ini=True,
-                  only_import=False):
+                  only_import=None):
     '''read a config file and return as a dictionary.
 
     Sections and keys are combined with an underscore. If a key
@@ -242,24 +242,33 @@ def getParameters(filenames=["pipeline.ini", ],
     files, later configuration files will overwrite the
     settings form earlier files.
 
-    If *only_import* is set, the parameter dictionary will
-    be a defaultcollection. This is useful for pipelines
-    that are imported (for example for documentation generation)
-    but not executed and there might not be appropriate .ini
-    files available.
+    If *only_import* is set to a boolean, the parameter dictionary
+    will be a defaultcollection. This is useful for pipelines that are
+    imported (for example for documentation generation) but not
+    executed as there might not be an appropriate .ini file
+    available. If *only_import* is None, it will be set to the
+    default, which is to raise an exception unless the calling script
+    is imported or the option ``--is-test`` has been passed at the
+    command line.
 
     Path names are expanded to the absolute pathname to avoid
     ambiguity with relative path names. Path names are updated
     for parameters that end in the suffix "dir" and start with
     a "." such as "." or "../data".
+
     '''
 
     global CONFIG
     global PARAMS
+    caller_locals = getCallerLocals()
+
+    # check if this is only for import
+    if only_import is None:
+        only_import = isTest() or \
+            caller_locals["__name__"] != "__main__"
 
     # important: only update the PARAMS variable as
     # it is referenced in other modules.
-
     if only_import:
         d = collections.defaultdict(str)
         d.update(PARAMS)
@@ -965,6 +974,15 @@ def createView(dbhandle, tables, tablename, outfile, view_type="TABLE",
     E.info("created view_mapping with %i rows" % nrows)
 
     touch(outfile)
+
+
+def isTest():
+    '''return True if the pipeline is run in a "testing" mode
+    (command line options --is-test has been given).'''
+
+    # note: do not test GLOBAL_OPTIONS as this method might have 
+    # been called before main()
+    return "--is-test" in sys.argv
 
 
 def snip(filename, extension=None, alt_extension=None,
@@ -1686,7 +1704,7 @@ def clean(files, logfile):
 
 def peekParameters(workingdir,
                    pipeline,
-                   on_error_raise=True,
+                   on_error_raise=None,
                    prefix=None,
                    update_interface=False):
     '''peek configuration parameters from a *pipeline*
@@ -1705,9 +1723,23 @@ def peekParameters(workingdir,
     If *update_interface* is True, this method will also prefix any
     options in the ``[interface]`` section with *wordinkdir*.
 
+    If *on_error_raise* is set to a boolean, an error will be raised
+    (or not) if there is an error during parameter peeking, for
+    example if *workingdir* can not be found. If *on_error_raise* is
+    None, it will be set to the default, which is to raise an
+    exception unless the calling script is imported or the option
+    ``--is-test`` has been passed at the command line.
+
     Returns a dictionary of configuration values.
 
     '''
+    caller_locals = getCallerLocals()
+
+    # check if we should raise errors
+    if on_error_raise is None:
+        on_error_raise = not isTest() and \
+            caller_locals["__name__"] == "__main__"
+
     # patch - if --help or -h in command line arguments,
     # do not peek as there might be no config file.
     if "--help" in sys.argv or "-h" in sys.argv:
@@ -1730,8 +1762,7 @@ def peekParameters(workingdir,
         # in directory of calling script.
         if not os.path.exists(dirname):
             # directory is path of calling script
-            v = getCallerLocals()
-            dirname = os.path.dirname(v['__file__'])
+            dirname = os.path.dirname(caller_locals['__file__'])
 
     pipeline = os.path.join(dirname, pipeline)
     if not os.path.exists(pipeline):
@@ -2264,6 +2295,11 @@ def main(args=sys.argv):
                       help="set the level of ruffus checksums"
                       "[default=%default].")
 
+    parser.add_option("-t", "--is-test", dest="is_test",
+                      action="store_true",
+                      help="this is a test run"
+                      "[default=%default].")
+
     parser.set_defaults(
         pipeline_action=None,
         pipeline_format="svg",
@@ -2276,6 +2312,7 @@ def main(args=sys.argv):
         exceptions_terminate_immediately=False,
         debug=False,
         variables_to_set=[],
+        is_test=False,
         checksums=0)
 
     (options, args) = E.Start(parser,
@@ -2366,10 +2403,11 @@ def main(args=sys.argv):
                 '%(asctime)s %(levelname)s %(module)s.%(funcName)s.%(lineno)d %(message)s'))
         logger = logging.getLogger()
         logger.addHandler(handler)
+        messenger = None
 
         try:
             if options.pipeline_action == "make":
-                
+
                 # get tasks to be done. This essentially replicates
                 # the state information within ruffus.
                 stream = StringIO()
@@ -2378,7 +2416,7 @@ def main(args=sys.argv):
                     options.pipeline_targets,
                     verbose=5,
                     checksum_level=options.checksums)
-                
+
                 messenger = RuffusLoggingFilter(
                     stream.getvalue(),
                     project_name=getProjectName(),
@@ -2477,7 +2515,8 @@ def main(args=sys.argv):
                         task = re.sub("__main__.", "", task)
                         job = re.sub("\s", "", job)
 
-                    messenger.send_error(task, job, error, msg)
+                    if messenger:
+                        messenger.send_error(task, job, error, msg)
 
                     # display only single line messages
                     if len([x for x in msg.split("\n") if x != ""]) > 1:

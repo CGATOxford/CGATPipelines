@@ -102,7 +102,6 @@ dictionary of your own pipeline::
     PARAMS.update(P.peekParameters(
          PARAMS["annotations_dir"],
          "pipeline_annotations.py",
-         on_error_raise=__name__ == "__main__",
          prefix="annotations_"),
          update_interface=True)
 
@@ -589,8 +588,6 @@ import CGAT.Intervals as Intervals
 
 
 ###################################################
-###################################################
-###################################################
 # Pipeline configuration
 ###################################################
 PARAMS = P.getParameters(
@@ -1046,7 +1043,8 @@ def downloadTranscriptInformation(infile, outfile):
     if PARAMS["genome"].startswith("dm"):
         Database.executewait(
             dbh,
-            '''ALTER TABLE %(tablename)s ADD COLUMN uniprot_name NULL''' % locals())
+            '''ALTER TABLE %(tablename)s ADD COLUMN uniprot_name NULL''' %
+            locals())
 
     # adding final column back into transcript_info for scerevisiae genomes
     if PARAMS["genome"].startswith("sac"):
@@ -1741,7 +1739,7 @@ def createGOSlim(infile, outfile):
            suffix(".tsv.gz"),
            r"\1_assignments.load")
 def loadGOAssignments(infile, outfile):
-
+    '''load GO assignments into database.'''
     table = P.toTable(outfile)
     statement = '''
     zcat < %(infile)s

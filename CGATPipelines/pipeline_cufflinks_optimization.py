@@ -167,8 +167,7 @@ PARAMS = P.PARAMS
 
 PARAMS_ANNOTATIONS = P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
-    on_error_raise=__name__ == "__main__")
+    "pipeline_annotations.py")
 
 # get options that are to be tested
 cufflinks_options = {}

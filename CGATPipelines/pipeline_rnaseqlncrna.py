@@ -199,15 +199,13 @@ P.getParameters(
               "genesets_abinitio_lncrna": "pruned.gtf.gz",
               "genesets_reference": "reference.gtf.gz",
               "genesets_refcoding": "refcoding.gtf.gz",
-              "genesets_previous": ""},
-    only_import=__name__ != "__main__")
+              "genesets_previous": ""})
 
 PARAMS = P.PARAMS
 
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
-    on_error_raise=__name__ == "__main__",
     prefix="annotations_",
     update_interface=True))
 

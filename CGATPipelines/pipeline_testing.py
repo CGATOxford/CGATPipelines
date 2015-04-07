@@ -177,6 +177,22 @@ P.getParameters(
 PARAMS = P.PARAMS
 
 
+# obtain prerequisite generic data
+@files([(None, "%s.tgz" % x)
+        for x in P.asList(PARAMS.get("prerequisites", ""))])
+def setupPrerequisites(infile, outfile):
+
+    track = P.snip(outfile, ".tgz")
+
+    # obtain data - should overwrite pipeline.ini file
+    statement = '''
+    wget --no-check-certificate -O %(track)s.tgz %(data_url)s/%(track)s.tgz'''
+    P.run()
+
+    tf = tarfile.open(outfile)
+    tf.extractall()
+
+
 @files([(None, "%s.tgz" % x)
         for x in P.CONFIG.sections()
         if x.startswith("test")])
@@ -258,15 +274,15 @@ def runTest(infile, outfile):
         P.run()
 
 
-@follows(setupTests)
-@files([("%s.tgz" % x, "%s.log" % x)
-        for x in P.asList(PARAMS.get("prerequisites", ""))])
-def runPreparationTests(infile, outfile):
-    '''run pre-requisite pipelines.'''
-    runTest(infile, outfile)
+# @follows(setupTests)
+# @files([("%s.tgz" % x, "%s.log" % x)
+#         for x in P.asList(PARAMS.get("prerequisites", ""))])
+# def runPreparationTests(infile, outfile):
+#     '''run pre-requisite pipelines.'''
+#     runTest(infile, outfile)
 
 
-@follows(setupTests, runPreparationTests)
+@follows(setupTests, setupPrerequisites)
 @files([("%s.tgz" % x, "%s.log" % x)
         for x in P.CONFIG.sections()
         if x.startswith("test") and
@@ -276,7 +292,7 @@ def runTests(infile, outfile):
     runTest(infile, outfile)
 
 
-@transform((runPreparationTests, runTests),
+@transform(runTests,
            suffix(".log"),
            ".md5")
 def buildCheckSums(infile, outfile):
@@ -311,7 +327,7 @@ def buildCheckSums(infile, outfile):
     P.run()
 
 
-@transform((runPreparationTests, runTests),
+@transform(runTests,
            suffix(".log"),
            ".lines")
 def buildLineCounts(infile, outfile):
@@ -460,7 +476,7 @@ def loadComparison(infile, outfile):
     P.load(infile, outfile)
 
 
-@transform((runPreparationTests, runTests),
+@transform(runTests,
            suffix(".log"),
            ".report")
 def runReports(infile, outfile):

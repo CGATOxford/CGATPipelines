@@ -364,8 +364,9 @@ If a configuration variable is empty (``var=``), it will be set to
 Configuration values from another pipeline can be added in a separate
 namespace::
 
-   PARAMS_ANNOTATIONS = P.peekParameters( PARAMS["annotations_dir"],
-   		                                 "pipeline_annotations.py" )
+   PARAMS_ANNOTATIONS = P.peekParameters(
+       PARAMS["annotations_dir"],
+       "pipeline_annotations.py")
 
 The statement above will load the parameters from a
 :mod:`pipeline_annotations` pipeline with :term:`working directory`
