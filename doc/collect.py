@@ -6,28 +6,34 @@ the directory :file:`scripts`, while those starting with
 upper case characters are put into :file:`modules`.
 """
 
-TEMPLATE_SCRIPT='''
+TEMPLATE_SCRIPT = '''
 .. automodule:: %(prefix)s
 
 .. program-output:: python ../scripts/%(prefix)s.py --help
 
 '''
 
-TEMPLATE_MODULE='''
+TEMPLATE_MODULE = '''
 .. automodule:: %(prefix)s
    :members:
    :inherited-members:
    :show-inheritance:
 '''
 
-TEMPLATE_PIPELINE='''
+TEMPLATE_PIPELINE = '''
 .. automodule:: %(prefix)s
    :members:
    :inherited-members:
    :show-inheritance:
+
+.. report:: Tracker.TrackerImages
+   :render: gallery-plot
+   :glob: images/%(prefix)s.svg
+
+   Overview of tasks in pipeline
 '''
 
-TEMPLATE_PIPELINEMODULE='''
+TEMPLATE_PIPELINEMODULE = '''
 .. automodule:: %(prefix)s
    :members:
    :inherited-members:
