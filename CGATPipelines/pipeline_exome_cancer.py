@@ -30,8 +30,10 @@ using GATK.  Next variants (SNVs and indels) are called and filtered
    5a. Variant calling (SNPs) with tumour samples using muTect including
       filtering
    5b. Variant calling (indels) using Strelka
-   6. Variant annotation using SNPeff, GATK VariantAnnotator, and SnpSift
-   7. Generates report
+   6a. Variant annotation using SNPeff, GATK VariantAnnotator, and SnpSift
+   6b. Variant annotation with data from eBIO
+   6c. Load Network of Cancer Genes (NCG) for Variant annotation in reporting
+
 
 .. note::
 
@@ -380,12 +382,12 @@ def GATKpreprocessing(infile, outfile):
     outfile1 = re.sub(".bqsr", ".readgroups.bqsr", outfile)
     outfile2 = re.sub(".bqsr", ".realign.bqsr", outfile)
 
-    Exome.GATKreadGroups(infile, outfile1, genome, library, platform,
+    Exome.GATKReadGroups(infile, outfile1, genome, library, platform,
                          platform_unit)
 
-    Exome.GATKrealign(outfile1, outfile2, genome, gatk_threads)
+    Exome.GATKIndelEealign(outfile1, outfile2, genome, gatk_threads)
 
-    Exome.GATKrescore(outfile2, outfile, genome, dbsnp, solid_options)
+    Exome.GATKBaseRecal(outfile2, outfile, genome, dbsnp, solid_options)
 
     IOTools.zapFile(outfile1 + ".bam")
     IOTools.zapFile(outfile1 + ".bai")
@@ -464,7 +466,7 @@ def realignMatchedSample(infile, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.GATKrealign(infile, outfile, genome)
+    Exome.GATKIndelRealign(infile, outfile, genome)
 
     IOTools.zapFile(infile)
 
@@ -1205,6 +1207,22 @@ def loadMutectFilteringSummary(infile, outfile):
                    --table %(tablename)s --retry --ignore-empty
                    > %(outfile)s''' % locals()
     P.run()
+
+#########################################################################
+#########################################################################
+#########################################################################
+# load Network of Cancer Genes table
+
+
+# parameterise file location:
+@originate("eBio_studies.tsv")
+def defineEBioStudies(outfile):
+    ''' For the cancer types specified in pipeline.ini, identify the
+    relevent studies in eBio '''
+
+    cancer_types = PARAMS["annotation_ebio_cancer_types"].split(",")
+    print cancer_types
+
 
 #########################################################################
 #########################################################################
