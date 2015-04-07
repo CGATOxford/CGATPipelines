@@ -40,7 +40,6 @@ import sys
 import re
 import subprocess
 import collections
-import optparse
 import stat
 import tempfile
 import time
@@ -2206,8 +2205,8 @@ def main(args=sys.argv):
     global GLOBAL_ARGS
     global GLOBAL_SESSION
 
-    parser = optparse.OptionParser(version="%prog version: $Id$",
-                                   usage=USAGE)
+    parser = E.OptionParser(version="%prog version: $Id$",
+                            usage=USAGE)
 
     parser.add_option("--pipeline-action", dest="pipeline_action",
                       type="choice",
