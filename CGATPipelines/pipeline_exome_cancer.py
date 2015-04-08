@@ -155,7 +155,10 @@ import glob
 import pandas as pd
 import itertools
 import re
-import CGATPipelines.PipelineExome as Exome
+import CGATPipelines.PipelineExome as PipelineExome
+import urllib
+import collections
+from bs4 import BeautifulSoup
 USECLUSTER = True
 
 #########################################################################
@@ -173,13 +176,21 @@ def connect():
 
 
 #########################################################################
-# load options from the config file
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
-     "pipeline.ini"])
+     "pipeline.ini"],
+    defaults={
+        'paired_end': False},
+    only_import=__name__ != "__main__")
 
 PARAMS = P.PARAMS
+print "PARAMS: ", PARAMS
+
+PipelineMapping.PARAMS = PARAMS
+PipelineMappingQC.PARAMS = PARAMS
+PipelineExome.PARAMS = PARAMS
+#########################################################################
 
 
 def getGATKOptions():
@@ -189,6 +200,13 @@ def getGATKOptions():
 
 def getMuTectOptions():
     return "-l mem_free=6G"
+
+
+def makeSoup(address):
+    sock = urllib.urlopen(address)
+    htmlSource = sock.read()
+    soup = BeautifulSoup(htmlSource)
+    return soup
 
 
 #########################################################################
@@ -259,17 +277,16 @@ def mapReads(infile, outfile):
 
     job_threads = PARAMS["bwa_threads"]
     job_options = "-l mem_free=8G"
-    job_threads = 2
 
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
             remove_non_unique=PARAMS["bwa_remove_non_unique"],
-            strip_sequence=False, align_stats=True, dedup=True)
+            strip_sequence=False)
 
     elif PARAMS["bwa_algorithm"] == "mem":
         m = PipelineMapping.BWAMEM(
             remove_non_unique=PARAMS["bwa_remove_non_unique"],
-            strip_sequence=False, align_stats=True, dedup=True)
+            strip_sequence=False)
     else:
         raise ValueError("bwa algorithm '%s' not known" % algorithm)
 
@@ -382,12 +399,12 @@ def GATKpreprocessing(infile, outfile):
     outfile1 = re.sub(".bqsr", ".readgroups.bqsr", outfile)
     outfile2 = re.sub(".bqsr", ".realign.bqsr", outfile)
 
-    Exome.GATKReadGroups(infile, outfile1, genome, library, platform,
-                         platform_unit)
+    PipelineExome.GATKReadGroups(infile, outfile1, genome, library, platform,
+                                 platform_unit)
 
-    Exome.GATKIndelEealign(outfile1, outfile2, genome, gatk_threads)
+    PipelineExome.GATKIndelRealign(outfile1, outfile2, genome, gatk_threads)
 
-    Exome.GATKBaseRecal(outfile2, outfile, genome, dbsnp, solid_options)
+    PipelineExome.GATKBaseRecal(outfile2, outfile, genome, dbsnp, solid_options)
 
     IOTools.zapFile(outfile1 + ".bam")
     IOTools.zapFile(outfile1 + ".bai")
@@ -424,7 +441,8 @@ def mergeSampleBams(infile, outfile):
 
     control_id = "Control.bam"
     tumor_id = control_id.replace("Control", PARAMS["mutect_tumour"])
-    tmpdir_gatk = P.getTempDir('.')
+    # T.S delete after testing
+    #tmpdir_gatk = P.getTempDir('.')
 
     statement = '''AddOrReplaceReadGroups
                     INPUT=%(infile)s
@@ -466,7 +484,7 @@ def realignMatchedSample(infile, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.GATKIndelRealign(infile, outfile, genome)
+    PipelineExome.GATKIndelRealign(infile, outfile, genome)
 
     IOTools.zapFile(infile)
 
@@ -565,8 +583,8 @@ def callControlVariants(infile, outfile):
                       PARAMS["gatk_dbsnp"])
     genome = "%(bwa_index_dir)s/%(genome)s.fa" % locals()
 
-    Exome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
-                          dbsnp, call_stats_out, cluster_options)
+    PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
+                                  dbsnp, call_stats_out, cluster_options)
     P.run()
 
 
@@ -660,11 +678,11 @@ def runMutect(infiles, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
-                          cosmic, dbsnp, call_stats_out,
-                          cluster_options, quality, max_alt_qual,
-                          max_alt, max_fraction, tumor_LOD,
-                          normal_panel, infile_matched=infile)
+    PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
+                                  cosmic, dbsnp, call_stats_out,
+                                  cluster_options, quality, max_alt_qual,
+                                  max_alt, max_fraction, tumor_LOD,
+                                  normal_panel, infile_matched=infile)
     P.run()
 
 
@@ -792,11 +810,11 @@ def runMutectReverse(infiles, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.mutectSNPCaller(infile, outfile, mutect_log, genome,
-                          cosmic, dbsnp, call_stats_out,
-                          cluster_options, quality, max_alt_qual,
-                          max_alt, max_fraction, tumor_LOD,
-                          normal_panel, infile_matched=infile_tumour)
+    PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome,
+                                  cosmic, dbsnp, call_stats_out,
+                                  cluster_options, quality, max_alt_qual,
+                                  max_alt, max_fraction, tumor_LOD,
+                                  normal_panel, infile_matched=infile_tumour)
 
 
 # generalise the functions below
@@ -866,11 +884,11 @@ def runMutectOnDownsampled(infiles, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
-                          cosmic, dbsnp, call_stats_out,
-                          cluster_options, quality, max_alt_qual,
-                          max_alt, max_fraction, tumor_LOD,
-                          normal_panel, infile_matched=infile)
+    PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
+                                  cosmic, dbsnp, call_stats_out,
+                                  cluster_options, quality, max_alt_qual,
+                                  max_alt, max_fraction, tumor_LOD,
+                                  normal_panel, infile_matched=infile)
 
 ##############################################################################
 ##############################################################################
@@ -1211,17 +1229,50 @@ def loadMutectFilteringSummary(infile, outfile):
 #########################################################################
 #########################################################################
 #########################################################################
-# load Network of Cancer Genes table
+'''this function should identify studies from the ebio_cancer_types parameter
+will need to parse
 
+http://www.cbioportal.org/webservice.do?cmd=getCancerStudies
+to identify the name of the studies and then parse
 
-# parameterise file location:
+http://www.cbioportal.org/webservice.do?cmd=getGeneticProfiles&cancer_study_id=
+for each study to identify the id for the mutations
+
+the ids can then be used like so to generate the table
+http://www.cbioportal.org/webservice.do?cmd=getProfileData&case_set_id=luad_tcga_pub_all&genetic_profile_id=luad_tcga_pub_mutations&gene_list=KRAS+EGFR
+
+where the list of genes is all the genes (where to get this list from?)
+'''
+
 @originate("eBio_studies.tsv")
 def defineEBioStudies(outfile):
     ''' For the cancer types specified in pipeline.ini, identify the
     relevent studies in eBio '''
 
     cancer_types = PARAMS["annotation_ebio_cancer_types"].split(",")
-    print cancer_types
+
+    type2study_dict = collections.defaultdict(list)
+    soup = makeSoup("http://www.cbioportal.org/webservice.do?cmd=getCancerStudies")
+    for line in soup.body:
+        if isinstance(line, NavigableString):
+            values = unicode(line).strip().split("\t")
+            if len(values) > 1:
+                cancer_type = values[1].split(" (")[0]
+                if cancer_type in cancer_types:
+                    type2study_dict[cancer_type.lstrip()].append(
+                        re.sub(".\n", "", values[0]))
+
+
+    # add more parsing to find location of mutations file
+
+    outf = IOTools.openFile(outfile, "w")
+
+    for cancer_type in type2study_dict.keys():
+        outf.write("%s\t%s\n" % (cancer_type, ",".join(type2study_dict[cancer_type])))
+
+    outf.close()
+
+
 
 
 #########################################################################
@@ -1263,10 +1314,9 @@ def mutationalSignature(infiles, outfiles):
     max_n_alt_freq = PARAMS["filter_maximim_normal_allele_frequency"]
     tumour = PARAMS["mutect_tumour"]
 
-    ExomeCancer.compileMutationalSignature(infiles, outfiles,
-                                           min_t_alt, min_n_depth,
-                                           max_n_alt_freq, min_t_alt_freq,
-                                           tumour, submit=True)
+    PipelineExome.compileMutationalSignature(
+        infiles, outfiles, min_t_alt, min_n_depth, max_n_alt_freq,
+        min_t_alt_freq, tumour, submit=True)
 
 
 @transform(mutationalSignature,
@@ -1294,7 +1344,7 @@ def full():
     pass
 
 
-@follows(loadMutectFilteringSummary)
+@follows(runPicardOnRealigned)
 def test():
     pass
 
