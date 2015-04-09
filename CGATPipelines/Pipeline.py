@@ -2107,7 +2107,8 @@ class RuffusLoggingFilter(logging.Filter):
                 if job_status == "update":
                     to_run += 1
 
-            self.tasks[task_name] = [task_status, len(jobs), len(jobs) - to_run]
+            self.tasks[task_name] = [task_status, len(jobs),
+                                     len(jobs) - to_run]
             self.send_task(task_name)
 
     def send_task(self, task_name):
@@ -2125,7 +2126,7 @@ class RuffusLoggingFilter(logging.Filter):
         data['task_status'] = task_status
         data['task_total'] = task_total
         data['task_completed'] = task_completed
-            
+
         key = "%s.%s.%s" % (self.project_name, self.pipeline_name, task_name)
 
         self.channel.basic_publish(exchange=self.exchange,
@@ -2137,7 +2138,12 @@ class RuffusLoggingFilter(logging.Filter):
         if not self.connected:
             return
 
-        task_status, task_total, task_completed = self.tasks[task_name]
+        try:
+            task_status, task_total, task_completed = self.tasks[task_name]
+        except KeyError:
+            L.warn("could not get task information for %s, no message sent" %
+                   task_name)
+            return
 
         data = {}
         data['created_at'] = time.time()
