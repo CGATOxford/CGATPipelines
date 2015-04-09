@@ -2152,18 +2152,21 @@ class RuffusLoggingFilter(logging.Filter):
         data['task_status'] = 'failed'
         data['task_total'] = task_total
         data['task_completed'] = task_completed
-            
+
         key = "%s.%s.%s" % (self.project_name, self.pipeline_name, task_name)
-        
-        self.channel.basic_publish(exchange=self.exchange,
-                                   routing_key=key,
-                                   body=json.dumps(data))
+
+        try:
+            self.channel.basic_publish(exchange=self.exchange,
+                                       routing_key=key,
+                                       body=json.dumps(data))
+        except pika.exceptions.ConnectionClosed:
+            L.warn("could not send message - connection closed")
 
     def filter(self, record):
 
         if not self.connected:
             return True
-        
+
         # filter ruffus logging messages
         if record.filename.endswith("task.py"):
             try:
