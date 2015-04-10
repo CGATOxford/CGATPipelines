@@ -2279,13 +2279,15 @@ def buildGFFStats(infile, outfile):
 @merge(buildGTFStats, 'gtf_stats.load')
 def loadGTFStats(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
-                         regex_filename="(.*).tsv.gz")
+                         regex_filename="(.*).tsv.gz",
+                         options="--allow-empty")
 
 
 @merge(buildGFFStats, 'gff_stats.load')
 def loadGFFStats(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
-                         regex_filename="(.*).tsv.gz")
+                         regex_filename="(.*).tsv.gz",
+                         options="--allow-empty")
 
 
 @transform((buildGFFSummary,
@@ -2358,12 +2360,20 @@ def ucsc():
     pass
 
 
+# annotation targets are only intrinsic data sets
+# based on the genome and the gene set
 @follows(buildGeneTerritories,
          buildTSSTerritories,
          buildGREATRegulatoryDomains,
          annotateGeneStructure,
-         annotateGenome,
-         buildGenomicContext,
+         annotateGenome)
+def annotations():
+    pass
+
+
+# enrichment targets include extrinsic data sets such
+# as GO, UCSC, etc.
+@follows(buildGenomicContext,
          buildGenomicContextStats,
          buildGenomicFunctionalAnnotation)
 def enrichment():

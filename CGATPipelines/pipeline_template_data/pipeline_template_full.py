@@ -98,7 +98,7 @@ import sys
 import os
 import sqlite3
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 # load options from the config file
 PARAMS = P.getParameters(
