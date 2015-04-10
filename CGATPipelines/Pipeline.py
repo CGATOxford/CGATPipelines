@@ -265,6 +265,7 @@ def getParameters(filenames=["pipeline.ini", ],
     # check if this is only for import
     if only_import is None:
         only_import = isTest() or \
+            "__name__" not in caller_locals or \
             caller_locals["__name__"] != "__main__"
 
     # important: only update the PARAMS variable as
@@ -1738,6 +1739,7 @@ def peekParameters(workingdir,
     # check if we should raise errors
     if on_error_raise is None:
         on_error_raise = not isTest() and \
+            "__name__" in caller_locals and \
             caller_locals["__name__"] == "__main__"
 
     # patch - if --help or -h in command line arguments,
