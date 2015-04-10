@@ -2032,12 +2032,15 @@ class RuffusLoggingFilter(logging.Filter):
        ignore task/job (is up-to-date)
 
     """
-    exchange = "ruffus_pipelines"
 
-    def __init__(self, ruffus_text, project_name, pipeline_name):
+    def __init__(self, ruffus_text, project_name,
+                 pipeline_name,
+                 host="localhost",
+                 exchange="ruffus_pipelines"):
 
         self.project_name = project_name
         self.pipeline_name = pipeline_name
+        self.exchange = exchange
 
         # dictionary of jobs to run
         self.jobs = {}
@@ -2046,7 +2049,7 @@ class RuffusLoggingFilter(logging.Filter):
         if not HAS_PIKA:
             self.connected = False
             return
-    
+
         def split_by_job(text):
             text = "".join(text)
             job_message = ""
@@ -2085,7 +2088,8 @@ class RuffusLoggingFilter(logging.Filter):
 
         # create connection
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+            connection = pika.BlockingConnection(pika.ConnectionParameters(
+                host=host))
             self.connected = True
         except pika.exceptions.AMQPConnectionError:
             self.connected = False
@@ -2309,6 +2313,16 @@ def main(args=sys.argv):
                       help="this is a test run"
                       "[default=%default].")
 
+    parser.add_option("--rabbitmq-exchange", dest="rabbitmq_exchange",
+                      type="string",
+                      help="RabbitMQ exchange to send log messages to "
+                      "[default=%default].")
+
+    parser.add_option("--rabbitmq-host", dest="rabbitmq_host",
+                      type="string",
+                      help="RabbitMQ host to send log messages to "
+                      "[default=%default].")
+
     parser.set_defaults(
         pipeline_action=None,
         pipeline_format="svg",
@@ -2322,7 +2336,9 @@ def main(args=sys.argv):
         debug=False,
         variables_to_set=[],
         is_test=False,
-        checksums=0)
+        checksums=0,
+        rabbitmq_host="localhost",
+        rabbitmq_exchange="ruffus_pipelines")
 
     (options, args) = E.Start(parser,
                               add_cluster_options=True)
@@ -2429,7 +2445,9 @@ def main(args=sys.argv):
                 messenger = RuffusLoggingFilter(
                     stream.getvalue(),
                     project_name=getProjectName(),
-                    pipeline_name=getPipelineName())
+                    pipeline_name=getPipelineName(),
+                    host=options.rabbitmq_host,
+                    exchange=options.rabbitmq_exchange)
 
                 logger.addFilter(messenger)
 
