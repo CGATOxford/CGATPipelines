@@ -181,7 +181,12 @@ PARAMS = P.PARAMS
 @files([(None, "%s.tgz" % x)
         for x in P.asList(PARAMS.get("prerequisites", ""))])
 def setupPrerequisites(infile, outfile):
+    '''setup pre-requisites.
 
+    These are tar-balls that are unpacked, but not run.
+    '''
+
+    to_cluster = False
     track = P.snip(outfile, ".tgz")
 
     # obtain data - should overwrite pipeline.ini file
