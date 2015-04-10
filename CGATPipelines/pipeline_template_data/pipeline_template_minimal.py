@@ -86,7 +86,7 @@ from ruffus import *
 import sys
 import os
 import CGAT.Experiment as E
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 
 # load options from the config file
 PARAMS = P.getParameters(
