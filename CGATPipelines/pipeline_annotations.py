@@ -2414,6 +2414,7 @@ def summary():
          geneset,
          fasta,
          ontologies,
+         annotations,
          enrichment,
          gwas)
 def full():
