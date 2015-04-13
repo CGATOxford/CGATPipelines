@@ -164,10 +164,11 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                     normal_panel=None, gatk_key=None,
                     infile_matched=None):
     '''Call SNVs using Broad's muTect'''
-    # get mutect to work from module file without full path.
+    # TS. this is currently CGAT specific. How to generalise?
 
     job_options = cluster_options
-    statement = '''java -Xmx4g -jar
+    statement = '''module load apps/java/jre1.6.0_26;
+                   java -Xmx4g -jar
                    /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
                    --analysis_type MuTect
                    --reference_sequence %(genome)s
@@ -199,7 +200,7 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
 ##############################################################################
 
 
-def strelkaINDELCaller(infile_control, infile_tumour, outfile, genome, config,
+def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
                        outdir, cluster_options):
     '''Call INDELs using Strelka'''
 
@@ -207,7 +208,7 @@ def strelkaINDELCaller(infile_control, infile_tumour, outfile, genome, config,
     statement = '''
     rm -rf %(outdir)s;
     /ifs/apps/bio/strelka-1.0.14/bin/configureStrelkaWorkflow.pl
-    --normal=%(infile)s  --tumor=%(infile_tumor)s
+    --normal=%(infile_control)s  --tumor=%(infile_tumor)s
     --ref=%(genome)s  --config=%(config)s  --output-dir=%(outdir)s;
     checkpoint ; make -j 12 -C %(outdir)s''' % locals()
 

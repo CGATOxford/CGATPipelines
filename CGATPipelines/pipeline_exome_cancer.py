@@ -276,7 +276,7 @@ def mapReads(infile, outfile):
     generate alignment statistics and deduplicate using Picard'''
 
     job_threads = PARAMS["bwa_threads"]
-    job_options = "-l mem_free=8G"
+    job_options = "-l mem_free=2G"
 
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
@@ -335,7 +335,7 @@ def buildCoverageStats(infile, outfile):
                 ''' % locals()
     P.run()
 
-    PipelineMappingQC.loadPicardAlignmentStats(
+    PipelineMappingQC.buildPicardCoverageStats(
         infile, outfile, modified_baits, modified_baits)
 
     IOTools.zapFile(modified_baits)
@@ -344,28 +344,7 @@ def buildCoverageStats(infile, outfile):
 @follows(buildCoverageStats)
 @merge(buildCoverageStats, "coverage_stats.load")
 def loadCoverageStats(infiles, outfile):
-    '''Import coverage statistics into SQLite'''
-    tablename = P.toTable(outfile)
-    outf = open('coverage.txt', 'w')
-    first = True
-    for f in infiles:
-        track = P.snip(os.path.basename(f), ".cov")
-        lines = [x for x in open(f, "r").readlines()
-                 if not x.startswith("#") and x.strip()]
-        if first:
-            outf.write("%s\t%s" % ("track", lines[0]))
-        first = False
-        outf.write("%s\t%s" % (track, lines[1]))
-    outf.close()
-    tmpfilename = outf.name
-    statement = '''cat %(tmpfilename)s
-                   | python %%(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                      --ignore-empty
-                      --retry
-                   > %(outfile)s '''
-    P.run()
+    PipelineMappingQC.loadPicardCoverageStats(infiles, outfile)
 
 #########################################################################
 #########################################################################
@@ -386,7 +365,8 @@ def GATKpreprocessing(infile, outfile):
     track = P.snip(os.path.basename(infile), ".bam")
     tmpdir_gatk = P.getTempDir('/ifs/scratch')
     job_options = getGATKOptions()
-    job_threads = 6
+    # TS no multithreading so why 6 threads?
+    # job_threads = 6
     library = PARAMS["readgroup_library"]
     platform = PARAMS["readgroup_platform"]
     platform_unit = PARAMS["readgroup_platform_unit"]
@@ -396,20 +376,19 @@ def GATKpreprocessing(infile, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    outfile1 = re.sub(".bqsr", ".readgroups.bqsr", outfile)
-    outfile2 = re.sub(".bqsr", ".realign.bqsr", outfile)
+    outfile1 = outfile.replace(".bqsr", ".readgroups.bqsr")
+    outfile2 = outfile.replace(".bqsr", ".realign.bqsr")
 
     PipelineExome.GATKReadGroups(infile, outfile1, genome, library, platform,
                                  platform_unit)
 
     PipelineExome.GATKIndelRealign(outfile1, outfile2, genome, gatk_threads)
 
-    PipelineExome.GATKBaseRecal(outfile2, outfile, genome, dbsnp, solid_options)
+    PipelineExome.GATKBaseRecal(outfile2, outfile, genome,
+                                dbsnp, solid_options)
 
-    IOTools.zapFile(outfile1 + ".bam")
-    IOTools.zapFile(outfile1 + ".bai")
-    IOTools.zapFile(outfile2 + ".bam")
-    IOTools.zapFile(outfile2 + ".bai")
+    IOTools.zapFile(outfile1)
+    IOTools.zapFile(outfile2)
 
 
 @transform(GATKpreprocessing,
@@ -421,7 +400,8 @@ def mergeSampleBams(infile, outfile):
     # splitting of bam files
     to_cluster = USECLUSTER
     job_options = getGATKOptions()
-    job_threads = 6
+    # TS no multithreading so why 6 threads?
+    # job_threads = 6
     # tmpdir_gatk = P.getTempDir('tmpbam')
     tmpdir_gatk = P.getTempDir('/ifs/scratch')
     # threads = PARAMS["gatk_threads"]
@@ -495,7 +475,7 @@ def realignMatchedSample(infile, outfile):
 def splitMergedRealigned(infile, outfile):
     ''' split realignment file and truncate intermediate bams'''
 
-    track = P.snip(os.path.basename(infile), "realigned.bqsr.bam") + ".bqsr"
+    track = P.snip(os.path.basename(infile), ".realigned.bqsr.bam") + ".bqsr"
     track_tumor = track.replace("Control", PARAMS["mutect_tumour"])
     outfile_tumor = outfile.replace("Control", PARAMS["mutect_tumour"])
 
@@ -515,7 +495,8 @@ def splitMergedRealigned(infile, outfile):
 def runPicardOnRealigned(infile, outfile):
     to_cluster = USECLUSTER
     job_options = getGATKOptions()
-    job_threads = 6
+    # TS no multithreading so why 6 threads?
+    # job_threads = 6
     tmpdir_gatk = P.getTempDir('/ifs/scratch')
     # threads = PARAMS["gatk_threads"]
 
@@ -529,8 +510,8 @@ def runPicardOnRealigned(infile, outfile):
                            PARAMS["genome"])
 
     PipelineMappingQC.buildPicardAlignmentStats(infile, outfile, genome)
-    PipelineMappingQC.buildPicardAlignmentStats(infile_tumour,
-                                                outfile_tumour, genome)
+    PipelineMappingQC.buildPicardAlignmentStats(infile_tumor,
+                                                outfile_tumor, genome)
 
     # check above functions then remove statement
     statement = '''
@@ -581,7 +562,9 @@ def callControlVariants(infile, outfile):
     gatk_key = PARAMS["mutect_key"]
     cosmic, dbsnp, = (PARAMS["mutect_cosmic"],
                       PARAMS["gatk_dbsnp"])
-    genome = "%(bwa_index_dir)s/%(genome)s.fa" % locals()
+
+    genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
+                           PARAMS["genome"])
 
     PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                                   dbsnp, call_stats_out, cluster_options)
@@ -897,7 +880,7 @@ def runMutectOnDownsampled(infiles, outfile):
 ##############################################################################
 
 
-@collate(realignMatchedSample,
+@collate(splitMergedRealigned,
          regex(r"bam/(\S+)-(\S+)-(\S+).realigned.bqsr.bam"),
          r"bam/\1.list")
 def listOfBAMs(infiles, outfile):
@@ -905,7 +888,9 @@ def listOfBAMs(infiles, outfile):
        for use in variant calling'''
     with IOTools.openFile(outfile, "w") as outf:
         for infile in infiles:
+            infile_tumour = infile.replace("Control", PARAMS["mutect_tumour"])
             outf.write(infile + '\n')
+            outf.write(infile_tumour + '\n')
 
 
 @transform(runMutect,
@@ -1229,20 +1214,6 @@ def loadMutectFilteringSummary(infile, outfile):
 #########################################################################
 #########################################################################
 #########################################################################
-'''this function should identify studies from the ebio_cancer_types parameter
-will need to parse
-
-http://www.cbioportal.org/webservice.do?cmd=getCancerStudies
-to identify the name of the studies and then parse
-
-http://www.cbioportal.org/webservice.do?cmd=getGeneticProfiles&cancer_study_id=
-for each study to identify the id for the mutations
-
-the ids can then be used like so to generate the table
-http://www.cbioportal.org/webservice.do?cmd=getProfileData&case_set_id=luad_tcga_pub_all&genetic_profile_id=luad_tcga_pub_mutations&gene_list=KRAS+EGFR
-
-where the list of genes is all the genes (where to get this list from?)
-'''
 
 @originate("eBio_studies.tsv")
 def defineEBioStudies(outfile):
@@ -1251,29 +1222,77 @@ def defineEBioStudies(outfile):
 
     cancer_types = PARAMS["annotation_ebio_cancer_types"].split(",")
 
+    cancer_studies_url = "http://www.cbioportal.org/webservice.do?cmd=getCancerStudies"
+    genetic_profiles_url = "http://www.cbioportal.org/webservice.do?cmd=getGeneticProfiles"
+
     type2study_dict = collections.defaultdict(list)
-    soup = makeSoup("http://www.cbioportal.org/webservice.do?cmd=getCancerStudies")
+    study2table_dict = collections.defaultdict(list)
+
+    soup = makeSoup(cancer_studies_url)
     for line in soup.body:
         if isinstance(line, NavigableString):
             values = unicode(line).strip().split("\t")
             if len(values) > 1:
                 cancer_type = values[1].split(" (")[0]
                 if cancer_type in cancer_types:
-                    type2study_dict[cancer_type.lstrip()].append(
-                        re.sub(".\n", "", values[0]))
+                    study = re.sub(".\n", "", values[0])
+                    type2study_dict[cancer_type] = study
 
+    for study in type2study_dict.values():
+        soup = makeSoup(genetic_profiles_url + "&cancer_study_id=" + study)
+        lines = unicode(soup.body).split('\n')
+        for line in lines:
+            values = line.strip().split("\t")
+            if len(values) > 1:
+                print values[1], values[0]
+                if values[1] == "Mutations":
+                    genetic_profile = values[0]
+                    study2table_dict[study] = genetic_profile
 
-    # add more parsing to find location of mutations file
+    print study2table_dict
 
     outf = IOTools.openFile(outfile, "w")
 
-    for cancer_type in type2study_dict.keys():
-        outf.write("%s\t%s\n" % (cancer_type, ",".join(type2study_dict[cancer_type])))
+    for cancer_type, study_id in type2study_dict.iteritems():
+        table_id = study2table_dict[study_id]
+        outf.write("%s\t%s\t%s\n" % (cancer_type, study_id, table_id))
 
     outf.close()
 
 
+'''
+this function should take a list of genes
+(generated from parsing all vcf files?)
+and then retrieve the mutation frequencies in the tissue types specified
+'''
 
+@transform(defineEBioStudies,
+           suffix(".tsv"),
+           add_inputs(variantAnnotator, variantAnnotatorIndels),
+           "_gene_frequencies.tsv")
+def getMutationFrequencies(infiles, outfile):
+    eBio_ids, SNV_vcfs, INDEL_vcfs = infiles
+    genes = set()
+    for inf in SNV_vcfs:
+        # read in file and update set of genes
+        pass
+    for inf in INDEL_vcfs:
+        # read in file and update set of genes
+        pass
+
+    genes = "+".join(list(genes))
+    print genes
+
+    eBio_ids = IOTools.openFile(eBio_ids, "r")
+    for line in eBio_ids:
+        tissue, study, table = line.strip().split("\t")
+        url = ("http://www.cbioportal.org/webservice.do?cmd=getProfileData&"
+               "case_set_id=%(study)s&genetic_profile_id=%(table)s&"
+               "gene_list=%(genes)s")
+        print url
+        df = pd.io.parsers.read_csv(url, comment="#", header=True, index_col=0)
+
+        print df.shape
 
 #########################################################################
 #########################################################################
@@ -1344,7 +1363,7 @@ def full():
     pass
 
 
-@follows(runPicardOnRealigned)
+@follows(listOfBAMs)
 def test():
     pass
 

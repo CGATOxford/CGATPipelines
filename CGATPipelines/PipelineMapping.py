@@ -702,10 +702,12 @@ class FastQc(Mapper):
 
     compress = True
 
-    def __init__(self, nogroup=False, outdir=".", *args, **kwargs):
+    def __init__(self, nogroup=False, outdir=".", contaminants=None,
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.nogroup = nogroup
         self.outdir = outdir
+        self.contaminants = contaminants
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -718,14 +720,20 @@ class FastQc(Mapper):
         for f in infiles:
             for i, x in enumerate(f):
                 track = os.path.basename(re.sub(".fastq.*", "", x))
+
+                if self.contaminants:
+                    contaminants_cmd = "-a %s" % self.contaminants
+                else:
+                    contaminants_cmd = ""
+        
                 if self.nogroup:
                     statement.append(
                         '''fastqc --extract --outdir=%(outdir)s --nogroup %(x)s
-                        >& %(outfile)s;''' % locals())
+                        %(contaminants_cmd)s >& %(outfile)s;''' % locals())
                 else:
                     statement.append(
                         '''fastqc --extract --outdir=%(outdir)s %(x)s
-                        >& %(outfile)s;''' % locals())
+                        %(contaminants_cmd)s >& %(outfile)s;''' % locals())
         return " ".join(statement)
 
 
@@ -847,10 +855,13 @@ class BWA(Mapper):
     which removes reads that don't have tag X0:i:1 (i.e. have > 1 best hit)
     '''
 
-    def __init__(self, remove_unique=False, *args, **kwargs):
+    def __init__(self, remove_unique=False, strip_sequence=False,
+                 set_nh=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.remove_unique = remove_unique
+        self.strip_sequence = strip_sequence
+        self.set_nh = set_nh
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.'''
@@ -930,7 +941,7 @@ class BWA(Mapper):
         outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir
 
-        strip_cmd, unique_cmd = "", ""
+        strip_cmd, unique_cmd, set_nh_cmd = "", "", ""
 
         if self.remove_non_unique:
             unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
@@ -944,10 +955,16 @@ class BWA(Mapper):
             --method=strip-sequence
             --log=%(outfile)s.log''' % locals()
 
+        if self.set_nh:
+            set_nh_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            --method=set-nh
+            --log=%(outfile)s.log''' % locals()
+
         statement = '''
                 samtools view -uS %(tmpdir)s/%(track)s.sam
                 %(unique_cmd)s
                 %(strip_cmd)s
+                %(set_nh_cmd)s
                 | samtools sort - %(outf)s 2>>%(outfile)s.bwa.log;
                 samtools index %(outfile)s;''' % locals()
 
@@ -1938,6 +1955,8 @@ class BowtieTranscripts(Mapper):
             not for single-end data and will cause
             problems using read name lookup.
         '''
+        track = P.snip(outfile, ".bam")
+
         executable = self.executable
 
         num_files = [len(x) for x in infiles]
@@ -2030,7 +2049,7 @@ class BowtieTranscripts(Mapper):
         statement = '''cat %(tmpdir_fastq)s/out.bam
              %(unique_cmd)s
              %(strip_cmd)s
-             | samtools sort - %(outf)s 2>>%(outfile)s.bwa.log;
+             | samtools sort - %(outfile)s 2>>%(track)s.bwa.log;
              samtools index %(outfile)s;
              ''' % locals()
 
