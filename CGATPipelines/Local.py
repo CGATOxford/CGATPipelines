@@ -58,6 +58,10 @@ def getProjectDirectories(sections=None):
     If *sections* are given, only these are returned.
     '''
 
+    if not isCGAT():
+        raise ValueError(
+            "getProjectDirectories called for a non-CGAT project")
+
     project_name = getProjectName()
 
     result = {
@@ -244,9 +248,9 @@ def getProjectId():
         return PARAMS["report_project_url"]
 
     curdir = os.path.abspath(os.getcwd())
-    if not curdir.startswith(PROJECT_ROOT):
+    if not isCGAT(curdir):
         raise ValueError(
-            "method getProjectId no called within %s" % PROJECT_ROOT)
+            "method getProjectId not called within %s" % PROJECT_ROOT)
 
     webdir = PARAMS['web_dir']
     if not os.path.islink(webdir):
@@ -260,16 +264,31 @@ def getProjectId():
     return os.path.basename(os.readlink(target))
 
 
+def isCGAT(curdir=None):
+    '''CGAT specific method
+
+    return True if this is a CGAT project.
+    '''
+    if curdir is None:
+        curdir = os.path.abspath(os.getcwd())
+
+    return curdir.startswith(PROJECT_ROOT)
+
+
 def getProjectName():
     '''cgat specific method: get the name of the project
-    based on the current working directory.'''
+    based on the current working directory.
+
+    If called outside the Project hierarchy, the project name
+    will be set to the name of the current directory.
+    '''
 
     curdir = os.path.abspath(os.getcwd())
-    if not curdir.startswith(PROJECT_ROOT):
-        raise ValueError(
-            "method getProjectName no called within %s" % PROJECT_ROOT)
-    prefixes = len(PROJECT_ROOT.split("/"))
-    return curdir.split("/")[prefixes]
+    if isCGAT(curdir):
+        prefixes = len(PROJECT_ROOT.split("/"))
+        return curdir.split("/")[prefixes]
+    else:
+        return os.path.basename(curdir)
 
 
 def getPublishDestinations(prefix="", suffix=None):

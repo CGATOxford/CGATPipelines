@@ -1,5 +1,4 @@
-"""
-====================
+"""====================
 RNA-Seq pipeline
 ====================
 
@@ -89,28 +88,37 @@ Thus, in order to increase the sensitivity of splice-site detection, it might be
 splice-junctions using all reads. This is not done automatically, but can be done manually by
 adding a file with junctions to the ``tophat_options`` entry in the configuration file.
 
-The pipeline supplies tophat with a list of all coding exons to facilitate mapping across known
-splice-junctions. If they are prioritized, I do not know.
+The pipeline supplies tophat with a list of all coding exons to
+facilitate mapping across known splice-junctions. If they are
+prioritized, I do not know.
 
-Transcripts are built individually for each :term:`track`. This seems to be the most rigorous way
-as there might be conflicting transcripts between replicates and merging the sets might confuse transcript
-reconstruction. Also, conflicting transcripts between replicates give an idea of the variability of the data.
-However, if there are only few reads,  there might be a case for building transcript models using reads
-from all replicates of an experiment. However, there is no reason to merge reads between experiments.
+Transcripts are built individually for each :term:`track`. This seems
+to be the most rigorous way as there might be conflicting transcripts
+between replicates and merging the sets might confuse transcript
+reconstruction. Also, conflicting transcripts between replicates give
+an idea of the variability of the data.  However, if there are only
+few reads, there might be a case for building transcript models using
+reads from all replicates of an experiment. However, there is no
+reason to merge reads between experiments.
 
 LincRNA
 --------
 
-One of the main benefits of RNASeq over microarrays is that novel transcripts can be detected. A particular
-interest are currently novel long non-coding RNA. Unfortunately, it seems that these transcripts
-are often expressed at very low levels and possibly in a highly regulated manner, for example only in
-certain tissues. On top of their low abundance, they frequently seem to be co-localized with protein
-coding genes, making it hard to distinguish them from transcription artifacts.
+One of the main benefits of RNASeq over microarrays is that novel
+transcripts can be detected. A particular interest are currently novel
+long non-coding RNA. Unfortunately, it seems that these transcripts
+are often expressed at very low levels and possibly in a highly
+regulated manner, for example only in certain tissues. On top of their
+low abundance, they frequently seem to be co-localized with protein
+coding genes, making it hard to distinguish them from transcription
+artifacts.
 
-Success in identifying lincRNA will depend a lot on your input data. Long, paired-end reads are likely
-to lead to success. Unfortunately, many exploratory studies go for single-ended, short read data.
-With such data, identification of novel spliced transcripts will be rare and the set of novel transcripts
-is likely to contain many false-positives.
+Success in identifying lincRNA will depend a lot on your input
+data. Long, paired-end reads are likely to lead to
+success. Unfortunately, many exploratory studies go for single-ended,
+short read data.  With such data, identification of novel spliced
+transcripts will be rare and the set of novel transcripts is likely to
+contain many false-positives.
 
 The pipeline constructs a set of novel lncRNA in the following manner:
    1. All transcript models overlapping protein coding transcripts are removed.
@@ -124,26 +132,30 @@ There are several sources of artifacts in lncRNA analysis
 Read mapping errors
 ~~~~~~~~~~~~~~~~~~~
 
-Mapping errors are identifyable as sharp peaks in the
-coverage profile. Mapping errors occur if the true location of a read has more mismatches
-than the original location or it maps across an undetected splice-site. Most of the
-highly-expressed lncRNA are due to mapping errors. Secondary locations very often overlap
-highly-expressed protein-coding genes. These errors are annoying for two reasons: they
-provide false positives, but at the same time prevent the reads to be counted towards
-the expression of the true gene.
+Mapping errors are identifyable as sharp peaks in the coverage
+profile. Mapping errors occur if the true location of a read has more
+mismatches than the original location or it maps across an undetected
+splice-site. Most of the highly-expressed lncRNA are due to mapping
+errors. Secondary locations very often overlap highly-expressed
+protein-coding genes. These errors are annoying for two reasons: they
+provide false positives, but at the same time prevent the reads to be
+counted towards the expression of the true gene.
 
 They can be detected in two ways:
 
-1. via a peak-like distribution of reads which should result in a low entropy of start position
-density. Note that this possibly can remove transcripts that are close to the length of a single
-read.
+1. via a peak-like distribution of reads which should result in a low
+entropy of start position density. Note that this possibly can remove
+transcripts that are close to the length of a single read.
 
-2. via mapping against known protein coding transcripts. However, getting this mapping right
-is hard for two reasons. Firstly, mapping errors usually involve reads aligned with mismatches.
-Thus, the mapping has to be done either on the read-level (computationally expensive), or
-on the transcript level after variant calling. (tricky, and also computationally expensive).
-Secondly, as cufflinks extends transcripts generously, only a part of a transcript might actually
-be a mismapped part. Distinguishing partial true matches from random matches will be tricky.
+2. via mapping against known protein coding transcripts. However,
+getting this mapping right is hard for two reasons. Firstly, mapping
+errors usually involve reads aligned with mismatches.  Thus, the
+mapping has to be done either on the read-level (computationally
+expensive), or on the transcript level after variant calling. (tricky,
+and also computationally expensive).  Secondly, as cufflinks extends
+transcripts generously, only a part of a transcript might actually be
+a mismapped part. Distinguishing partial true matches from random
+matches will be tricky.
 
 Read mapping errors can also be avoided by
 
@@ -154,60 +166,74 @@ Read mapping errors can also be avoided by
 Fragments
 ~~~~~~~~~
 
-As lncRNA are expressed at low levels, it is likely that only a partial transcript
-can be observed.
+As lncRNA are expressed at low levels, it is likely that only a
+partial transcript can be observed.
 
 
 Differential expression
 -----------------------
 
-The quality of the rnaseq data (read-length, paired-end) determines the
-quality of transcript models. For instance, if reads are short (35bp) and/or
-reads are not paired-ended, transcript models will be short and truncated.
-In these cases it might be better to concentrate the analysis on only previously
-known transcript models.
+The quality of the rnaseq data (read-length, paired-end) determines
+the quality of transcript models. For instance, if reads are short
+(35bp) and/or reads are not paired-ended, transcript models will be
+short and truncated.  In these cases it might be better to concentrate
+the analysis on only previously known transcript models.
 
-The pipeline offers various sets for downstream analysis of differential expression.
+The pipeline offers various sets for downstream analysis of
+differential expression.
 
-1. A set of previously known transcripts (:file:`reference.gtf.gz`). Use this set if
-   only interested in the transcription of previously known transcripts or read length
-   does not permit transcript assembly. This does include all transcripts within the
-   ENSEMBL gene set, including processed but untranscribed transcripts, transcripts with
-   retained introns, pseudogenes, etc.
+1. A set of previously known transcripts
+   (:file:`reference.gtf.gz`). Use this set if only interested in the
+   transcription of previously known transcripts or read length does
+   not permit transcript assembly. This does include all transcripts
+   within the ENSEMBL gene set, including processed but untranscribed
+   transcripts, transcripts with retained introns, pseudogenes, etc.
 
-2. A set of previously known protein coding transcripts (:file:`refcoding.gtf.gz`).
-   This set is derived from (:file:`reference.gtf.gz`) but only includes exons of
-   transcripts that are protein coding.
+2. A set of previously known protein coding transcripts
+   (:file:`refcoding.gtf.gz`).  This set is derived from
+   (:file:`reference.gtf.gz`) but only includes exons of transcripts
+   that are protein coding.
 
-3. An ab-initio gene set (:file:`abinitio.gtf.gz`). The ab-initio set is built by running :term:`cuffcompare` on
-   the combined individual :term:`cufflinks` results. Transcripts that have been observed in only
-   one :term:`track` are removed (removed transcripts end up in :file:`removed.gtf.gz`) in order
-   to exclude partial transcripts. Use this set if reads are of good length and/or are paired-ended.
+3. An ab-initio gene set (:file:`abinitio.gtf.gz`). The ab-initio set
+   is built by running :term:`cuffcompare` on the combined individual
+   :term:`cufflinks` results. Transcripts that have been observed in
+   only one :term:`track` are removed (removed transcripts end up in
+   :file:`removed.gtf.gz`) in order to exclude partial
+   transcripts. Use this set if reads are of good length and/or are
+   paired-ended.
 
-4. A set of novel transcribed loci (:file:`novel.gtf.gz`). This gene set is derived from the
-   set of ab-initio transcripts. All ab-initio transcripts overlapping protein coding transcripts
-   in :file:`refcoding.gtf.gz` are removed. Overlapping transcripts are merged into a single
-   transcript/gene. This removes individual transcript structure, but retains constitutive
-   introns. This set retains transcripts that are only observed in a single experiment. It also
-   includes known non-coding transcripts, so a locus might not necessarily be "novel".
+4. A set of novel transcribed loci (:file:`novel.gtf.gz`). This gene
+   set is derived from the set of ab-initio transcripts. All ab-initio
+   transcripts overlapping protein coding transcripts in
+   :file:`refcoding.gtf.gz` are removed. Overlapping transcripts are
+   merged into a single transcript/gene. This removes individual
+   transcript structure, but retains constitutive introns. This set
+   retains transcripts that are only observed in a single
+   experiment. It also includes known non-coding transcripts, so a
+   locus might not necessarily be "novel".
 
-Transcripts are the natural choice to measure expression of. However other quantities
-might be of interest. Some quantities are biological meaningful, for example differential
-expression from a promotor shared by several trancripts. Other quantities might no biologically
-meaningful but are necessary as a technical comprise.
-For example, the overlapping transcripts might be hard to resolve and thus might need to be
-aggregated per gene. Furthermore, functional annotation is primarily associated with genes
-and not individual transcripts. The pipeline attempts to measure transcription and differential
-expression for a variety of entities following the classification laid down by :term:`cuffdiff`:
+Transcripts are the natural choice to measure expression of. However
+other quantities might be of interest. Some quantities are biological
+meaningful, for example differential expression from a promotor shared
+by several trancripts. Other quantities might no biologically
+meaningful but are necessary as a technical comprise.  For example,
+the overlapping transcripts might be hard to resolve and thus might
+need to be aggregated per gene. Furthermore, functional annotation is
+primarily associated with genes and not individual transcripts. The
+pipeline attempts to measure transcription and differential expression
+for a variety of entities following the classification laid down by
+:term:`cuffdiff`:
 
 isoform
    Transcript level
 gene
    Gene level, aggregates several isoform/transcripts
 tss
-   Transcription start site. Aggregate all isoforms starting from the same :term:`tss`.
+   Transcription start site. Aggregate all isoforms starting from the same
+   :term:`tss`.
 cds
-   Coding sequence expression. Ignore reads overlapping non-coding parts of transcripts (UTRs, etc.). Requires
+   Coding sequence expression. Ignore reads overlapping non-coding parts of
+   transcripts (UTRs, etc.). Requires
    annotation of the cds and thus only available for :file:`reference.gtf.gz`.
 
 Methods differ in their ability to measure transcription on all levels.
@@ -215,27 +241,33 @@ Methods differ in their ability to measure transcription on all levels.
 .. todo::
    add promoters and splicing output
 
-Overprediction of differential expression for low-level expressed transcripts with :term:`cuffdiff`
-is a `known problem <http://seqanswers.com/forums/showthread.php?t=6283&highlight=fpkm>`_.
+Overprediction of differential expression for low-level expressed
+transcripts with :term:`cuffdiff` is a `known problem
+<http://seqanswers.com/forums/showthread.php?t=6283&highlight=fpkm>`_.
 
 Estimating coverage
 -------------------
 
-An important question in RNASeq analysis is if the sequencing has been done to sufficient depth.
-The questions split into two parts:
+An important question in RNASeq analysis is if the sequencing has been
+done to sufficient depth.  The questions split into two parts:
 
-   * What is the minimum abundant transcript that should be detectable with the number of reads
-     mapped? See for example `PMID: 20565853 <http://www.ncbi.nlm.nih.gov/pubmed/20565853>`
+   * What is the minimum abundant transcript that should be detectable
+     with the number of reads mapped? See for example `PMID: 20565853
+     <http://www.ncbi.nlm.nih.gov/pubmed/20565853>`
 
-   * What is the minimum expression change between two conditions that can be reliably inferred?
-     See for examples `PMID: 21498551 <http://www.ncbi.nlm.nih.gov/pubmed/21498551?dopt=Abstract>`
+   * What is the minimum expression change between two conditions that
+     can be reliably inferred?  See for examples `PMID: 21498551
+     <http://www.ncbi.nlm.nih.gov/pubmed/21498551?dopt=Abstract>`
 
-These questions are difficult to answer due to the complexity of RNASeq data: Genes have multiple
-transcripts, transcript/gene expression varies by orders of magnitude and a large fraction of
-reads might stem from repetetive RNA.
+These questions are difficult to answer due to the complexity of
+RNASeq data: Genes have multiple transcripts, transcript/gene
+expression varies by orders of magnitude and a large fraction of reads
+might stem from repetetive RNA.
 
-See `figure 4 <http://www.nature.com/nbt/journal/v28/n5/full/nbt.1621.html>`_ from the cufflinks paper
-to get an idea about the reliability of transcript construction with varying sequencing depth.
+See `figure 4
+<http://www.nature.com/nbt/journal/v28/n5/full/nbt.1621.html>`_ from
+the cufflinks paper to get an idea about the reliability of transcript
+construction with varying sequencing depth.
 
 Usage
 =====
@@ -247,9 +279,9 @@ Configuration
 
 The pipeline requires a configured :file:`pipeline.ini` file.
 
-The sphinxreport report requires a :file:`conf.py` and :file:`sphinxreport.ini` file
-(see :ref:`PipelineReporting`). To start with, use the files supplied with the
-Example_ data.
+The sphinxreport report requires a :file:`conf.py` and
+:file:`sphinxreport.ini` file (see :ref:`PipelineReporting`). To start
+with, use the files supplied with the Example_ data.
 
 Input
 -----
@@ -263,23 +295,26 @@ The default file format assumes the following convention:
 
    <sample>-<condition>-<replicate>.<suffix>
 
-``sample`` and ``condition`` make up an :term:`experiment`, while ``replicate`` denotes
-the :term:`replicate` within an :term:`experiment`. The ``suffix`` determines the file type.
-The following suffixes/file types are possible:
+``sample`` and ``condition`` make up an :term:`experiment`, while
+``replicate`` denotes the :term:`replicate` within an
+:term:`experiment`. The ``suffix`` determines the file type.  The
+following suffixes/file types are possible:
 
 sra
-   Short-Read Archive format. Reads will be extracted using the :file:`fastq-dump` tool.
+   Short-Read Archive format. Reads will be extracted using the
+   :file:`fastq-dump` tool.
 
 fastq.gz
    Single-end reads in fastq format.
 
 fastq.1.gz, fastq2.2.gz
-   Paired-end reads in fastq format. The two fastq files must be sorted by read-pair.
+   Paired-end reads in fastq format. The two fastq files must be
+   sorted by read-pair.
 
 .. note::
 
-   Quality scores need to be of the same scale for all input files. Thus it might be
-   difficult to mix different formats.
+   Quality scores need to be of the same scale for all input
+   files. Thus it might be difficult to mix different formats.
 
 Optional inputs
 +++++++++++++++
@@ -287,7 +322,8 @@ Optional inputs
 Requirements
 ------------
 
-The pipeline requires the results from :doc:`pipeline_annotations`. Set the configuration variable
+The pipeline requires the results from
+:doc:`pipeline_annotations`. Set the configuration variable
 :py:data:`annotations_database` and :py:data:`annotations_dir`.
 
 On top of the default CGAT setup, the pipeline requires the following software to be in the
@@ -356,8 +392,9 @@ for various levels.
 Example
 =======
 
-Example data is available at http://www.cgat.org/~andreas/sample_data/pipeline_rnaseq.tgz.
-To run the example, simply unpack and untar::
+Example data is available at
+http://www.cgat.org/~andreas/sample_data/pipeline_rnaseq.tgz.  To run
+the example, simply unpack and untar::
 
    wget http://www.cgat.org/~andreas/sample_data/pipeline_rnaseq.tgz
    tar -xvzf pipeline_rnaseq.tgz
@@ -455,7 +492,7 @@ PARAMS = P.PARAMS
 
 PARAMS_ANNOTATIONS = P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py", on_error_raise=__name__ == "__main__")
+    "pipeline_annotations.py")
 
 PipelineGeneset.PARAMS = PARAMS
 

@@ -102,7 +102,6 @@ dictionary of your own pipeline::
     PARAMS.update(P.peekParameters(
          PARAMS["annotations_dir"],
          "pipeline_annotations.py",
-         on_error_raise=__name__ == "__main__",
          prefix="annotations_"),
          update_interface=True)
 
@@ -589,8 +588,6 @@ import CGAT.Intervals as Intervals
 
 
 ###################################################
-###################################################
-###################################################
 # Pipeline configuration
 ###################################################
 PARAMS = P.getParameters(
@@ -1046,7 +1043,8 @@ def downloadTranscriptInformation(infile, outfile):
     if PARAMS["genome"].startswith("dm"):
         Database.executewait(
             dbh,
-            '''ALTER TABLE %(tablename)s ADD COLUMN uniprot_name NULL''' % locals())
+            '''ALTER TABLE %(tablename)s ADD COLUMN uniprot_name NULL''' %
+            locals())
 
     # adding final column back into transcript_info for scerevisiae genomes
     if PARAMS["genome"].startswith("sac"):
@@ -1741,7 +1739,7 @@ def createGOSlim(infile, outfile):
            suffix(".tsv.gz"),
            r"\1_assignments.load")
 def loadGOAssignments(infile, outfile):
-
+    '''load GO assignments into database.'''
     table = P.toTable(outfile)
     statement = '''
     zcat < %(infile)s
@@ -2281,13 +2279,15 @@ def buildGFFStats(infile, outfile):
 @merge(buildGTFStats, 'gtf_stats.load')
 def loadGTFStats(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
-                         regex_filename="(.*).tsv.gz")
+                         regex_filename="(.*).tsv.gz",
+                         options="--allow-empty")
 
 
 @merge(buildGFFStats, 'gff_stats.load')
 def loadGFFStats(infiles, outfile):
     P.concatenateAndLoad(infiles, outfile,
-                         regex_filename="(.*).tsv.gz")
+                         regex_filename="(.*).tsv.gz",
+                         options="--allow-empty")
 
 
 @transform((buildGFFSummary,
@@ -2360,12 +2360,20 @@ def ucsc():
     pass
 
 
+# annotation targets are only intrinsic data sets
+# based on the genome and the gene set
 @follows(buildGeneTerritories,
          buildTSSTerritories,
          buildGREATRegulatoryDomains,
          annotateGeneStructure,
-         annotateGenome,
-         buildGenomicContext,
+         annotateGenome)
+def annotations():
+    pass
+
+
+# enrichment targets include extrinsic data sets such
+# as GO, UCSC, etc.
+@follows(buildGenomicContext,
          buildGenomicContextStats,
          buildGenomicFunctionalAnnotation)
 def enrichment():
@@ -2406,6 +2414,7 @@ def summary():
          geneset,
          fasta,
          ontologies,
+         annotations,
          enrichment,
          gwas)
 def full():

@@ -149,15 +149,13 @@ P.getParameters(
      "../pipeline.ini",
      "pipeline.ini"],
     defaults={
-        'paired_end': False},
-    only_import=__name__ != "__main__")
+        'paired_end': False})
 
 PARAMS = P.PARAMS
 
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
-    on_error_raise=__name__ == "__main__",
     prefix="annotations_",
     update_interface=True))
 

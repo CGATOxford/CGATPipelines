@@ -5,9 +5,9 @@ CGATPipelines |version| - NGS and Genomics pipelines
 ==================================================================
 
 This document brings together the various pipelines and scripts
-written before and during CGAT. This documentation has two
-parts. Below is the general documentation covering the complete
-code collection. 
+written before and during the `CGAT Training Programme`_. This
+documentation has two parts. Below is the general documentation
+covering the complete code collection.
 
 Overview
 ========
@@ -15,11 +15,8 @@ Overview
 The CGAT pipeline collection has grown out of the work in comparative
 genomics by the `Ponting
 <http://www.dpag.ox.ac.uk/team/group-leaders/chris-ponting>`_ group in
-the last decade. Now, CGAT_ has added functionality for
-next-generation sequencing analysis (NGS).
-
-CGAT pipelines perform basic tasks, are fairly generic and might be of
-wider interest.
+the last decade. Now, the `CGAT Training Programme`_ has added
+functionality for next-generation sequencing analysis (NGS).
 
 .. _cgatpipelines:
 

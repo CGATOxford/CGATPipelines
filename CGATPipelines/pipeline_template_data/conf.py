@@ -15,7 +15,7 @@
 import sys
 import os
 
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines
 
 ################################################################
