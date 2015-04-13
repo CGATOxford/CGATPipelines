@@ -2339,7 +2339,7 @@ def main(args=sys.argv):
         variables_to_set=[],
         is_test=False,
         checksums=0,
-        rabbitmq_host="localhost",
+        rabbitmq_host="saruman",
         rabbitmq_exchange="ruffus_pipelines")
 
     (options, args) = E.Start(parser,
