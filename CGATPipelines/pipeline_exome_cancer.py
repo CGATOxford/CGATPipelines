@@ -199,7 +199,7 @@ def getGATKOptions():
 
 
 def getMuTectOptions():
-    return "-l mem_free=6G"
+    return "-l mem_free=3G"
 
 
 def makeSoup(address):
@@ -568,7 +568,6 @@ def callControlVariants(infile, outfile):
 
     PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                                   dbsnp, call_stats_out, cluster_options)
-    P.run()
 
 
 @follows(mkdir("normal_panel_variants"))
@@ -647,7 +646,7 @@ def runMutect(infiles, outfile):
     infile_tumour = infile.replace(
         "Control", PARAMS["mutect_tumour"])
     cluster_options = getMuTectOptions()
-    basename = P.snip(outfile, "_normal_mutect.vcf")
+    basename = P.snip(outfile, ".mutect.snp.vcf")
     call_stats_out = basename + "_call_stats.out"
     mutect_log = basename + ".log"
 
@@ -656,7 +655,7 @@ def runMutect(infiles, outfile):
          PARAMS["mutect_cosmic"], PARAMS["gatk_dbsnp"],
          PARAMS["mutect_quality"], PARAMS["mutect_max_alt_qual"],
          PARAMS["mutect_max_alt"], PARAMS["mutect_max_fraction"],
-         PARAMS["mutect_LOD"], PARAMS["mutect_key"])
+         PARAMS["mutect_lod"], PARAMS["mutect_key"])
 
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
@@ -879,9 +878,8 @@ def runMutectOnDownsampled(infiles, outfile):
 # Variant Annotation and Recalibration
 ##############################################################################
 
-
 @collate(splitMergedRealigned,
-         regex(r"bam/(\S+)-(\S+)-(\S+).realigned.bqsr.bam"),
+         regex(r"bam/(\S+)-(\S+)-(\S+).realigned.split.bqsr.bam"),
          r"bam/\1.list")
 def listOfBAMs(infiles, outfile):
     '''generates a file containing a list of BAMs for each patient,
@@ -1363,7 +1361,7 @@ def full():
     pass
 
 
-@follows(listOfBAMs)
+@follows(callControlVariants)
 def test():
     pass
 

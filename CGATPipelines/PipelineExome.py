@@ -168,7 +168,7 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
 
     job_options = cluster_options
     statement = '''module load apps/java/jre1.6.0_26;
-                   java -Xmx4g -jar
+                   java -Xmx2g -jar
                    /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
                    --analysis_type MuTect
                    --reference_sequence %(genome)s
