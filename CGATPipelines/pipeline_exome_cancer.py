@@ -422,7 +422,7 @@ def mergeSampleBams(infile, outfile):
     control_id = "Control.bam"
     tumor_id = control_id.replace("Control", PARAMS["mutect_tumour"])
     # T.S delete after testing
-    #tmpdir_gatk = P.getTempDir('.')
+    # tmpdir_gatk = P.getTempDir('.')
 
     statement = '''AddOrReplaceReadGroups
                     INPUT=%(infile)s
@@ -878,6 +878,7 @@ def runMutectOnDownsampled(infiles, outfile):
 # Variant Annotation and Recalibration
 ##############################################################################
 
+
 @collate(splitMergedRealigned,
          regex(r"bam/(\S+)-(\S+)-(\S+).realigned.split.bqsr.bam"),
          r"bam/\1.list")
@@ -1213,6 +1214,7 @@ def loadMutectFilteringSummary(infile, outfile):
 #########################################################################
 #########################################################################
 
+
 @originate("eBio_studies.tsv")
 def defineEBioStudies(outfile):
     ''' For the cancer types specified in pipeline.ini, identify the
@@ -1263,6 +1265,7 @@ this function should take a list of genes
 (generated from parsing all vcf files?)
 and then retrieve the mutation frequencies in the tissue types specified
 '''
+
 
 @transform(defineEBioStudies,
            suffix(".tsv"),

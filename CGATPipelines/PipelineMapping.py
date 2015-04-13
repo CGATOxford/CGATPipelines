@@ -726,7 +726,7 @@ class FastQc(Mapper):
                     contaminants_cmd = "-a %s" % self.contaminants
                 else:
                     contaminants_cmd = ""
-        
+
                 if self.nogroup:
                     statement.append(
                         '''fastqc --extract --outdir=%(outdir)s --nogroup %(x)s

@@ -715,6 +715,7 @@ def mapReadsWithTophat2(infiles, outfile):
 ############################################################
 ############################################################
 
+
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("hisat.dir"))
 @transform(SEQUENCEFILES,
@@ -752,6 +753,7 @@ def mapReadsWithHisat(infiles, outfile):
 ############################################################
 ############################################################
 ############################################################
+
 
 @active_if(SPLICED_MAPPING)
 @merge(mapReadsWithTophat, "tophat_stats.tsv")
