@@ -48,6 +48,7 @@ Requirements:
 * bismark >= 0.12.5 (optional)
 * stampy >= 1.0.23 (optional)
 * butter >= 0.3.2 (optional)
+* hisat >= 0.1.4 (optional)
 
 Code
 ----
@@ -1564,6 +1565,86 @@ class TopHat_fusion(Mapper):
         statement = '''
             mv -f %(tmpdir_tophat)s/* %(track)s/;
             ''' % locals()
+        return statement
+
+
+class Hisat(Mapper):
+
+    # hisat can work of compressed files
+    compress = True
+
+    executable = "tophat"
+
+    def __init__(self, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement on infiles.
+        '''
+
+        executable = self.executable
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        tmpdir_hisat = os.path.join(self.tmpdir_fastq + "hisat")
+        tmpdir_fastq = self.tmpdir_fastq
+
+        # add options specific to data type
+        index_prefix = "%(hisat_index_dir)s/%(genome)s"
+
+        if nfiles == 1:
+            infiles = ",".join([x[0] for x in infiles])
+            statement = '''
+            %(executable)s --output-dir %(tmpdir_hisat)s
+                   --threads %%(hisat_threads)i
+                   --rna-strandness %%(hisat_library_type)s
+                   %%(hisat_options)s
+                   -x %(index_prefix)s
+                   -U %(infiles)s
+                   >> %(outfile)s.log 2>&1 ;
+            ''' % locals()
+
+        elif nfiles == 2:
+            infiles1 = ",".join([x[0] for x in infiles])
+            infiles2 = ",".join([x[1] for x in infiles])
+
+            statement = '''
+            %(executable)s --output-dir %(tmpdir_hisat)s
+                   --threads %%(hisat_threads)i
+                   --rna-strandness %%(hisat_library_type)s
+                   %%(hisat_options)s
+                   -x %(index_prefix)s
+                   -1 %(infiles1)s -2 %(infiles2)s
+                   >> %(outfile)s.log 2>&1 ;
+            ''' % locals()
+
+        else:
+            raise ValueError("unexpected number reads to map: %i " % nfiles)
+
+        self.tmpdir_tophat = tmpdir_hisat
+
+        return statement
+
+    def postprocess(self, infiles, outfile):
+        '''collect output data and postprocess.'''
+
+        track = P.snip(outfile, ".bam")
+        tmpdir_tophat = self.tmpdir_tophat
+
+        statement = '''
+        gzip < %(tmpdir_hisat)s/junctions.bed
+        > %(track)s.junctions.bed.gz;
+        mv %(tmpdir_hisat)s/logs %(outfile)s.logs;
+        mv %(tmpdir_hisat)s/accepted_hits.bam %(outfile)s;
+        samtools index %(outfile)s;
+        ''' % locals()
+
         return statement
 
 

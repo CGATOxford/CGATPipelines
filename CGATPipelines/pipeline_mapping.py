@@ -127,7 +127,8 @@ software to be in the path:
 +---------+------------+------------------------------------------------+
 |butter   |>=0.3.2     |read mapping                                    |
 +---------+------------+------------------------------------------------+
-
+|hisat    |>0.1.5      |read mapping                                    |
++---------+------------+------------------------------------------------+
 
 Merging bam files
 -----------------
@@ -167,6 +168,9 @@ Glossary
    tophat
       tophat_ - a read mapper to detect splice-junctions
 
+   hisat
+     hisat_ - a read mapper for RNASEQ data (basis for tophat3)
+
    bowtie
       bowtie_ - a read mapper
 
@@ -186,6 +190,7 @@ Glossary
 .. _star: http://code.google.com/p/rna-star/
 .. _bismark: http://www.bioinformatics.babraham.ac.uk/projects/bismark/
 .. _butter: https://github.com/MikeAxtell/butter
+.. _hisat: http://ccb.jhu.edu/software/hisat/manual.shtml
 
 Code
 ====
@@ -260,7 +265,8 @@ MAPPERS = P.asList(PARAMS["mappers"])
 SPLICED_MAPPING = ("tophat" in MAPPERS or
                    "gsnap" in MAPPERS or
                    "star" in MAPPERS or
-                   "tophat2" in MAPPERS)
+                   "tophat2" in MAPPERS or
+                   "hisat" in MAPPERS)
 
 
 def connect():
@@ -709,6 +715,43 @@ def mapReadsWithTophat2(infiles, outfile):
 ############################################################
 ############################################################
 
+@active_if(SPLICED_MAPPING)
+@follows(mkdir("hisat.dir"))
+@transform(SEQUENCEFILES,
+           SEQUENCEFILES_REGEX,
+           add_inputs(buildJunctions),
+           r"hisat.dir/\1.hisat.bam")
+def mapReadsWithHisat(infiles, outfile):
+    '''map reads from .fastq or .sra files.
+
+    A list with known splice junctions is supplied.
+
+    If hisat fails with an error such as::
+
+       Error: segment-based junction search failed with err =-6
+       what():  std::bad_alloc
+
+    it means that it ran out of memory.
+
+    '''
+    job_threads = PARAMS["hisat_threads"]
+
+    job_options = " -l mem_free=%s" % PARAMS["hisat_memory"]
+
+    m = PipelineMapping.Hisat(
+        executable=P.substituteParameters(**locals())["hisat_executable"],
+        strip_sequence=PARAMS["strip_sequence"])
+
+    infile, reffile = infiles
+    tophat2_options = PARAMS["hisat_options"] + \
+        " --known-splicesite-infile %(reffile)s " % locals()
+
+    statement = m.build((infile,), outfile)
+    P.run()
+
+############################################################
+############################################################
+############################################################
 
 @active_if(SPLICED_MAPPING)
 @merge(mapReadsWithTophat, "tophat_stats.tsv")
