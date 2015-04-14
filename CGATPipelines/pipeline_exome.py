@@ -332,8 +332,8 @@ def GATKReadGroups(infile, outfile):
 # Remove duplicates, realign and recalibrate lane-by-lane
 
 
-@transform(GATKReadGroups, 
-           regex(r"gatk/(\S+).readgroups.bam"), 
+@transform(GATKReadGroups,
+           regex(r"gatk/(\S+).readgroups.bam"),
            r"gatk/\1.dedup.bam")
 def RemoveDuplicatesLane(infile, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
@@ -392,9 +392,9 @@ def mergeBAMs(infiles, outfile):
     outf = open(outfile + ".count", "w")
     outf.write(str(len(infiles)))
     outf.close()
-    statement = '''MergeSamFiles 
-                   INPUT=%(inputfiles)s 
-                   OUTPUT=%(outfile)s 
+    statement = '''MergeSamFiles
+                   INPUT=%(inputfiles)s
+                   OUTPUT=%(outfile)s
                    ASSUME_SORTED=true; '''
     statement += '''samtools index %(outfile)s ;''' % locals()
     P.run()
@@ -405,7 +405,7 @@ def mergeBAMs(infiles, outfile):
 # Remove duplicates sample-by-sample
 
 
-@transform(mergeBAMs, 
+@transform(mergeBAMs,
            regex(r"gatk/(\S+).merged.bam"),
            add_inputs(r"gatk/\1.merged.bam.count"),
            r"gatk/\1.dedup.bam")
@@ -435,8 +435,8 @@ def loadPicardDuplicateStatsSample(infiles, outfile):
 # Coverage of targetted area
 
 
-@transform(RemoveDuplicatesSample, 
-           regex(r"gatk/(\S+).dedup.bam"), 
+@transform(RemoveDuplicatesSample,
+           regex(r"gatk/(\S+).dedup.bam"),
            r"gatk/\1.cov")
 def buildCoverageStats(infile, outfile):
     '''Generate coverage statistics for regions of interest from a bed
@@ -459,6 +459,7 @@ def loadCoverageStats(infiles, outfile):
 ###############################################################################
 ###############################################################################
 # Realign sample-by-sample
+
 
 @follows(buildCoverageStats)
 @transform(RemoveDuplicatesSample,
@@ -485,7 +486,7 @@ def GATKIndelRealignSample(infiles, outfile):
 
 
 @follows(mkdir("xy_ratio"))
-@transform(GATKIndelRealignSample, 
+@transform(GATKIndelRealignSample,
            regex(r"gatk/(\S+).realigned.bam"),
            r"xy_ratio/\1.sex")
 def calcXYratio(infile, outfile):
@@ -523,7 +524,7 @@ def loadXYRatio(infile, outfile):
 # Variant Calling
 
 
-@collate(GATKIndelRealignSample, 
+@collate(GATKIndelRealignSample,
          regex(r"gatk/(\S+?)-(\S+).realigned.bam"),
          r"gatk/\1.list")
 def listOfBAMs(infiles, outfile):
@@ -573,7 +574,7 @@ def SelectExonicHapmapVariants(infile, outfile):
 
 
 @follows(SelectExonicHapmapVariants)
-@transform(GATKIndelRealignSample, 
+@transform(GATKIndelRealignSample,
            regex(r"gatk/(\S+).realigned.bam"),
            add_inputs("hapmap/hapmap_exome.bed"),
            r"hapmap/\1.hapmap.vcf")
@@ -762,6 +763,7 @@ def applyVariantRecalibrationSnps(infiles, outfile):
 ###############################################################################
 # Indel recalibration
 
+
 @transform(applyVariantRecalibrationSnps,
            regex(r"variants/(\S+).haplotypeCaller.snp_vqsr.vcf"),
            r"variants/\1.haplotypeCaller.vqsr.recal")
@@ -810,7 +812,9 @@ def annotateVariantsSNPsift(infile, outfile):
     dbNSFP = PARAMS["annotation_snpsift_dbnsfp"]
     thousand_genomes = PARAMS["annotation_thousand_genomes"]
     # The following statement is not fully implemented yet
-    # statement = '''SnpSift.sh geneSets -v /ifs/projects/proj016/data/1000Genomes/msigdb.v4.0.symbols.gmt %(infile)s > variants/%(track)s_temp1.vcf; checkpoint;''' % locals()
+    # statement = '''SnpSift.sh geneSets -v
+    # /ifs/projects/proj016/data/1000Genomes/msigdb.v4.0.symbols.gmt %(infile)s
+    # > variants/%(track)s_temp1.vcf; checkpoint;''' % locals()
 
     statement = '''SnpSift.sh dbnsfp -v -db %(dbNSFP)s %(infile)s
                     > variants/%(track)s_temp1.vcf; checkpoint;
@@ -872,6 +876,7 @@ def loadVariantAnnotation(infile, outfile):
 ###############################################################################
 ###############################################################################
 # Confirm parentage (do novo trios only)
+
 
 @follows(loadVariantAnnotation)
 @transform(annotateVariantsSNPsift,
@@ -1062,8 +1067,9 @@ def dominantVariants(infiles, outfile):
     '''Filter variants according to autosomal dominant disease model'''
     infile, pedfile = infiles
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
-    pedigree = csv.DictReader(open(pedfile), delimiter='\t', fieldnames=[
-                              'family', 'sample', 'father', 'mother', 'sex', 'status'])
+    pedigree = csv.DictReader(open(pedfile), delimiter='\t',
+                              fieldnames=['family', 'sample', 'father',
+                                          'mother', 'sex', 'status'])
     affecteds = []
     unaffecteds = []
     for row in pedigree:
@@ -1122,8 +1128,9 @@ def recessiveVariants(infiles, outfile):
     '''Filter variants according to autosomal recessive disease model'''
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     infile, pedfile = infiles
-    pedigree = csv.DictReader(open(pedfile), delimiter='\t', fieldnames=[
-                              'family', 'sample', 'father', 'mother', 'sex', 'status'])
+    pedigree = csv.DictReader(open(pedfile), delimiter='\t',
+                              fieldnames=['family', 'sample', 'father',
+                                          'mother', 'sex', 'status'])
     affecteds = []
     parents = []
     unaffecteds = []
@@ -1195,7 +1202,7 @@ def loadRecs(infile, outfile):
 def phasing(infiles, outfile):
     '''phase variants with GATK'''
     infile, pedfile, bamlist = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa" 
+    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     statement = '''GenomeAnalysisTK -T PhaseByTransmission
                    -R %(genome)s
                    -V %(infile)s
@@ -1208,7 +1215,7 @@ def phasing(infiles, outfile):
 
 
 @transform(phasing, regex(r"variants/(\S+).phased.vcf"),
-                          add_inputs(r"gatk/\1.list"), r"variants/\1.rbp.vcf")
+           add_inputs(r"gatk/\1.list"), r"variants/\1.rbp.vcf")
 def readbackedphasing(infiles, outfile):
     '''phase variants with ReadBackedPhasing'''
     job_options = getGATKOptions()
@@ -1264,8 +1271,8 @@ def loadCompoundHets(infile, outfile):
     r"variants/(\S+).vcf"), r"variants/\1.vcfstats")
 def buildVCFstats(infile, outfile):
     '''Calculate statistics on VCF file'''
-    statement = '''vcf-stats %(infile)s > %(outfile)s 2>>%(outfile)s.log;''' % locals(
-    )
+    statement = '''vcf-stats %(infile)s > %(outfile)s
+                   2>>%(outfile)s.log;''' % locals()
     P.run()
 
 ###############################################################################
@@ -1279,11 +1286,20 @@ def loadVCFstats(infiles, outfile):
     filenames = " ".join(infiles)
     tablename = P.toTable(outfile)
     E.info("Loading vcf stats...")
-    statement = '''python %(scriptsdir)s/vcfstats2db.py %(filenames)s >> %(outfile)s; '''
-    statement += '''cat vcfstats.txt | python %(scriptsdir)s/csv2db.py %(csv2db_options)s --allow-empty-file --add-index=track --table=vcf_stats >> %(outfile)s; '''
-    statement += '''cat sharedstats.txt | python %(scriptsdir)s/csv2db.py %(csv2db_options)s --allow-empty-file --add-index=track --table=vcf_shared_stats >> %(outfile)s; '''
-    statement += '''cat indelstats.txt | python %(scriptsdir)s/csv2db.py %(csv2db_options)s --allow-empty-file --add-index=track --table=indel_stats >> %(outfile)s; '''
-    statement += '''cat snpstats.txt | python %(scriptsdir)s/csv2db.py %(csv2db_options)s --allow-empty-file --add-index=track --table=snp_stats >> %(outfile)s; '''
+    statement = '''python %(scriptsdir)s/vcfstats2db.py %(filenames)s >>
+                   %(outfile)s; '''
+    statement += '''cat vcfstats.txt | python %(scriptsdir)s/csv2db.py
+                    %(csv2db_options)s --allow-empty-file --add-index=track
+                    --table=vcf_stats >> %(outfile)s; '''
+    statement += '''cat sharedstats.txt | python %(scriptsdir)s/csv2db.py
+                    %(csv2db_options)s --allow-empty-file --add-index=track
+                    --table=vcf_shared_stats >> %(outfile)s; '''
+    statement += '''cat indelstats.txt | python %(scriptsdir)s/csv2db.py
+                    %(csv2db_options)s --allow-empty-file --add-index=track
+                    --table=indel_stats >> %(outfile)s; '''
+    statement += '''cat snpstats.txt | python %(scriptsdir)s/csv2db.py
+                    %(csv2db_options)s --allow-empty-file --add-index=track
+                    --table=snp_stats >> %(outfile)s; '''
     P.run()
 
 ###############################################################################

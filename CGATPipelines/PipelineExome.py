@@ -46,7 +46,7 @@ def getGATKOptions():
 
 def GATKReadGroups(infile, outfile, genome,
                    library="unknown", platform="Illumina",
-                   platform_unit="1", track = "unknown"):
+                   platform_unit="1", track="unknown"):
     '''Reorders BAM according to reference fasta and adds read groups'''
 
     if track == 'unknown':
@@ -223,7 +223,7 @@ def variantAnnotator(vcffile, bamlist, outfile, genome,
     job_options = getGATKOptions()
     job_threads = 3
 
-    if annotations!="":
+    if annotations != "":
         anno = annotations.split(",")
         anno = " -A " + " -A ".join(anno)
     else:
@@ -243,7 +243,7 @@ def variantAnnotator(vcffile, bamlist, outfile, genome,
 ##############################################################################
 
 
-def variantRecalibrator(infile, outfile, genome, mode, dbsnp=None, 
+def variantRecalibrator(infile, outfile, genome, mode, dbsnp=None,
                         kgenomes=None, hapmap=None, omni=None, mills=None):
     '''Create variant recalibration file'''
     job_options = getGATKOptions()
