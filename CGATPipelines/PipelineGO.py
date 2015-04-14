@@ -185,21 +185,16 @@ def imputeGO(infile_go, infile_paths, outfile):
 
     E.info("%s" % str(c))
 
-############################################################
-
 
 def buildGOPaths(infile, outfile):
     '''output file with paths of terms to root.
 
     infile is an ontology obo file.
     '''
-    use_cluster = True
     statement = '''
     go2fmt.pl -w pathlist %(infile)s > %(outfile)s
     '''
     P.run()
-
-############################################################
 
 
 def buildGOTable(infile, outfile):
@@ -207,7 +202,6 @@ def buildGOTable(infile, outfile):
 
     infile is an ontology obo file.
     '''
-    use_cluster = True
     statement = '''
     echo -e "go_id\\tdescription\\tlong_description\\ttext\\n" > %(outfile)s;
     go2fmt.pl -w tbl %(infile)s >> %(outfile)s
@@ -229,31 +223,32 @@ def getGODescriptions(infile):
     with IOTools.openFile(infile) as inf:
         fields, table = CSV.ReadTable(inf, as_rows=False)
 
-    return dict([(y, (x, z)) for x, y, z in zip(table[fields.index("go_type")],
-                                                table[fields.index("go_id")],
-                                                table[fields.index("description")])])
+    return dict([(y, (x, z)) for x, y, z in zip(
+        table[fields.index("go_type")],
+        table[fields.index("go_id")],
+        table[fields.index("description")])])
 
 
-############################################################
-############################################################
-############################################################
-# get GO Slim assignments
-############################################################
 def createGOSlimFromENSEMBL(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    '''get GO SLIM assignments from ENSEMBL'''
 
     dirname = os.path.dirname(outfile)
 
+    E.info("downloading GOSlim specification from %s" %
+           PARAMS["go_url_goslim"])
     goslim_fn = os.path.join(dirname, "goslim.obo")
     statement = '''wget %(go_url_goslim)s
     --output-document=%(goslim_fn)s'''
     P.run()
 
+    E.info("downloading GO ontology from %s" %
+           PARAMS["go_url_ontology"])
     ontology_fn = os.path.join(dirname, "go_onotology.obo")
     statement = '''wget %(go_url_ontology)s
     --output-document=%(ontology_fn)s'''
     P.run()
 
+    E.info("mapping GO to GOSlim")
     job_memory = "5G"
     statement = '''
     map2slim -outmap %(outfile)s.map
