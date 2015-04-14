@@ -176,7 +176,7 @@ import sqlite3
 import shutil
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelineExome as PipelineExome
