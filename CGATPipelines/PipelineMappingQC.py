@@ -183,6 +183,7 @@ def buildPicardDuplicateStats(infile, outfile):
     OUTPUT=%(outfile)s
     VALIDATION_STRINGENCY=SILENT
     '''
+    statement += '''samtools index %(outfile)s ;'''
     P.run()
 
 
