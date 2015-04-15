@@ -2147,6 +2147,8 @@ class RuffusLoggingFilter(logging.Filter):
                                        body=json.dumps(data))
         except pika.exceptions.ConnectionClosed:
             L.warn("could not send message - connection closed")
+        except Exception as e:
+            L.warn("could not send message: %s" % str(e))
 
     def send_error(self, task_name, job, error=None, msg=None):
 
@@ -2176,6 +2178,8 @@ class RuffusLoggingFilter(logging.Filter):
                                        body=json.dumps(data))
         except pika.exceptions.ConnectionClosed:
             L.warn("could not send message - connection closed")
+        except Exception as e:
+            L.warn("could not send message: %s" % str(e))
 
     def filter(self, record):
 
