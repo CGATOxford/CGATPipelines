@@ -244,7 +244,7 @@ def runSailfish(infiles, outfile):
                                  orient=PARAMS["sailfish_orientation"],
                                  threads=PARAMS["sailfish_threads"])
     statement = m.build((infile,), outfile)
-    print statement
+
     P.run()
 
 
@@ -317,6 +317,9 @@ def summariseBias(infiles, outfiles):
     atr["length"] = numpy.log2(atr["length"])
 
     log_exp = numpy.log2(exp.ix[:, 1:]+0.1)
+
+    #df_norm = (log_exp - log_exp.min()) / (log_exp.max() - log_exp.min())
+
     log_exp["id"] = exp[["Transcript"]]
     log_exp = log_exp.set_index("id")
 
@@ -334,8 +337,12 @@ def summariseBias(infiles, outfiles):
 
         temp_dict = dict.fromkeys(sample_names, function)
         temp_dict[attribute] = function
-        means_df = merged.groupby(pandas.qcut(df.ix[:, attribute], bins))
+        means_df = df.groupby(pandas.qcut(df.ix[:, attribute], bins))
         means_df = means_df.agg(temp_dict).sort(axis=1)
+        atr_values = means_df[attribute]
+        means_df.drop(attribute, axis=1, inplace=True)
+        means_df = (means_df-means_df.min()) / (means_df.max()-means_df.min())
+        means_df[attribute] = atr_values
         corr_matrix = means_df.corr(method='spearman')
         corr_matrix = corr_matrix[corr_matrix.index != attribute]
         factor_gradients = []

@@ -364,6 +364,35 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     os.unlink(tmpfile2)
 
 
+# TS show this be made cluster runnable?..
+def annotateGTFgeneBiotype(infile1, infile2, outfile):
+    '''
+    Annotate GTF file with gene biotype from another GTF
+    '''
+
+    out_gtf = IOTools.openFile(outfile, "w")
+    infile2_idx = GTF.readAndIndex(GTF.iterator(IOTools.openFile(infile2)))
+
+    for entry in GTF.iterator(IOTools.openFile(infile1)):
+        infile2_entry = infile2_idx.get(entry.contig, entry.start, entry.end)
+
+        gene_biotypes = set()
+
+        for i in infile2_entry:
+            print i
+            fields = map(lambda x: (x.split(" ")),
+                         i[2].attributes.split("; ")[:-1])
+            fields_dict = {key: value for (key, value) in fields}
+            gene_biotypes.update((fields_dict['gene_biotype'],))
+
+        for biotype in gene_biotypes:
+            entry.attributes += " gene_biotype %s;" % biotype
+
+            out_gtf.write("%s\n" % entry)
+
+    out_gtf.close()
+
+
 class Mapper(object):
 
     '''map reads.
@@ -1575,8 +1604,12 @@ class Hisat(Mapper):
 
     executable = "tophat"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, remove_non_unique=False, strip_sequence=False,
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
+
+        self.remove_non_unique = remove_non_unique
+        self.strip_sequence = strip_sequence
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -1594,6 +1627,7 @@ class Hisat(Mapper):
 
         tmpdir_hisat = os.path.join(self.tmpdir_fastq + "hisat")
         tmpdir_fastq = self.tmpdir_fastq
+        track = os.path.basename(outfile)
 
         # add options specific to data type
         index_prefix = "%(hisat_index_dir)s/%(genome)s"
@@ -1601,13 +1635,17 @@ class Hisat(Mapper):
         if nfiles == 1:
             infiles = ",".join([x[0] for x in infiles])
             statement = '''
-            %(executable)s --output-dir %(tmpdir_hisat)s
-                   --threads %%(hisat_threads)i
-                   --rna-strandness %%(hisat_library_type)s
-                   %%(hisat_options)s
-                   -x %(index_prefix)s
-                   -U %(infiles)s
-                   >> %(outfile)s.log 2>&1 ;
+            mkdir %(tmpdir_hisat)s;
+            %(executable)s
+            --threads %%(hisat_threads)i
+            --rna-strandness %%(hisat_library_type)s
+            %%(hisat_options)s
+            -x %(index_prefix)s
+            -U %(infiles)s
+            --known-splicesite-infile %%(junctions)s
+            > %(tmpdir_hisat)s/%(track)s
+            --novel-splicesite-outfile %(tmpdir_hisat)s/%(track)s_novel_splice
+            2>> %(outfile)s.log  ;
             ''' % locals()
 
         elif nfiles == 2:
@@ -1615,34 +1653,55 @@ class Hisat(Mapper):
             infiles2 = ",".join([x[1] for x in infiles])
 
             statement = '''
-            %(executable)s --output-dir %(tmpdir_hisat)s
-                   --threads %%(hisat_threads)i
-                   --rna-strandness %%(hisat_library_type)s
-                   %%(hisat_options)s
-                   -x %(index_prefix)s
-                   -1 %(infiles1)s -2 %(infiles2)s
-                   >> %(outfile)s.log 2>&1 ;
+            mkdir %(tmpdir_hisat)s;
+            %(executable)s
+            --threads %%(hisat_threads)i
+            --rna-strandness %%(hisat_library_type)s
+            %%(hisat_options)s
+            -x %(index_prefix)s
+            -1 %(infiles1)s
+            -2 %(infiles2)s
+            --known-splicesite-infile %%(junctions)s
+            > %(tmpdir_hisat)s/%(track)s
+            --novel-splicesite-outfile %(tmpdir_hisat)s/%(track)s_novel_splice
+            2>> %(outfile)s.hisat.log  ;
             ''' % locals()
 
         else:
             raise ValueError("unexpected number reads to map: %i " % nfiles)
 
-        self.tmpdir_tophat = tmpdir_hisat
+        self.tmpdir_hisat = tmpdir_hisat
 
         return statement
 
     def postprocess(self, infiles, outfile):
         '''collect output data and postprocess.'''
 
-        track = P.snip(outfile, ".bam")
-        tmpdir_tophat = self.tmpdir_tophat
+        track = os.path.basename(outfile)
+        outf = P.snip(outfile, ".bam")
+        tmpdir_hisat = self.tmpdir_hisat
+
+        strip_cmd, unique_cmd, set_nh_cmd = "", "", ""
+
+        if self.remove_non_unique:
+            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            --method=filter
+            --filter-method=unique, mapped
+            --log=%(outfile)s.log''' % locals()
+
+        if self.strip_sequence:
+            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            --strip-method=all
+            --method=strip-sequence
+            --log=%(outfile)s.log''' % locals()
 
         statement = '''
-        gzip < %(tmpdir_hisat)s/junctions.bed
-        > %(track)s.junctions.bed.gz;
-        mv %(tmpdir_hisat)s/logs %(outfile)s.logs;
-        mv %(tmpdir_hisat)s/accepted_hits.bam %(outfile)s;
+        samtools view -uS %(tmpdir_hisat)s/%(track)s
+        %(unique_cmd)s
+        %(strip_cmd)s
+        | samtools sort - %(outf)s 2>>%(outfile)s.hisat.log;
         samtools index %(outfile)s;
+        rm -rf %(tmpdir_hisat)s;
         ''' % locals()
 
         return statement
