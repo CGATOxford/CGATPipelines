@@ -1222,7 +1222,8 @@ def getStdoutStderr(stdout_path, stderr_path, tries=5):
 def _collectSingleJobFromCluster(session, job_id,
                                  statement,
                                  stdout_path, stderr_path,
-                                 job_path):
+                                 job_path,
+                                 ignore_errors=False):
     '''runs a single job on the cluster.'''
     try:
         retval = session.wait(
@@ -1237,7 +1238,7 @@ def _collectSingleJobFromCluster(session, job_id,
 
     stdout, stderr = getStdoutStderr(stdout_path, stderr_path)
 
-    if retval and retval.exitStatus != 0:
+    if retval and retval.exitStatus != 0 and not ignore_errors:
         raise PipelineError(
             "---------------------------------------\n"
             "Child was terminated by signal %i: \n"
@@ -1357,6 +1358,7 @@ def run(**kwargs):
     L.debug('task: pid %i: sge session = %s' % (pid, str(session)))
 
     ignore_pipe_errors = options.get('ignore_pipe_errors', False)
+    ignore_errors = options.get('ignore_errors', False)
 
     # run on cluster if:
     # * to_cluster is not defined or set to True
@@ -1441,7 +1443,9 @@ def run(**kwargs):
                 _collectSingleJobFromCluster(session, job_id,
                                              statement,
                                              stdout_path,
-                                             stderr_path, job_path)
+                                             stderr_path,
+                                             job_path,
+                                             ignore_errors=ignore_errors)
 
             session.deleteJobTemplate(jt)
 
@@ -1485,7 +1489,9 @@ def run(**kwargs):
                 _collectSingleJobFromCluster(session, job_id,
                                              statement,
                                              stdout_path,
-                                             stderr_path, job_path)
+                                             stderr_path,
+                                             job_path,
+                                             ignore_errors=ignore_errors)
 
             session.deleteJobTemplate(jt)
     else:
@@ -1530,7 +1536,7 @@ def run(**kwargs):
             # process.stdin.close()
             stdout, stderr = process.communicate()
 
-            if process.returncode != 0:
+            if process.returncode != 0 and not ignore_errors:
                 raise PipelineError(
                     "---------------------------------------\n"
                     "Child was terminated by signal %i: \n"
@@ -2135,9 +2141,12 @@ class RuffusLoggingFilter(logging.Filter):
 
         key = "%s.%s.%s" % (self.project_name, self.pipeline_name, task_name)
 
-        self.channel.basic_publish(exchange=self.exchange,
-                                   routing_key=key,
-                                   body=json.dumps(data))
+        try:
+            self.channel.basic_publish(exchange=self.exchange,
+                                       routing_key=key,
+                                       body=json.dumps(data))
+        except pika.exceptions.ConnectionClosed:
+            L.warn("could not send message - connection closed")
 
     def send_error(self, task_name, job, error=None, msg=None):
 
@@ -2192,10 +2201,10 @@ class RuffusLoggingFilter(logging.Filter):
                 self.tasks[task_name][0] = "uptodate"
             else:
                 return True
-                
+
             # send new task status out
             self.send_task(task_name)
-            
+
         return True
 
 
