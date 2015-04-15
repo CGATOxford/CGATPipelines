@@ -55,7 +55,7 @@ class CorrelationSummaryA(RnaseqqcTracker):
         statement = ("SELECT sample,%(select)s FROM %(table)s")
         # fetch data
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        df['sample'] = map(lambda x: re.sub("_quant.sf", "", x), df['sample'])
+        df['sample'] = [x.replace("_quant.sf", "") for x in df['sample']]
         df = pd.melt(df, id_vars="sample")
         df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
@@ -119,10 +119,13 @@ class BiasFactorPlot(RnaseqqcTracker):
         # fetch data
         df = pd.DataFrame.from_dict(self.getAll(statement))
         df = pd.melt(df, id_vars=self.factor)
-        df['variable'] = map(lambda x: re.sub("_quant.sf", "", x),
-                             df['variable'])
+        df['variable'] = [x.replace("_quant_sf", "") for x in df['variable']]
+
+        # TS now redundant, right?
+        # remove normalisation as performed in pipeline already
         df['value'] = ((df['value'] - min(df['value'])) /
                        (max(df['value'])-min(df['value'])))
+
         df2 = pd.DataFrame(map(lambda x: x.split("_"), df['variable']))
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
         merged = pd.concat([df, df2], axis=1)
