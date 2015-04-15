@@ -1,6 +1,6 @@
 import re
-from SphinxReport.Tracker import *
-from SphinxReport.Utils import PARAMS as P
+from CGATReport.Tracker import *
+from CGATReport.Utils import PARAMS as P
 
 # get from config file
 UCSC_DATABASE = "hg19"
