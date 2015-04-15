@@ -498,7 +498,7 @@ def runReports(infile, outfile):
     %(pipeline_options)s make build_report) >& %(outfile)s
     '''
 
-    P.run(ignore_errors)
+    P.run(ignore_errors=True)
 
 
 @follows(runTests, runReports, loadComparison)
