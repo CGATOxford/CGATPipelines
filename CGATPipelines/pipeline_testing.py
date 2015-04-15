@@ -271,12 +271,12 @@ def runTest(infile, outfile):
     '''
     if len(pipeline_targets) == 1:
         statement = template_statement % pipeline_targets[0]
-        P.run()
+        P.run(ignore_errors=True)
     else:
         statements = []
         for pipeline_target in pipeline_targets:
             statements.append(template_statement % pipeline_target)
-        P.run()
+        P.run(ignore_errors=True)
 
 
 # @follows(setupTests)
@@ -498,7 +498,7 @@ def runReports(infile, outfile):
     %(pipeline_options)s make build_report) >& %(outfile)s
     '''
 
-    P.run()
+    P.run(ignore_errors)
 
 
 @follows(runTests, runReports, loadComparison)
