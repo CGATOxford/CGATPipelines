@@ -13,7 +13,7 @@ class CoverageSummary(ExomeTracker):
 
     def __call__(self, track, slice=None):
         statement = '''SELECT track, MEAN_TARGET_COVERAGE, PCT_TARGET_BASES_2X, PCT_TARGET_BASES_10X, PCT_TARGET_BASES_20X, PCT_TARGET_BASES_30X FROM coverage_stats;'''
-        #print (statement)
+
         return self.getAll(statement)
 
 

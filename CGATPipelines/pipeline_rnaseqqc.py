@@ -318,8 +318,6 @@ def summariseBias(infiles, outfiles):
 
     log_exp = numpy.log2(exp.ix[:, 1:]+0.1)
 
-    #df_norm = (log_exp - log_exp.min()) / (log_exp.max() - log_exp.min())
-
     log_exp["id"] = exp[["Transcript"]]
     log_exp = log_exp.set_index("id")
 
