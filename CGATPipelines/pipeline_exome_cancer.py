@@ -199,7 +199,7 @@ def getGATKOptions():
 
 
 def getMuTectOptions():
-    return "-l mem_free=3G"
+    return "-l mem_free=4G"
 
 
 def makeSoup(address):
@@ -594,7 +594,8 @@ def callControlVariants2(infile, outfile):
         PARAMS["mutect_cosmic"],
         PARAMS["gatk_dbsnp"])
 
-    statement = '''java -Xmx4g -jar
+    statement = '''
+    java -Xmx2g -jar
     /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
     --analysis_type MuTect
     --reference_sequence %%(bwa_index_dir)s/%%(genome)s.fa
@@ -640,11 +641,10 @@ def mergeControlVariants(infiles, outfile):
            regex(r"bam/(\S+)-Control-(\S).realigned.split.bqsr.bam"),
            add_inputs(mergeControlVariants),
            r"variants/\1.mutect.snp.vcf")
-def runMutect(infiles, outfile):
+def runMutect2(infiles, outfile):
     '''calls somatic SNPs using MuTect'''
     infile, normal_panel = infiles
-    infile_tumour = infile.replace(
-        "Control", PARAMS["mutect_tumour"])
+    infile_tumour = infile.replace("Control", PARAMS["mutect_tumour"])
     cluster_options = getMuTectOptions()
     basename = P.snip(outfile, ".mutect.snp.vcf")
     call_stats_out = basename + "_call_stats.out"
@@ -665,26 +665,23 @@ def runMutect(infiles, outfile):
                                   cluster_options, quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
                                   normal_panel, infile_matched=infile)
-    P.run()
 
 
 # delete once above function checked
 @follows(mkdir("variants"), callControlVariants)
-@transform(realignMatchedSample,
-           regex(r"bam/(\S+)-Control-(\S).realigned.bqsr.bam"),
+@transform(splitMergedRealigned,
+           regex(r"bam/(\S+)-Control-(\S).realigned.split.bqsr.bam"),
            add_inputs(mergeControlVariants),
            r"variants/\1.mutect.snp.vcf")
-#            r"variants/\1_call_stats.out"])
-def runMutect2(infiles, outfile):
+def runMutect(infiles, outfile):
     '''calls somatic SNPs using MuTect'''
     infile, normal_panel = infiles
-    infile_tumour = infile.replace(
-        "Control", PARAMS["mutect_tumour"])
+    infile_tumour = infile.replace("Control", PARAMS["mutect_tumour"])
     # mutect repeatedly hangs-up with multithreading
     # furthermore, multithreading doesn't speed up even nearly linearly
     # threads = PARAMS["gatk_threads"]
-    job_options = getMuTectOptions()
-    job_threads = 2
+
+    cluster_options = getMuTectOptions()
     # outfile, extended_out = outfiles
     basename = P.snip(outfile, ".mutect.snp.vcf")
     call_stats_out = basename + "_call_stats.out"
@@ -702,7 +699,9 @@ def runMutect2(infiles, outfile):
     else:
         key = ""
 
-    statement = '''java -Xmx4g -jar
+    statement = '''
+    module load apps/java/jre1.6.0_26;
+    java -Xmx2g -jar
     /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
     --analysis_type MuTect
     --reference_sequence %%(bwa_index_dir)s/%%(genome)s.fa
@@ -714,7 +713,7 @@ def runMutect2(infiles, outfile):
     --coverage_file %(coverage_wig_out)s
     --vcf %(outfile)s
     --min_qscore 20
-    --max_alt_alleles_in_normal_qscore_sum 150
+    --max_alt_alleles_in_normal_qscore_sum 100
     --max_alt_alleles_in_normal_count 5
     --max_alt_allele_in_normal_fraction 0.05
     --gap_events_threshold 2
@@ -1193,6 +1192,8 @@ def loadVCFstats(infiles, outfile):
            suffix(".mutect.snp.vcf"),
            "_mutect_filtering_summary.tsv")
 def summariseFiltering(infile, outfile):
+    infile = infile.replace(".mutect.snp.vcf", "_call_stats.out")
+    print "infile: ", infile
     PipelineExome.parseMutectCallStats(infile, outfile)
 
 
@@ -1331,7 +1332,7 @@ def mutationalSignature(infiles, outfiles):
     min_t_alt = PARAMS["filter_minimum_tumor_allele"]
     min_t_alt_freq = PARAMS["filter_minimum_tumor_allele_frequency"]
     min_n_depth = PARAMS["filter_minimum_normal_depth"]
-    max_n_alt_freq = PARAMS["filter_maximim_normal_allele_frequency"]
+    max_n_alt_freq = PARAMS["filter_maximum_normal_allele_frequency"]
     tumour = PARAMS["mutect_tumour"]
 
     PipelineExome.compileMutationalSignature(

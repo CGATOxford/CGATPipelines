@@ -34,6 +34,8 @@ from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
 import pandas as pd
 import CGAT.CSV as csv
+import CGAT.IOTools as IOTools
+import collections
 # Set PARAMS in calling module
 PARAMS = {}
 
@@ -488,32 +490,28 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
 def parseMutectCallStats(infile, outfile):
     '''take the call stats outfile from mutect and summarise the
     reasons for variant rejection'''
-    single_dict = {}
-    combinations_dict = {}
 
-    def updateDict(dictionary, key):
-        if key in dictionary:
-            dictionary[key] += 1
-        else:
-            dictionary[key] = 1
+    single_dict = collections.defaultdict(int)
+    combinations_dict = collections.defaultdict(int)
 
-    with open(infile, "rb") as infile:
+    with IOTools.openFile(infile, "rb") as infile:
         lines = infile.readlines()
         for i, line in enumerate(lines):
             if i < 2:
                 continue
-                values = line.strip().split("\t")
-                judgement, justification = (values[-1], values[-2])
-                if judgement == "REJECT":
-                    reasons = justification.split(",")
-                    if len(reasons) == 1:
-                        updateDict(single_dict, reasons[0])
-                    else:
-                        for reason in reasons:
-                            updateDict(combinations_dict, reasons[0])
+            values = line.strip().split("\t")
+            judgement, justification = (values[-1], values[-2])
+            if judgement == "REJECT":
+                reasons = justification.split(",")
+                if len(reasons) == 1:
+                    single_dict[reasons[0]] += 1
+                else:
+                    for reason in reasons:
+                        combinations_dict[reasons[0]] += 1
 
     df = pd.DataFrame([single_dict, combinations_dict])
+    print df
     df = df.transpose()
     df.columns = ["single", "combination"]
     df = df.sort("single", ascending=False)
-    df.to_csv(df, outfile, header=True, index=False)
+    df.to_csv(outfile, header=True, index=False, sep="\t")
