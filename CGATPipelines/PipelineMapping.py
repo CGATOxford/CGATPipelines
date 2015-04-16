@@ -1644,7 +1644,7 @@ class Hisat(Mapper):
             -U %(infiles)s
             --known-splicesite-infile %%(junctions)s
             > %(tmpdir_hisat)s/%(track)s
-            --novel-splicesite-outfile %(tmpdir_hisat)s/%(track)s_novel_splice
+            --novel-splicesite-outfile %(outfile)s_novel_junctions
             2>> %(outfile)s.log  ;
             ''' % locals()
 
@@ -1663,7 +1663,7 @@ class Hisat(Mapper):
             -2 %(infiles2)s
             --known-splicesite-infile %%(junctions)s
             > %(tmpdir_hisat)s/%(track)s
-            --novel-splicesite-outfile %(tmpdir_hisat)s/%(track)s_novel_splice
+            --novel-splicesite-outfile %(outfile)s_novel_junctions
             2>> %(outfile)s.hisat.log  ;
             ''' % locals()
 
