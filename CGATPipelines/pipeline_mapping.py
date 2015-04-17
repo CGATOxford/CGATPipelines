@@ -1762,16 +1762,12 @@ def map():
 @follows(mkdir("report"), mkdir(PARAMS.get("exportdir"), "export"))
 def build_report():
     '''build report from scratch.'''
-
-    E.info("starting documentation build process from scratch")
     P.run_report(clean=True)
 
 
 @follows(mkdir("report"))
 def update_report():
     '''update report.'''
-
-    E.info("updating documentation")
     P.run_report(clean=False)
 
 
