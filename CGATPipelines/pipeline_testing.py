@@ -428,8 +428,8 @@ def compareCheckSums(infiles, outfile):
 
         # remove those for which only check for existence
         if regex_exist:
-            different = [x for x in different
-                         if not regex_exist.search(x)]
+            different = set([x for x in different
+                             if not regex_exist.search(x)])
 
         # select those for which only check for number of lines
         if regex_linecount:
