@@ -763,8 +763,7 @@ def mapReadsWithHisat(infiles, outfile):
 
     m = PipelineMapping.Hisat(
         executable=P.substituteParameters(**locals())["hisat_executable"],
-        strip_sequence=PARAMS["strip_sequence"],
-        remove_non_unique=PARAMS["remove_non_unique"])
+        strip_sequence=PARAMS["strip_sequence"])
 
     infile, junctions = infiles
 

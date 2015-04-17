@@ -1681,13 +1681,7 @@ class Hisat(Mapper):
         outf = P.snip(outfile, ".bam")
         tmpdir_hisat = self.tmpdir_hisat
 
-        strip_cmd, unique_cmd, set_nh_cmd = "", "", ""
-
-        if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
-            --method=filter
-            --filter-method=unique, mapped
-            --log=%(outfile)s.log''' % locals()
+        strip_cmd = ""
 
         if self.strip_sequence:
             strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
@@ -1697,7 +1691,6 @@ class Hisat(Mapper):
 
         statement = '''
         samtools view -uS %(tmpdir_hisat)s/%(track)s
-        %(unique_cmd)s
         %(strip_cmd)s
         | samtools sort - %(outf)s 2>>%(outfile)s.hisat.log;
         samtools index %(outfile)s;
