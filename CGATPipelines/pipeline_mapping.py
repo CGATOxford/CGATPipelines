@@ -266,6 +266,7 @@ SPLICED_MAPPING = ("tophat" in MAPPERS or
                    "gsnap" in MAPPERS or
                    "star" in MAPPERS or
                    "tophat2" in MAPPERS or
+                   "transcriptome" in MAPPERS or
                    "hisat" in MAPPERS)
 
 
@@ -512,7 +513,7 @@ def buildReferenceTranscriptome(infile, outfile):
 
     prefix = P.snip(outfile, ".fa")
 
-    if 'tophat' in MAPPERS:
+    if 'tophat' in MAPPERS or "transcriptome" in MAPPERS:
         # build raw index
         statement = '''
         bowtie-build -f %(outfile)s %(prefix)s >> %(outfile)s.log 2>&1
