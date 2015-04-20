@@ -745,6 +745,7 @@ def mergeCufflinksFPKM(infiles, outfile,
 
     prefix = os.path.basename(outfile)
     prefix = prefix[:prefix.index("_")]
+    print prefix
 
     headers = ",".join(
         [re.match("fpkm.dir/.*_(.*).cufflinks", x).groups()[0]
@@ -847,6 +848,7 @@ def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
                 design, geneset = re.match(
                     "([^_]+)_([^_]+)_%s" % method,
                     tablename).groups()
+                print design, geneset
                 counting_method = "na"
             except AttributeError:
                 raise ValueError("can't parse tablename %s" % tablename)

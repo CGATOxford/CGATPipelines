@@ -472,7 +472,11 @@ def drawVennDiagram(deg_dict, header, out_dir):
     '''
 
     keys = deg_dict.keys()
-    keys = sorted(keys, key=lambda x: int(x.split("_")[1].rstrip("-time")))
+    # try and extract key information from input if filenames, else use as-is
+    try:
+        keys = sorted(keys, key=lambda x: int(x.split("_")[1].rstrip("-time")))
+    except IndexError:
+        pass
 
     venn_size = len(keys)
     R('''suppressPackageStartupMessages(library("VennDiagram"))''')
