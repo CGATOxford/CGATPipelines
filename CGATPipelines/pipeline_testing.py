@@ -177,6 +177,27 @@ P.getParameters(
 PARAMS = P.PARAMS
 
 
+# obtain prerequisite generic data
+@files([(None, "%s.tgz" % x)
+        for x in P.asList(PARAMS.get("prerequisites", ""))])
+def setupPrerequisites(infile, outfile):
+    '''setup pre-requisites.
+
+    These are tar-balls that are unpacked, but not run.
+    '''
+
+    to_cluster = False
+    track = P.snip(outfile, ".tgz")
+
+    # obtain data - should overwrite pipeline.ini file
+    statement = '''
+    wget --no-check-certificate -O %(track)s.tgz %(data_url)s/%(track)s.tgz'''
+    P.run()
+
+    tf = tarfile.open(outfile)
+    tf.extractall()
+
+
 @files([(None, "%s.tgz" % x)
         for x in P.CONFIG.sections()
         if x.startswith("test")])
@@ -250,23 +271,23 @@ def runTest(infile, outfile):
     '''
     if len(pipeline_targets) == 1:
         statement = template_statement % pipeline_targets[0]
-        P.run()
+        P.run(ignore_errors=True)
     else:
         statements = []
         for pipeline_target in pipeline_targets:
             statements.append(template_statement % pipeline_target)
-        P.run()
+        P.run(ignore_errors=True)
 
 
-@follows(setupTests)
-@files([("%s.tgz" % x, "%s.log" % x)
-        for x in P.asList(PARAMS.get("prerequisites", ""))])
-def runPreparationTests(infile, outfile):
-    '''run pre-requisite pipelines.'''
-    runTest(infile, outfile)
+# @follows(setupTests)
+# @files([("%s.tgz" % x, "%s.log" % x)
+#         for x in P.asList(PARAMS.get("prerequisites", ""))])
+# def runPreparationTests(infile, outfile):
+#     '''run pre-requisite pipelines.'''
+#     runTest(infile, outfile)
 
 
-@follows(setupTests, runPreparationTests)
+@follows(setupTests, setupPrerequisites)
 @files([("%s.tgz" % x, "%s.log" % x)
         for x in P.CONFIG.sections()
         if x.startswith("test") and
@@ -276,7 +297,7 @@ def runTests(infile, outfile):
     runTest(infile, outfile)
 
 
-@transform((runPreparationTests, runTests),
+@transform(runTests,
            suffix(".log"),
            ".md5")
 def buildCheckSums(infile, outfile):
@@ -311,7 +332,7 @@ def buildCheckSums(infile, outfile):
     P.run()
 
 
-@transform((runPreparationTests, runTests),
+@transform(runTests,
            suffix(".log"),
            ".lines")
 def buildLineCounts(infile, outfile):
@@ -407,8 +428,8 @@ def compareCheckSums(infiles, outfile):
 
         # remove those for which only check for existence
         if regex_exist:
-            different = [x for x in different
-                         if not regex_exist.search(x)]
+            different = set([x for x in different
+                             if not regex_exist.search(x)])
 
         # select those for which only check for number of lines
         if regex_linecount:
@@ -460,7 +481,7 @@ def loadComparison(infile, outfile):
     P.load(infile, outfile)
 
 
-@transform((runPreparationTests, runTests),
+@transform(runTests,
            suffix(".log"),
            ".report")
 def runReports(infile, outfile):
@@ -477,7 +498,7 @@ def runReports(infile, outfile):
     %(pipeline_options)s make build_report) >& %(outfile)s
     '''
 
-    P.run()
+    P.run(ignore_errors=True)
 
 
 @follows(runTests, runReports, loadComparison)

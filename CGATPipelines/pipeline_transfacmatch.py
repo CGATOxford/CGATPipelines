@@ -167,7 +167,7 @@ PARAMS = P.PARAMS
 # helper functions mapping input files
 ###############################################################################
 
-INPUT_FILE = None
+INPUT_FILE = []
 # input intervals / gtf entries
 # they need to be in a single file
 INPUT_FORMATS = (r"*.gtf.gz", r"*.bed.gz")

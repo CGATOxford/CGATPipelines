@@ -880,25 +880,25 @@ def compareGeneSets(infiles, outfile):
     P.run()
 
 
-############################################################
-############################################################
-############################################################
 def buildPseudogenes(infiles, outfile, dbhandle):
-    '''annotate genomic regions with reference gene set.
+    '''build a set of pseudogenes.
 
-    *infile* is an ENSEMBL gtf file.
+    *infiles* is an ENSEMBL gtf file and a list of associated
+    peptide sequences.
 
-    This task selects all pseudogenic transcripts in a single file.
+    Transcripts are extracted from the GTF file and designated
+    as pseudogenes if:
 
-    Pseudogenes are:
+    * the gene_type or transcript_type contains the phrase
+      "pseudo". This taken is from the database.
 
-    * gene_type or transcript_type contains the phrase "pseudo". This taken is
-      from the database.
+    * the feature is 'processed_transcript' and has similarity to
+      protein coding genes. Similarity is assessed by aligning the transcript
+      and peptide set against each other with exonerate.
 
-    * feature 'processed_transcript' with similarity to protein coding genes.
-      Similarity is assessed by aligning with exonerate.
+    Pseudogenic transcripts can overlap with protein coding
+    transcripts.
 
-    Pseudogenic transcripts can overlap with protein coding transcripts.
     '''
 
     infile_gtf, infile_peptides_fasta = infiles
@@ -907,14 +907,16 @@ def buildPseudogenes(infiles, outfile, dbhandle):
     if PARAMS["genome"].startswith("dm"):
         E.warn("Ensembl dm genome annotations only contain source"
                " 'pseudogenes' - skipping exonerate step")
-        statement = ("zcat %(infile_gtf)s |"
-                     " awk '$2 ~ /pseudogene/' |"
-                     " gzip > %(outfile)s")
+        statement = """zcat %(infile_gtf)s
+        |awk '$2 ~ /pseudogene/'
+        | gzip
+        > %(outfile)s"""
         P.run()
         return
 
     tmpfile1 = P.getTempFilename(shared=True)
 
+    # collect processed transcripts and save as fasta sequences
     statement = '''
     zcat %(infile_gtf)s
     | awk '$2 ~ /processed/'
@@ -933,13 +935,16 @@ def buildPseudogenes(infiles, outfile, dbhandle):
         P.touch(outfile)
         return
 
+    model = "protein2dna"
+
+    # map processed transcripts against peptide sequences
     statement = '''
     cat %(tmpfile1)s
     | %(cmd-farm)s --split-at-regex=\"^>(\S+)\" --chunk-size=100
     --log=%(outfile)s.log
     "exonerate --target %%STDIN%%
               --query %(infile_peptides_fasta)s
-              --model protein2dna
+              --model %(model)s
               --bestn 1
               --score 200
               --ryo \\"%%qi\\\\t%%ti\\\\t%%s\\\\n\\"
@@ -975,10 +980,11 @@ def buildPseudogenes(infiles, outfile, dbhandle):
         WHERE transcript_biotype like '%pseudo%' OR
         gene_biotype like '%pseudo%' """)])
 
-    E.info("pseudo processed=%i, known pseudos=%i, intersection=%i" % (
-        (len(new_pseudos),
-         len(known_pseudos),
-         len(new_pseudos.intersection(known_pseudos)))))
+    E.info("pseudogenes from: processed_transcripts=%i, known_pseudos=%i, "
+           "intersection=%i" % (
+               (len(new_pseudos),
+                len(known_pseudos),
+                len(new_pseudos.intersection(known_pseudos)))))
 
     all_pseudos = new_pseudos.union(known_pseudos)
 

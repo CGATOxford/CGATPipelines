@@ -6,13 +6,16 @@ SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
 PAPER         =
 
+PIPELINES=$(wildcard ../CGATPipelines/pipeline_*.py)
+IMAGES=$(PIPELINES:../CGATPipelines/%.py=images/%.svg)
+
 # Internal variables.
 PAPEROPT_a4     = -D latex_paper_size=a4
 PAPEROPT_letter = -D latex_paper_size=letter
 ALLSPHINXOPTS   = -d _build/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
 
-DIR_PUBLISH=/ifs/public/cgat/documentation
-URL_SUB="s/\/ifs.*/CGATPipelines\/doc/http:\/\/www.cgat.org\/downloads\/public\/cgatpipelines\/documentation/"                                                                                  
+DIR_PUBLISH=/ifs/public/cgatpipelines/documentation
+URL_SUB="s/\/ifs.*\/CGATPipelines\/doc/http:\/\/www.cgat.org\/downloads\/public\/cgatpipelines\/documentation/"                                                                                  
 .PHONY: help clean html dirhtml pickle json htmlhelp qthelp latex changes linkcheck doctest
 
 help:
@@ -32,8 +35,17 @@ clean:
 	-rm -rf _build/*
 	-rm -f _static/*.svg *.dot
 
+
+images:
+	mkdir images
+
+build-images: images $(IMAGES)
+
+images/%.svg: ../CGATPipelines/%.py
+	python $< --is-test -v 0 svg full > $@
+
 # remove the pyc file - otherwise errors when importing pipeline and other scripts
-html:
+html: build-images
 	rm -f ../{CGATPipelines,scripts}/*.pyc
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) _build/html
 	@echo

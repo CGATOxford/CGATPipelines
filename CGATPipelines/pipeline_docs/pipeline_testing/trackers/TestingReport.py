@@ -48,10 +48,6 @@ def summarizeLogFile(filename):
 
     return LogFileSummary._make((info, debug, warning, error))
 
-##############################################################
-##############################################################
-##############################################################
-
 
 class PipelineStatus(Status):
 
@@ -61,7 +57,11 @@ class PipelineStatus(Status):
         '''check if pipeline completed successfully.
         '''
 
-        lines = open(track + ".log").readlines()
+        try:
+            lines = open(track + ".log").readlines()
+        except IOError:
+            return 'NA', 'no log file'
+
         started = "not started"
 
         if len(lines) < 1:
@@ -81,6 +81,11 @@ class PipelineStatus(Status):
     def testReport(self, track):
         '''check if report completed successfully.
         '''
+
+        try:
+            lines = open(track + ".report").readlines()
+        except IOError:
+            return 'NA', 'no report'
 
         lines = open(track + ".report").readlines()
         started = [x for x in lines if x.startswith("# job started")]

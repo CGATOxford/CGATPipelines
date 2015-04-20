@@ -221,21 +221,23 @@ P.getParameters(
      "../pipeline.ini",
      "pipeline.ini"],
     defaults={
-        'paired_end': False},
-    only_import=__name__ != "__main__")
+        'paired_end': False})
 
 PARAMS = P.PARAMS
 
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
-    on_error_raise=__name__ == "__main__",
     prefix="annotations_",
     update_interface=True))
 
 PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
 PipelinePublishing.PARAMS = PARAMS
+
+# helper variable restricting the number of jobs writing
+# to the database
+JOBS_LIMIT_DB = 10
 
 ###################################################################
 ###################################################################
@@ -785,7 +787,7 @@ def buildTophatStats(infiles, outfile):
     outf.close()
 
 
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @active_if(SPLICED_MAPPING)
 @transform(buildTophatStats, suffix(".tsv"), ".load")
 def loadTophatStats(infile, outfile):
@@ -879,21 +881,13 @@ def buildSTARStats(infiles, outfile):
                    (track, "\t".join([data[key][x] for key in keys])))
     outf.close()
 
-############################################################
-############################################################
-############################################################
 
-
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @active_if(SPLICED_MAPPING)
 @transform(buildSTARStats, suffix(".tsv"), ".load")
 def loadSTARStats(infile, outfile):
     '''load stats from STAR run.'''
     P.load(infile, outfile)
-
-############################################################
-############################################################
-############################################################
 
 
 @active_if(SPLICED_MAPPING)
@@ -1177,21 +1171,12 @@ def buildPicardStats(infiles, outfile):
                                                 outfile,
                                                 reffile)
 
-############################################################
-############################################################
-############################################################
 
-
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @merge(buildPicardStats, "picard_stats.load")
 def loadPicardStats(infiles, outfile):
     '''merge alignment stats into single tables.'''
-
     PipelineMappingQC.loadPicardAlignmentStats(infiles, outfile)
-
-############################################################
-############################################################
-############################################################
 
 
 @transform(MAPPINGTARGETS,
@@ -1209,12 +1194,8 @@ def buildPicardDuplicationStats(infile, outfile):
     '''
     PipelineMappingQC.buildPicardDuplicationStats(infile, outfile)
 
-############################################################
-############################################################
-############################################################
 
-
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @merge(buildPicardDuplicationStats, ["picard_duplication_stats.load",
                                      "picard_duplication_histogram.load"])
 def loadPicardDuplicationStats(infiles, outfiles):
@@ -1298,7 +1279,7 @@ def buildBAMStats(infiles, outfile):
     P.run()
 
 
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @merge(buildBAMStats, "bam_stats.load")
 def loadBAMStats(infiles, outfile):
     '''import bam statisticis.'''
@@ -1337,7 +1318,7 @@ def buildContextStats(infiles, outfile):
     P.run()
 
 
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @follows(loadBAMStats)
 @merge(buildContextStats, "context_stats.load")
 def loadContextStats(infiles, outfile):
@@ -1406,7 +1387,7 @@ def buildExonValidation(infiles, outfile):
     P.run()
 
 
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @active_if(SPLICED_MAPPING)
 @merge(buildExonValidation, "exon_validation.load")
 def loadExonValidation(infiles, outfile):
@@ -1492,7 +1473,7 @@ def collateTranscriptCounts(infiles, outfile):
     P.run()
 
 
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @active_if(SPLICED_MAPPING)
 @transform(collateTranscriptCounts,
            suffix(".tsv.gz"),
@@ -1534,7 +1515,7 @@ def buildIntronLevelReadCounts(infiles, outfile):
     P.run()
 
 
-@jobs_limit(1, "db")
+@jobs_limit(JOBS_LIMIT_DB, "db")
 @active_if(SPLICED_MAPPING)
 @transform(buildIntronLevelReadCounts,
            suffix(".tsv.gz"),
@@ -1781,16 +1762,12 @@ def map():
 @follows(mkdir("report"), mkdir(PARAMS.get("exportdir"), "export"))
 def build_report():
     '''build report from scratch.'''
-
-    E.info("starting documentation build process from scratch")
     P.run_report(clean=True)
 
 
 @follows(mkdir("report"))
 def update_report():
     '''update report.'''
-
-    E.info("updating documentation")
     P.run_report(clean=False)
 
 
