@@ -48,6 +48,7 @@ Requirements:
 * bismark >= 0.12.5 (optional)
 * stampy >= 1.0.23 (optional)
 * butter >= 0.3.2 (optional)
+* hisat >= 0.1.4 (optional)
 
 Code
 ----
@@ -361,6 +362,35 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     for x in glob.glob(tmpfile1 + "*"):
         os.unlink(x)
     os.unlink(tmpfile2)
+
+
+# TS show this be made cluster runnable?..
+def annotateGTFgeneBiotype(infile1, infile2, outfile):
+    '''
+    Annotate GTF file with gene biotype from another GTF
+    '''
+
+    out_gtf = IOTools.openFile(outfile, "w")
+    infile2_idx = GTF.readAndIndex(GTF.iterator(IOTools.openFile(infile2)))
+
+    for entry in GTF.iterator(IOTools.openFile(infile1)):
+        infile2_entry = infile2_idx.get(entry.contig, entry.start, entry.end)
+
+        gene_biotypes = set()
+
+        for i in infile2_entry:
+            print i
+            fields = map(lambda x: (x.split(" ")),
+                         i[2].attributes.split("; ")[:-1])
+            fields_dict = {key: value for (key, value) in fields}
+            gene_biotypes.update((fields_dict['gene_biotype'],))
+
+        for biotype in gene_biotypes:
+            entry.attributes += " gene_biotype %s;" % biotype
+
+            out_gtf.write("%s\n" % entry)
+
+    out_gtf.close()
 
 
 class Mapper(object):
@@ -702,10 +732,12 @@ class FastQc(Mapper):
 
     compress = True
 
-    def __init__(self, nogroup=False, outdir=".", *args, **kwargs):
+    def __init__(self, nogroup=False, outdir=".", contaminants=None,
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.nogroup = nogroup
         self.outdir = outdir
+        self.contaminants = contaminants
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -718,14 +750,20 @@ class FastQc(Mapper):
         for f in infiles:
             for i, x in enumerate(f):
                 track = os.path.basename(re.sub(".fastq.*", "", x))
+
+                if self.contaminants:
+                    contaminants_cmd = "-a %s" % self.contaminants
+                else:
+                    contaminants_cmd = ""
+
                 if self.nogroup:
                     statement.append(
                         '''fastqc --extract --outdir=%(outdir)s --nogroup %(x)s
-                        >& %(outfile)s;''' % locals())
+                        %(contaminants_cmd)s >& %(outfile)s;''' % locals())
                 else:
                     statement.append(
                         '''fastqc --extract --outdir=%(outdir)s %(x)s
-                        >& %(outfile)s;''' % locals())
+                        %(contaminants_cmd)s >& %(outfile)s;''' % locals())
         return " ".join(statement)
 
 
@@ -847,10 +885,13 @@ class BWA(Mapper):
     which removes reads that don't have tag X0:i:1 (i.e. have > 1 best hit)
     '''
 
-    def __init__(self, remove_unique=False, *args, **kwargs):
+    def __init__(self, remove_unique=False, strip_sequence=False,
+                 set_nh=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.remove_unique = remove_unique
+        self.strip_sequence = strip_sequence
+        self.set_nh = set_nh
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.'''
@@ -930,7 +971,7 @@ class BWA(Mapper):
         outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir
 
-        strip_cmd, unique_cmd = "", ""
+        strip_cmd, unique_cmd, set_nh_cmd = "", "", ""
 
         if self.remove_non_unique:
             unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
@@ -944,10 +985,16 @@ class BWA(Mapper):
             --method=strip-sequence
             --log=%(outfile)s.log''' % locals()
 
+        if self.set_nh:
+            set_nh_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            --method=set-nh
+            --log=%(outfile)s.log''' % locals()
+
         statement = '''
                 samtools view -uS %(tmpdir)s/%(track)s.sam
                 %(unique_cmd)s
                 %(strip_cmd)s
+                %(set_nh_cmd)s
                 | samtools sort - %(outf)s 2>>%(outfile)s.bwa.log;
                 samtools index %(outfile)s;''' % locals()
 
@@ -1550,6 +1597,109 @@ class TopHat_fusion(Mapper):
         return statement
 
 
+class Hisat(Mapper):
+
+    # hisat can work of compressed files
+    compress = True
+
+    executable = "tophat"
+
+    def __init__(self, remove_non_unique=False, strip_sequence=False,
+                 *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+
+        self.remove_non_unique = remove_non_unique
+        self.strip_sequence = strip_sequence
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement on infiles.
+        '''
+
+        executable = self.executable
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        tmpdir_hisat = os.path.join(self.tmpdir_fastq + "hisat")
+        tmpdir_fastq = self.tmpdir_fastq
+        track = os.path.basename(outfile)
+
+        # add options specific to data type
+        index_prefix = "%(hisat_index_dir)s/%(genome)s"
+
+        if nfiles == 1:
+            infiles = ",".join([x[0] for x in infiles])
+            statement = '''
+            mkdir %(tmpdir_hisat)s;
+            %(executable)s
+            --threads %%(hisat_threads)i
+            --rna-strandness %%(hisat_library_type)s
+            %%(hisat_options)s
+            -x %(index_prefix)s
+            -U %(infiles)s
+            --known-splicesite-infile %%(junctions)s
+            > %(tmpdir_hisat)s/%(track)s
+            --novel-splicesite-outfile %(outfile)s_novel_junctions
+            2>> %(outfile)s.log  ;
+            ''' % locals()
+
+        elif nfiles == 2:
+            infiles1 = ",".join([x[0] for x in infiles])
+            infiles2 = ",".join([x[1] for x in infiles])
+
+            statement = '''
+            mkdir %(tmpdir_hisat)s;
+            %(executable)s
+            --threads %%(hisat_threads)i
+            --rna-strandness %%(hisat_library_type)s
+            %%(hisat_options)s
+            -x %(index_prefix)s
+            -1 %(infiles1)s
+            -2 %(infiles2)s
+            --known-splicesite-infile %%(junctions)s
+            > %(tmpdir_hisat)s/%(track)s
+            --novel-splicesite-outfile %(outfile)s_novel_junctions
+            2>> %(outfile)s.hisat.log  ;
+            ''' % locals()
+
+        else:
+            raise ValueError("unexpected number reads to map: %i " % nfiles)
+
+        self.tmpdir_hisat = tmpdir_hisat
+
+        return statement
+
+    def postprocess(self, infiles, outfile):
+        '''collect output data and postprocess.'''
+
+        track = os.path.basename(outfile)
+        outf = P.snip(outfile, ".bam")
+        tmpdir_hisat = self.tmpdir_hisat
+
+        strip_cmd = ""
+
+        if self.strip_sequence:
+            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            --strip-method=all
+            --method=strip-sequence
+            --log=%(outfile)s.log''' % locals()
+
+        statement = '''
+        samtools view -uS %(tmpdir_hisat)s/%(track)s
+        %(strip_cmd)s
+        | samtools sort - %(outf)s 2>>%(outfile)s.hisat.log;
+        samtools index %(outfile)s;
+        rm -rf %(tmpdir_hisat)s;
+        ''' % locals()
+
+        return statement
+
+
 class GSNAP(Mapper):
 
     # tophat can map colour space files directly
@@ -1938,6 +2088,8 @@ class BowtieTranscripts(Mapper):
             not for single-end data and will cause
             problems using read name lookup.
         '''
+        track = P.snip(outfile, ".bam")
+
         executable = self.executable
 
         num_files = [len(x) for x in infiles]
@@ -2030,7 +2182,7 @@ class BowtieTranscripts(Mapper):
         statement = '''cat %(tmpdir_fastq)s/out.bam
              %(unique_cmd)s
              %(strip_cmd)s
-             | samtools sort - %(outf)s 2>>%(outfile)s.bwa.log;
+             | samtools sort - %(outfile)s 2>>%(track)s.bwa.log;
              samtools index %(outfile)s;
              ''' % locals()
 

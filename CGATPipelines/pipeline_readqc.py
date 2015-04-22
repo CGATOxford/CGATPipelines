@@ -174,8 +174,11 @@ def runFastqc(infiles, outfile):
     solexa format.  Perform quality control checks on reads from
     .fastq files.
     '''
+
     m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                               outdir=PARAMS["exportdir"] + "/fastqc")
+                               outdir=PARAMS["exportdir"] + "/fastqc",
+                               contaminants=PARAMS['contaminants'])
+
     statement = m.build((infiles,), outfile)
     P.run()
 

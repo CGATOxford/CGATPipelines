@@ -30,8 +30,10 @@ using GATK.  Next variants (SNVs and indels) are called and filtered
    5a. Variant calling (SNPs) with tumour samples using muTect including
       filtering
    5b. Variant calling (indels) using Strelka
-   6. Variant annotation using SNPeff, GATK VariantAnnotator, and SnpSift
-   7. Generates report
+   6a. Variant annotation using SNPeff, GATK VariantAnnotator, and SnpSift
+   6b. Variant annotation with data from eBIO
+   6c. Load Network of Cancer Genes (NCG) for Variant annotation in reporting
+
 
 .. note::
 
@@ -153,7 +155,10 @@ import glob
 import pandas as pd
 import itertools
 import re
-import CGATPipelines.PipelineExome as Exome
+import CGATPipelines.PipelineExome as PipelineExome
+import urllib
+import collections
+from bs4 import BeautifulSoup
 USECLUSTER = True
 
 #########################################################################
@@ -171,13 +176,21 @@ def connect():
 
 
 #########################################################################
-# load options from the config file
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
-     "pipeline.ini"])
+     "pipeline.ini"],
+    defaults={
+        'paired_end': False},
+    only_import=__name__ != "__main__")
 
 PARAMS = P.PARAMS
+print "PARAMS: ", PARAMS
+
+PipelineMapping.PARAMS = PARAMS
+PipelineMappingQC.PARAMS = PARAMS
+PipelineExome.PARAMS = PARAMS
+#########################################################################
 
 
 def getGATKOptions():
@@ -186,7 +199,14 @@ def getGATKOptions():
 
 
 def getMuTectOptions():
-    return "-l mem_free=6G"
+    return "-l mem_free=4G"
+
+
+def makeSoup(address):
+    sock = urllib.urlopen(address)
+    htmlSource = sock.read()
+    soup = BeautifulSoup(htmlSource)
+    return soup
 
 
 #########################################################################
@@ -256,18 +276,17 @@ def mapReads(infile, outfile):
     generate alignment statistics and deduplicate using Picard'''
 
     job_threads = PARAMS["bwa_threads"]
-    job_options = "-l mem_free=8G"
-    job_threads = 2
+    job_options = "-l mem_free=2G"
 
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
             remove_non_unique=PARAMS["bwa_remove_non_unique"],
-            strip_sequence=False, align_stats=True, dedup=True)
+            strip_sequence=False)
 
     elif PARAMS["bwa_algorithm"] == "mem":
         m = PipelineMapping.BWAMEM(
             remove_non_unique=PARAMS["bwa_remove_non_unique"],
-            strip_sequence=False, align_stats=True, dedup=True)
+            strip_sequence=False)
     else:
         raise ValueError("bwa algorithm '%s' not known" % algorithm)
 
@@ -316,7 +335,7 @@ def buildCoverageStats(infile, outfile):
                 ''' % locals()
     P.run()
 
-    PipelineMappingQC.loadPicardAlignmentStats(
+    PipelineMappingQC.buildPicardCoverageStats(
         infile, outfile, modified_baits, modified_baits)
 
     IOTools.zapFile(modified_baits)
@@ -325,28 +344,7 @@ def buildCoverageStats(infile, outfile):
 @follows(buildCoverageStats)
 @merge(buildCoverageStats, "coverage_stats.load")
 def loadCoverageStats(infiles, outfile):
-    '''Import coverage statistics into SQLite'''
-    tablename = P.toTable(outfile)
-    outf = open('coverage.txt', 'w')
-    first = True
-    for f in infiles:
-        track = P.snip(os.path.basename(f), ".cov")
-        lines = [x for x in open(f, "r").readlines()
-                 if not x.startswith("#") and x.strip()]
-        if first:
-            outf.write("%s\t%s" % ("track", lines[0]))
-        first = False
-        outf.write("%s\t%s" % (track, lines[1]))
-    outf.close()
-    tmpfilename = outf.name
-    statement = '''cat %(tmpfilename)s
-                   | python %%(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                      --ignore-empty
-                      --retry
-                   > %(outfile)s '''
-    P.run()
+    PipelineMappingQC.loadPicardCoverageStats(infiles, outfile)
 
 #########################################################################
 #########################################################################
@@ -367,7 +365,8 @@ def GATKpreprocessing(infile, outfile):
     track = P.snip(os.path.basename(infile), ".bam")
     tmpdir_gatk = P.getTempDir('/ifs/scratch')
     job_options = getGATKOptions()
-    job_threads = 6
+    # TS no multithreading so why 6 threads?
+    # job_threads = 6
     library = PARAMS["readgroup_library"]
     platform = PARAMS["readgroup_platform"]
     platform_unit = PARAMS["readgroup_platform_unit"]
@@ -377,20 +376,19 @@ def GATKpreprocessing(infile, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    outfile1 = re.sub(".bqsr", ".readgroups.bqsr", outfile)
-    outfile2 = re.sub(".bqsr", ".realign.bqsr", outfile)
+    outfile1 = outfile.replace(".bqsr", ".readgroups.bqsr")
+    outfile2 = outfile.replace(".bqsr", ".realign.bqsr")
 
-    Exome.GATKreadGroups(infile, outfile1, genome, library, platform,
-                         platform_unit)
+    PipelineExome.GATKReadGroups(infile, outfile1, genome, library, platform,
+                                 platform_unit)
 
-    Exome.GATKrealign(outfile1, outfile2, genome, gatk_threads)
+    PipelineExome.GATKIndelRealign(outfile1, outfile2, genome, gatk_threads)
 
-    Exome.GATKrescore(outfile2, outfile, genome, dbsnp, solid_options)
+    PipelineExome.GATKBaseRecal(outfile2, outfile, genome,
+                                dbsnp, solid_options)
 
-    IOTools.zapFile(outfile1 + ".bam")
-    IOTools.zapFile(outfile1 + ".bai")
-    IOTools.zapFile(outfile2 + ".bam")
-    IOTools.zapFile(outfile2 + ".bai")
+    IOTools.zapFile(outfile1)
+    IOTools.zapFile(outfile2)
 
 
 @transform(GATKpreprocessing,
@@ -402,7 +400,8 @@ def mergeSampleBams(infile, outfile):
     # splitting of bam files
     to_cluster = USECLUSTER
     job_options = getGATKOptions()
-    job_threads = 6
+    # TS no multithreading so why 6 threads?
+    # job_threads = 6
     # tmpdir_gatk = P.getTempDir('tmpbam')
     tmpdir_gatk = P.getTempDir('/ifs/scratch')
     # threads = PARAMS["gatk_threads"]
@@ -422,7 +421,8 @@ def mergeSampleBams(infile, outfile):
 
     control_id = "Control.bam"
     tumor_id = control_id.replace("Control", PARAMS["mutect_tumour"])
-    tmpdir_gatk = P.getTempDir('.')
+    # T.S delete after testing
+    # tmpdir_gatk = P.getTempDir('.')
 
     statement = '''AddOrReplaceReadGroups
                     INPUT=%(infile)s
@@ -464,7 +464,7 @@ def realignMatchedSample(infile, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.GATKrealign(infile, outfile, genome)
+    PipelineExome.GATKIndelRealign(infile, outfile, genome)
 
     IOTools.zapFile(infile)
 
@@ -475,7 +475,7 @@ def realignMatchedSample(infile, outfile):
 def splitMergedRealigned(infile, outfile):
     ''' split realignment file and truncate intermediate bams'''
 
-    track = P.snip(os.path.basename(infile), "realigned.bqsr.bam") + ".bqsr"
+    track = P.snip(os.path.basename(infile), ".realigned.bqsr.bam") + ".bqsr"
     track_tumor = track.replace("Control", PARAMS["mutect_tumour"])
     outfile_tumor = outfile.replace("Control", PARAMS["mutect_tumour"])
 
@@ -495,7 +495,8 @@ def splitMergedRealigned(infile, outfile):
 def runPicardOnRealigned(infile, outfile):
     to_cluster = USECLUSTER
     job_options = getGATKOptions()
-    job_threads = 6
+    # TS no multithreading so why 6 threads?
+    # job_threads = 6
     tmpdir_gatk = P.getTempDir('/ifs/scratch')
     # threads = PARAMS["gatk_threads"]
 
@@ -509,8 +510,8 @@ def runPicardOnRealigned(infile, outfile):
                            PARAMS["genome"])
 
     PipelineMappingQC.buildPicardAlignmentStats(infile, outfile, genome)
-    PipelineMappingQC.buildPicardAlignmentStats(infile_tumour,
-                                                outfile_tumour, genome)
+    PipelineMappingQC.buildPicardAlignmentStats(infile_tumor,
+                                                outfile_tumor, genome)
 
     # check above functions then remove statement
     statement = '''
@@ -561,11 +562,12 @@ def callControlVariants(infile, outfile):
     gatk_key = PARAMS["mutect_key"]
     cosmic, dbsnp, = (PARAMS["mutect_cosmic"],
                       PARAMS["gatk_dbsnp"])
-    genome = "%(bwa_index_dir)s/%(genome)s.fa" % locals()
 
-    Exome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
-                          dbsnp, call_stats_out, cluster_options)
-    P.run()
+    genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
+                           PARAMS["genome"])
+
+    PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
+                                  dbsnp, call_stats_out, cluster_options)
 
 
 @follows(mkdir("normal_panel_variants"))
@@ -592,7 +594,8 @@ def callControlVariants2(infile, outfile):
         PARAMS["mutect_cosmic"],
         PARAMS["gatk_dbsnp"])
 
-    statement = '''java -Xmx4g -jar
+    statement = '''
+    java -Xmx2g -jar
     /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
     --analysis_type MuTect
     --reference_sequence %%(bwa_index_dir)s/%%(genome)s.fa
@@ -638,13 +641,12 @@ def mergeControlVariants(infiles, outfile):
            regex(r"bam/(\S+)-Control-(\S).realigned.split.bqsr.bam"),
            add_inputs(mergeControlVariants),
            r"variants/\1.mutect.snp.vcf")
-def runMutect(infiles, outfile):
+def runMutect2(infiles, outfile):
     '''calls somatic SNPs using MuTect'''
     infile, normal_panel = infiles
-    infile_tumour = infile.replace(
-        "Control", PARAMS["mutect_tumour"])
+    infile_tumour = infile.replace("Control", PARAMS["mutect_tumour"])
     cluster_options = getMuTectOptions()
-    basename = P.snip(outfile, "_normal_mutect.vcf")
+    basename = P.snip(outfile, ".mutect.snp.vcf")
     call_stats_out = basename + "_call_stats.out"
     mutect_log = basename + ".log"
 
@@ -653,36 +655,33 @@ def runMutect(infiles, outfile):
          PARAMS["mutect_cosmic"], PARAMS["gatk_dbsnp"],
          PARAMS["mutect_quality"], PARAMS["mutect_max_alt_qual"],
          PARAMS["mutect_max_alt"], PARAMS["mutect_max_fraction"],
-         PARAMS["mutect_LOD"], PARAMS["mutect_key"])
+         PARAMS["mutect_lod"], PARAMS["mutect_key"])
 
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
-                          cosmic, dbsnp, call_stats_out,
-                          cluster_options, quality, max_alt_qual,
-                          max_alt, max_fraction, tumor_LOD,
-                          normal_panel, infile_matched=infile)
-    P.run()
+    PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
+                                  cosmic, dbsnp, call_stats_out,
+                                  cluster_options, quality, max_alt_qual,
+                                  max_alt, max_fraction, tumor_LOD,
+                                  normal_panel, infile_matched=infile)
 
 
 # delete once above function checked
 @follows(mkdir("variants"), callControlVariants)
-@transform(realignMatchedSample,
-           regex(r"bam/(\S+)-Control-(\S).realigned.bqsr.bam"),
+@transform(splitMergedRealigned,
+           regex(r"bam/(\S+)-Control-(\S).realigned.split.bqsr.bam"),
            add_inputs(mergeControlVariants),
            r"variants/\1.mutect.snp.vcf")
-#            r"variants/\1_call_stats.out"])
-def runMutect2(infiles, outfile):
+def runMutect(infiles, outfile):
     '''calls somatic SNPs using MuTect'''
     infile, normal_panel = infiles
-    infile_tumour = infile.replace(
-        "Control", PARAMS["mutect_tumour"])
+    infile_tumour = infile.replace("Control", PARAMS["mutect_tumour"])
     # mutect repeatedly hangs-up with multithreading
     # furthermore, multithreading doesn't speed up even nearly linearly
     # threads = PARAMS["gatk_threads"]
-    job_options = getMuTectOptions()
-    job_threads = 2
+
+    cluster_options = getMuTectOptions()
     # outfile, extended_out = outfiles
     basename = P.snip(outfile, ".mutect.snp.vcf")
     call_stats_out = basename + "_call_stats.out"
@@ -700,7 +699,9 @@ def runMutect2(infiles, outfile):
     else:
         key = ""
 
-    statement = '''java -Xmx4g -jar
+    statement = '''
+    module load apps/java/jre1.6.0_26;
+    java -Xmx2g -jar
     /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
     --analysis_type MuTect
     --reference_sequence %%(bwa_index_dir)s/%%(genome)s.fa
@@ -712,7 +713,7 @@ def runMutect2(infiles, outfile):
     --coverage_file %(coverage_wig_out)s
     --vcf %(outfile)s
     --min_qscore 20
-    --max_alt_alleles_in_normal_qscore_sum 150
+    --max_alt_alleles_in_normal_qscore_sum 100
     --max_alt_alleles_in_normal_count 5
     --max_alt_allele_in_normal_fraction 0.05
     --gap_events_threshold 2
@@ -790,11 +791,11 @@ def runMutectReverse(infiles, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.mutectSNPCaller(infile, outfile, mutect_log, genome,
-                          cosmic, dbsnp, call_stats_out,
-                          cluster_options, quality, max_alt_qual,
-                          max_alt, max_fraction, tumor_LOD,
-                          normal_panel, infile_matched=infile_tumour)
+    PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome,
+                                  cosmic, dbsnp, call_stats_out,
+                                  cluster_options, quality, max_alt_qual,
+                                  max_alt, max_fraction, tumor_LOD,
+                                  normal_panel, infile_matched=infile_tumour)
 
 
 # generalise the functions below
@@ -864,11 +865,11 @@ def runMutectOnDownsampled(infiles, outfile):
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    Exome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
-                          cosmic, dbsnp, call_stats_out,
-                          cluster_options, quality, max_alt_qual,
-                          max_alt, max_fraction, tumor_LOD,
-                          normal_panel, infile_matched=infile)
+    PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
+                                  cosmic, dbsnp, call_stats_out,
+                                  cluster_options, quality, max_alt_qual,
+                                  max_alt, max_fraction, tumor_LOD,
+                                  normal_panel, infile_matched=infile)
 
 ##############################################################################
 ##############################################################################
@@ -877,15 +878,17 @@ def runMutectOnDownsampled(infiles, outfile):
 ##############################################################################
 
 
-@collate(realignMatchedSample,
-         regex(r"bam/(\S+)-(\S+)-(\S+).realigned.bqsr.bam"),
+@collate(splitMergedRealigned,
+         regex(r"bam/(\S+)-(\S+)-(\S+).realigned.split.bqsr.bam"),
          r"bam/\1.list")
 def listOfBAMs(infiles, outfile):
     '''generates a file containing a list of BAMs for each patient,
        for use in variant calling'''
     with IOTools.openFile(outfile, "w") as outf:
         for infile in infiles:
+            infile_tumour = infile.replace("Control", PARAMS["mutect_tumour"])
             outf.write(infile + '\n')
+            outf.write(infile_tumour + '\n')
 
 
 @transform(runMutect,
@@ -1189,6 +1192,8 @@ def loadVCFstats(infiles, outfile):
            suffix(".mutect.snp.vcf"),
            "_mutect_filtering_summary.tsv")
 def summariseFiltering(infile, outfile):
+    infile = infile.replace(".mutect.snp.vcf", "_call_stats.out")
+    print "infile: ", infile
     PipelineExome.parseMutectCallStats(infile, outfile)
 
 
@@ -1205,6 +1210,91 @@ def loadMutectFilteringSummary(infile, outfile):
                    --table %(tablename)s --retry --ignore-empty
                    > %(outfile)s''' % locals()
     P.run()
+
+#########################################################################
+#########################################################################
+#########################################################################
+
+
+@originate("eBio_studies.tsv")
+def defineEBioStudies(outfile):
+    ''' For the cancer types specified in pipeline.ini, identify the
+    relevent studies in eBio '''
+
+    cancer_types = PARAMS["annotation_ebio_cancer_types"].split(",")
+
+    cancer_studies_url = "http://www.cbioportal.org/webservice.do?cmd=getCancerStudies"
+    genetic_profiles_url = "http://www.cbioportal.org/webservice.do?cmd=getGeneticProfiles"
+
+    type2study_dict = collections.defaultdict(list)
+    study2table_dict = collections.defaultdict(list)
+
+    soup = makeSoup(cancer_studies_url)
+    for line in soup.body:
+        if isinstance(line, NavigableString):
+            values = unicode(line).strip().split("\t")
+            if len(values) > 1:
+                cancer_type = values[1].split(" (")[0]
+                if cancer_type in cancer_types:
+                    study = re.sub(".\n", "", values[0])
+                    type2study_dict[cancer_type] = study
+
+    for study in type2study_dict.values():
+        soup = makeSoup(genetic_profiles_url + "&cancer_study_id=" + study)
+        lines = unicode(soup.body).split('\n')
+        for line in lines:
+            values = line.strip().split("\t")
+            if len(values) > 1:
+                print values[1], values[0]
+                if values[1] == "Mutations":
+                    genetic_profile = values[0]
+                    study2table_dict[study] = genetic_profile
+
+    print study2table_dict
+
+    outf = IOTools.openFile(outfile, "w")
+
+    for cancer_type, study_id in type2study_dict.iteritems():
+        table_id = study2table_dict[study_id]
+        outf.write("%s\t%s\t%s\n" % (cancer_type, study_id, table_id))
+
+    outf.close()
+
+
+'''
+this function should take a list of genes
+(generated from parsing all vcf files?)
+and then retrieve the mutation frequencies in the tissue types specified
+'''
+
+
+@transform(defineEBioStudies,
+           suffix(".tsv"),
+           add_inputs(variantAnnotator, variantAnnotatorIndels),
+           "_gene_frequencies.tsv")
+def getMutationFrequencies(infiles, outfile):
+    eBio_ids, SNV_vcfs, INDEL_vcfs = infiles
+    genes = set()
+    for inf in SNV_vcfs:
+        # read in file and update set of genes
+        pass
+    for inf in INDEL_vcfs:
+        # read in file and update set of genes
+        pass
+
+    genes = "+".join(list(genes))
+    print genes
+
+    eBio_ids = IOTools.openFile(eBio_ids, "r")
+    for line in eBio_ids:
+        tissue, study, table = line.strip().split("\t")
+        url = ("http://www.cbioportal.org/webservice.do?cmd=getProfileData&"
+               "case_set_id=%(study)s&genetic_profile_id=%(table)s&"
+               "gene_list=%(genes)s")
+        print url
+        df = pd.io.parsers.read_csv(url, comment="#", header=True, index_col=0)
+
+        print df.shape
 
 #########################################################################
 #########################################################################
@@ -1242,13 +1332,12 @@ def mutationalSignature(infiles, outfiles):
     min_t_alt = PARAMS["filter_minimum_tumor_allele"]
     min_t_alt_freq = PARAMS["filter_minimum_tumor_allele_frequency"]
     min_n_depth = PARAMS["filter_minimum_normal_depth"]
-    max_n_alt_freq = PARAMS["filter_maximim_normal_allele_frequency"]
+    max_n_alt_freq = PARAMS["filter_maximum_normal_allele_frequency"]
     tumour = PARAMS["mutect_tumour"]
 
-    ExomeCancer.compileMutationalSignature(infiles, outfiles,
-                                           min_t_alt, min_n_depth,
-                                           max_n_alt_freq, min_t_alt_freq,
-                                           tumour, submit=True)
+    PipelineExome.compileMutationalSignature(
+        infiles, outfiles, min_t_alt, min_n_depth, max_n_alt_freq,
+        min_t_alt_freq, tumour, submit=True)
 
 
 @transform(mutationalSignature,
@@ -1276,7 +1365,7 @@ def full():
     pass
 
 
-@follows(loadMutectFilteringSummary)
+@follows(callControlVariants)
 def test():
     pass
 
