@@ -652,7 +652,7 @@ def drawConditionVennDiagram(infiles, outfile):
 
 @follows(loadConditionDiffExpression)
 @collate(r"diff_timepoints.dir/*.tsv",
-         regex(r"diff_timepoints.dir/(.+)_(.+)_(.+)-time.tsv"),
+         regex(r"diff_timepoints.dir/(.+).(.+)_(.+)-time.tsv"),
          r"images.dir/\1-time-venn.png")
 def drawTimeVennDiagram(infiles, outfile):
     '''
