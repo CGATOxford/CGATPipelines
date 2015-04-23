@@ -699,7 +699,7 @@ class cutadapt(process_tool):
         processing_options = self.processing_options
         adapter_file = self.adapters
         if self.num_files == 1:
-            infile = infiles[0]
+            infile = infiles
             track = os.path.basename(infile)
             logfile = "log.dir/%(track)s_cutadapt.log" % locals()
             outfile = "%(outdir)s/%(prefix)s%(track)s" % locals()

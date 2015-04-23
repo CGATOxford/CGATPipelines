@@ -29,11 +29,13 @@ Code
 # Import modules
 import os
 import CGAT.IOTools as IOTools
-import CGAT.Pipeline as P
-from CGAT.Pipeline import cluster_runnable
+import CGATPipelines.Pipeline as P
+from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
 import pandas as pd
 import CGAT.CSV as csv
+import CGAT.IOTools as IOTools
+import collections
 # Set PARAMS in calling module
 PARAMS = {}
 
@@ -165,10 +167,11 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                     normal_panel=None, gatk_key=None,
                     infile_matched=None):
     '''Call SNVs using Broad's muTect'''
-    # get mutect to work from module file without full path.
+    # TS. this is currently CGAT specific. How to generalise?
 
     job_options = cluster_options
-    statement = '''java -Xmx4g -jar
+    statement = '''module load apps/java/jre1.6.0_26;
+                   java -Xmx2g -jar
                    /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
                    --analysis_type MuTect
                    --reference_sequence %(genome)s
@@ -200,7 +203,7 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
 ##############################################################################
 
 
-def strelkaINDELCaller(infile_control, infile_tumour, outfile, genome, config,
+def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
                        outdir, cluster_options):
     '''Call INDELs using Strelka'''
 
@@ -208,7 +211,7 @@ def strelkaINDELCaller(infile_control, infile_tumour, outfile, genome, config,
     statement = '''
     rm -rf %(outdir)s;
     /ifs/apps/bio/strelka-1.0.14/bin/configureStrelkaWorkflow.pl
-    --normal=%(infile)s  --tumor=%(infile_tumor)s
+    --normal=%(infile_control)s  --tumor=%(infile_tumor)s
     --ref=%(genome)s  --config=%(config)s  --output-dir=%(outdir)s;
     checkpoint ; make -j 12 -C %(outdir)s''' % locals()
 
@@ -506,32 +509,28 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
 def parseMutectCallStats(infile, outfile):
     '''take the call stats outfile from mutect and summarise the
     reasons for variant rejection'''
-    single_dict = {}
-    combinations_dict = {}
 
-    def updateDict(dictionary, key):
-        if key in dictionary:
-            dictionary[key] += 1
-        else:
-            dictionary[key] = 1
+    single_dict = collections.defaultdict(int)
+    combinations_dict = collections.defaultdict(int)
 
-    with open(infile, "rb") as infile:
+    with IOTools.openFile(infile, "rb") as infile:
         lines = infile.readlines()
         for i, line in enumerate(lines):
             if i < 2:
                 continue
-                values = line.strip().split("\t")
-                judgement, justification = (values[-1], values[-2])
-                if judgement == "REJECT":
-                    reasons = justification.split(",")
-                    if len(reasons) == 1:
-                        updateDict(single_dict, reasons[0])
-                    else:
-                        for reason in reasons:
-                            updateDict(combinations_dict, reasons[0])
+            values = line.strip().split("\t")
+            judgement, justification = (values[-1], values[-2])
+            if judgement == "REJECT":
+                reasons = justification.split(",")
+                if len(reasons) == 1:
+                    single_dict[reasons[0]] += 1
+                else:
+                    for reason in reasons:
+                        combinations_dict[reasons[0]] += 1
 
     df = pd.DataFrame([single_dict, combinations_dict])
+    print df
     df = df.transpose()
     df.columns = ["single", "combination"]
     df = df.sort("single", ascending=False)
-    df.to_csv(df, outfile, header=True, index=False)
+    df.to_csv(outfile, header=True, index=False, sep="\t")

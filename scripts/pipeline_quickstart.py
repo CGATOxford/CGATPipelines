@@ -36,6 +36,7 @@ import re
 import os
 import shutil
 import CGAT.Experiment as E
+import CGATPipelines.Pipeline as P
 
 
 def main(argv=sys.argv):
@@ -100,7 +101,7 @@ def main(argv=sys.argv):
     rx_template = re.compile("@template@")
     rx_reportdir = re.compile("@reportdir@")
 
-    srcdir = os.path.dirname(__file__)
+    srcdir = P.CGATPIPELINES_PIPELINE_DIR
 
     def copy(src, dst, name):
 
