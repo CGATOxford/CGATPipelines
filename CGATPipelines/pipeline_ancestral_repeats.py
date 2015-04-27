@@ -105,7 +105,7 @@ Code
 """
 import sys
 import os
-
+import MySQLdb
 import CGAT.Experiment as E
 import logging as L
 
@@ -174,14 +174,14 @@ if "axt_dir" in PARAMS:
         for infile in infiles:
             E.info("adding %s" % infile)
             statement = '''gunzip < %(infile)s 
-                           | axtToPsl 
-                               /dev/stdin
-                               %(query)s.sizes 
-                               %(target)s.sizes 
-                               /dev/stdout 
-                           | pslSwap /dev/stdin /dev/stdout 
-                           | gzip >> %(outfile)s
-                           '''
+            | axtToPsl 
+            /dev/stdin
+            %(query)s.sizes 
+            %(target)s.sizes 
+            /dev/stdout 
+            | pslSwap /dev/stdin /dev/stdout 
+            | gzip >> %(outfile)s
+            '''
             P.run()
 
 
@@ -285,10 +285,6 @@ else:
     raise ValueError(
         "configuration error: please specify either maf_dir or axt_dir")
 
-#########################################################################
-#########################################################################
-#########################################################################
-
 
 def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
     '''import repeats from a UCSC formatted file.
@@ -302,8 +298,6 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
     # individual ``rmsk`` tables (mm9) like chr1_rmsk, chr2_rmsk, ....
     # In order to do a single statement, the ucsc mysql database is
     # queried for tables that end in rmsk.
-
-    import MySQLdb
     dbhandle = MySQLdb.Connect(host=PARAMS["ucsc_host"],
                                user=PARAMS["ucsc_user"])
 
@@ -327,8 +321,11 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
             CONCAT('class \\"', repClass, '\\"; family \\"', repFamily, '\\";')
             FROM %(table)s
             WHERE repClass in ('%(repclasses)s') """ % locals())
+        n = 0
         for data in cc.fetchall():
+            n += 1
             tmpfile.write("\t".join(map(str, data)) + "\n")
+        E.info("%s: %s=%i repeats downloaded" % (ucsc_database, table, n))
 
     tmpfile.close()
     tmpfilename = tmpfile.name
@@ -347,10 +344,6 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
     P.run()
 
     os.unlink(tmpfilename)
-
-#########################################################################
-#########################################################################
-########################################################################
 
 
 def importRepeatsFromEnsembl(infile, outfile,
