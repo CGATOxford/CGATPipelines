@@ -236,10 +236,6 @@ if [ "$OS" != "travis" ] ; then
 
    if [ "$INSTALL_DEVEL" == "1" ] ; then
 
-      # get latest version from Git Hub
-      git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code
-      cd $CGAT_HOME/cgat-code
-
       # activate cgat environment
       source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
 
@@ -248,6 +244,10 @@ if [ "$OS" != "travis" ] ; then
       export C_INCLUDE_PATH=$C_INCLUDE_PATH:"/usr/include/x86_64-linux-gnu"
       export LIBRARY_PATH=$LIBRARY_PATH:"/usr/lib/x86_64-linux-gnu"
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib/R/lib
+
+      # get latest version from Git Hub
+      git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code
+      cd $CGAT_HOME/cgat-code
 
       # Python preparation
       python setup.py develop
@@ -261,11 +261,29 @@ if [ "$OS" != "travis" ] ; then
          echo " https://github.com/CGATOxford/cgat/issue "
          echo 
       fi # if-$?
+
+      # get latest version from Git Hub
+      git clone https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+      cd $CGAT_HOME/cgat-pipelines
+
+      # Python preparation
+      python setup.py develop
+
+      if [ ! $? -eq 0 ] ; then
+         echo
+         echo " There was a problem doing: 'python setup.py develop' "
+         echo " Installation did not finish properly. "
+         echo 
+         echo " Please submit this issue via Git Hub: "
+         echo " https://github.com/CGATOxford/cgat/issue "
+         echo 
+      fi # if-$?
+
    fi # if INSTALL_DEVEL
 
    clear
    echo 
-   echo " The CGAT code was successfully installed!"
+   echo " The CGAT code and pipelines was successfully installed!"
    echo
    echo " To activate the CGAT environment type: "
    echo " $ source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE"
