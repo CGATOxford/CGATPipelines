@@ -364,35 +364,6 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     os.unlink(tmpfile2)
 
 
-# TS show this be made cluster runnable?..
-def annotateGTFgeneBiotype(infile1, infile2, outfile):
-    '''
-    Annotate GTF file with gene biotype from another GTF
-    '''
-
-    out_gtf = IOTools.openFile(outfile, "w")
-    infile2_idx = GTF.readAndIndex(GTF.iterator(IOTools.openFile(infile2)))
-
-    for entry in GTF.iterator(IOTools.openFile(infile1)):
-        infile2_entry = infile2_idx.get(entry.contig, entry.start, entry.end)
-
-        gene_biotypes = set()
-
-        for i in infile2_entry:
-            print i
-            fields = map(lambda x: (x.split(" ")),
-                         i[2].attributes.split("; ")[:-1])
-            fields_dict = {key: value for (key, value) in fields}
-            gene_biotypes.update((fields_dict['gene_biotype'],))
-
-        for biotype in gene_biotypes:
-            entry.attributes += " gene_biotype %s;" % biotype
-
-            out_gtf.write("%s\n" % entry)
-
-    out_gtf.close()
-
-
 class Mapper(object):
 
     '''map reads.

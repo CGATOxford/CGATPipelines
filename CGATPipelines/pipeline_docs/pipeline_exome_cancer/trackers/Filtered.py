@@ -31,6 +31,8 @@ class Snp(ExomeTracker):
         ON A.CHROM = B.contig AND A.POS = B.position
         LEFT OUTER JOIN cancergenes as C
         ON A.SNPEFF_GENE_NAME = C.symbol
+        LEFT OUTER JOIN eBio_studies_gene_frequencies as D
+        ON A.SNPEFF_GENE_NAME = D.gene
         WHERE A.FILTER!='REJECT'
         AND B.t_alt_count > 3
         AND (1.0*B.n_alt_count)/(B.n_ref_count + B.n_alt_count) < 0.03
@@ -62,6 +64,8 @@ class Indel(ExomeTracker):
         FROM %(track)s_indels_annotated_tsv AS A
         LEFT OUTER JOIN cancergenes as B
         ON A.SNPEFF_GENE_NAME = B.symbol
+        LEFT OUTER JOIN eBio_studies_gene_frequencies as C
+        ON A.SNPEFF_GENE_NAME = C.gene
         WHERE A.QSI_NT > 20 AND A.IHP < 12
         AND A.RC < 12 AND A.IC < 12;
         ''' % locals()

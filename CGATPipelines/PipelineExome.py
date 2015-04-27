@@ -35,13 +35,25 @@ import numpy as np
 import pandas as pd
 import CGAT.CSV as csv
 import CGAT.IOTools as IOTools
+import CGAT.VCF as VCF
 import collections
+import re
+import urllib
+from bs4 import BeautifulSoup
+from bs4 import NavigableString
+
 # Set PARAMS in calling module
 PARAMS = {}
 
 
 def getGATKOptions():
     return "-l mem_free=1.4G -l picard=1"
+
+def makeSoup(address):
+    sock = urllib.urlopen(address)
+    htmlSource = sock.read()
+    soup = BeautifulSoup(htmlSource)
+    return soup
 
 ##############################################################################
 
@@ -502,8 +514,10 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
         outfile2.write("%s\t%s\n" % (patient_id, frequencies))
     outfile2.close()
 
-##############################################################################
 
+##############################################################################
+# utility functions for pipeline_exome_cancer
+##############################################################################
 
 @cluster_runnable
 def parseMutectCallStats(infile, outfile):
@@ -529,8 +543,109 @@ def parseMutectCallStats(infile, outfile):
                         combinations_dict[reasons[0]] += 1
 
     df = pd.DataFrame([single_dict, combinations_dict])
-    print df
+
     df = df.transpose()
     df.columns = ["single", "combination"]
     df = df.sort("single", ascending=False)
     df.to_csv(outfile, header=True, index=False, sep="\t")
+
+
+@cluster_runnable
+def defineEBioStudies(cancer_types, outfile):
+    ''' For the cancer types specified in pipeline.ini, identify the
+    relevent studies in eBio '''
+
+    cancer_types = cancer_types.split(",")
+
+    cancer_studies_url = "http://www.cbioportal.org/webservice.do?cmd=getCancerStudies"
+    genetic_profiles_url = "http://www.cbioportal.org/webservice.do?cmd=getGeneticProfiles"
+
+    type2study_dict = collections.defaultdict(list)
+    study2table_dict = collections.defaultdict(list)
+
+    soup = makeSoup(cancer_studies_url)
+    for line in soup.body:
+        if isinstance(line, NavigableString):
+            values = unicode(line).strip().split("\t")
+            if len(values) > 1:
+                cancer_type = values[1].split(" (")[0]
+                if cancer_type in cancer_types:
+                    study = re.sub(".\n", "", values[0])
+                    type2study_dict[cancer_type].append(study)
+
+    for study_list in type2study_dict.values():
+        for study in study_list:
+            soup = makeSoup(genetic_profiles_url + "&cancer_study_id=" + study)
+            lines = unicode(soup.body).split('\n')
+            for line in lines:
+                values = line.strip().split("\t")
+                if len(values) > 1:
+                    if values[1] == "Mutations":
+                        genetic_profile = values[0]
+                        study2table_dict[study] = genetic_profile
+
+    outf = IOTools.openFile(outfile, "w")
+
+    for cancer_type, study_id in type2study_dict.iteritems():
+        for study in study_id:
+            table_id = study2table_dict[study]
+            outf.write("%s\t%s\t%s\n" % (cancer_type, study, table_id))
+
+    outf.close()
+
+
+@cluster_runnable
+def extractEBioinfo(eBio_ids, vcfs, outfile):
+    '''find the number of mutations identitified in previous studies (eBio_ids)
+    for the mutated genes in the vcfs'''
+
+    genes = set()
+
+    n = 0
+    for vcf in vcfs:
+        if n > 0:
+            break
+        else:
+            n += 1
+        infile = VCF.VCFFile(IOTools.openFile(vcf))
+        for vcf_entry in infile:
+            # assumes all vcf entries without "REJECT" are "PASS"
+            if vcf_entry.filter != "REJECT":
+                info_entries = vcf_entry.info.split(";")
+                for entry in info_entries:
+                    if "SNPEFF_GENE_NAME" in entry:
+                        genes.update((entry.split("=")[1],))
+
+    eBio_ids = IOTools.openFile(eBio_ids, "r")
+
+    tissue_counts = collections.defaultdict(
+        lambda: collections.defaultdict(
+            lambda: collections.defaultdict(int)))
+
+    for line in eBio_ids:
+        tissue, study, table = line.strip().split("\t")
+        for gene in genes:
+            url = ("http://www.cbioportal.org/webservice.do?cmd=getProfileData&"
+                   "case_set_id=%(study)s_all&genetic_profile_id=%(table)s&"
+                   "gene_list=%(gene)s" % locals())
+            print url
+            df = pd.io.parsers.read_csv(url, comment="#", sep="\t",
+                                        header=False, index_col=0)
+
+            # check dataframe contains data!
+            if df.shape[0] != 0:
+                tissue_counts[gene][tissue]["total"] += df.shape[1]-2
+                tissue_counts[gene][tissue]["mutations"] += int(df.count(1))-1
+
+    out = IOTools.openFile(outfile, "w")
+    out.write("gene\ttissue\ttotal_samples\tmutations\tfrequency\n")
+
+    for gene in tissue_counts.keys():
+        for tissue in tissue_counts[gene].keys():
+            total = tissue_counts[gene][tissue]["total"]
+            mutations = tissue_counts[gene][tissue]["mutations"]
+            out.write("%s\n" % "\t".join(
+                map(str, (gene, tissue, total, mutations,
+                          float(mutations)/total))))
+
+    out.close()

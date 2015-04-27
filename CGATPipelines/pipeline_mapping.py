@@ -347,28 +347,6 @@ def buildReferenceGeneSet(infile, outfile):
 
     os.unlink(tmp_mergedfiltered)
 
-    # TS: cufflinks strips away gene_biotype so that downstream filtering
-    # does not work when GTF is from ensembl >= 78 as gtf source no longer
-    # contains the gene biotype. this adds the gene_biotype back in.
-    # see response to: https://www.biostars.org/p/120306/
-    # perhaps this would be best implemented inside PipelineMapping.resetGTFAttributes?
-    ant_dir = os.path.basename(PARAMS["annotations_dir"])
-    match = re.search(".*_ensembl", ant_dir)
-    try:
-        ensembl_no = int(ant_dir[match.end():])
-    except:
-        E.warn("not possible to determine ensembl number from"
-               "annotation directory: %s" % PARAMS["annotations_dir"])
-
-    if ensembl_no >= 78:
-        outfile_tmp = outfile + "_tmp.gz"
-        PipelineMapping.annotateGTFgeneBiotype(
-            outfile, PARAMS["annotations_interface_geneset_all_gtf"],
-            outfile_tmp)
-
-        os.unlink(outfile)
-        os.rename(outfile_tmp, outfile)
-
 
 @active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
