@@ -12,7 +12,8 @@ and computes rates for these.
 
 This pipeline performs the following actions:
 
-   * collect repeatmasker annotation from external databases. Currently implemented are:
+   * collect repeatmasker annotation from external
+     databases. Currently implemented are:
       * UCSC
       * Ensembl
    * build pairwise genomic alignment from axt or maf files
@@ -124,11 +125,7 @@ P.getParameters(
         'query': "",
         'target': ""})
 PARAMS = P.PARAMS
-USECLUSTER = True
 
-#########################################################################
-#########################################################################
-#########################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
     execfile("pipeline_conf.py")
@@ -199,8 +196,6 @@ elif "maf_dir" in PARAMS:
             os.remove(outfile)
         except OSError:
             pass
-
-        to_cluster = USECLUSTER
 
         for infile in infiles:
             # skip maf files without Hsap on top.
@@ -324,19 +319,19 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
     tmpfile = P.getTempFile(".")
 
     for table in tables:
-        E.info("loading repeats from %s" % table)
+        E.info("%s: loading repeats from %s" % (ucsc_database, table))
         cc = dbhandle.cursor()
-        cc.execute("""SELECT genoName, 'repeat', 'exon', genoStart+1, genoEnd, '.', strand, '.', 
-                      CONCAT('class \\"', repClass, '\\"; family \\"', repFamily, '\\";')
-               FROM %(table)s
-               WHERE repClass in ('%(repclasses)s') """ % locals() )
+        cc.execute(
+            """SELECT genoName, 'repeat', 'exon', genoStart+1, genoEnd, '.',
+            strand, '.',
+            CONCAT('class \\"', repClass, '\\"; family \\"', repFamily, '\\";')
+            FROM %(table)s
+            WHERE repClass in ('%(repclasses)s') """ % locals())
         for data in cc.fetchall():
             tmpfile.write("\t".join(map(str, data)) + "\n")
 
     tmpfile.close()
     tmpfilename = tmpfile.name
-
-    to_cluster = USECLUSTER
 
     statement = '''cat %(tmpfilename)s
     | %(pipeline_scriptsdir)s/gff_sort pos
@@ -438,7 +433,6 @@ def buildAlignedRepeats(infiles, outfile):
     granularity = 5000
 
     # need to escape pipe symbols within farm.py command
-    # to_cluster = False
     # statement = r'''
     #     gunzip < %(interface_alignment_psl)s
     #     | %(cmd-farm)s --split-at-lines=%(granularity)i --log=%(outfile)s.log --is-binary
