@@ -638,18 +638,24 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
 
             # check dataframe contains data!
             if df.shape[0] != 0:
-                tissue_counts[gene][tissue]["total"] += df.shape[1]-2
-                tissue_counts[gene][tissue]["mutations"] += int(df.count(1))-1
+                tissue_counts[tissue][gene]["total"] += df.shape[1]-2
+                tissue_counts[tissue][gene]["mutations"] += int(df.count(1))-1
 
     out = IOTools.openFile(outfile, "w")
-    out.write("gene\ttissue\ttotal_samples\tmutations\tfrequency\n")
 
-    for gene in tissue_counts.keys():
-        for tissue in tissue_counts[gene].keys():
-            total = tissue_counts[gene][tissue]["total"]
-            mutations = tissue_counts[gene][tissue]["mutations"]
-            out.write("%s\n" % "\t".join(
-                map(str, (gene, tissue, total, mutations,
-                          float(mutations)/total))))
+    tissues = tissue_counts.keys()
+
+    out.write("gene\t%s\n" % "\t".join([
+        "%s_frequency" % x.replace(" ", "_") for x in tissues]))
+
+    for gene in genes:
+        freq_values = []
+        for tissue in tissues:
+            total = tissue_counts[tissue][gene]["total"]
+            mutations = tissue_counts[tissue][gene]["mutations"]
+            print "total: ", total, "mutations: ", mutations
+            freq_values.append(np.divide(float(mutations), total))
+
+        out.write("%s\t%s\n" % (gene, "\t".join(map(str, freq_values))))
 
     out.close()
