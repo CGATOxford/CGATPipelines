@@ -1307,7 +1307,8 @@ def loadMutationalSignature(infiles, outfile):
          loadPicardRealigenedAlignStats,
          loadPicardAlignStats,
          loadNCG,
-         loadMutationalSignature)
+         loadMutationalSignature,
+         loadEBioInfo)
 def full():
     pass
 

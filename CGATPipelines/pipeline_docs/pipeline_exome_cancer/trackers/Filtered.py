@@ -23,7 +23,7 @@ class Snp(ExomeTracker):
         A.SNPEFF_IMPACT AS Impact, A.SNPEFF_GENE_BIOTYPE AS Biotype,
         SNPEFF_AMINO_ACID_CHANGE AS AA_change,
         SNPEFF_CODON_CHANGE AS Codon_change,
-        C.type as NCG, C.cancer_type,
+        C.type as NCG, C.cancer_type, D.*,
         B.n_ref_count AS Normal_Ref, B.n_alt_count AS Normal_Alt,
         B.t_ref_count AS Tumor_Ref, B.t_alt_count AS Tumor_Alt
         FROM %(track)s_mutect_snp_annotated_tsv AS A
@@ -56,7 +56,7 @@ class Indel(ExomeTracker):
         A.SNPEFF_IMPACT AS Impact, A.SNPEFF_GENE_BIOTYPE AS Biotype,
         A.SNPEFF_AMINO_ACID_CHANGE AS AA_change,
         A.SNPEFF_CODON_CHANGE AS Codon_change,
-        B.type as NCG, B.cancer_type,
+        B.type as NCG, B.cancer_type,  C.*,
         A.NORMAL_DP AS Normal_depth,
         A.TUMOR_DP AS Tumor_depth,
         A.NORMAL_TAR as Normal_Ref, A.NORMAL_TIR as Normal_Alt,
