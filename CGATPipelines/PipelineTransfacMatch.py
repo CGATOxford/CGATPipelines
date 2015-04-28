@@ -135,6 +135,14 @@ def frequencyMetrics(database, match_table, outfile):
                                        max(result.values())])) + "\n")
     outf.close()
 
+###################################################
+# Significance testing
+###################################################
+
+#####################################################
+# CpG matching
+######################################################
+
 
 def calculateSequenceComposition(interval_names,
                                  sequence_file,

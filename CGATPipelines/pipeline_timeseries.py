@@ -165,7 +165,7 @@ import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGAT.Database as Database
 import CGAT.GTF as GTF
-import CGATPipelines.PipelineTimeseries as PipelineTimeseries
+import CGAT.Timeseries as Timeseries
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################
@@ -756,10 +756,10 @@ if ANALYSIS == 'replicates':
         '''
 
         outdir = outfile.split("/")[0]
-        PipelineTimeseries.splitReplicates(infile=infile,
-                                           axis="column",
-                                           group_var="replicates",
-                                           outdir=outdir)
+        Timeseries.splitReplicates(infile=infile,
+                                   axis="column",
+                                   group_var="replicates",
+                                   outdir=outdir)
 
         P.touch(outfile)
         ###################################################################
@@ -777,9 +777,9 @@ if ANALYSIS == 'replicates':
             Arbitrarily split files into chunks for parallelisation
             '''
 
-            PipelineTimeseries.splitFiles(infile=infile,
-                                          nchunks=PARAMS['resampling_chunks'],
-                                          out_dir="parallel_files.dir")
+            Timeseries.splitFiles(infile=infile,
+                                  nchunks=PARAMS['resampling_chunks'],
+                                  out_dir="parallel_files.dir")
             P.touch(outfile)
         ###################################################################
         ###################################################################
@@ -1047,9 +1047,9 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
             Arbitrarily split files into chunks for parallelisation
             '''
 
-            PipelineTimeseries.splitFiles(infile=infile,
-                                          nchunks=PARAMS['resampling_chunks'],
-                                          out_dir="parallel_files.dir")
+            Timeseries.splitFiles(infile=infile,
+                                  nchunks=PARAMS['resampling_chunks'],
+                                  out_dir="parallel_files.dir")
             P.touch(outfile)
         ###################################################################
         ###################################################################
