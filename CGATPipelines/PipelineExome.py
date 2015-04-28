@@ -97,7 +97,7 @@ def GATKReadGroups(infile, outfile, genome,
 ##############################################################################
 
 
-def GATKIndelRealign(infile, outfile, genome, threads=4):
+def GATKIndelRealign(infile, outfile, genome, intervals, padding, threads=4):
     '''Realigns BAMs around indels using GATK'''
 
     intervalfile = outfile.replace(".bam", ".intervals")
@@ -109,6 +109,8 @@ def GATKIndelRealign(infile, outfile, genome, threads=4):
                     -o %(intervalfile)s
                     --num_threads %(threads)s
                     -R %(genome)s
+                    -L %(intervals)s
+                    -ip %(padding)s
                     -I %(infile)s; ''' % locals()
 
     statement += '''GenomeAnalysisTK
@@ -122,7 +124,7 @@ def GATKIndelRealign(infile, outfile, genome, threads=4):
 ##############################################################################
 
 
-def GATKBaseRecal(infile, outfile, genome, dbsnp, solid_options=""):
+def GATKBaseRecal(infile, outfile, genome, intervals, padding, dbsnp, solid_options=""):
     '''Recalibrates base quality scores using GATK'''
 
     track = P.snip(os.path.basename(infile), ".bam")
@@ -134,6 +136,8 @@ def GATKBaseRecal(infile, outfile, genome, dbsnp, solid_options=""):
                     -T BaseRecalibrator
                     --out %(tmpdir_gatk)s/%(track)s.recal.grp
                     -R %(genome)s
+                    -L %(intervals)s
+                    -ip %(padding)s
                     -I %(infile)s
                     --knownSites %(dbsnp)s %(solid_options)s ;
                     checkpoint ;''' % locals()

@@ -359,7 +359,9 @@ def GATKIndelRealignLane(infile, outfile):
     '''realigns around indels using GATK'''
     threads = PARAMS["gatk_threads"]
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
-    PipelineExome.GATKIndelRealign(infile, outfile, genome, threads)
+    intervals = PARAMS["roi_intervals"]
+    padding = PARAMS["roi_padding"]
+    PipelineExome.GATKIndelRealign(infile, outfile, genome, intervals, padding, threads)
     IOTools.zapFile(infile)
 
 ###############################################################################
@@ -373,7 +375,9 @@ def GATKBaseRecal(infile, outfile):
     dbsnp = PARAMS["gatk_dbsnp"]
     solid_options = PARAMS["gatk_solid_options"]
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
-    PipelineExome.GATKBaseRecal(infile, outfile, genome,
+    intervals = PARAMS["roi_intervals"]
+    padding = PARAMS["roi_padding"]
+    PipelineExome.GATKBaseRecal(infile, outfile, genome, intervals, padding,
                                 dbsnp, solid_options)
     IOTools.zapFile(infile)
 
@@ -471,9 +475,11 @@ def GATKIndelRealignSample(infiles, outfile):
     infile, countfile = infiles
     threads = PARAMS["gatk_threads"]
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    intervals = PARAMS["roi_intervals"]
+    padding = PARAMS["roi_padding"]
     countf = open(countfile, "r")
     if countf.read() > '1':
-        PipelineExome.GATKIndelRealign(infiles[0], outfile, genome, threads)
+        PipelineExome.GATKIndelRealign(infiles[0], outfile, genome, intervals, padding, threads)
     else:
         shutil.copyfile(infile, outfile)
         shutil.copyfile(infile + ".bai", outfile + ".bai")
