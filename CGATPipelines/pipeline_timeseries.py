@@ -757,9 +757,9 @@ if ANALYSIS == 'replicates':
 
         outdir = outfile.split("/")[0]
         Timeseries.splitReplicates(infile=infile,
-                                           axis="column",
-                                           group_var="replicates",
-                                           outdir=outdir)
+                                   axis="column",
+                                   group_var="replicates",
+                                   outdir=outdir)
 
         P.touch(outfile)
         ###################################################################
@@ -778,8 +778,8 @@ if ANALYSIS == 'replicates':
             '''
 
             Timeseries.splitFiles(infile=infile,
-                                          nchunks=PARAMS['resampling_chunks'],
-                                          out_dir="parallel_files.dir")
+                                  nchunks=PARAMS['resampling_chunks'],
+                                  out_dir="parallel_files.dir")
             P.touch(outfile)
         ###################################################################
         ###################################################################
@@ -1048,8 +1048,8 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
             '''
 
             Timeseries.splitFiles(infile=infile,
-                                          nchunks=PARAMS['resampling_chunks'],
-                                          out_dir="parallel_files.dir")
+                                  nchunks=PARAMS['resampling_chunks'],
+                                  out_dir="parallel_files.dir")
             P.touch(outfile)
         ###################################################################
         ###################################################################
