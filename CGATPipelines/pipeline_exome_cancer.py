@@ -156,9 +156,8 @@ import pandas as pd
 import itertools
 import re
 import CGATPipelines.PipelineExome as PipelineExome
-import urllib
 import collections
-from bs4 import BeautifulSoup
+
 USECLUSTER = True
 
 #########################################################################
@@ -185,7 +184,6 @@ P.getParameters(
     only_import=__name__ != "__main__")
 
 PARAMS = P.PARAMS
-print "PARAMS: ", PARAMS
 
 PipelineMapping.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
@@ -200,13 +198,6 @@ def getGATKOptions():
 
 def getMuTectOptions():
     return "-l mem_free=4G"
-
-
-def makeSoup(address):
-    sock = urllib.urlopen(address)
-    htmlSource = sock.read()
-    soup = BeautifulSoup(htmlSource)
-    return soup
 
 
 #########################################################################
@@ -927,7 +918,6 @@ def annotateVariantsINDELsSNPeff(infile, outfile):
 # Annotate SNP and INDEL variants
 #########################################################################
 
-# note: these annotations are currently not used.
 # Need to check whether variant annotatot is using both bams
 # from a single patient?
 # should just be the tumour bam or else scores will be wrong!
@@ -1100,7 +1090,6 @@ def loadVariantAnnotation(infile, outfile):
         index = "contig"
     elif infile.endswith("mutect.snp.annotated.tsv"):
         index = "CHROM"
-    print "index: " + index
 
     dbh = connect()
     tablename = P.toTable(outfile)
@@ -1193,8 +1182,8 @@ def loadVCFstats(infiles, outfile):
            "_mutect_filtering_summary.tsv")
 def summariseFiltering(infile, outfile):
     infile = infile.replace(".mutect.snp.vcf", "_call_stats.out")
-    print "infile: ", infile
-    PipelineExome.parseMutectCallStats(infile, outfile)
+
+    PipelineExome.parseMutectCallStats(infile, outfile, submit=True)
 
 
 @transform(summariseFiltering,
@@ -1221,80 +1210,38 @@ def defineEBioStudies(outfile):
     ''' For the cancer types specified in pipeline.ini, identify the
     relevent studies in eBio '''
 
-    cancer_types = PARAMS["annotation_ebio_cancer_types"].split(",")
+    cancer_types = PARAMS["annotation_ebio_cancer_types"]
 
-    cancer_studies_url = "http://www.cbioportal.org/webservice.do?cmd=getCancerStudies"
-    genetic_profiles_url = "http://www.cbioportal.org/webservice.do?cmd=getGeneticProfiles"
-
-    type2study_dict = collections.defaultdict(list)
-    study2table_dict = collections.defaultdict(list)
-
-    soup = makeSoup(cancer_studies_url)
-    for line in soup.body:
-        if isinstance(line, NavigableString):
-            values = unicode(line).strip().split("\t")
-            if len(values) > 1:
-                cancer_type = values[1].split(" (")[0]
-                if cancer_type in cancer_types:
-                    study = re.sub(".\n", "", values[0])
-                    type2study_dict[cancer_type] = study
-
-    for study in type2study_dict.values():
-        soup = makeSoup(genetic_profiles_url + "&cancer_study_id=" + study)
-        lines = unicode(soup.body).split('\n')
-        for line in lines:
-            values = line.strip().split("\t")
-            if len(values) > 1:
-                print values[1], values[0]
-                if values[1] == "Mutations":
-                    genetic_profile = values[0]
-                    study2table_dict[study] = genetic_profile
-
-    print study2table_dict
-
-    outf = IOTools.openFile(outfile, "w")
-
-    for cancer_type, study_id in type2study_dict.iteritems():
-        table_id = study2table_dict[study_id]
-        outf.write("%s\t%s\t%s\n" % (cancer_type, study_id, table_id))
-
-    outf.close()
-
-
-'''
-this function should take a list of genes
-(generated from parsing all vcf files?)
-and then retrieve the mutation frequencies in the tissue types specified
-'''
+    PipelineExome.defineEBioStudies(cancer_types, outfile, submit=True)
 
 
 @transform(defineEBioStudies,
-           suffix(".tsv"),
+           suffix("eBio_studies.tsv"),
            add_inputs(variantAnnotator, variantAnnotatorIndels),
-           "_gene_frequencies.tsv")
-def getMutationFrequencies(infiles, outfile):
-    eBio_ids, SNV_vcfs, INDEL_vcfs = infiles
-    genes = set()
-    for inf in SNV_vcfs:
-        # read in file and update set of genes
-        pass
-    for inf in INDEL_vcfs:
-        # read in file and update set of genes
-        pass
+           "eBio_studies_gene_frequencies.tsv")
+def extractEBioinfo(infiles, outfile):
+    '''find the number of mutations identitified in previous studies (ebio_ids)
+    for the mutated genes in the annotated vcfs'''
 
-    genes = "+".join(list(genes))
-    print genes
+    eBio_ids = infiles[0]
+    vcfs = infiles[1:]
 
-    eBio_ids = IOTools.openFile(eBio_ids, "r")
-    for line in eBio_ids:
-        tissue, study, table = line.strip().split("\t")
-        url = ("http://www.cbioportal.org/webservice.do?cmd=getProfileData&"
-               "case_set_id=%(study)s&genetic_profile_id=%(table)s&"
-               "gene_list=%(genes)s")
-        print url
-        df = pd.io.parsers.read_csv(url, comment="#", header=True, index_col=0)
+    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile, submit=True)
 
-        print df.shape
+
+@transform(extractEBioinfo,
+           suffix(".tsv"),
+           ".load")
+def loadEBioInfo(infile, outfile):
+    '''load the frequencies from the eBIO portal'''
+
+    dbh = connect()
+    tablename = P.toTable(outfile)
+    statement = '''cat %(infile)s |
+                   python %%(scriptsdir)s/csv2db.py
+                   --table %(tablename)s --retry --ignore-empty
+                   > %(outfile)s''' % locals()
+    P.run()
 
 #########################################################################
 #########################################################################
@@ -1365,7 +1312,7 @@ def full():
     pass
 
 
-@follows(callControlVariants)
+@follows(extractEBioinfo)
 def test():
     pass
 
