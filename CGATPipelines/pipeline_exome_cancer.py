@@ -1226,7 +1226,9 @@ def extractEBioinfo(infiles, outfile):
     eBio_ids = infiles[0]
     vcfs = infiles[1:]
 
-    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile, submit=True)
+    # TS. errors when not run locally
+    # "urllib2.URLError: <urlopen error [Errno 110] Connection timed out>"
+    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile)
 
 
 @transform(extractEBioinfo,
