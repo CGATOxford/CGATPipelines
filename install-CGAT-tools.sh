@@ -215,21 +215,10 @@ bash Miniconda-latest-Linux-x86_64.sh -b -p $CONDA_INSTALL_DIR
 export PATH="$CONDA_INSTALL_DIR/bin:$PATH"
 hash -r
 
-# add binstar channels
-conda config --add channels https://conda.binstar.org/asmeurer
-conda config --add channels https://conda.binstar.org/r
-conda config --add channels https://conda.binstar.org/cgat
-
 # install cgat environment
 conda update -q conda --yes
-conda_cleanup
 conda info -a
-conda create -q -n $CONDA_INSTALL_TYPE cgat-r-deps --yes
-conda_cleanup
-conda install -q -n $CONDA_INSTALL_TYPE cgat-bioconductor-deps --yes
-conda_cleanup
-conda install -q -n $CONDA_INSTALL_TYPE $CONDA_INSTALL_TYPE --yes
-conda_cleanup
+conda create -q -n $CONDA_INSTALL_TYPE $CONDA_INSTALL_TYPE --override-channels --channel https://conda.binstar.org/cgat --channel defaults --channel https://conda.binstar.org/r --channel https://conda.binstar.org/asmeurer --yes
 
 # if installation is 'devel' (outside of travis), checkout latest version from github
 if [ "$OS" != "travis" ] ; then
@@ -240,10 +229,12 @@ if [ "$OS" != "travis" ] ; then
       source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
 
       # Set up other environment variables
-      export CFLAGS=$CFLAGS" -I/usr/include/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu"
-      export C_INCLUDE_PATH=$C_INCLUDE_PATH:"/usr/include/x86_64-linux-gnu"
-      export LIBRARY_PATH=$LIBRARY_PATH:"/usr/lib/x86_64-linux-gnu"
-      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib/R/lib
+      export CFLAGS=$CFLAGS" -I/usr/include/x86_64-linux-gnu -I$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include -L/usr/lib/x86_64-linux-gnu -L$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib"
+      export CPATH=$CPATH" -I/usr/include/x86_64-linux-gnu -I$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include -L/usr/lib/x86_64-linux-gnu -L$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib"
+      export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/include/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include
+      export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:/usr/include/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include
+      export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib
+      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib/R/lib
 
       # get latest version from Git Hub
       git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code
@@ -319,11 +310,12 @@ if [ "$OS" == "travis" ] ; then
    fi
 
    # configure environment
-   export CFLAGS="-O0"
-   export CPATH=$CPATH" -I/usr/include/x86_64-linux-gnu -L/usr/lib/x86_64-linux-gnu"
-   export C_INCLUDE_PATH=$C_INCLUDE_PATH:"/usr/include/x86_64-linux-gnu"
-   export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:"/usr/include/x86_64-linux-gnu"
-   export LIBRARY_PATH=$LIBRARY_PATH:"/usr/lib/x86_64-linux-gnu"
+   export CFLAGS=$CFLAGS" -O0 -I/usr/include/x86_64-linux-gnu -I$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include -L/usr/lib/x86_64-linux-gnu -L$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib"
+   export CPATH=$CPATH" -I/usr/include/x86_64-linux-gnu -I$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include -L/usr/lib/x86_64-linux-gnu -L$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib"
+   export C_INCLUDE_PATH=$C_INCLUDE_PATH:/usr/include/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include
+   export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:/usr/include/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/include
+   export LIBRARY_PATH=$LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib:$CONDA_INSTALL_DIR/envs/$CONDA_INSTALL_TYPE/lib/R/lib   
 
    # Install master of CGAT Code collection
    # get latest version from Git Hub
