@@ -1223,7 +1223,7 @@ def buildGenomicContext(infiles, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=merge-exons --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2bed.py
-    --set-name=source --is-gtf
+    --set-name=gene_biotype --is-gtf
     --log=%(outfile)s.log
     | sort -k 1,1 -k2,2n
     | python %(scriptsdir)s/bed2bed.py --method=merge --merge-by-name
