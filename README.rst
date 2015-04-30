@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/CGATOxford/CGATPipelines.svg?branch=master
+    :target: https://travis-ci.org/CGATOxford/CGATPipelines
+
 ==================
 The CGAT pipelines
 ==================
