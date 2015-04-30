@@ -1859,7 +1859,7 @@ def reproducibility():
 
 @follows(loadBAMStats,
          loadDuplicationStats,
-         loadSPPQualityMetrics)
+         ) #removed loadSPPQualityMetrics
 def qc():
     pass
 

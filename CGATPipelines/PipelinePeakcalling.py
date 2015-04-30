@@ -1055,7 +1055,7 @@ def runMACS(infile, outfile,
     -t %(infile)s
     --diag
     --verbose=10
-    --set-name=%(outfile)s
+    --name=%(outfile)s
     --format=BAM
     %(options)s
     %(macs_options)s
