@@ -86,7 +86,7 @@ def check_import(filename, outfile):
 
         traceback.print_exc(file=outfile)
         ok_(False, '%s scripts/modules - Exception: %s' %
-            (basename, msg))
+            (basename, str(msg)))
 
     ok_(True)
 

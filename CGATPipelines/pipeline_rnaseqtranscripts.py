@@ -2114,7 +2114,7 @@ def hasReplicates(track):
     return len(replicates) > 1
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(loadTranscriptComparison,
          mkdir(os.path.join(PARAMS["exportdir"],
                             "cuffcompare")))

@@ -988,7 +988,7 @@ for classifier in P.asList(PARAMS.get("classifiers")):
     COUNT_DATA.append(classifiers[classifier])
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
@@ -1033,7 +1033,7 @@ def testRichness(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
@@ -1054,7 +1054,7 @@ def barplotDiversity(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
@@ -1474,7 +1474,7 @@ def runPathwaysAnalysis(infiles, outfiles):
 ###################################################################
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.pdf")
 def runMDS(infile, outfile):
     '''
@@ -1490,7 +1490,7 @@ def runMDS(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.sig")
 def runPermanova(infile, outfile):
     '''
@@ -1516,7 +1516,7 @@ def MDS():
 ###################################################################
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @transform(mergeLcaCountsAcrossSamples,
            suffix(".tsv.gz"), ".barplot.png")
 def barplotAbundances(infile, outfile):
@@ -1532,7 +1532,7 @@ def barplotAbundances(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @transform(runMetagenomeSeq, suffix(".tsv"), ".ma.png")
 def MAPlot(infile, outfile):
     '''
@@ -1561,7 +1561,7 @@ def MAPlot(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(1, "R")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @transform(runMetagenomeSeq, suffix(".tsv"), ".heatmap.png")
 def plotDiffHeatmap(infile, outfile):
     '''

@@ -159,6 +159,9 @@ HARDCODED_PARAMS = {
     'cluster_options': "",
     # Parallel environment to use
     'cluster_parallel_environment': 'dedicated',
+    # ruffus job limits
+    'jobs_limit_db': 10,
+    'jobs_limit_R': 1,
 }
 
 # After all configuration files have been read, some

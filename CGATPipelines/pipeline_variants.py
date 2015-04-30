@@ -2011,7 +2011,7 @@ def buildPolyphenFeatures(infile, outfile):
 # be patched or the following jobs run in sequence.
 
 
-@jobs_limit(1)
+@jobs_limit(1, "polyphen")
 @files([(buildPolyphenFeatures, "polyphen_%s.output.gz" % x, x)
         for x in P.asList(PARAMS["polyphen_models"])])
 def runPolyphen(infile, outfile, model):
