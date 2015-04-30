@@ -309,28 +309,30 @@ def buildFlatGeneSet(infile, outfile):
     | awk '$3 == "exon"'
     | grep "transcript_id"
     | python %(scriptsdir)s/gtf2gtf.py
-    --method=sort --sort-order=contig+gene
+    --method=sort
+    --sort-order=contig+gene
+    --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
     --method=merge-exons
-    --permit-duplicates --log=%(outfile)s.log
+    --permit-duplicates
+    --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
     --method=set-transcript-to-gene
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
-    --method=sort --sort-order=position+gene
+    --method=sort
+    --sort-order=position+gene
+    --log=%(outfile)s.log
     | gzip
     > %(outfile)s
         """
     P.run()
 
-############################################################
-############################################################
+
 ############################################################
 # Doesn't filter miscellaneous contigs from mm10
 # Function called from pipeline_kamilah, pipeline_snps
 # pipeline_polyphen
-
-
 def buildProteinCodingGenes(infile, outfile):
     '''build a collection of exons from the proteincoding
     section of the ENSEMBL gene set.

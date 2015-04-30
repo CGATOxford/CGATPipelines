@@ -1,3 +1,4 @@
+
 """===================
 Annotation pipeline
 ===================
@@ -842,7 +843,11 @@ def buildGeneSet(infile, outfile):
     --sanitize-method=genome
     --skip-missing
     --genome-file=%(genome_dir)s/%(genome)s
-    --log=%(outfile)s.log ''']
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=set-gene_biotype-to-source
+    --log=%(outfile)s.log
+    ''']
 
     if PARAMS["ensembl_remove_contigs"]:
         # in quotation marks to avoid confusion with shell special
