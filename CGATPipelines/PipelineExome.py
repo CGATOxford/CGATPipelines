@@ -50,6 +50,7 @@ PARAMS = {}
 def getGATKOptions():
     return "-l mem_free=1.4G -l picard=1"
 
+
 def makeSoup(address):
     sock = urllib.urlopen(address)
     htmlSource = sock.read()

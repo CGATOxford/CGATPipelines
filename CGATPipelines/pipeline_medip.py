@@ -991,14 +991,10 @@ def runEdgeR(infiles, outfile):
 
     runDE(infiles, outfile, "edger")
 
-#########################################################################
-
 
 @transform((runDESeq, runEdgeR), suffix(".gz"), ".merged.gz")
 def mergeDMRWindows(infile, outfile):
     '''merge overlapping windows.'''
-
-    to_cluster = True
 
     statement = '''
     zcat %(infile)s
@@ -1012,16 +1008,12 @@ def mergeDMRWindows(infile, outfile):
 
     P.run()
 
-#########################################################################
 
-
-@jobs_limit(1)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeDMRWindows, suffix(".merged.gz"), ".load")
 def loadDMRWindows(infile, outfile):
     '''merge overlapping windows.'''
     P.load(infile, outfile, options="--quick")
-
-#########################################################################
 
 
 @collate(loadDMRWindows, regex("(\S+)[.](\S+).load"), r"\2_stats.tsv")
@@ -1031,17 +1023,11 @@ def buildDMRStats(infiles, outfile):
     method = P.snip(outfile, "_stats.tsv")
     PipelineMedip.buildDMRStats(tablenames, method, outfile)
 
-#########################################################################
-
 
 @transform(buildDMRStats, suffix(".tsv"), ".load")
 def loadDMRStats(infile, outfile):
     '''load DMR stats into table.'''
     P.load(infile, outfile)
-
-#########################################################################
-#########################################################################
-#########################################################################
 
 
 @transform(mergeDMRWindows,
@@ -1049,8 +1035,6 @@ def loadDMRStats(infile, outfile):
            ".stats")
 def buildDMRWindowStats(infile, outfile):
     '''compute tiling window size statistics from bed file.'''
-
-    to_cluster = True
 
     statement = '''
     zcat %(infile)s

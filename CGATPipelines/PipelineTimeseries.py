@@ -21,12 +21,7 @@ import CGAT.Experiment as E
 import sklearn.metrics.cluster.supervised as supervised
 from math import log
 import random
-try:
-    import pyximport
-    pyximport.install(build_in_temp=False)
-    import _clusters2metrics as c2m
-except ImportError:
-    import CGAT._clusters2metrics as c2m
+import CGAT.Timeseries as Timeseries
 
 ###########
 # Functions
@@ -1272,7 +1267,7 @@ def randIndexes(clustering_results):
 
     E.info("counting clustering consensus")
     # use cythonized function to return rand index matrix
-    cy_rand = c2m.consensus_metrics(integer_matrix)
+    cy_rand = Timeseries.consensus_metrics(integer_matrix)
     E.info("Rand Index calculated for all clusterings")
 
     return cy_rand

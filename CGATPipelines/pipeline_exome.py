@@ -207,7 +207,7 @@ def getGATKOptions():
 # These haven't been fully implemented yet
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(PARAMS["roi_bed"], "roi.load")
 def loadROI(infile, outfile):
     '''Import regions of interest bed file into SQLite.'''
@@ -226,7 +226,7 @@ def loadROI(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(PARAMS["roi_to_gene"], "roi2gene.load")
 def loadROI2Gene(infile, outfile):
     '''Import genes mapping to regions of interest bed file into SQLite.'''
@@ -243,7 +243,7 @@ def loadROI2Gene(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(PARAMS["samples"], "samples.load")
 def loadSamples(infile, outfile):
     '''Import sample information into SQLite.'''
@@ -290,7 +290,7 @@ def PicardAlignStats(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(PicardAlignStats, "picard_stats.load")
 def loadPicardAlignStats(infiles, outfile):
     '''Merge Picard alignment stats into single table and load into SQLite.'''
@@ -343,7 +343,7 @@ def RemoveDuplicatesLane(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(RemoveDuplicatesLane, "picard_duplicate_stats_lane.load")
 def loadPicardDuplicateStatsLane(infiles, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
@@ -423,7 +423,7 @@ def RemoveDuplicatesSample(infiles, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(RemoveDuplicatesSample, "picard_duplicate_stats_sample.load")
 def loadPicardDuplicateStatsSample(infiles, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
@@ -449,7 +449,7 @@ def buildCoverageStats(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildCoverageStats, "coverage_stats.load")
 def loadCoverageStats(infiles, outfile):
     '''Import coverage statistics into SQLite'''
@@ -694,7 +694,7 @@ def vcfToTableSnpEff(infile, outfile):
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(vcfToTableSnpEff, regex(r"variants/(\S+).table"),
            r"variants/\1.table.load")
 def loadTableSnpEff(infile, outfile):
@@ -865,7 +865,7 @@ def vcfToTable(infile, outfile):
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(vcfToTable, regex(r"variants/(\S+).table"),
            r"variants/\1.table.load")
 def loadVariantAnnotation(infile, outfile):
@@ -1001,7 +1001,7 @@ def tabulateDeNovos(infile, outfile):
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(tabulateDeNovos,
            regex(r"variants/(\S+).filtered.table"),
            r"variants/\1.filtered.table.load")
@@ -1044,7 +1044,7 @@ def tabulateLowerStringencyDeNovos(infile, outfile):
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(tabulateLowerStringencyDeNovos,
            regex(r"variants/(\S+).denovos.table"),
            r"variants/\1.denovos.table.load")
@@ -1105,7 +1105,7 @@ def tabulateDoms(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(tabulateDoms, regex(r"variants/(\S+).dominant.table"),
            r"variants/\1.dominant.table.load")
 def loadDoms(infile, outfile):
@@ -1177,7 +1177,7 @@ def tabulateRecs(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(tabulateRecs, regex(r"variants/(\S+).recessive.table"),
            r"variants/\1.recessive.table.load")
 def loadRecs(infile, outfile):
@@ -1253,7 +1253,7 @@ def compoundHets(infiles, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(compoundHets, regex(r"variants/(\S+).compound_hets.table"),
            r"variants/\1.compound_hets.table.load")
 def loadCompoundHets(infile, outfile):
@@ -1278,7 +1278,7 @@ def buildVCFstats(infile, outfile):
 ###############################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildVCFstats, "vcf_stats.load")
 def loadVCFstats(infiles, outfile):
     '''Import variant statistics into SQLite'''
