@@ -1226,7 +1226,7 @@ def extractEBioinfo(infiles, outfile):
     eBio_ids = infiles[0]
     vcfs = infiles[1:]
 
-    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile)
+    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile, submit=True)
 
 
 @transform(extractEBioinfo,
@@ -1313,7 +1313,7 @@ def full():
     pass
 
 
-@follows(extractEBioinfo)
+@follows(defineEBioStudies)
 def test():
     pass
 

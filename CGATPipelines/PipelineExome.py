@@ -566,14 +566,16 @@ def defineEBioStudies(cancer_types, outfile):
     study2table_dict = collections.defaultdict(list)
 
     soup = makeSoup(cancer_studies_url)
-    for line in soup.body:
-        if isinstance(line, NavigableString):
-            values = unicode(line).strip().split("\t")
-            if len(values) > 1:
-                cancer_type = values[1].split(" (")[0]
-                if cancer_type in cancer_types:
-                    study = re.sub(".\n", "", values[0])
-                    type2study_dict[cancer_type].append(study)
+    for lines in soup.body:
+        if isinstance(lines, NavigableString):
+            for line in lines.split("\n"):
+                if "cancer_study_id" not in line:
+                    values = unicode(line).strip().split("\t")
+                    if len(values) > 1:
+                        cancer_type = values[1].split(" (")[0]
+                        if cancer_type in cancer_types:
+                            study = re.sub(".\n", "", values[0])
+                            type2study_dict[cancer_type].append(study)
 
     for study_list in type2study_dict.values():
         for study in study_list:
@@ -606,10 +608,12 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
     for vcf in vcfs:
         infile = VCF.VCFFile(IOTools.openFile(vcf))
         for vcf_entry in infile:
-            info_entries = vcf_entry.info.split(";")
-            for entry in info_entries:
-                if "SNPEFF_GENE_NAME" in entry:
-                    genes.update((entry.split("=")[1],))
+            # assumes all vcf entries without "REJECT" are "PASS"
+            if vcf_entry.filter != "REJECT":
+                info_entries = vcf_entry.info.split(";")
+                for entry in info_entries:
+                    if "SNPEFF_GENE_NAME" in entry:
+                        genes.update((entry.split("=")[1],))
 
     eBio_ids = IOTools.openFile(eBio_ids, "r")
 
