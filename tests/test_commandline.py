@@ -35,7 +35,6 @@ import sys
 
 from nose.tools import ok_
 import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
 
 # handle to original E.Start function
 ORIGINAL_START = None
@@ -52,7 +51,6 @@ EXPRESSIONS = (
 EXCLUDE = ("__init__.py",
            "version.py",
            "cgat.py",
-           "fasta2bed.py",   # fails because of pybedtools rebuild
            )
 
 # Filename with the black/white list of options.
@@ -150,10 +148,8 @@ def test_cmdline():
     ORIGINAL_START = E.Start
 
     # read the first two columns
-    map_option2action = IOTools.readMap(
-        IOTools.openFile(FILENAME_OPTIONLIST),
-        columns=(0, 1),
-        has_header=True)
+    map_option2action = dict(
+        [x.split("\t")[:2] for x in open(FILENAME_OPTIONLIST) if not x.startswith("#")])
 
     files = []
     for label, expression in EXPRESSIONS:
@@ -182,7 +178,7 @@ def test_cmdline():
 
         failTest.description = script_name
         # check if script contains getopt
-        with IOTools.openFile(script_name) as inf:
+        with open(script_name) as inf:
             if "getopt" in inf.read():
                 yield (failTest,
                        "script uses getopt directly: %s" % script_name)

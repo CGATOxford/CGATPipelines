@@ -21,5 +21,6 @@ exclude scripts/*
 # other scripts
 include scripts/__init__.py
 include scripts/version.py
+include scripts/cgat_ruffus_profile.py
 
 # extensions

@@ -7,8 +7,8 @@ env:
   matrix:
     - CGAT_TASK_ID=1
     - TEST_STYLE=1
-    - TEST_CMDLINE=1
-    - TEST_IMPORT=1
+    - TEST_CMDLINE=0
+    - TEST_IMPORT=0
 
 python:
   - "2.7"
@@ -32,3 +32,4 @@ notifications:
     - nicholas.ilott@kennedy.ox.ac.uk
     - katherine.brown@dpag.ox.ac.uk
     - charlotte.george@dpag.ox.ac.uk
+    - adam.cribbs@dpag.ox.ac.uk

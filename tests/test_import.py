@@ -20,7 +20,6 @@ This script is best run within nosetests::
 
    nosetests tests/test_import.py
 
-
 '''
 
 import os
