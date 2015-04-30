@@ -325,6 +325,16 @@ if [ "$OS" == "travis" ] ; then
    export CPLUS_INCLUDE_PATH=$CPLUS_INCLUDE_PATH:"/usr/include/x86_64-linux-gnu"
    export LIBRARY_PATH=$LIBRARY_PATH:"/usr/lib/x86_64-linux-gnu"
 
+   # Install master of CGAT Code
+   # get latest version from Git Hub
+   git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code
+   cd $CGAT_HOME/cgat-code
+
+   # Python preparation
+   python setup.py develop
+   cd $CGAT_HOME
+
+   # setup CGATPipelines
    cd $TRAVIS_BUILD_DIR
    python setup.py develop
 
