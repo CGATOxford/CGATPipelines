@@ -137,43 +137,19 @@ Code
 from ruffus import *
 
 import sys
-import glob
-import gzip
 import os
 import itertools
 import re
-import math
-import types
-import collections
-import time
-import optparse
-import shutil
 import sqlite3
-import random
-import itertools
-import tempfile
-import numpy as np
+import glob
 import pandas as pd
-import pandas.rpy.common as com
-from pandas.io import sql
-import rpy2.rinterface as rinterface
-from rpy2.robjects import pandas2ri
-from rpy2.robjects import r as R
 import rpy2.robjects as ro
-import rpy2.robjects.numpy2ri
 import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
-import CGAT.GTF as GTF
 import CGAT.Timeseries as Timeseries
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################
-###################################################
-###################################################
 # Pipeline configuration
-###################################################
-
 # load options from the config file
 import CGATPipelines.Pipeline as P
 P.getParameters(
@@ -182,26 +158,16 @@ P.getParameters(
      "pipeline.ini"])
 
 PARAMS = P.PARAMS
-###################################################################
+
 ###################################################################
 # Helper functions mapping tracks to conditions, etc
-###################################################################
-
-# sample = PipelineTracks.AutoSample
-
-# assign tracks
 GENESETS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
     glob.glob("*.gtf.gz"),
     "(\S+).gtf.gz")
 TRACKS3 = PipelineTracks.Tracks(PipelineTracks.Sample3)
 TRACKS = TRACKS3.loadFromDirectory(glob.glob("*.bam"), "(\S+).bam")
-
 REPLICATE = PipelineTracks.Aggregate(TRACKS, labels=("replicate", ))
 TIME = PipelineTracks.Aggregate(TRACKS, labels=("condition", "tissue"))
-
-###################################################################
-###################################################################
-###################################################################
 
 
 def connect():
@@ -220,9 +186,6 @@ def connect():
     cc.close()
 
     return dbh
-###################################################################
-###################################################################
-###################################################################
 
 
 @follows(connect, mkdir("plots.dir"))
@@ -243,10 +206,6 @@ def buildCodingGeneSet(infile, outfile):
     zcat %(infile)s | awk '$2 == "protein_coding"' | gzip > %(outfile)s
     '''
     P.run()
-
-###################################################################
-###################################################################
-###################################################################
 
 
 @follows(mkdir("feature_counts.dir"))
@@ -297,10 +256,6 @@ def buildFeatureCounts(infiles, outfile):
 
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @collate(buildFeatureCounts,
          regex("feature_counts.dir/(.+)-(.+)-(.+)_vs_(.+).tsv.gz"),
@@ -327,9 +282,6 @@ def aggregateFeatureCounts(infiles, outfile):
     | gzip > %(outfile)s '''
 
     P.run()
-###################################################################
-###################################################################
-###################################################################
 
 
 @transform(aggregateFeatureCounts,
@@ -337,9 +289,6 @@ def aggregateFeatureCounts(infiles, outfile):
            ".load")
 def loadFeatureCounts(infile, outfile):
     P.load(infile, outfile, "--add-index=gene_id")
-###################################################################
-###################################################################
-###################################################################
 
 
 @follows(mkdir("combined_analysis.dir"), aggregateFeatureCounts)
@@ -364,9 +313,6 @@ def buildCombinedExpression(infiles, outfile):
     '''
 
     P.run()
-###################################################################
-###################################################################
-###################################################################
 
 
 @transform(buildCombinedExpression,
@@ -374,9 +320,6 @@ def buildCombinedExpression(infiles, outfile):
            "combined.load")
 def loadCombinedExpression(infile, outfile):
     P.load(infile, outfile)
-###################################################################
-###################################################################
-###################################################################
 
 
 @follows(mkdir("deseq.dir"), loadFeatureCounts)
@@ -412,19 +355,12 @@ def DESeqNormalize(infile, outfile):
     > %(outfile)s '''
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @transform(DESeqNormalize,
            suffix("-vst.tsv"),
            "-vst.load")
 def loadDESeqNormalize(infile, outfile):
     P.load(infile, outfile, transpose=True)
-##################################################################
-###################################################################
-###################################################################
 
 if len([PARAMS['refs']]) > 1:
 
@@ -525,9 +461,6 @@ else:
         statement = ''' zcat %(infile)s | gzip > %(outfile)s'''
 
         P.run()
-##################################################################
-###################################################################
-###################################################################
 
 
 @follows(loadCombinedExpression,
@@ -555,9 +488,6 @@ def conditionDiffExpression(infile, outfile):
     P.run()
 
     P.touch(outfile)
-##################################################################
-###################################################################
-###################################################################
 
 
 @follows(conditionDiffExpression)
@@ -566,9 +496,6 @@ def conditionDiffExpression(infile, outfile):
            r"diff_condition.dir/\1.load")
 def loadConditionDiffExpression(infile, outfile):
     P.load(infile, outfile)
-##################################################################
-###################################################################
-###################################################################
 
 
 @follows(mergeSingleExpressionTables,
@@ -594,9 +521,6 @@ def timePointDiffExpression(infile, outfile):
     P.run()
 
     P.touch(outfile)
-##################################################################
-###################################################################
-###################################################################
 
 
 @follows(timePointDiffExpression)
@@ -605,9 +529,6 @@ def timePointDiffExpression(infile, outfile):
            r"diff_timepoints.dir/\1.load")
 def loadTimePointDiffExpression(infile, outfile):
     P.load(infile, outfile)
-##################################################################
-###################################################################
-###################################################################
 
 
 @follows(loadConditionDiffExpression)
@@ -645,9 +566,6 @@ def drawConditionVennDiagram(infiles, outfile):
     '''
 
     P.run()
-##################################################################
-###################################################################
-###################################################################
 
 
 @follows(loadConditionDiffExpression)
@@ -684,9 +602,6 @@ def drawTimeVennDiagram(infiles, outfile):
     '''
 
     P.run()
-##################################################################
-###################################################################
-###################################################################
 
 
 @follows(loadDESeqNormalize)
@@ -727,9 +642,6 @@ def sumCovarFilter(infile, outfile):
     > %(outfile)s'''
 
     P.run()
-###################################################################
-###################################################################
-###################################################################
 
 
 @transform(sumCovarFilter,
@@ -738,9 +650,7 @@ def sumCovarFilter(infile, outfile):
 def loadFilteredData(infile, outfile):
     P.load(infile, outfile)
 
-###################################################################
-###################################################################
-###################################################################
+
 ANALYSIS = PARAMS['resampling_analysis_type']
 if ANALYSIS == 'replicates':
     @follows(sumCovarFilter,
@@ -1528,13 +1438,6 @@ def loadClusterSummary(infile, outfile):
 def loadModuleSummary(infile, outfile):
     P.load(infile, outfile)
 
-###################################################################
-###################################################################
-###################################################################
-###################################################################
-# Targets
-###################################################################
-
 
 @follows(clusterAgree,
          loadClusterEigengenes,
@@ -1559,9 +1462,6 @@ def diff_expression():
          diff_expression)
 def full():
     pass
-###################################################################
-# primary targets
-###################################################################
 
 
 @follows(mkdir("report"))
@@ -1588,6 +1488,4 @@ def publish_report():
     P.publish_report()
 
 if __name__ == "__main__":
-
-    # P.checkFiles( ("genome.fasta", "genome.idx" ) )
     sys.exit(P.main(sys.argv))
