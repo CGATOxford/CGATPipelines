@@ -46,6 +46,8 @@ import collections
 import shutil
 import glob
 import xml.etree.ElementTree
+import random
+from itertools import izip
 
 import logging as L
 import CGAT.Experiment as E
@@ -58,6 +60,8 @@ import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.Bioprospector as Bioprospector
 import CGAT.FastaIterator as FastaIterator
+
+from CGAT.FastaIterator import FastaRecord
 
 # Set from importing module
 PARAMS = {}
@@ -93,6 +97,7 @@ def maskSequences(sequences, masker=None):
         dust/dustmasker * run dustmasker on sequences
         softmask        * use softmask to hardmask sequences
     '''
+
 
     if masker in ("dust", "dustmasker"):
         masker_object = Masker.MaskerDustMasker()
@@ -156,6 +161,114 @@ def exportSequencesFromBedFile(infile, outfile, masker=None, mode="intervals"):
     outs.close()
 
 
+def bedsFromList(data):
+    ''' takes a list of data and returns a bed object'''
+
+    for bed in data:
+        bed = Bed.Bed()
+        try:
+            bed.contig, bed.start, bed.end = \
+                        interval[0], int(interval[1]), int(interval[2])
+        except IndexError:
+            raise ValueError("Insufficient fields to generate bed entry")
+        except ValueError:
+            raise ValueError("Fields 2 and 3 must be integer")
+        bed.fields = interval[3:]
+
+        yield bed
+
+
+def shiftBeds(beds):
+    '''Create two bed intervals on either side of the
+    original interval'''
+
+    for bed in beds:
+        
+        left = bed.copy()
+        right = bed.copy()
+        length = bed.end - bed.start
+
+        left.start = bed.start - length
+        left.end = bed.start
+        left["name"] = str(left["name"]) + "_left"
+        yield left
+
+        right.start = bed.end
+        right.end = bed.end + length
+        right["name"] = str(bed["name"]) + "_right"
+        yield right
+
+
+def centreAndCrop(beds, halfwidth):
+    '''Centre each bed around the peakcenter (given in the thickStart entry)
+    and take "halfwidth" either side'''
+
+    for bed in beds:
+        bed.start = int(bed["thickStart"]) - halfwidth
+        bed.end = int(bed["thickStart"]) + halfwidth
+        yield bed
+
+
+def truncateList(data, proportion=None, min_sequences=None, num_sequences=None,
+                 random=False):
+
+    if random:
+        data = random.shuffle(data)
+    if proportion:
+        cutoff = int(len(data) * proportion) + 1
+        if min_sequences:
+            cutoff = max(cutoff, min_sequences)
+    elif num_sequences:
+        cutoff = num_sequences
+    else:
+        cutoff = len(data)
+
+    E.info("writeSequencesForIntervals %s: using at most %i sequences for pattern finding" % (
+            track, cutoff))
+
+    for dataum in data[:cutoff]:
+        yield dataum
+
+
+def getFASTAFromBed(beds, fasta, stranded, offset, maxsize):
+
+    # get the sequences - cut at number of nucleotides
+    current_size, nseq = 0, 0
+    for bed in beds:
+        lcontig = fasta.getLength(bed.contig)
+        start, end = max(0, bed.start + offset), min(bed.end + offset, lcontig)
+
+        if start >= end:
+            E.info("writeSequencesForIntervals %s: sequence %s is empty: "
+                   "start=%i, end=%i, offset=%i - ignored" %
+                   (bed.track, bed.name, start, end, offset))
+            continue
+
+        if stranded:
+            strand = bed.strand
+        else:
+            strand = "+"
+
+        seq = fasta.getSequence(bed.contig, strand, start, end)
+        yield FastaRecord(seq, "%s_%s %s:%i-%i" %
+                          (bed.track, str(bed.name), bed.contig,
+                           bed.start, bed.end))
+
+        current_size += len(seq)
+        if maxsize and current_size >= maxsize:
+            E.info("writeSequencesForIntervals %s: maximum size (%i) reached"
+                   "- only %i sequences output" % (bed.track, maxsize, nseq))
+            break
+        nseq += 1
+
+def shuffleFasta(sequences):
+
+    for fasta in sequences:
+        sequence = list(sequence.seq)
+        random.shuffle(sequence)
+        fasta.seq = "".join(sequence)
+        yield fasta
+
 def writeSequencesForIntervals(track,
                                filename,
                                dbhandle,
@@ -169,7 +282,8 @@ def writeSequencesForIntervals(track,
                                num_sequences=None,
                                min_sequences=None,
                                order="peakval",
-                               shift=None):
+                               shift=None,
+                               stranded=False)
     '''build a sequence set for motif discovery. Intervals are taken from
     the table <track>_intervals in the database *dbhandle* and save to
     *filename* in :term:`fasta` format.
@@ -204,22 +318,18 @@ def writeSequencesForIntervals(track,
     truncated the same way as the main intervals.
 
     '''
-
-    fasta = IndexedFasta.IndexedFasta(
-        os.path.join(PARAMS["genome_dir"], PARAMS["genome"]))
-
     cc = dbhandle.cursor()
 
     if order == "peakval":
         orderby = " ORDER BY peakval DESC"
     elif order == "max":
         orderby = " ORDER BY score DESC"
-    else:
+    elif order != "random":
         raise ValueError(
             "Unknown value passed as order parameter, check your ini file")
 
     tablename = "%s_intervals" % P.tablequote(track)
-    statement = '''SELECT contig, start, end, interval_id, peakcenter 
+    statement = '''SELECT contig, start, end, interval_id, peakcenter, strand 
                        FROM %(tablename)s 
                        ''' % locals() + orderby
 
@@ -227,18 +337,10 @@ def writeSequencesForIntervals(track,
     data = cc.fetchall()
     cc.close()
 
-    if proportion:
-        cutoff = int(len(data) * proportion) + 1
-        if min_sequences:
-            cutoff = max(cutoff, min_sequences)
-    elif num_sequences:
-        cutoff = num_sequences
-    else:
-        cutoff = len(data)
-        L.info("writeSequencesForIntervals %s: using at most %i sequences for pattern finding" % (
-            track, cutoff))
+    data = truncateList(data, proportion, min_sequences, num_sequences,
+                        order == "random")
 
-    data = data[:cutoff]
+    beds = bedsFromList(data)
 
     L.info("writeSequencesForIntervals %s: masker=%s" % (track, str(masker)))
 
@@ -246,72 +348,36 @@ def writeSequencesForIntervals(track,
         os.path.join(PARAMS["genome_dir"], PARAMS["genome"]))
 
     # modify the ranges
-    if shift:
-        if shift == "leftright":
-            new_data = [(contig, start - (end - start), start, str(interval_id) + "_left", peakcenter)
-                        for contig, start, end, interval_id, peakcenter in data]
-            new_data.extend([(contig, end, end + (end - start), str(interval_id) + "_right", peakcenter)
-                             for contig, start, end, interval_id, peakcenter in data])
-        data = new_data
+    if shift == "leftright":
+        beds = shitfBeds(beds)
 
     if halfwidth:
-        # center around peakcenter, add halfwidth on either side
-        data = [(contig, peakcenter - halfwidth, peakcenter + halfwidth, interval_id)
-                for contig, start, end, interval_id, peakcenter in data]
-    else:
-        # remove peakcenter
-        data = [(contig, start, end, interval_id)
-                for contig, start, end, interval_id, peakcenter in data]
+        beds = centreAndCrop(beds)
 
-    # get the sequences - cut at number of nucleotides
-    sequences = []
-    current_size, nseq = 0, 0
-    new_data = []
-    for contig, start, end, interval_id in data:
-        lcontig = fasta.getLength(contig)
-        start, end = max(0, start + offset), min(end + offset, lcontig)
-        if start >= end:
-            L.info("writeSequencesForIntervals %s: sequence %s is empty: start=%i, end=%i, offset=%i - ignored" %
-                   (track, id, start, end, offset))
-            continue
-        seq = fasta.getSequence(contig, "+", start, end)
-        sequences.append(seq)
-        new_data.append((start, end, interval_id, contig))
-        current_size += len(seq)
-        if maxsize and current_size >= maxsize:
-            L.info("writeSequencesForIntervals %s: maximum size (%i) reached - only %i sequences output (%i ignored)" %
-                   (track, maxsize, nseq, len(data) - nseq))
-            break
-        nseq += 1
-
-    data = new_data
+    sequences = getFASTAFromBed(beds, fasta, stranded, offset, maxsize)
 
     if shuffled:
-        # note that shuffling is done on the unmasked sequences
-        # Otherwise N's would be interspersed with real sequence
-        # messing up motif finding unfairly. Instead, masking is
-        # done on the shuffled sequence.
-        sequences = [list(x) for x in sequences]
-        for sequence in sequences:
-            random.shuffle(sequence)
-        sequences = maskSequences(["".join(x) for x in sequences], masker)
+        sequences = shuffleFasta(sequences)
 
     c = E.Counter()
     outs = IOTools.openFile(filename, "w")
     for masker in masker:
         if masker not in ("unmasked", "none", None):
+            ids, sequences = zip(*[(x.title, x.seq) for x in sequences])
             sequences = maskSequences(sequences, masker)
+            sequences = (FastaRecord(id, seq) for id, seq in izip(ids, sequences))
 
-    for sequence, d in zip(sequences, data):
-        c.input += 1
-        if len(sequence) == 0:
-            c.empty += 1
-            continue
-        start, end, id, contig = d
-        id = "%s_%s %s:%i-%i" % (track, str(id), contig, start, end)
-        outs.write(">%s\n%s\n" % (id, sequence))
-        c.output += 1
-    outs.close()
+
+    with IOTools.openFile(filename, "w") as outs:
+
+        for sequence in sequences:
+            c.input += 1
+            if len(sequence) == 0:
+                c.empty += 1
+                continue
+            outs.write(">%s\n%s\n" % (sequence.title, sequence.seq))
+            c.output += 1
+        outs.close()
 
     E.info("%s" % c)
 
@@ -917,19 +983,51 @@ def runMEME(track, outfile, dbhandle):
         collectMEMEResults(tmpdir, target_path, outfile)
 
 
-def runMEMEOnSequences(infile, outfile, background=None):
-    '''run MEME to find motifs.
+def generatePSP(positives, negatives, outfile):
+    ''' generate a discrimitative PSP file from
+    the positives and negatives that can be used
+    to do descriminative MEME '''
 
-    In order to increase the signal/noise ratio,
-    MEME is not run on all intervals but only the 
-    top 10% of intervals (peakval) are used. 
-    Also, only the segment of 200 bp around the peak
-    is used and not the complete interval.
+    psp_options = PARAMS["psp_options"]
+    
+    # get appropriate options from meme options
+    if PARAMS.get("meme_revcomp", True):
+        psp_options += " -revcomp"
 
-    * Softmasked sequence is converted to hardmasked
-      sequence to avoid the detection of spurious motifs.
+    try:
+        psp_options += re.search("(\s*-minw [0-9]+)",
+                                 PARAMS["meme_options"]).groups()[0]
+    except AttributeError:
+        pass
 
-    * Sequence is run through dustmasker
+    try:
+        psp_options += re.search("(\s*-maxw [0-9]+)",
+                                 PARAMS["meme_options"]).groups()[0]
+    except AttributeError:
+        pass
+
+    statement = '''psp-gen -pos %(positives)s
+                           -neg %(negatives)s
+                           %(psp_options)s
+                   > %(outfile)s '''
+
+    P.run()
+
+        
+def runMEMEOnSequences(infile, outfile, background=None,
+                       psp=None):
+    '''run MEME on fasta sequences to find motifs
+   
+    By defualt MEME calculates a zero-th order background
+    model from the nucleotide frequencies in the input set.
+
+    To use a different background set, a background
+    file created by fasta-get-markov must be supplied.
+
+    To perform descrimantive analysis a position specific
+    prior (psp) file must be provided. This can be generated
+    used generatePSP.
+
     '''
     # job_options = "-l mem_free=8000M"
 
@@ -952,6 +1050,12 @@ def runMEMEOnSequences(infile, outfile, background=None):
     else:
         background_model = ""
 
+    if psp:
+        E.info("Running MEME in descriminative mode")
+        psp_file = "-psp %s" % psp
+    else:
+        psp_file = ""
+
     statement = '''
     meme %(infile)s -dna %(revcomp)s
     -mod %(meme_model)s
@@ -959,6 +1063,7 @@ def runMEMEOnSequences(infile, outfile, background=None):
     -oc %(tmpdir)s
     -maxsize %(motifs_max_size)s
     %(background_model)s
+    %(psp_file_s
     %(meme_options)s
        > %(outfile)s.log
     '''
