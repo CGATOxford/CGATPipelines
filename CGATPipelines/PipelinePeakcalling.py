@@ -1931,7 +1931,8 @@ def runSICER(infile,
 ############################################################
 
 
-def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
+def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow",
+              fragment_size=None):
     '''load Sicer results.'''
 
     to_cluster = True
@@ -1942,7 +1943,7 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
     window = PARAMS["sicer_" + mode + "_window_size"]
     gap = PARAMS["sicer_" + mode + "_gap_size"]
     fdr = "%8.6f" % PARAMS["sicer_fdr_threshold"]
-    offset = PARAMS["sicer_fragment_size"]
+    offset = fragment_size
 
     # taking the file islands-summary-FDR, which contains
     # 'summary file of significant islands with requirement of FDR=0.01'

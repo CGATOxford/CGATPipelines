@@ -153,7 +153,7 @@ Input
 -----
 
 
-TS re-write this to 
+TS re-write this to described input file format:
 cell-factor-replicate
 Mapped reads
 ++++++++++++
@@ -1162,9 +1162,23 @@ def callBroaderPeaksWithSICER(infile, outfile):
            r"\1\2\3\4_\5Sicer.load")
 def loadSICER(infile, outfile):
     '''load sicer results.'''
+
+    # TS. identify original bam file name from infile name
+    # to identify fragment size
+    track = os.path.basename(infile)
+    if "broad" in track:
+        track = P.snip(track, ".broad.sicer") + ".call.bam"
+    elif "narrow" in track:
+        track = P.snip(track, ".narrow.sicer") + ".call.bam"
+    else:
+        E.Warn("can't identify bam file for fragment size analysis")
+
     mode = infile.split(".")[1]
     bamfile, controlfile = getBamFiles(infile, "." + mode + ".sicer")
-    PipelinePeakcalling.loadSICER(infile, outfile, bamfile, controlfile, mode)
+
+    PipelinePeakcalling.loadSICER(infile, outfile, bamfile,
+                                  controlfile, mode,
+                                  fragment_size=getFragmentSize(track))
 
 ############################################################
 
