@@ -1254,7 +1254,7 @@ def runMACS2(infile, outfile,
     %(format_options)s
     --treatment %(infile)s
     --verbose=10
-    --set-name=%(outfile)s
+    --name=%(outfile)s
     --qvalue=%(macs2_max_qvalue)s
     --bdg
     --SPMR
@@ -1269,8 +1269,8 @@ def runMACS2(infile, outfile,
         bedfile = outfile + "_" + suffix + ".bed"
         if os.path.exists(bedfile):
             statement = '''
-                 bgzip -f %(bedfile)s
-                 tabix -f-p bed %(bedfile)s.gz
+                 bgzip -f %(bedfile)s;
+                 tabix -f -p bed %(bedfile)s.gz
             '''
         P.run()
 
@@ -2078,9 +2078,12 @@ def runPeakRanger(infile, outfile, controlfile):
     assert controlfile is not None, "peakranger requires a control"
 
     statement = '''peakranger ranger
-              --output-section <( python %(scriptsdir)s/bam2bam.py -v 0 --method=set-sequence < %(infile)s)
-              --control <( python %(scriptsdir)s/bam2bam.py -v 0 --method=set-sequence < %(controlfile)s)
-              --output-section %(outfile)s
+              --data <( python %(scriptsdir)s/bam2bam.py -v 0
+                --method=set-sequence < %(infile)s)
+
+              --control <( python %(scriptsdir)s/bam2bam.py -v 0
+                --method=set-sequence < %(controlfile)s)
+              --output %(outfile)s
               --format bam
               --pval %(peakranger_pvalue_threshold)f
               --FDR %(peakranger_fdr_threshold)f

@@ -152,6 +152,9 @@ with, use the files supplied with the Example_ data.
 Input
 -----
 
+
+TS re-write this to 
+cell-factor-replicate
 Mapped reads
 ++++++++++++
 
@@ -1857,9 +1860,10 @@ def reproducibility():
     pass
 
 
+# TS. removed loadSPPQualityMetrics as run_spp.R cannot be found
+# ValueError("could not find run_spp.R")
 @follows(loadBAMStats,
-         loadDuplicationStats,
-         ) #removed loadSPPQualityMetrics
+         loadDuplicationStats)  # removed loadSPPQualityMetrics
 def qc():
     pass
 
@@ -1869,17 +1873,6 @@ def qc():
          exportIntervalsAsBed,
          loadFilteredExportSummary)
 def full():
-    pass
-
-
-# avoid running estimateSPPQualityMetrics which throws an error:
-# ValueError("could not find run_spp.R")
-@follows(calling,
-         loadBAMStats,
-         loadDuplicationStats,
-         exportIntervalsAsBed,
-         loadFilteredExportSummary)
-def test():
     pass
 
 
