@@ -356,6 +356,9 @@ def buildCodingGeneSet(infile, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
     --filter-method=proteincoding
+    --filter-by=database
+    --database=%(annotations_database)s
+    --table=%(annotations_table_gene_info)s
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s
@@ -1789,7 +1792,7 @@ def full():
     pass
 
 
-@follows(buildJunctions)
+@follows(buildReferenceGeneSet)
 def test():
     pass
 
