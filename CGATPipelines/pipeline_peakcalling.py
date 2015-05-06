@@ -1167,9 +1167,9 @@ def loadSICER(infile, outfile):
     # to identify fragment size
     track = os.path.basename(infile)
     if "broad" in track:
-        track = P.snip(track, ".broad.sicer") + ".call.bam"
+        track = P.snip(track, ".broad.sicer")
     elif "narrow" in track:
-        track = P.snip(track, ".narrow.sicer") + ".call.bam"
+        track = P.snip(track, ".narrow.sicer")
     else:
         E.Warn("can't identify bam file for fragment size analysis")
 
