@@ -1415,29 +1415,14 @@ def loadSPPSummary(infile, outfile):
 def estimateSPPQualityMetrics(infile, outfile):
     '''estimate ChIP-Seq quality metrics using SPP'''
 
-    job_options = "-l mem_free=4G"
     track = P.snip(infile, ".call.bam")
     controls = getControl(Sample(track))
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
     if controlfile is None:
         raise ValueError("idr analysis requires a control")
 
-    executable = P.which("run_spp.R")
-    if executable is None:
-        raise ValueError("could not find run_spp.R")
-
-    statement = '''
-    Rscript %(executable)s -c=%(infile)s -i=%(controlfile)s -rf \
-           -savp -out=%(outfile)s
-    >& %(outfile)s.log'''
-
-    P.run()
-
-    if os.path.exists(track + ".pdf"):
-        dest = os.path.join(PARAMS["exportdir"], "quality", track + ".pdf")
-        if os.path.exists(dest):
-            os.unlink(dest)
-        shutil.move(track + ".pdf", dest)
+    PipelinePeakcalling.estimateSPPQualityMetrics(
+        infile, track, controlfile, outfile)
 
 
 @merge(estimateSPPQualityMetrics, "spp_quality.load")
@@ -1877,7 +1862,8 @@ def reproducibility():
 # TS. removed loadSPPQualityMetrics as run_spp.R cannot be found
 # ValueError("could not find run_spp.R")
 @follows(loadBAMStats,
-         loadDuplicationStats)  # removed loadSPPQualityMetrics
+         loadDuplicationStats,
+         loadSPPQualityMetrics)
 def qc():
     pass
 

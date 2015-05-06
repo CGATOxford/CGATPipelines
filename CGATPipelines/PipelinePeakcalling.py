@@ -2407,6 +2407,25 @@ def summarizeSPP(infiles, outfile):
     outf.close()
 
 
+def estimateSPPQualityMetrics(infile, track, controlfile, outfile):
+    '''estimate ChIP-Seq quality metrics using SPP'''
+
+    job_options = "-l mem_free=4G"
+
+    statement = '''
+    Rscript %(pipeline_rdir)s/run_spp.R -c=%(infile)s -i=%(controlfile)s -rf \
+           -savp -out=%(outfile)s
+    >& %(outfile)s.log'''
+
+    P.run()
+
+    if os.path.exists(track + ".pdf"):
+        dest = os.path.join(PARAMS["exportdir"], "quality", track + ".pdf")
+        if os.path.exists(dest):
+            os.unlink(dest)
+        shutil.move(track + ".pdf", dest)
+
+
 def createGenomeWindows(genome, outfile, windows):
 
     statement = '''

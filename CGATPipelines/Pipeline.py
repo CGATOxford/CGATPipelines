@@ -99,12 +99,16 @@ CGATSCRIPTS_ROOT_DIR = os.path.dirname(os.path.dirname(E.__file__))
 # CGAT Code collection scripts
 CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
 
+
 # root directory of CGAT Pipelines
 CGATPIPELINES_ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 # CGAT Pipeline scripts
 CGATPIPELINES_SCRIPTS_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "scripts")
 # Directory of CGAT pipelines
 CGATPIPELINES_PIPELINE_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "CGATPipelines")
+# CGAT Pipeline R scripts
+CGATPIPELINES_R_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "R")
+
 
 # if Pipeline.py is called from an installed version, scripts are
 # located in the "bin" directory.
@@ -135,6 +139,7 @@ HARDCODED_PARAMS = {
     'toolsdir': CGATSCRIPTS_SCRIPTS_DIR,
     'pipeline_scriptsdir': CGATPIPELINES_SCRIPTS_DIR,
     'pipelinedir': CGATPIPELINES_PIPELINE_DIR,
+    'pipeline_rdir': CGATPIPELINES_R_DIR,
     # script to perform map/reduce like computation.
     'cmd-farm': """python %(pipeline_scriptsdir)s/farm.py
                 --method=drmaa
