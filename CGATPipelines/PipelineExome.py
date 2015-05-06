@@ -632,7 +632,7 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
     for line in eBio_ids:
         tissue, study, table = line.strip().split("\t")
 
-        n=0
+        n = 0
 
         for i in xrange(0, len(list(genes)), 500):
 
@@ -667,7 +667,7 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
                     # so splice to first row and recreate dataframe from series
                     if tmp_df.shape[0] > 1:
                         tmp_df = pd.DataFrame(tmp_df.iloc[0]).T
-                    #print tmp_df, df.shape, tmp_df.count(1)
+
                     tissue_counts[tissue][gene]["total"] += tmp_df.shape[1]-2
                     tissue_counts[tissue][gene]["mutations"] += int(tmp_df.count(1))-1
 
