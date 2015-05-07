@@ -351,7 +351,7 @@ def writeSequencesForIntervals(track,
     if shift == "leftright":
         beds = shitfBeds(beds)
 
-    if halfwidth:
+    if halfwidth and not full:
         beds = centreAndCrop(beds)
 
     sequences = getFASTAFromBed(beds, fasta, stranded, offset, maxsize)

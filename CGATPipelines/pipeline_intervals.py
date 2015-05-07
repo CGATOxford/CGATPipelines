@@ -929,11 +929,9 @@ def loadOverlap(infile, outfile):
            tablename="overlap",
            options="--add-index=set1 --add-index=set2")
 
+    P.run()
 
-@transform(loadIntervals,
-           suffix("_intervals.load"),
-           ".motifs.fasta")
-def exportMotifSequences(infile, outfile):
+def exportIntervalSequences(infile, outfile, track, method):
     '''export sequences for motif discovery.
 
     This method requires the _interval tables.
@@ -948,34 +946,28 @@ def exportMotifSequences(infile, outfile):
     4. At most *motifs_max_size* sequences will be output.
 
     '''
-    track = os.path.basename(P.snip(infile, "_intervals.load"))
     dbhandle = connect()
 
-    p = P.substituteParameters(**locals())
-
-    # Want to enable the use of variable width peaks 
-    # writeSequencesForIntervals will take NONE for
-    # maxsize if supplied, but int() won't
-
     try:
-        halfwidth = int(p["motifs_halfwidth"])
+        halfwidth = int(PARAMS[method+"_halfwidth"])
     except ValueError:
+        full = True
         halfwidth = None
 
     nseq = PipelineMotifs.writeSequencesForIntervals(
         track,
         outfile,
         dbhandle,
-        full=False,
-        masker=P.asList(p['motifs_masker']),
+        full=full,
+        masker=P.asList(PARAMS[method+'_masker']),
         halfwidth=halfwidth,
-        maxsize=int(p["motifs_max_size"]),
-        proportion=p["motifs_proportion"],
-        min_sequences=p["motifs_min_sequences"],
-        order=p['motifs_score'])
+        maxsize=int(PARAMS[method+"_max_size"]),
+        proportion=PARAMS[method"_proportion"],
+        min_sequences=PARAMS[method+"_min_sequences"],
+        order=PARAMS[method+'_score'])
 
-    if nseq == 0:
-        E.warn("%s: no sequences - meme skipped" % outfile)
+     if nseq == 0:
+        E.warn("%s: no sequences - %s skipped" % (outfile, method))
         P.touch(outfile)
 
 
@@ -1013,7 +1005,21 @@ def exportMotifControlSequences(infile, outfile):
 ############################################################
 ############################################################
 ############################################################
-@transform(exportMotifSequences, suffix(".motifs.fasta"), ".meme")
+@active_if("meme" in PARAMS["methods"])
+@transform(loadIntervals,
+           suffix("_intervals.load"),
+           ".meme.fasta")
+def exportMemeIntervalSequences(infile, outfile):
+    
+    track = os.path.basename(P.snip(infile, "_intervals.load"))
+
+    exportIntervalSequences(infile, outfile, track, method)
+
+
+############################################################
+@active_if("meme" in PARAMS["methods"])
+@transform(exportMemeIntervalSequences, regex("(/+).motifs.fasta"),
+           r"meme.dir/\1.meme")
 def runMeme(infile, outfile):
     '''run MEME to find motifs.
 
@@ -1030,12 +1036,53 @@ def runMeme(infile, outfile):
     '''
     PipelineMotifs.runMEMEOnSequences(infile, outfile)
 
+
 ############################################################
-############################################################
-############################################################
+def getdescMEMEfiles():
+
+    try:
+        design = IOTools.openFile("design.tsv")
+    except OSError:
+        raise "A design.tsv must be supplied for descriminative MEME analysis"
+
+    design.nextline()
+    for line in design:
+        for pos, neg in line.split("\t"):
+            pos = "%s.meme.fasta" % pos
+            neg = "%s.meme.fasta" % neg
+            out = "disc_meme.dir/%s_vs_%s.psp"
+            yield ((pos, neg), out)
 
 
-@merge(runMeme, "meme_summary.load")
+@active_if("disc_meme" in PARAMS["methods"])
+@follows(exportMemeIntervals, mkdir("disc_meme.dir"))
+@files(getdescMEMEfiles)
+def getDiscMEMEPSPFile(infiles, outfile):
+    '''Get the position specific prior file to allow
+    discriminative motif finding with meme '''
+
+    pos, neg = infiles
+    PipelineMotifs.generatePSP(pos, neg, outfile)
+
+
+############################################################
+@transform(getDiscMEMEPSPFile,
+           regex("disc_meme.dir/(.+)_vs_(.+).psp"),
+           add_inputs(r"\1.meme.fasta"),
+           r"disc_meme.dir/\1.disc.meme")
+def runDiscMEME(infiles, outfile):
+    ''' Run MEME with PSP file, thereform making it 
+    discrimenative'''
+
+    psp, fasta = infiles
+    PipelineMotifs.runMEMEOnSequences(fasta, outfile, psp=psp)
+
+
+############################################################
+@collate([runMeme,
+          runDiscMEME],
+         regex("(.+).dirs/(.+)\.(?:disc\.)?meme"),
+         r"\1_summary.load")
 def loadMemeSummary(infiles, outfile):
     '''load information about motifs into database.'''
 
