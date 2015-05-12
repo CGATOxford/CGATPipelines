@@ -410,7 +410,7 @@ def loadIntervals(infile, outfile):
                "peakcenter", "peakval",
                "position", "interval_id",
                "npeaks", "nprobes",
-               "contig", "start", "end", "score")
+               "contig", "start", "end", "score", "strand")
 
     tmpfile.write("\t".join(headers) + "\n")
 
@@ -441,6 +441,11 @@ def loadIntervals(infile, outfile):
         if "name" not in bed:
             bed.name = c.input
 
+        try:
+            strand = bed["strand"]
+        except IndexError:
+            strand = "."
+            
         # The fifth field of a bed file can be used to supply a
         # score. Our iterator returns the optional fields as a "fields
         # array". The first of these is the interval name, and the
@@ -481,7 +486,7 @@ def loadIntervals(infile, outfile):
             (avgval, disttostart, genelist, length,
              peakcenter, peakval, position, bed.name,
              npeaks, nprobes,
-             bed.contig, bed.start, bed.end, score))) + "\n")
+             bed.contig, bed.start, bed.end, score, strand))) + "\n")
 
     if c.output == 0:
         E.warn("%s - no aggregate intervals")
@@ -962,11 +967,12 @@ def exportIntervalSequences(infile, outfile, track, method):
         masker=P.asList(PARAMS[method+'_masker']),
         halfwidth=halfwidth,
         maxsize=int(PARAMS[method+"_max_size"]),
-        proportion=PARAMS[method"_proportion"],
+        num_sequences=PARAMS[method+"_num_sequences"],
+        proportion=PARAMS[method+"_proportion"],
         min_sequences=PARAMS[method+"_min_sequences"],
         order=PARAMS[method+'_score'])
 
-     if nseq == 0:
+    if nseq == 0:
         E.warn("%s: no sequences - %s skipped" % (outfile, method))
         P.touch(outfile)
 
@@ -1013,12 +1019,13 @@ def exportMemeIntervalSequences(infile, outfile):
     
     track = os.path.basename(P.snip(infile, "_intervals.load"))
 
-    exportIntervalSequences(infile, outfile, track, method)
+    exportIntervalSequences(infile, outfile, track, "meme")
 
 
 ############################################################
+@follows(mkdir("meme.dir"))
 @active_if("meme" in PARAMS["methods"])
-@transform(exportMemeIntervalSequences, regex("(/+).motifs.fasta"),
+@transform(exportMemeIntervalSequences, regex("(.+).meme.fasta"),
            r"meme.dir/\1.meme")
 def runMeme(infile, outfile):
     '''run MEME to find motifs.
@@ -1045,17 +1052,18 @@ def getdescMEMEfiles():
     except OSError:
         raise "A design.tsv must be supplied for descriminative MEME analysis"
 
-    design.nextline()
+    design.readline()
     for line in design:
-        for pos, neg in line.split("\t"):
-            pos = "%s.meme.fasta" % pos
-            neg = "%s.meme.fasta" % neg
-            out = "disc_meme.dir/%s_vs_%s.psp"
-            yield ((pos, neg), out)
+
+        pos, neg = line.strip().split("\t")
+        posf = "%s.meme.fasta" % pos
+        negf = "%s.meme.fasta" % neg
+        out = "disc_meme.dir/%s_vs_%s.psp" %(pos,neg)
+        yield ((posf, negf), out)
 
 
 @active_if("disc_meme" in PARAMS["methods"])
-@follows(exportMemeIntervals, mkdir("disc_meme.dir"))
+@follows(exportMemeIntervalSequences, mkdir("disc_meme.dir"))
 @files(getdescMEMEfiles)
 def getDiscMEMEPSPFile(infiles, outfile):
     '''Get the position specific prior file to allow
@@ -1103,7 +1111,7 @@ def loadMemeSummary(infiles, outfile):
     os.unlink(outf.name)
 
 
-@transform(exportMotifSequences,
+@transform(exportMemeIntervalSequences,
            suffix(".fasta"),
            ".motifseq_stats.load")
 def loadMotifSequenceComposition(infile, outfile):
