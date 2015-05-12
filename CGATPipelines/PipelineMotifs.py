@@ -164,7 +164,7 @@ def exportSequencesFromBedFile(infile, outfile, masker=None, mode="intervals"):
 def bedsFromList(data):
     ''' takes a list of data and returns a bed object'''
 
-    for bed in data:
+    for interval in data:
         bed = Bed.Bed()
         try:
             bed.contig, bed.start, bed.end = \
@@ -209,11 +209,12 @@ def centreAndCrop(beds, halfwidth):
         yield bed
 
 
-def truncateList(data, proportion=None, min_sequences=None, num_sequences=None,
-                 random=False):
+def truncateList(data, track, proportion=None, min_sequences=None, num_sequences=None,
+                 shuffle=False):
 
-    if random:
-        data = random.shuffle(data)
+    if shuffle:
+        random.shuffle(data)
+
     if proportion:
         cutoff = int(len(data) * proportion) + 1
         if min_sequences:
@@ -223,8 +224,7 @@ def truncateList(data, proportion=None, min_sequences=None, num_sequences=None,
     else:
         cutoff = len(data)
 
-    E.info("writeSequencesForIntervals %s: using at most %i sequences for pattern finding" % (
-            track, cutoff))
+    E.debug("Using %s sequences for track %s" % (cutoff, track))
 
     for dataum in data[:cutoff]:
         yield dataum
@@ -250,9 +250,10 @@ def getFASTAFromBed(beds, fasta, stranded, offset, maxsize):
             strand = "+"
 
         seq = fasta.getSequence(bed.contig, strand, start, end)
-        yield FastaRecord(seq, "%s_%s %s:%i-%i" %
+        yield FastaRecord("%s_%s %s:%i-%i" %
                           (bed.track, str(bed.name), bed.contig,
-                           bed.start, bed.end))
+                           bed.start, bed.end),
+                          seq)
 
         current_size += len(seq)
         if maxsize and current_size >= maxsize:
@@ -264,9 +265,9 @@ def getFASTAFromBed(beds, fasta, stranded, offset, maxsize):
 def shuffleFasta(sequences):
 
     for fasta in sequences:
-        sequence = list(sequence.seq)
+        sequence = list(fasta.sequence)
         random.shuffle(sequence)
-        fasta.seq = "".join(sequence)
+        fasta.sequence = "".join(sequence)
         yield fasta
 
 def writeSequencesForIntervals(track,
@@ -283,7 +284,7 @@ def writeSequencesForIntervals(track,
                                min_sequences=None,
                                order="peakval",
                                shift=None,
-                               stranded=False)
+                               stranded=False):
     '''build a sequence set for motif discovery. Intervals are taken from
     the table <track>_intervals in the database *dbhandle* and save to
     *filename* in :term:`fasta` format.
@@ -320,6 +321,7 @@ def writeSequencesForIntervals(track,
     '''
     cc = dbhandle.cursor()
 
+    orderby = ""
     if order == "peakval":
         orderby = " ORDER BY peakval DESC"
     elif order == "max":
@@ -337,7 +339,10 @@ def writeSequencesForIntervals(track,
     data = cc.fetchall()
     cc.close()
 
-    data = truncateList(data, proportion, min_sequences, num_sequences,
+    E.debug("Got %s intervals for track %s" % ( len(data), track))
+
+    data = truncateList(data, track,
+                        proportion, min_sequences, num_sequences,
                         order == "random")
 
     beds = bedsFromList(data)
@@ -363,7 +368,7 @@ def writeSequencesForIntervals(track,
     outs = IOTools.openFile(filename, "w")
     for masker in masker:
         if masker not in ("unmasked", "none", None):
-            ids, sequences = zip(*[(x.title, x.seq) for x in sequences])
+            ids, sequences = zip(*[(x.title, x.sequence) for x in sequences])
             sequences = maskSequences(sequences, masker)
             sequences = (FastaRecord(id, seq) for id, seq in izip(ids, sequences))
 
@@ -372,10 +377,10 @@ def writeSequencesForIntervals(track,
 
         for sequence in sequences:
             c.input += 1
-            if len(sequence) == 0:
+            if len(sequence.sequence) == 0:
                 c.empty += 1
                 continue
-            outs.write(">%s\n%s\n" % (sequence.title, sequence.seq))
+            outs.write(">%s\n%s\n" % (sequence.title, sequence.sequence))
             c.output += 1
         outs.close()
 
@@ -994,18 +999,6 @@ def generatePSP(positives, negatives, outfile):
     if PARAMS.get("meme_revcomp", True):
         psp_options += " -revcomp"
 
-    try:
-        psp_options += re.search("(\s*-minw [0-9]+)",
-                                 PARAMS["meme_options"]).groups()[0]
-    except AttributeError:
-        pass
-
-    try:
-        psp_options += re.search("(\s*-maxw [0-9]+)",
-                                 PARAMS["meme_options"]).groups()[0]
-    except AttributeError:
-        pass
-
     statement = '''psp-gen -pos %(positives)s
                            -neg %(negatives)s
                            %(psp_options)s
@@ -1061,9 +1054,9 @@ def runMEMEOnSequences(infile, outfile, background=None,
     -mod %(meme_model)s
     -nmotifs %(meme_nmotifs)s
     -oc %(tmpdir)s
-    -maxsize %(motifs_max_size)s
+    -maxsize %(meme_max_size)s
     %(background_model)s
-    %(psp_file_s
+    %(psp_file)s
     %(meme_options)s
        > %(outfile)s.log
     '''
