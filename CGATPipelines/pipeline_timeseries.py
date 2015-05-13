@@ -1358,7 +1358,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
 ###################################################################
 ###################################################################
 
-print PARAMS
+
 @follows(consensusClustering,
          mkdir("images.dir"),
          mkdir("eigengenes.dir"))
