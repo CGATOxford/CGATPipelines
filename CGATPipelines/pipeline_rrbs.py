@@ -246,12 +246,6 @@ EXPERIMENTS = PipelineTracks.Aggregate(TRACKS, labels=("tissue", "condition"))
 CONDITIONS = PipelineTracks.Aggregate(TRACKS, labels=("condition", ))
 REPLICATES = PipelineTracks.Aggregate(TRACKS, labels=("replicate", ))
 
-
-print [x for x in EXPERIMENTS]
-print [x for x in CONDITIONS]
-print [x for x in REPLICATES]
-
-
 #########################################################################
 # summarise read 3'
 #########################################################################

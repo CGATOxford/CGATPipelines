@@ -105,7 +105,19 @@ def makeAdaptorFasta(infile, dbh, contaminants_file, outfile):
     sample = sample.replace("-", "_")
     sample = sample.replace(".", "_")
     sample = sample.split("_")
-    sample.remove("fastq")
+
+    # handle fastq, paired-end and sra
+    if infile.endswith(".fastq.gz"):
+        sample.remove("fastq")
+    elif infile.endswith(".sra"):
+        sample.remove("sra")
+    elif infile.endswith(".fastq.1.gz"):
+        sample.remove("fastq")
+    elif infile.endswith(".fastq.2.gz"):
+        sample.remove("fastq")
+    else:
+        raise AttributeError("unrecognised sequence file format")
+
     sample = "_".join(sample)
     query = "SELECT * FROM %s_fastqc_Overrepresented_sequences;" % sample
 

@@ -217,10 +217,7 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelinePublishing as PipelinePublishing
 
-
-###################################################
 # Pipeline configuration
-###################################################
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
@@ -240,14 +237,7 @@ PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
 PipelinePublishing.PARAMS = PARAMS
 
-# helper variable restricting the number of jobs writing
-# to the database
-JOBS_LIMIT_DB = 10
-
-###################################################################
-###################################################################
 # Helper functions mapping tracks to conditions, etc
-###################################################################
 # determine the location of the input files (reads).
 try:
     PARAMS["input"]
@@ -262,9 +252,7 @@ else:
         DATADIR = PARAMS["input"]  # not recommended practise.
 
 
-###################################################################
 # Global flags
-###################################################################
 MAPPERS = P.asList(PARAMS["mappers"])
 SPLICED_MAPPING = ("tophat" in MAPPERS or
                    "gsnap" in MAPPERS or
@@ -825,14 +813,15 @@ def buildTophatStats(infiles, outfile):
             reads_out *= 2
             reads_removed *= 2
 
-        outf.write("\t".join(map(str, (track,
-                                       reads_in, reads_removed, reads_out,
-                                       junctions_loaded, junctions_found, possible_splices))) + "\n")
+        outf.write("\t".join(map(str, (
+            track,
+            reads_in, reads_removed, reads_out,
+            junctions_loaded, junctions_found, possible_splices))) + "\n")
 
     outf.close()
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
 @transform(buildTophatStats, suffix(".tsv"), ".load")
 def loadTophatStats(infile, outfile):
@@ -927,7 +916,7 @@ def buildSTARStats(infiles, outfile):
     outf.close()
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
 @transform(buildSTARStats, suffix(".tsv"), ".load")
 def loadSTARStats(infile, outfile):
@@ -1218,7 +1207,7 @@ def buildPicardStats(infiles, outfile):
                                                 reffile)
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildPicardStats, "picard_stats.load")
 def loadPicardStats(infiles, outfile):
     '''merge alignment stats into single tables.'''
@@ -1241,7 +1230,7 @@ def buildPicardDuplicationStats(infile, outfile):
     PipelineMappingQC.buildPicardDuplicationStats(infile, outfile)
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildPicardDuplicationStats, ["picard_duplication_stats.load",
                                      "picard_duplication_histogram.load"])
 def loadPicardDuplicationStats(infiles, outfiles):
@@ -1325,7 +1314,7 @@ def buildBAMStats(infiles, outfile):
     P.run()
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildBAMStats, "bam_stats.load")
 def loadBAMStats(infiles, outfile):
     '''import bam statisticis.'''
@@ -1364,7 +1353,7 @@ def buildContextStats(infiles, outfile):
     P.run()
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(loadBAMStats)
 @merge(buildContextStats, "context_stats.load")
 def loadContextStats(infiles, outfile):
@@ -1433,7 +1422,7 @@ def buildExonValidation(infiles, outfile):
     P.run()
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
 @merge(buildExonValidation, "exon_validation.load")
 def loadExonValidation(infiles, outfile):
@@ -1519,7 +1508,7 @@ def collateTranscriptCounts(infiles, outfile):
     P.run()
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
 @transform(collateTranscriptCounts,
            suffix(".tsv.gz"),
@@ -1561,7 +1550,7 @@ def buildIntronLevelReadCounts(infiles, outfile):
     P.run()
 
 
-@jobs_limit(JOBS_LIMIT_DB, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
 @transform(buildIntronLevelReadCounts,
            suffix(".tsv.gz"),

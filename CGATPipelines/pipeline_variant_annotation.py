@@ -754,15 +754,12 @@ def buildPolyphenFeatures(infile, outfile):
 # be patched or the following jobs run in sequence.
 
 
-@jobs_limit(1)
+@jobs_limit(1, "polyphen")
 @files([(buildPolyphenFeatures, "polyphen_%s.output.gz" % x, x)
         for x in P.asList(PARAMS["polyphen_models"])])
 def runPolyphen(infile, outfile, model):
     '''run POLYPHEN on feature tables to classify SNPs.
     '''
-
-    to_cluster = True
-
     # options
     # -f: feature set, default is F11
     # -c: classifier, default is NBd (Naive Bayes with discretization)

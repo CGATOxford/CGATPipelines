@@ -708,7 +708,47 @@ class FastQc(Mapper):
         Mapper.__init__(self, *args, **kwargs)
         self.nogroup = nogroup
         self.outdir = outdir
-        self.contaminants = contaminants
+        if contaminants:
+            self.contaminants = self.parse_contaminants(contaminants)
+        else:
+            self.contaminants = None
+
+    def parse_contaminants(self, contaminants):
+        '''
+        Excessive tabs in contaminants file can cause Fastqc
+        to hiccup when provided as an adaptor contaminants file.
+        Parse file and insert a single tab
+        Using this file is only appropriate if the adaptors sequences
+        are shorter than the reads.
+        '''
+
+        # if no contaminants file provided return None
+        try:
+            assert contaminants
+        except AssertionError:
+            return None
+
+        # read in file and split into adaptor/sequence
+        adaptor_dict = {}
+        with IOTools.openFile(contaminants, "r") as ofile:
+            for line in ofile.readlines():
+                if line[0] == '#':
+                    pass
+                else:
+                    adapt = line.split("\t")
+                    adaptor = adapt[0]
+                    sequence = adapt[-1]
+                    adaptor_dict[adaptor] = sequence
+        ofile.close()
+
+        # get temporary file name
+        outfile = P.getTempFilename(shared=True)
+        with IOTools.openFile(outfile, "w") as wfile:
+            for key, value in adaptor_dict.items():
+                wfile.write("%s\t%s\n" % (key, value))
+        wfile.close()
+
+        return outfile
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -716,25 +756,29 @@ class FastQc(Mapper):
         The output is created in outdir. The output files
         are extracted.
         '''
+
+        contaminants = self.contaminants
         outdir = self.outdir
         statement = []
         for f in infiles:
             for i, x in enumerate(f):
                 track = os.path.basename(re.sub(".fastq.*", "", x))
 
-                if self.contaminants:
-                    contaminants_cmd = "-a %s" % self.contaminants
+                if contaminants:
+                    contaminants_cmd = "-a %s" % contaminants
                 else:
                     contaminants_cmd = ""
 
                 if self.nogroup:
                     statement.append(
                         '''fastqc --extract --outdir=%(outdir)s --nogroup %(x)s
-                        %(contaminants_cmd)s >& %(outfile)s;''' % locals())
+                        %(contaminants_cmd)s >& %(outfile)s ;
+                        rm -f %(contaminats)s ; ''' % locals())
                 else:
                     statement.append(
                         '''fastqc --extract --outdir=%(outdir)s %(x)s
-                        %(contaminants_cmd)s >& %(outfile)s;''' % locals())
+                        %(contaminants_cmd)s >& %(outfile)s ;
+                        rm -f %(contaminants)s ; ''' % locals())
         return " ".join(statement)
 
 
