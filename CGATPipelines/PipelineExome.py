@@ -125,7 +125,8 @@ def GATKIndelRealign(infile, outfile, genome, intervals, padding, threads=4):
 ##############################################################################
 
 
-def GATKBaseRecal(infile, outfile, genome, intervals, padding, dbsnp, solid_options=""):
+def GATKBaseRecal(infile, outfile, genome, intervals, padding, dbsnp,
+                  solid_options=""):
     '''Recalibrates base quality scores using GATK'''
 
     track = P.snip(os.path.basename(infile), ".bam")

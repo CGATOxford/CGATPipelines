@@ -95,10 +95,10 @@ fastq.1.gz, fastq.2.gz
    files. Thus it might be difficult to mix different formats.
 
 If you are submitting families then a .ped file for each family and an
-all_samples ped file (cat *ped > all_samples.ped) must be supplied 
-within your working directory.  This is a tab-delimited file named 
-<family>.ped (where <family> is the family ID in the title of the 
-corresponding fastq files) with no header and one individual per line 
+all_samples ped file (cat *ped > all_samples.ped) must be supplied
+within your working directory.  This is a tab-delimited file named
+<family>.ped (where <family> is the family ID in the title of the
+corresponding fastq files) with no header and one individual per line
 according to the following pattern:
 
 family_id sample_id father_id mother_id sex phenotype
@@ -281,6 +281,7 @@ def mapReads(infiles, outfile):
 ###############################################################################
 # Post-alignment QC
 
+
 @transform(mapReads, regex(r"bam/(\S+).bam"), r"bam/\1.picard_stats")
 def PicardAlignStats(infile, outfile):
     '''Run Picard CollectMultipleMetrics on each BAM file'''
@@ -362,7 +363,8 @@ def GATKIndelRealignLane(infile, outfile):
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     intervals = PARAMS["roi_intervals"]
     padding = PARAMS["roi_padding"]
-    PipelineExome.GATKIndelRealign(infile, outfile, genome, intervals, padding, threads)
+    PipelineExome.GATKIndelRealign(infile, outfile, genome, intervals, padding,
+                                   threads)
     IOTools.zapFile(infile)
 
 ###############################################################################
@@ -403,7 +405,7 @@ def mergeBAMs(infiles, outfile):
                    ASSUME_SORTED=true; '''
     statement += '''samtools index %(outfile)s ;''' % locals()
     P.run()
-    #zapfiles?
+    # zapfiles?
 
 ###############################################################################
 ###############################################################################
@@ -481,7 +483,8 @@ def GATKIndelRealignSample(infiles, outfile):
     padding = PARAMS["roi_padding"]
     countf = open(countfile, "r")
     if countf.read() > '1':
-        PipelineExome.GATKIndelRealign(infiles[0], outfile, genome, intervals, padding, threads)
+        PipelineExome.GATKIndelRealign(infiles[0], outfile, genome, intervals,
+                                       padding, threads)
     else:
         shutil.copyfile(infile, outfile)
         shutil.copyfile(infile + ".bai", outfile + ".bai")
@@ -988,7 +991,8 @@ def confirmParentage(infiles, outfile):
 @follows(loadVariantAnnotation)
 @transform("*Trio*.ped",
            regex(r"(\S*Trio\S+).ped"),
-           add_inputs(r"variants/all_samples.snpsift.vcf"), r"variants/\1.filtered.vcf")
+           add_inputs(r"variants/all_samples.snpsift.vcf"),
+           r"variants/\1.filtered.vcf")
 def deNovoVariants(infiles, outfile):
     '''Filter de novo variants based on provided jexl expression'''
     job_options = getGATKOptions()
@@ -1032,7 +1036,8 @@ def loadDeNovos(infile, outfile):
 @follows(loadVariantAnnotation)
 @transform("*Trio*.ped",
            regex(r"(\S*Trio\S+).ped"),
-           add_inputs(r"variants/all_samples.snpsift.vcf"), r"variants/\1.denovos.vcf")
+           add_inputs(r"variants/all_samples.snpsift.vcf"),
+           r"variants/\1.denovos.vcf")
 def lowerStringencyDeNovos(infiles, outfile):
     '''Filter lower stringency de novo variants based on provided jexl
     expression'''
@@ -1234,7 +1239,8 @@ def phasing(infiles, outfile):
 
 
 @transform(phasing, regex(r"variants/all_samples.phased.vcf"),
-           add_inputs(r"gatk/all_samples.list"), r"variants/all_samples.rbp.vcf")
+           add_inputs(r"gatk/all_samples.list"),
+           r"variants/all_samples.rbp.vcf")
 def readbackedphasing(infiles, outfile):
     '''phase variants with ReadBackedPhasing'''
     job_options = getGATKOptions()
@@ -1270,7 +1276,8 @@ def compoundHets(infiles, outfile):
                    "(impact_severity = 'HIGH' OR impact_severity = 'MED')
                    AND (in_esp = 0 OR aaf_esp_all < 0.01)
                    AND (in_1kg = 0 OR aaf_1kg_all < 0.01)"
-                   %(family_id)s.db > %(outfile)s;''' #rm -f %(family_id)s.db'''
+                   %(family_id)s.db > %(outfile)s;'''
+    # rm -f %(family_id)s.db'''
     P.run()
 
 ###############################################################################
