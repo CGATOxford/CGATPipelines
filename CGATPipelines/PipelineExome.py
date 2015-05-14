@@ -176,6 +176,21 @@ def haplotypeCaller(infile, outfile, genome,
 ##############################################################################
 
 
+def genotypeGVCFs(inputfiles, outfile, genome, options):
+    '''Joint genotyping of all samples together'''
+    job_options = getGATKOptions()
+    job_threads = 3
+
+    statement = '''GenomeAnalysisTK
+                    -T GenotypeGVCFs
+                    -o %(outfile)s
+                    -R %(genome)s
+                    --variant %(inputfiles)s''' % locals()
+    P.run()
+
+##############################################################################
+
+
 def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                     dbsnp, call_stats_out, cluster_options,
                     quality=20, max_alt_qual=150, max_alt=5,
