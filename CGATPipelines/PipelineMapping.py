@@ -1378,6 +1378,7 @@ class Tophat(Mapper):
 
     def __init__(self, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
+        
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -1484,6 +1485,13 @@ class Tophat(Mapper):
 
 class Tophat2(Tophat):
 
+    def __init__(self, strip_sequence, remove_non_unique, fusion_search,
+                 *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.strip_sequence = strip_sequence
+        self.remove_non_unique = remove_non_unique
+        self.fusion_search = fusion_search
+
     executable = "tophat2"
 
     def mapper(self, infiles, outfile):
@@ -1494,6 +1502,30 @@ class Tophat2(Tophat):
 
         # replace tophat options with tophat2 options
         statement = re.sub("%\(tophat_", "%(tophat2_", statement)
+
+        return statement
+
+    def postprocess(self, infiles, outfile):
+        '''collect output data and postprocess.'''
+
+        track = P.snip(outfile, ".bam")
+        tmpdir_tophat = self.tmpdir_tophat
+
+        statement = '''
+        gzip < %(tmpdir_tophat)s/junctions.bed
+        > %(track)s.junctions.bed.gz;
+        mv %(tmpdir_tophat)s/logs %(outfile)s.logs;
+        mv %(tmpdir_tophat)s/accepted_hits.bam %(outfile)s;
+        ''' % locals()
+
+        if self.fusion_search:
+            pass
+            '''
+            mv %(tmpdir_tophat)s/fusions.out %(outfile)s_fusions.out
+            ''' % locals()
+            # TS. Add statement here to retain fusion outfiles
+
+        statement += '''samtools index %(outfile)s;''' % locals()
 
         return statement
 

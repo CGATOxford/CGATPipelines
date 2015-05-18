@@ -270,13 +270,13 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
+        PARAMS["annotations_db"])
+
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
 
     return dbh
-
 
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
@@ -337,13 +337,36 @@ def buildReferenceGeneSet(infile, outfile):
 
 
 @active_if(SPLICED_MAPPING)
+@originate("protein_coding_gene_ids.tsv")
+def identifyProteinCodingGenes(outfile):
+    dbh = connect()
+    table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
+
+    try:
+        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
+        WHERE gene_biotype = 'protein_coding';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or gene_biotype column. "
+                   "Error message: '%s'" % error)
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("gene_id\n")
+        outf.write("\n".join((x[0] for x in select)) + "\n")
+
+
+@active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
-def buildCodingGeneSet(infile, outfile):
+def buildCodingGeneSet(infiles, outfile):
     '''build a gene set with only protein coding transcripts.
 
-    Genes are selected via their gene biotype in the GTF file.
+    Genes are no longer selected via their gene biotype in the GTF file.
+
+    Genes are now identified from the annotation database table and then
+    provided in a tsv file to gtf2gtf.py
+
     Note that this set will contain all transcripts of protein
     coding genes, including processed transcripts.
 
@@ -351,14 +374,14 @@ def buildCodingGeneSet(infile, outfile):
 
     '''
 
+    infile, genes_tsv = infiles
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
-    --filter-method=proteincoding
-    --filter-by=database
-    --database=%(annotations_database)s
-    --table=%(annotations_table_gene_info)s
+    --filter-method=gene
+    --map-tsv-file=%(genes_tsv)s
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s
@@ -690,12 +713,20 @@ def mapReadsWithTophat2(infiles, outfile):
     else:
         job_options = " -l mem_free=%s" % PARAMS["tophat2_memory"]
 
+    # TS added option to run tophat2 in fusion-search mode
+    # requires alternative post-processing to retain fusion files
+    if PARAMS["tophat2_fusion"]:
+        tophat2_options = PARAMS["tophat2_options"] + " --fusion-search --bowtie1"
+    else:
+        tophat2_options = PARAMS["tophat2_options"]
+
     m = PipelineMapping.Tophat2(
         executable=P.substituteParameters(**locals())["tophat2_executable"],
-        strip_sequence=PARAMS["strip_sequence"])
+        strip_sequence=PARAMS["strip_sequence"],
+        fusion_search=PARAMS["tophat2_fusion"])
+
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + \
-        " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = tophat2_options + " --raw-juncs %(reffile)s " % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -1281,7 +1312,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_options = "-l mem_free=12G"
+    job_options = "-l mem_free 20G"
 
     bamfile, readsfile = infiles
 
@@ -1792,7 +1823,7 @@ def full():
     pass
 
 
-@follows(buildReferenceGeneSet)
+@follows(buildCodingGeneSet)
 def test():
     pass
 
