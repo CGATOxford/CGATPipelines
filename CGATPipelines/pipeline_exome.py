@@ -406,6 +406,8 @@ def mergeBAMs(infiles, outfile):
     statement += '''samtools index %(outfile)s ;''' % locals()
     P.run()
     # zapfiles?
+    for inputfile in infiles:
+        IOTools.zapFile(inputfile)
 
 ###############################################################################
 ###############################################################################
@@ -1101,6 +1103,7 @@ def dominantVariants(infiles, outfile):
         if row['status'] == '1':
             unaffecteds += [row['sample']]
     affecteds_exp = '").getPL().1==0&&vc.getGenotype("'.join(affecteds)
+    affecteds_exp2 = '").getAD().1>=1&&vc.getGenotype("'.join(affecteds)
     if len(unaffecteds) == 0:
         unaffecteds_exp = ''
     else:
@@ -1110,7 +1113,7 @@ def dominantVariants(infiles, outfile):
     # for some weird reason the 1000G filter doesn't work on these particular
     # files - will add later when I've figured out what's wrong
     # currently 1000G filter is performed at the report stage (not in csvdb)
-    select = '''vc.getGenotype("%(affecteds_exp)s").getPL().1==0%(unaffecteds_exp)s&&(SNPEFF_IMPACT=="HIGH"||SNPEFF_IMPACT=="MODERATE")''' % locals()
+    select = '''vc.getGenotype("%(affecteds_exp)s").getPL().1==0&&vc.getGenotype("%(affecteds_exp2)s").getAD().1>=1%(unaffecteds_exp)s&&(SNPEFF_IMPACT=="HIGH"||SNPEFF_IMPACT=="MODERATE")''' % locals()
     PipelineExome.selectVariants(infile, outfile, genome, select)
 
 ###############################################################################
@@ -1151,7 +1154,7 @@ def loadDoms(infile, outfile):
 def recessiveVariants(infiles, outfile):
     '''Filter variants according to autosomal recessive disease model'''
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
-    infile, pedfile = infiles
+    pedfile, infile = infiles
     pedigree = csv.DictReader(open(pedfile), delimiter='\t',
                               fieldnames=['family', 'sample', 'father',
                                           'mother', 'sex', 'status'])
@@ -1405,6 +1408,8 @@ def compoundHet():
 
 
 @follows(denovo,
+         dominant,
+         recessive,
          compoundHet)
 def filtering():
     pass
@@ -1421,7 +1426,6 @@ def vcfstats():
          # sampleFeatures,
          callVariants,
          annotation,
-         confirmParentage,
          filtering)
 def full():
     pass
