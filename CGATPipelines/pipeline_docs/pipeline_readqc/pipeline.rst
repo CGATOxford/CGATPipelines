@@ -7,6 +7,6 @@
    pipeline/ExperimentQuality.rst
    pipeline/PerBaseNContent.rst
    pipeline/SequenceDuplicationLevels.rst
-   pipeline/Filtering.rst
    pipeline/SequenceLength.rst
+   pipeline/Filtering.rst
    python/Trackers.rst
