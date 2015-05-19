@@ -688,43 +688,112 @@ class MemeInputSequenceComposition(IntervalTracker):
               'nUnk', 'pA', 'pAT', 'pC', 'pG', 'pGC', 'pN', 'pT')
 
     def __call__(self, track, slice):
-        return self.getValues('''SELECT %(slice)s FROM %(track)s_motifseq_stats''')
+        return self.getValues('''SELECT %(slice)s
+                                 FROM %(track)s_motifseq_stats''')
 
 
-class MemeRuns(IntervalTracker):
+class MotifRuns(IntervalTracker):
+
+    def getSlices(self):
+        methods = self.getValues("SELECT DISTINCT method FROM %s_summary" %
+                              self.prog)
+        return ["%s (:ref:`%s_details`)" % (method, method)
+                for method in methods]
 
     def getTracks(self):
-        return self.getValues("SELECT DISTINCT track FROM meme_summary")
+        slices = ",".join(self.getSlices())
+        return self.getValues("SELECT DISTINCT track FROM %s_summary" %
+                              self.prog)
 
-    def __call__(self, track, slice=None):
-
+    def getExportDir(self, track, slice):
         memedir = os.path.abspath(
-            os.path.join(EXPORTDIR, "meme", "%s.meme" % track))
-        if not os.path.exists(memedir):
-            return None
+            os.path.join(EXPORTDIR, slice + ".dir", "%s.%s" %
+                         (track, self.prog)))
+        return memedir
 
-        tomtomdir = os.path.abspath(
-            os.path.join(EXPORTDIR, "tomtom", "%s.tomtom" % track))
+    def checkexists(self, track, slice):
+        return os.path.exists(self.getExportDir(track, slice))
 
-        data = []
-
+    def getNMotifs(self, track, slice):
+        export_dir = self.getExportDir(track, slice)
         tree = xml.etree.ElementTree.ElementTree()
-        tree.parse(os.path.join(memedir, "meme.xml"))
-        model = tree.find("model")
-        data.append(("nsequences", int(model.find("num_sequences").text)))
-        data.append(("nbases", int(model.find("num_positions").text)))
-
+        tree.parse(os.path.join(export_dir, "%s.xml" % self.prog))
         motifs = tree.find("motifs")
         nmotifs = 0
         for motif in motifs.getiterator("motif"):
             nmotifs += 1
+        return nmotifs
 
-        data.append(("nmotifs", nmotifs))
-        data.append(("link", "`meme_%s <%s/meme.html>`_" % (track, memedir)))
-        data.append(
-            ("tomtom", "`tomtom_%s <%s/tomtom.html>`_" % (track, tomtomdir)))
+    def getTomTomLink(self, track, slice):
+        tomtomdir = os.path.abspath(
+            os.path.join(EXPORTDIR, "tomtom", "%s.tomtom" % track))
+        if os.path.exists(tomtomdir):
+            tomtomlink = "`tomtom_%s <%s/tomtom.html>`_" % (track, tomtomdir)
+        else:
+            tomtomlink = "NA"
+        return tomtomlink
 
+    def getInputInfo(self, track, slice):
+        return []
+
+    def getLink(self, track, slice):
+
+        return "`%s_%s <%s/%s.html>`_" % (self.prog,
+                                          track,
+                                          self.getExportDir(track,slice),
+                                          self.prog)
+
+    def __call__(self, track, slice=None):
+
+        slice = re.match("(.+) \(.+\)", slice).groups()[0]
+        data = []
+        if not self.checkexists(track, slice):
+            return None
+
+        data.extend(self.getInputInfo(track, slice))
+        data.append(("nmotifs", self.getNMotifs(track, slice)))
+        data.append(("Link",self.getLink(track, slice)))
+        data.append(("TomTom",self.getTomTomLink(track, slice)))
+
+        print data
         return odict(data)
+
+       
+class MemeRuns(MotifRuns):
+    prog = "meme"
+    
+    def getInputInfo(self, track, slice):
+        
+        tree = xml.etree.ElementTree.ElementTree()
+        tree.parse(os.path.join(self.getExportDir(track, slice), "meme.xml"))
+        model = tree.find("model")
+        return [("nsequences", int(model.find("num_sequences").text)),
+                ("nbases", int(model.find("num_positions").text))]
+
+
+class DremeRuns(MotifRuns):
+    prog = "dreme"
+
+    def getInputInfo(self, track, slice):
+
+        track = re.sub("-", "_", track)
+
+        try:
+            positives, negatives = re.match("(.+)_vs_(.+)", track).groups()
+        except:
+            positives = negatives = track
+
+        def _getinfo(track):
+            n = self.getValue("SELECT COUNT (*) FROM %s_dreme_motifseq_stats"
+                              % track)
+            length = self.getValue(
+                "SELECT SUM(nA+nG+nC+nT) FROM %s_dreme_motifseq_stats" % track)
+            return (n, length)
+
+        return zip(("n_positive_seqs", "n_positive_bases"), 
+                   _getinfo(positives)) + \
+            zip(("n_negative_seqs", "n_negatives_bases"),
+                _getinfo(negatives))
 
 
 class MemeResults(IntervalTracker):
@@ -732,17 +801,18 @@ class MemeResults(IntervalTracker):
     def getTracks(self):
         return self.getValues("SELECT DISTINCT track FROM meme_summary")
 
+    def getSlices(self):
+        return self.getValues("SELECT DISTINCT method FROM meme_summary")
+
     def __call__(self, track, slice=None):
 
         resultsdir = os.path.abspath(
-            os.path.join(EXPORTDIR, "meme", "%s.meme" % track))
+            os.path.join(EXPORTDIR, slice + ".dir", "%s.meme" % track))
         if not os.path.exists(resultsdir):
-            return []
-
+            return None
+ 
         tree = xml.etree.ElementTree.ElementTree()
         tree.parse(os.path.join(resultsdir, "meme.xml"))
-        # data.append( ("nsequences", int(model.find( "num_sequences" ).text) ) )
-        # data.append( ("nbases", int(model.find( "num_positions" ).text) ) )
 
         motifs = tree.find("motifs")
         nmotif = 0
@@ -753,9 +823,11 @@ class MemeResults(IntervalTracker):
             motif_rc_img = "%s/logo_rc%i.png" % (resultsdir, nmotif)
             img, rc_img = "na", "na"
             if os.path.exists(motif_img):
-                img = ".. image:: %s" % motif_img
+                img = '''.. image:: %s
+   :scale: 25%%''' % motif_img
             if os.path.exists(motif_rc_img):
-                rc_img = ".. image:: %s" % motif_rc_img
+                rc_img = '''.. image:: %s
+   :scale: 25%%''' % motif_rc_img
 
             result[str(nmotif)] = odict((
                 ("width", motif.get("width")),
@@ -769,6 +841,206 @@ class MemeResults(IntervalTracker):
             ))
 
         return result
+
+
+class DremeResults(IntervalTracker):
+    
+    def getTracks(self):
+        return self.getValues("SELECT DISTINCT track FROM dreme_summary")
+
+    def getSlices(self):
+        return self.getValues("SELECT DISTINCT method FROM dreme_summary")
+
+    def __call__(self, track, slice=None):
+
+        resultsdir = os.path.abspath(
+            os.path.join(EXPORTDIR, slice + ".dir", "%s.dreme" % track))
+        if not os.path.exists(resultsdir):
+            return None
+
+        tree = xml.etree.ElementTree.ElementTree()
+        tree.parse(os.path.join(resultsdir, "dreme.xml"))
+        
+        model = tree.find("model")
+        num_positives = int(model.find("positives").get("count"))
+        num_negatives = int(model.find("negatives").get("count"))
+
+        result = odict()
+
+        motifs = tree.find("motifs")
+        nmotif = 0
+        for motif in motifs.getiterator("motif"):
+
+            seq = motif.get("seq")
+            nmotif += 1
+            id = motif.get("id")
+            seq = motif.get("seq")
+
+            motif_img = "%(resultsdir)s/%(id)snc_%(seq)s.png" % locals()
+            rc_file = glob.glob(os.path.join(resultsdir, "%(id)src_*" % locals()))
+
+            img, rc_img = "na", "na"
+            if os.path.exists(motif_img):
+                img = '''.. image:: %s
+   :scale: 25%% ''' % motif_img
+                
+            if len(rc_file) > 0:
+                rc_img = '''.. image:: %s
+   :scale: 25%%''' % rc_file[0]
+
+            p = float(motif.get("p"))
+            n = float(motif.get("n"))
+            
+            try:
+                enrichment = (p/num_positives)/(n/num_negatives)
+                enrichment = "{:.0%}".format(
+                    enrichment)
+            except ZeroDivisionError:
+                enrichment = "inf"
+
+            result[str(nmotif)] = odict((
+                ("sequence", seq),
+                ("evalue", motif.get("evalue")),
+                ("positives", "{:d}/{} ({:.0%})".format(int(p), num_positives,
+                                                        p/num_positives)),
+                ("negatives", "{:d}/{} ({:.0%})".format(int(n), num_negatives,
+                                                        n/num_negatives)),
+                ("enrichment", enrichment),
+                ("link", "`dreme_%s <%s/dreme.html>`_" %
+                 (track, resultsdir)),
+                ("img", img),
+                ("rc_img", rc_img),
+            ))
+
+        return result
+        
+
+class SequenceSubset(IntervalTracker):
+
+    pattern = "(.+)_summary"
+
+    def __call__(self, track):
+        
+        def _P(key):
+            return P["%s_%s" % (track,key)]
+
+        if _P("num_sequences"):
+            which = str(_P("num_sequences"))
+        elif _P("proportion"):
+            if _P("min_sequences"):
+                mins = _P("min_sequences")
+            else:
+                mins = 0
+            which = "%s%% (minimum %i) of" % (str(_P("proportion") * 100),
+                                           mins)
+        else:
+            which = "all"
+
+        if _P("score") == "random":
+            seqs = "%s sequences at random were selected" % which
+        elif _P("score"):
+            seqs = "The top %s sequences ranked by %s were selected" % (which, _P("score"))
+        else:
+            seqs = "%s sequences were selected" % which
+        if _P("max_size"):
+            seqs += ", up to a total of %ibp" % _P("max_size")
+
+        if _P("halfwidth"):
+            seqs += ".\n %ibp either side of the peak was used." % _P("halfwidth")
+        else:
+            seqs += ".\n The whole interval was used."
+
+        if _P("masker"):
+            seqs += "\n Sequences were masked with %s" % _P("masker")
+
+        return seqs
+
+
+class GeneSetComparision(IntervalTracker):
+
+    def __call__(self, track, slice):
+
+        track, prog = re.match("(.+)_([^_]+)", track).groups()
+        table = self.slice2table[slice] % locals()
+        column = self.slice2column[slice]
+
+        return self.getValues("SELECT %(column)s FROM %(table)s")
+
+
+class CompFullSubset(GeneSetComparision):
+
+    slices = ["full", "subset"]
+    pattern = "(.+)_motifseq_stats"
+    slice2table = {"full": "%(track)s_composition",
+                    "subset": "%(track)s_%(prog)s_motifseq_stats"}
+
+
+class CompFullSubsetGC(CompFullSubset):
+
+    slice2column = {"full": "CpG_density",
+                    "subset": "pGC"}
+
+
+class CompFullSubsetLength(CompFullSubset):
+
+    slice2column = {"full": "end-start",
+                    "subset": "(nA+nT+nG+nC +nN)"}
+
+
+class CompPosNeg(GeneSetComparision):
+
+    slices = ["positives", "negatives"]
+    
+    def getTracks(self):
+
+        tracks = self.getValues('''SELECT track
+                                   FROM %(prog)s_summary'''
+                                )
+        tracks = filter(lambda x: "_vs_" in x, tracks)
+        return tracks
+
+    def __call__(self, track, slice):
+
+        groups = re.match("(.+)_vs_(.+)", track).groups()
+
+        if slice == "positives":
+            track = groups[0]
+        else:
+            track = groups[1]
+
+        track = re.sub("-","_",track)
+        return self.getValues(''' SELECT %(column)s
+                                  FROM %(track)s_%(prog)s_motifseq_stats''')
+
+
+class PosNegMemeGC(CompPosNeg):
+    prog = "meme"
+    column = "pGC"
+
+
+class PosNegDremeGC(CompPosNeg):
+    prog = "dreme"
+    column = "pGC"
+
+
+class PosNegMemeLength(CompPosNeg):
+    prog = "meme"
+    column = "nGC + nAT + nN"
+
+
+class PosNegDremeLength(CompPosNeg):
+    prog = "dreme"
+    column = "nGC + nAT + nN"
+
+
+class PosNegMemeN(CompPosNeg):
+    prog = "meme"
+    column = "pN"
+
+
+class PosNegDremeN(CompPosNeg):
+    prog = "dreme"
+    column = "pN"
 
 
 class TomTomResults(IntervalTracker):

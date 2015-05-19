@@ -26,7 +26,7 @@ Contents:
    pipeline/Tomtom.rst
    pipeline/Mast.rst
    pipeline/Peaks.rst
-
+   pipeline/MemeGallery.rst
 ..   pipeline/GeneProfiles.rst
 
 .. errorlist::
