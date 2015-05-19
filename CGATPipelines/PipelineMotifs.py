@@ -248,8 +248,12 @@ def getFASTAFromBed(beds, fasta, stranded, offset, maxsize):
             strand = bed.strand
         else:
             strand = "+"
+        
+        
+        seq = ''.join(fasta.getSequence(bed.contig, 
+                                        strand, interval[0], interval[1])
+                      for interval in bed.toIntervals())
 
-        seq = fasta.getSequence(bed.contig, strand, start, end)
         yield FastaRecord("%s_%s %s:%i-%i" %
                           (bed.track, str(bed.name), bed.contig,
                            bed.start, bed.end),
@@ -958,7 +962,7 @@ def runMEME(track, outfile, dbhandle):
     # job_options = "-l mem_free=8000M"
 
     target_path = os.path.join(
-        os.path.abspath(PARAMS["exportdir"]), "meme", outfile)
+        os.path.abspath(PARAMS["exportdir"]), outfile)
 
     fasta = IndexedFasta.IndexedFasta(
         os.path.join(PARAMS["genome_dir"], PARAMS["genome"]))
@@ -1036,7 +1040,7 @@ def runMEMEOnSequences(infile, outfile, background=None,
         revcomp = ""
 
     target_path = os.path.join(
-        os.path.abspath(PARAMS["exportdir"]), "meme", outfile)
+        os.path.abspath(PARAMS["exportdir"]),  outfile)
     tmpdir = P.getTempDir(".")
     if background:
         background_model = "-bfile %s" % background
@@ -1155,18 +1159,17 @@ def runDREME(infile, outfile, neg_file = "", options = ""):
         P.touch(outfile)
         return
     
-    outpath = P.snip(outfile, ".txt")
-    logfile = outpath + ".log"
-    target_path = os.path.join(PARAMS["exportdir"],
-                               "dreme",
-                               os.path.basename(outpath))
+    logfile = outfile + ".log"
+    target_path = os.path.join(
+        os.path.abspath(PARAMS["exportdir"]), outfile)
+    tmpdir = P.getTempDir(".")
 
     if neg_file:
         neg_file = "-n %s" % neg_file
 
     statement = '''
     dreme -p %(infile)s %(neg_file)s -png
-        -oc %(outpath)s
+        -oc %(tmpdir)s
             %(dreme_options)s
             %(options)s
        > %(logfile)s
@@ -1174,7 +1177,7 @@ def runDREME(infile, outfile, neg_file = "", options = ""):
 
     P.run()
 
-    collectMEMEResults(outpath, target_path, outfile, dreme=True)
+    collectMEMEResults(tmpdir, target_path, outfile, dreme=True)
 
 def runFIMO(motifs, database, outfile, exportdir, options={}):
     '''run fimo to look for occurances of motifs supplied in sequence database.
