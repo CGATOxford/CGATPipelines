@@ -711,7 +711,7 @@ def annotateComposition(infile, outfile):
     | cut -f 1,2,3
     | python %(scriptsdir)s/bed2gff.py --as-gtf
     | python %(scriptsdir)s/gtf2table.py
-    --counter=composition-cpg
+    --counter=position,composition-cpg
     --genome-file=%(genome_dir)s/%(genome)s
     | gzip
     > %(outfile)s
@@ -1011,7 +1011,8 @@ def exportMotifControlSequences(infile, outfile):
 ############################################################
 ############################################################
 ############################################################
-@active_if("meme" in PARAMS["methods"])
+@active_if("meme" in PARAMS["methods"] or
+           "disc_meme" in PARAMS["methods"])
 @transform(loadIntervals,
            suffix("_intervals.load"),
            ".meme.fasta")
@@ -1077,9 +1078,9 @@ def getDiscMEMEPSPFile(infiles, outfile):
 @transform(getDiscMEMEPSPFile,
            regex("disc_meme.dir/(.+)_vs_(.+).psp"),
            add_inputs(r"\1.meme.fasta"),
-           r"disc_meme.dir/\1.disc.meme")
+           r"disc_meme.dir/\1_vs_\2.meme")
 def runDiscMEME(infiles, outfile):
-    ''' Run MEME with PSP file, thereform making it 
+    ''' Run MEME with PSP file, therefore making it 
     discrimenative'''
 
     psp, fasta = infiles
@@ -1087,22 +1088,82 @@ def runDiscMEME(infiles, outfile):
 
 
 ############################################################
+# DREME
+@active_if("rand_dreme" in PARAMS["methods"] or
+           "disc_dreme" in PARAMS["methods"])
+@transform(loadIntervals,
+           suffix("_intervals.load"),
+           ".dreme.fasta")
+def exportDremeIntervalSequences(infile, outfile):
+    
+    track = os.path.basename(P.snip(infile, "_intervals.load"))
+
+    exportIntervalSequences(infile, outfile, track, "dreme")
+
+
+############################################################
+@active_if("rand_dreme" in PARAMS["methods"])
+@follows(mkdir("rand_dreme.dir"))
+@transform(exportDremeIntervalSequences,
+           regex("(.+).dreme.fasta"),
+           r"rand_dreme.dir/\1.dreme")
+def runRandDreme(infile, outfile):
+    '''Run DREME with a randomised negative set'''
+
+    PipelineMotifs.runDREME(infile, outfile)
+
+
+############################################################
+def getDiscDREMEFiles():
+
+    try:
+        design = IOTools.openFile("design.tsv")
+    except OSError:
+        raise "A design.tsv must be supplied for descriminative DREME analysis"
+
+    design.readline()
+    for line in design:
+
+        pos, neg = line.strip().split("\t")
+        posf = "%s.dreme.fasta" % pos
+        negf = "%s.dreme.fasta" % neg
+        out = "disc_dreme.dir/%s_vs_%s.dreme" %(pos,neg)
+        yield ((posf, negf), out)
+
+
+@active_if("disc_dreme" in PARAMS["methods"])
+@follows(mkdir("disc_dreme.dir"), exportDremeIntervalSequences)
+@files(getDiscDREMEFiles)
+def runDiscDREME(infiles, outfile):
+    '''Run discriminative DREME using control file speicied
+    in design.tsv'''
+
+    infile, negatives = infiles
+    PipelineMotifs.runDREME(infile, outfile, neg_file=negatives)
+
+
+############################################################
+############################################################
+############################################################
 @collate([runMeme,
-          runDiscMEME],
-         regex("(.+).dirs/(.+)\.(?:disc\.)?meme"),
+          runDiscMEME,
+          runRandDreme,
+          runDiscDREME],
+         regex("(?:.+_)?(.+).dir/(.+)"),
          r"\1_summary.load")
 def loadMemeSummary(infiles, outfile):
     '''load information about motifs into database.'''
 
     outf = P.getTempFile(".")
 
-    outf.write("track\n")
+    outf.write("method\ttrack\n")
 
     for infile in infiles:
         if IOTools.isEmpty(infile):
             continue
-        motif = P.snip(infile, ".meme")
-        outf.write("%s\n" % motif)
+        method = re.match("(.+).dir/", infile).groups()[0]
+        track = os.path.basename(".".join(infile.split(".")[:-1]))
+        outf.write("%s\t%s\n" % (method,track))
 
     outf.close()
 
@@ -1111,7 +1172,8 @@ def loadMemeSummary(infiles, outfile):
     os.unlink(outf.name)
 
 
-@transform(exportMemeIntervalSequences,
+@transform([exportMemeIntervalSequences,
+            exportDremeIntervalSequences],
            suffix(".fasta"),
            ".motifseq_stats.load")
 def loadMotifSequenceComposition(infile, outfile):
@@ -1138,7 +1200,7 @@ def loadMotifInformation(infiles, outfile):
     outf = P.getTempFile(".")
 
     outf.write("motif\n")
-
+ 
     for infile in infiles:
         if IOTools.isEmpty(infile):
             continue
