@@ -1003,6 +1003,7 @@ def callPeaksWithMACS2(infile, outfile):
         infile,
         outfile,
         controlfile,
+        contigsfile,
         P.isTrue('macs2_force_single_end',
                  **locals()),
         tagsize=getTagSize(track)
