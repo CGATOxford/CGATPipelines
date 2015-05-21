@@ -169,7 +169,7 @@ def getMinimumMappedReads(infiles):
     return min(v)
 
 
-def getExonLocations(filename):
+def getExonLocations(filename, database):
     '''return a list of exon locations as Bed entries
     from a file contain a one ensembl gene ID per line
     '''
@@ -179,7 +179,7 @@ def getExonLocations(filename):
         ensembl_ids.append(line.strip())
     fh.close()
 
-    dbhandle = sqlite3.connect(PARAMS["annotations_database"])
+    dbhandle = sqlite3.connect(database)
     cc = dbhandle.cursor()
 
     gene_ids = []
@@ -1197,7 +1197,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile, remove=True):
         raise OSError("bedgraph file %s does not exist" % infile)
 
     if not os.path.exists(contigsfile):
-        raise OSError("contig size file %s does not exist" % infile)
+        raise OSError("contig size file %s does not exist" % contigsfile)
 
     statement = '''
          bedGraphToBigWig %(infile)s %(contigsfile)s %(outfile)s
@@ -1210,6 +1210,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile, remove=True):
 
 def runMACS2(infile, outfile,
              controlfile=None,
+             contigsfile=None,
              force_single_end=False,
              tagsize=None):
     '''run MACS for peak detection from BAM files.
@@ -1279,13 +1280,11 @@ def runMACS2(infile, outfile,
     # compressing only saves 60%
     if os.path.exists(outfile + "_treat_pileup.bdg"):
         bedGraphToBigwig(outfile + "_treat_pileup.bdg",
-                         os.path.join(PARAMS["annotations_dir"],
-                                      "contigs.tsv"),
+                         contigsfile,
                          outfile + "_treat_pileup.bw")
     if os.path.exists(outfile + "_control_lambda.bdg"):
         bedGraphToBigwig(outfile + "_control_lambda.bdg",
-                         os.path.join(PARAMS["annotations_dir"],
-                                      "contigs.tsv"),
+                         contigsfile,
                          outfile + "_control_lambda.bw")
 
     # index and compress peak file

@@ -524,7 +524,8 @@ def makeMask(infile, outfile):
 
         if PARAMS["calling_filter_exons"]:
             regions_to_filter += PipelinePeakcalling.getExonLocations(
-                PARAMS["calling_filter_exons"])
+                PARAMS["calling_filter_exons"],
+                PARAMS["annotations_database"])
 
         if PARAMS["calling_filter_regions"]:
             regions_to_filter += Bed.iterator(
@@ -996,6 +997,8 @@ def callPeaksWithMACS2(infile, outfile):
     track = P.snip(infile, ".call.bam")
     controls = getControl(Sample(track), suffix=".call.bam")
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
+    contigsfile = os.path.join(PARAMS["annotations_dir"],
+                               PARAMS_ANNOTATIONS["interface_contigs_tsv"])
     PipelinePeakcalling.runMACS2(
         infile,
         outfile,
