@@ -713,17 +713,9 @@ def mapReadsWithTophat2(infiles, outfile):
     else:
         job_options = " -l mem_free=%s" % PARAMS["tophat2_memory"]
 
-    # TS added option to run tophat2 in fusion-search mode
-    # requires alternative post-processing to retain fusion files
-    if PARAMS["tophat2_fusion"]:
-        tophat2_options = PARAMS["tophat2_options"] + " --fusion-search --bowtie1"
-    else:
-        tophat2_options = PARAMS["tophat2_options"]
-
     m = PipelineMapping.Tophat2(
         executable=P.substituteParameters(**locals())["tophat2_executable"],
-        strip_sequence=PARAMS["strip_sequence"],
-        fusion_search=PARAMS["tophat2_fusion"])
+        strip_sequence=PARAMS["strip_sequence"])
 
     infile, reffile, transcriptfile = infiles
     tophat2_options = tophat2_options + " --raw-juncs %(reffile)s " % locals()
@@ -1080,7 +1072,7 @@ def mapReadsWithStampy(infile, outfile):
            r"butter.dir/\1.butter.bam")
 def mapReadsWithButter(infile, outfile):
     '''map reads with butter'''
-    # easier to check whether infiles arepaired reads here
+    # easier to check whether infiles are paired reads here
     if infile.endswith(".sra"):
         outdir = P.getTempDir()
         f = Sra.sneak(infile, outdir)
@@ -1094,7 +1086,9 @@ def mapReadsWithButter(infile, outfile):
 
     job_threads = PARAMS["butter_threads"]
     job_options = "-l mem_free=%s" % PARAMS["butter_memory"]
-    m = PipelineMapping.Butter(strip_sequence=PARAMS["strip_sequence"])
+    m = PipelineMapping.Butter(
+        strip_sequence=PARAMS["strip_sequence"],
+        set_nh=PARAMS["butter_set_nh"])
     statement = m.build((infile,), outfile)
     P.run()
 
@@ -1133,7 +1127,7 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
     if "merge_pattern_output" not in PARAMS or \
        not PARAMS["merge_pattern_output"]:
         raise ValueError(
-            "no output pattern 'merge_pattern_output' specificied")
+            "no output pattern 'merge_pattern_output' specified")
 
     @collate(MAPPINGTARGETS,
              regex("%s\.([^.]+).bam" % PARAMS["merge_pattern_input"].strip()),
@@ -1312,7 +1306,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_options = "-l mem_free 20G"
+    job_memory = "1.9G"
 
     bamfile, readsfile = infiles
 
