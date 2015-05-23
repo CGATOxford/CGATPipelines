@@ -2067,7 +2067,9 @@ class RuffusLoggingFilter(logging.Filter):
             # ignore first entry which is the docstring
             for line in text.split(" Job  = ")[1:]:
                 try:
-                    job_name = re.match(
+                    # long file names cause additional wrapping and
+                    # additional white-space characters
+                    job_name = re.search(
                         "\[.*-> ([^\]]+)\]", line).groups()
                 except AttributeError:
                     raise AttributeError("could not parse '%s'" % line)
