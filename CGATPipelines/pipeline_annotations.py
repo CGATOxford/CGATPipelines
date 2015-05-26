@@ -1,3 +1,4 @@
+
 """===================
 Annotation pipeline
 ===================
@@ -842,7 +843,11 @@ def buildGeneSet(infile, outfile):
     --sanitize-method=genome
     --skip-missing
     --genome-file=%(genome_dir)s/%(genome)s
-    --log=%(outfile)s.log ''']
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=set-gene_biotype-to-source
+    --log=%(outfile)s.log
+    ''']
 
     if PARAMS["ensembl_remove_contigs"]:
         # in quotation marks to avoid confusion with shell special
@@ -1308,14 +1313,21 @@ def buildGeneTSSInterval(infile, outfile):
     '''
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py --method=promotors --promotor-size=1
-    --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=join-exons
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gff.py
+    --method=promotors
+    --promotor-size=1
+    --genome-file=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
     | sed s/transcript/exon/g
     | sed s/exon_id/transcript_id/g
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-transcripts
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=transcript_id
+    | python %(scriptsdir)s/gff2bed.py
+    --is-gtf --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """

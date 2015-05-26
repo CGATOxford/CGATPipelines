@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/CGATOxford/CGATPipelines.svg?branch=master
+    :target: https://travis-ci.org/CGATOxford/CGATPipelines
+
 ==================
 The CGAT pipelines
 ==================
@@ -13,7 +16,7 @@ For questions, please subscribe and contact us at the
 <https://groups.google.com/forum/?fromgroups#!forum/cgat-user-group>`_.
 
 Documentation of CGAT tools is available 
-`here <http://www.cgat.org/downloads/public/cgat/documentation/Pipelines.html#pipelines>`_.
+`here <http://www.cgat.org/downloads/public/cgatpipelines/documentation>`_.
 
 Note that we currently are not able to fully support and document the 
 pipelines. They are under continuous development and changing rapidly.
