@@ -784,9 +784,10 @@ class FastQc(Mapper):
 
 class Readq_screen(Mapper):
 
-    '''run fastqc to test read quality.'''
+    '''run Readq_screen to test contamination by other organisms.'''
 
     compress = True
+
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles
         The output is created in outdir. The output files
@@ -795,18 +796,26 @@ class Readq_screen(Mapper):
 
         contaminants = self.contaminants
         outdir = self.outdir
-        statement = []
-        for f in infiles:
-            for i, x in enumerate(f):
-                track = os.path.basename(re.sub(".fastq.*", "", x))
 
-                if contaminants:
-                    contaminants_cmd = "-a %s" % contaminants
-                else:
-                    contaminants_cmd = ""
+        num_files = [len(x) for x in infiles]
 
-                statement.append(
-                    '''readq_screen ''')
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+            paired = ""
+        elif nfiles == 2:
+            paired = "--paired"
+        else:
+            raise ValueError(
+                "unexpected number read files to map: %i " % nfiles)
+
+        nfiles = max(num_files)
+
+        statement = '''readq_screen %( %(paired)s '''
 
 
 class Sailfish(Mapper):
