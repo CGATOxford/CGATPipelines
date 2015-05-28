@@ -782,6 +782,33 @@ class FastQc(Mapper):
         return " ".join(statement)
 
 
+class Readq_screen(Mapper):
+
+    '''run fastqc to test read quality.'''
+
+    compress = True
+    def mapper(self, infiles, outfile):
+        '''build mapping statement on infiles
+        The output is created in outdir. The output files
+        are extracted.
+        '''
+
+        contaminants = self.contaminants
+        outdir = self.outdir
+        statement = []
+        for f in infiles:
+            for i, x in enumerate(f):
+                track = os.path.basename(re.sub(".fastq.*", "", x))
+
+                if contaminants:
+                    contaminants_cmd = "-a %s" % contaminants
+                else:
+                    contaminants_cmd = ""
+
+                statement.append(
+                    '''readq_screen ''')
+
+
 class Sailfish(Mapper):
 
     '''run Sailfish to quantify transcript abundance from fastq files'''
