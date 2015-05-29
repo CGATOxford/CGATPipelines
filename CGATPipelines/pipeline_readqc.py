@@ -174,7 +174,7 @@ def runFastqc(infiles, outfile):
     solexa format.  Perform quality control checks on reads from
     .fastq files.
     '''
-
+    
     # MM: only pass the contaminants file list if requested by user,
     # do not make this the default behaviour
     if PARAMS['add_contaminants']:
@@ -188,6 +188,22 @@ def runFastqc(infiles, outfile):
     statement = m.build((infiles,), outfile)
     P.run()
 
+
+@transform(INPUT_FORMATS,
+           REGEX_FORMAT, ".txt")
+def runFastqScreen(infiles, outfile):
+    # Create fastq_screen config file in temp directory
+    # using parameters from Pipeline.ini
+    
+    tempdir = P.getTempDir(".")
+    with open("%s fastq_screen.conf" % tempdir, w) as f:
+        for i, k in PARAMS.items() if i.startswith("readq_screen_database"):
+            f.write("DATABASE\t%s[8:]\t%s" % (i, k)
+
+    # run Fastq_screen on each input file.
+    m=PipelineMapping.Fastq_screen()
+    statement=m.build((infiles,), outfile)
+    P.run()
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runFastqc, suffix(".fastqc"), "_fastqc.load")

@@ -782,7 +782,7 @@ class FastQc(Mapper):
         return " ".join(statement)
 
 
-class Readq_screen(Mapper):
+class Fastq_screen(Mapper):
 
     '''run Readq_screen to test contamination by other organisms.'''
 
@@ -815,7 +815,10 @@ class Readq_screen(Mapper):
 
         nfiles = max(num_files)
 
-        statement = '''readq_screen %( %(paired)s '''
+        statement = '''readq_screen %%(readq_screen_options)s --outdir %(outdir)
+                    %(paired)s %(infiles)s'''
+        print statement
+        return statement
 
 
 class Sailfish(Mapper):
