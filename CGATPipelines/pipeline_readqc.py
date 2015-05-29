@@ -189,21 +189,25 @@ def runFastqc(infiles, outfile):
     P.run()
 
 
+@follows(mkdir(PARAMS["exportdir"]),
+         mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(INPUT_FORMATS,
-           REGEX_FORMAT, ".txt")
+           REGEX_FORMATS, r"\1.txt")
 def runFastqScreen(infiles, outfile):
     # Create fastq_screen config file in temp directory
     # using parameters from Pipeline.ini
     
     tempdir = P.getTempDir(".")
-    with open("%s fastq_screen.conf" % tempdir, w) as f:
-        for i, k in PARAMS.items() if i.startswith("readq_screen_database"):
-            f.write("DATABASE\t%s[8:]\t%s" % (i, k)
+    with IOTools.openFile("%s fastq_screen.conf" % tempdir, "w") as f:
+        for i, k in PARAMS.items():
+            if i.startswith("readq_screen_database"):
+                f.write("DATABASE\t%s[8:]\t%s" % (i, k))
 
-    # run Fastq_screen on each input file.
-    m=PipelineMapping.Fastq_screen()
-    statement=m.build((infiles,), outfile)
+    m = PipelineMapping.Fastq_screen(outdir=PARAMS["exportdir"] + "/fastq_screen")
+    statement = m.build((infiles,), outfile)
+    print statement
     P.run()
+
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runFastqc, suffix(".fastqc"), "_fastqc.load")

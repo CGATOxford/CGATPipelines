@@ -786,6 +786,9 @@ class Fastq_screen(Mapper):
 
     '''run Readq_screen to test contamination by other organisms.'''
 
+    def __init__(self, outdir=".", *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.outdir = outdir
     compress = True
 
     def mapper(self, infiles, outfile):
@@ -794,7 +797,6 @@ class Fastq_screen(Mapper):
         are extracted.
         '''
 
-        contaminants = self.contaminants
         outdir = self.outdir
 
         num_files = [len(x) for x in infiles]
@@ -806,18 +808,19 @@ class Fastq_screen(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            paired = ""
+            input_files = '''<(zcat %s)''' % infiles[0][0]
         elif nfiles == 2:
-            paired = "--paired"
+            infile1, infile2 = infiles[0]
+            input_files = '''-- paired <(zcat %(infile1)s)
+                            <(zcat %(infile2)s)''' % locals()
         else:
             raise ValueError(
                 "unexpected number read files to map: %i " % nfiles)
 
-        nfiles = max(num_files)
-
-        statement = '''readq_screen %%(readq_screen_options)s --outdir %(outdir)
-                    %(paired)s %(infiles)s'''
-        print statement
+#        statement = '''readq_screen %%(readq_screen_options)s --outdir %(outdir)s
+#                    %(input_files)s;''' % locals()
+        statement = '''fastq_screen --outdir %(outdir)s
+                    %(input_files)s;''' % locals()
         return statement
 
 
@@ -849,7 +852,7 @@ class Sailfish(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            input_file = '''-r <(zcat %(infile)s)''' % locals()
+            input_file = '''-r <(zcat %s)''' % infiles[0][0]
             library = ['''"T=SE:''']
             if self.strand == "sense":
                 strandedness = '''S=S"'''
