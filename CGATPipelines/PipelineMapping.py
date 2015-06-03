@@ -784,11 +784,8 @@ class FastQc(Mapper):
 
 class Fastq_screen(Mapper):
 
-    '''run Readq_screen to test contamination by other organisms.'''
+    '''run Fastq_screen to test contamination by other organisms.'''
 
-    def __init__(self, outdir=".", *args, **kwargs):
-        Mapper.__init__(self, *args, **kwargs)
-        self.outdir = outdir
     compress = True
 
     def mapper(self, infiles, outfile):
@@ -797,7 +794,9 @@ class Fastq_screen(Mapper):
         are extracted.
         '''
 
-        outdir = self.outdir
+        if len(infiles) > 1:
+            raise ValueError(
+                "Fastq_screen can only operate on one fastq file at a time")
 
         num_files = [len(x) for x in infiles]
 
@@ -808,18 +807,16 @@ class Fastq_screen(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            input_files = '''<(zcat %s)''' % infiles[0][0]
+            input_files = infiles[0][0]
         elif nfiles == 2:
             infile1, infile2 = infiles[0]
-            input_files = '''-- paired <(zcat %(infile1)s)
-                            <(zcat %(infile2)s)''' % locals()
+            input_files = '''-- paired %(infile1)s %(infile2)s''' % locals()
         else:
             raise ValueError(
                 "unexpected number read files to map: %i " % nfiles)
 
-#        statement = '''readq_screen %%(readq_screen_options)s --outdir %(outdir)s
-#                    %(input_files)s;''' % locals()
-        statement = '''fastq_screen --outdir %(outdir)s
+        statement = '''fastq_screen %%(fastq_screen_options)s
+                    --outdir %%(outdir)s --conf %%(tempdir)s/fastq_screen.conf
                     %(input_files)s;''' % locals()
         return statement
 

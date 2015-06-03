@@ -196,14 +196,15 @@ def runFastqc(infiles, outfile):
 def runFastqScreen(infiles, outfile):
     # Create fastq_screen config file in temp directory
     # using parameters from Pipeline.ini
-    
-    tempdir = P.getTempDir(".")
-    with IOTools.openFile("%s fastq_screen.conf" % tempdir, "w") as f:
-        for i, k in PARAMS.items():
-            if i.startswith("readq_screen_database"):
-                f.write("DATABASE\t%s[8:]\t%s" % (i, k))
 
-    m = PipelineMapping.Fastq_screen(outdir=PARAMS["exportdir"] + "/fastq_screen")
+    tempdir = P.getTempDir(".")
+    with IOTools.openFile("%s/fastq_screen.conf" % tempdir, "w") as f:
+        for i, k in PARAMS.items():
+            if i.startswith("fastq_screen_database"):
+                f.write("DATABASE\t%s\t%s\n" % (i[22:], k))
+
+    outdir=PARAMS["exportdir"] + "/fastq_screen"
+    m = PipelineMapping.Fastq_screen()
     statement = m.build((infiles,), outfile)
     print statement
     P.run()
