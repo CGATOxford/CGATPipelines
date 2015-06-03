@@ -209,7 +209,6 @@ def runFastqScreen(infiles, outfile):
     print statement
     P.run()
 
-
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runFastqc, suffix(".fastqc"), "_fastqc.load")
 def loadFastqc(infile, outfile):

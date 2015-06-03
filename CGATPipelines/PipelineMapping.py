@@ -820,6 +820,12 @@ class Fastq_screen(Mapper):
                     %(input_files)s;''' % locals()
         return statement
 
+    def cleanup(self, outfile):
+        '''clean up.'''
+        statement = '''rm -rf %s''' % (self.tmpdir_fastq)
+        statement += '''rm -rf %%(tempdir)s'''
+        return statement
+
 
 class Sailfish(Mapper):
 
