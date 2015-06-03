@@ -782,7 +782,7 @@ class FastQc(Mapper):
         return " ".join(statement)
 
 
-class Fastq_screen(Mapper):
+class FastqScreen(Mapper):
 
     '''run Fastq_screen to test contamination by other organisms.'''
 
@@ -818,12 +818,6 @@ class Fastq_screen(Mapper):
         statement = '''fastq_screen %%(fastq_screen_options)s
                     --outdir %%(outdir)s --conf %%(tempdir)s/fastq_screen.conf
                     %(input_files)s;''' % locals()
-        return statement
-
-    def cleanup(self, outfile):
-        '''clean up.'''
-        statement = '''rm -rf %s''' % (self.tmpdir_fastq)
-        statement += '''rm -rf %%(tempdir)s'''
         return statement
 
 

@@ -194,20 +194,30 @@ def runFastqc(infiles, outfile):
 @transform(INPUT_FORMATS,
            REGEX_FORMATS, r"\1.txt")
 def runFastqScreen(infiles, outfile):
-    # Create fastq_screen config file in temp directory
-    # using parameters from Pipeline.ini
+    '''run FastqScreen on input files.'''
 
     tempdir = P.getTempDir(".")
-    with IOTools.openFile("%s/fastq_screen.conf" % tempdir, "w") as f:
+    # AH: better to use os.path.join than '+' for portability
+    # Create fastq_screen config file in temp directory
+    # using parameters from Pipeline.ini
+    with IOTools.openFile(os.path.join(tempdir, "fastq_screen.conf"), "w") as f:
         for i, k in PARAMS.items():
             if i.startswith("fastq_screen_database"):
                 f.write("DATABASE\t%s\t%s\n" % (i[22:], k))
 
-    outdir=PARAMS["exportdir"] + "/fastq_screen"
-    m = PipelineMapping.Fastq_screen()
+    outdir = os.path.join(PARAMS["exportdir"], "fastq_screen")
+    # AH: use a class name according to our schema:
+    #   FastqScreen
+    m = PipelineMapping.FastqScreen()
     statement = m.build((infiles,), outfile)
-    print statement
+    # AH: do not print, statement is output through logging.
+    # print statement
     P.run()
+
+    # AH: remove temporary directory here as it is also created
+    # on this level. Always group operations together as much
+    # as possible to avoid side effects.
+    shutil.rmtree(tempdir)
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runFastqc, suffix(".fastqc"), "_fastqc.load")
