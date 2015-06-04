@@ -127,6 +127,7 @@ from ruffus import *
 import sys
 import os
 import glob
+import shutil
 import sqlite3
 
 # import modules from the CGAT code collection
@@ -336,11 +337,10 @@ else:
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(processReads,
-           regex("procesed.dir/preprocessed-(\S+).\
-                 (fastq.1.gz|fastq.gz|sra|csfasta.gz)"), r"\1.txt")
+           regex("processed.dir/(\S+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)"),
+           r"\1.txt")
 def runFastqScreen(infiles, outfile):
     '''run FastqScreen on input files.'''
-
     tempdir = P.getTempDir(".")
 
     # Create fastq_screen config file in temp directory
