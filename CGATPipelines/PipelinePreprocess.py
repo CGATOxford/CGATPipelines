@@ -111,10 +111,13 @@ def makeAdaptorFasta(infile, dbh, contaminants_file, outfile):
         sample.remove("fastq")
     elif infile.endswith(".sra"):
         sample.remove("sra")
+    # handle bug with different behaviours for single and paired-end data
     elif infile.endswith(".fastq.1.gz"):
-        sample.remove("fastq")
+        # sample.remove("fastq")
+        pass
     elif infile.endswith(".fastq.2.gz"):
-        sample.remove("fastq")
+        # sample.remove("fastq")
+        pass
     else:
         raise AttributeError("unrecognised sequence file format")
 
@@ -126,6 +129,19 @@ def makeAdaptorFasta(infile, dbh, contaminants_file, outfile):
     if not len(df):
         P.touch(outfile)
         return None
+
+    # generate contamination sequence dictionary
+    contam_dict = {}
+    for idx in df.index:
+        overid = df.loc[idx]['Possible_Source']
+        overid = overid.split(" (")[0]
+        if not re.search("No Hit", overid):
+            overid = overid.replace(",", "")
+            overid = overid.replace(" ", "_")
+            seqid = df.loc[idx]['Sequence']
+            contam_dict[overid] = seqid
+        else:
+            pass
 
     overreps = set(df['Possible_Source'])
     # pull out suspected adaptor contamination name
@@ -158,7 +174,10 @@ def makeAdaptorFasta(infile, dbh, contaminants_file, outfile):
 
     with IOTools.openFile(outfile, "w") as ofile:
         for ad in ids:
-            ofile.write(">%s\n%s\n" % (ad, adapt_dict[ad]))
+            try:
+                ofile.write(">%s\n%s\n" % (ad, adapt_dict[ad]))
+            except KeyError:
+                ofile.write(">%s\n%s\n" % (ad, contam_dict[ad]))
 
 
 def mergeAdaptorFasta(infiles, outfile):
