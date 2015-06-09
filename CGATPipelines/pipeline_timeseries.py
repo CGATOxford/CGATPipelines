@@ -548,6 +548,8 @@ def conditionDiffExpression(infile, outfile):
     and time point.  Uses DESeq2.
     '''
 
+    job_options = "-l mem_free=4G"
+
     statement = '''
     zcat %(infile)s |
     python %(scriptsdir)s/timeseries2diffgenes.py
