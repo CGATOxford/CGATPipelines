@@ -782,6 +782,45 @@ class FastQc(Mapper):
         return " ".join(statement)
 
 
+class FastqScreen(Mapper):
+
+    '''run Fastq_screen to test contamination by other organisms.'''
+
+    compress = True
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement on infiles
+        The output is created in outdir. The output files
+        are extracted.
+        '''
+
+        if len(infiles) > 1:
+            raise ValueError(
+                "Fastq_screen can only operate on one fastq file at a time")
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+            input_files = infiles[0][0]
+        elif nfiles == 2:
+            infile1, infile2 = infiles[0]
+            input_files = '''-- paired %(infile1)s %(infile2)s''' % locals()
+        else:
+            raise ValueError(
+                "unexpected number read files to map: %i " % nfiles)
+
+        statement = '''fastq_screen %%(fastq_screen_options)s
+                    --outdir %%(outdir)s --conf %%(tempdir)s/fastq_screen.conf
+                    %(input_files)s;''' % locals()
+        return statement
+
+
 class Sailfish(Mapper):
 
     '''run Sailfish to quantify transcript abundance from fastq files'''
@@ -810,7 +849,7 @@ class Sailfish(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            input_file = '''-r <(zcat %(infile)s)''' % locals()
+            input_file = '''-r <(zcat %s)''' % infiles[0][0]
             library = ['''"T=SE:''']
             if self.strand == "sense":
                 strandedness = '''S=S"'''
