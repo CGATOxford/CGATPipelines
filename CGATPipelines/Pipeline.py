@@ -1339,7 +1339,7 @@ def run(**kwargs):
                 options["cluster_options"])
             E.warn("use of mem_free in job options is deprecated, please"
                    "set job_memory local var instead")
-                                                
+
         # if process has multiple threads, use a parallel environment
         if 'job_threads' in options:
             spec.append(
