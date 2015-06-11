@@ -64,7 +64,7 @@ follows:
 
 * Filter putative lncRNA gene set
    Due to many fragments being produced
-   from RNA-seq data, putative single exon lncRNA are flagged with in
+   from RNA-seq data, putative single exon lncRNA are flagged in
    the lncRNA gtf file so it is easy to filter for the more reliable
    multi-exonic lncRNA.  Although many single exon lncRNA are likely
    to be artifacts, we assess the overlap of putative single exon
