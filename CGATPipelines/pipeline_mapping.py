@@ -268,7 +268,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -1382,7 +1382,7 @@ def loadContextStats(infiles, outfile):
                 """
     P.run()
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
 # The following is not necessary any more as context stats now also outputs a "total" column
 #    cc = Database.execute

@@ -142,7 +142,7 @@ def makeIntervalCorrelation(infiles, outfile, field, reference):
     '''compute correlation of interval properties between sets
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tracks, idx = [], []
     for infile in infiles:

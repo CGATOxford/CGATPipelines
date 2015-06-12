@@ -350,7 +350,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -531,7 +531,7 @@ def buildCuffdiffPlots(infile, outfile):
     ###########################################
     outdir = os.path.join(PARAMS["exportdir"], "cuffdiff")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     prefix = P.snip(infile, ".load")
 

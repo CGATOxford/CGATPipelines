@@ -169,7 +169,7 @@ def connect():
     Use this method to connect to additional databases.
     Returns a database connection.
     '''
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
 
     return dbh
 

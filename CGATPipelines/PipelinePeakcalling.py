@@ -574,7 +574,7 @@ def exportIntervalsAsBed(infile, outfile,
     Returns a counter object.
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     if outfile.endswith(".gz"):
         compress = True
@@ -647,7 +647,7 @@ def exportIntervalsAsBed(infile, outfile,
 def exportMacsIntervalsAsBed(infile, outfile, foldchange):
     '''export sequences for all intervals.'''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     track = P.toTable(os.path.basename(infile))
     assert track.endswith("_macs")
@@ -672,7 +672,7 @@ def exportMacsIntervalsAsBed(infile, outfile, foldchange):
 def exportPeaksAsBed(infile, outfile):
     '''export peaks as bed files.'''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     if infile.endswith("_macs.load"):
         track = infile[:-len("_macs.load")]
@@ -2674,7 +2674,7 @@ def makeIntervalCorrelation(infiles, outfile, field, reference):
     '''compute correlation of interval properties between sets
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tracks, idx = [], []
     for infile in infiles:

@@ -1036,7 +1036,7 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
     # cuff = R('''readCufflinks(dir = %(indir)s, dbfile=%(indir)s/csvdb)''' )
     # to be continued
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tmpname = P.getTempFilename(".")
 

@@ -1106,7 +1106,7 @@ def loadCodingPotential(infile, outfile):
     P.run()
 
     # set the is_coding flag
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     Database.executewait(
         dbhandle, '''ALTER TABLE %(table)s ADD COLUMN is_coding INTEGER''' % locals())
     Database.executewait(
@@ -1335,7 +1335,7 @@ def loadSummary(infile, outfile):
     stmt_from = " ".join(stmt_from) % x
     stmt_where = " AND ".join(stmt_where) % x
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     Database.executewait(
         dbhandle, "DROP TABLE IF EXISTS %(tablename)s " % locals())

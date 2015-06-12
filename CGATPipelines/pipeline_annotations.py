@@ -619,7 +619,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     return dbh
 
 
@@ -1164,7 +1164,7 @@ def loadProteinStats(infile, outfile):
 def buildSelenoList(infile, outfile):
     '''export a list of seleno cysteine transcripts.'''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''
     SELECT DISTINCT transcript_id
     FROM transcript_info as t,
@@ -1414,7 +1414,7 @@ def loadRepeats(infile, outfile):
 @transform(loadRepeats, suffix(".gff.gz.load"), ".counts.load")
 def countTotalRepeatLength(infile, outfile):
     ''' Count total repeat length and add to database '''
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
     statement = """DROP TABLE IF EXISTS repeat_length"""
     Database.executewait(dbhandle, statement)
@@ -2088,7 +2088,7 @@ if 0:
 
         '''
 
-        dbhandle = sqlite3.connect(PARAMS["database"])
+        dbhandle = sqlite3.connect(PARAMS["database_name"])
 
         cc = dbhandle.cursor()
         tables = set(
@@ -2113,7 +2113,7 @@ if 0:
     @transform(importUCSCEncodeTracks, suffix(".import"), ".bed")
     def exportUCSCEncodeTracks(infile, outfile):
 
-        dbhandle = sqlite3.connect(PARAMS["database"])
+        dbhandle = sqlite3.connect(PARAMS["database_name"])
 
         outs = open(outfile, "w")
         for tablename in getUCSCTracks():

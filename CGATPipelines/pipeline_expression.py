@@ -188,7 +188,7 @@ def getTreatmentsAndControls(infile):
     controls = layout.get("sam", "control").split(",")
     treatments = layout.get("sam", "treatment").split(",")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
 
     treatment_columns = ",".join(["%s" % x for x in treatments])

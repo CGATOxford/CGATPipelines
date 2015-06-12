@@ -594,7 +594,7 @@ def normaliseWig(infile, outfile):
     track = P.snip(
         os.path.basename(infile), ".merged_treat_afterfiting_all.wig.gz")
     to_cluster = USECLUSTER
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
     query = '''SELECT sum(PF_HQ_ALIGNED_READS)
                FROM picard_align_stats
@@ -915,7 +915,7 @@ def thresholdFoldChange(infile, outfile):
     '''Assess interval overlap between conditions at different fold change thresholds '''
 
     # Connect to DB
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     # Make bed files for different fold change thresholds
     track = P.snip(os.path.basename(infile), ".macs").replace("-", "_")
@@ -1129,7 +1129,7 @@ def loadReplicatedIntervals(infile, outfile):
 @transform(loadReplicatedIntervals, suffix(".rep.bed.load"), ".replicated.bed")
 def exportReplicatedIntervalsAsBed(infile, outfile):
     '''export locations for all intervals.'''
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     track = P.snip(os.path.basename(infile), ".rep.bed.load").replace("-", "_")
     cc = dbhandle.cursor()
     statement = "SELECT contig, start, end, interval_id FROM %s_replicated_intervals ORDER by contig, start" % track
@@ -1153,7 +1153,7 @@ def replicatedFoldChange(infile, outfile):
     '''Assess interval overlap between conditions at different fold change thresholds '''
 
     # Connect to DB
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     # Make bed files for different fold change thresholds
     track = P.snip(os.path.basename(infile), ".rep.bed.load").replace("-", "_")

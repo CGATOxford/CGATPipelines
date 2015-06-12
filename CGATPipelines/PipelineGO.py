@@ -83,7 +83,7 @@ def createGOFromGeneOntology(infile, outfile):
         " annotation_extension"
         " gene_product_form_id")
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     cc = dbh.cursor()
     map_uniprot2ensembl = dict(
         cc.execute("SELECT DISTINCT gene_name, gene_id FROM transcript_info").fetchall())
@@ -348,7 +348,7 @@ def runGOFromDatabase(outfile, outdir,
     ``statement_foreground`` and ``statement_background``
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     cc = dbhandle.cursor()
     fg = set([x[0] for x in cc.execute(statement_fg).fetchall()])

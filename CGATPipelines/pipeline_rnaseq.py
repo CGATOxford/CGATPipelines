@@ -526,7 +526,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -1846,7 +1846,7 @@ def loadContextStats(infiles, outfile):
                 """
     P.run()
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     cc = Database.executewait(
         dbhandle, '''ALTER TABLE %(tablename)s ADD COLUMN mapped INTEGER''' % locals())
@@ -2395,7 +2395,7 @@ def buildFullGeneSet(infiles, outfile):
     tablename = P.quote(
         P.snip(abinitio_gtf, ".gtf.gz") + "_cuffcompare_tracking")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     tables = Database.getTables(dbhandle)
     if tablename in tables:
         cc = dbhandle.cursor()
@@ -2902,7 +2902,7 @@ def buildReproducibility(infile, outfile):
 
     replicates = PipelineTracks.getSamplesInTrack(track, TRACKS)
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tablename = "%s_cuffcompare_fpkm" % track.asTable()
     tablename2 = "%s_cuffcompare_tracking" % track.asTable()
@@ -3197,7 +3197,7 @@ def buildExpressionStats(tables, method, outfile):
     <exportdir>/<method> directory.
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     def togeneset(tablename):
         return re.match("([^_]+)_", tablename).groups()[0]
@@ -3308,7 +3308,7 @@ def buildCuffdiffPlots(infile, outfile):
     ###########################################
     outdir = os.path.join(PARAMS["exportdir"], "cuffdiff")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     prefix = P.snip(infile, ".load")
 
@@ -3435,7 +3435,7 @@ def buildFPKMGeneLevelTagCounts(infiles, outfile):
 
     # normalize
     results = []
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     for track in tracks:
         table = "%s_ref_gene_expression" % P.quote(track)
