@@ -44,6 +44,11 @@ clusters of genes using a consensus clustering.  Consensus clustering metrics
 are also produced.  Cluster eigengenes are derived as well
 as loading plots for each gene/cluster.
 
+Alternatively/additionally this pipeline can perform differential expression
+ testing across timepoints or between two conditions for a time series
+ experiment.  The testing design is derived from the pipeline parameters
+ ``CONDITION``, ``TIME`` and ``REPLICATE``.
+
 Usage
 =====
 
@@ -65,15 +70,82 @@ Configuration
 
 The pipeline requires a configured :file:`pipeline.ini` file.
 
+The pipeline.ini defines the differential expression testing framework
+(default is DESeq), and controls the pre-clustering filtering, clustering
+ algorithms and cluster assignment parameters.
+
+The default values in the pipeline.ini file are recommended values.
+
 The sphinxreport report requires a :file:`conf.py` and
 :file:`sphinxreport.ini` file (see :ref:`PipelineReporting`). To start
 with, use the files supplied with the Example_ data.
+
+The two principal functions of the pipeline that require user input are the
+ clustering strategy and the differential expression testing.
+
+distance metrics:
+    dtw - dynamic time warping.  The minimal sum of Euclidean distances along
+          a warped alignment between two series.  Only the head and tails
+          are forced to align.
+
+    temporal - a temporal correlation coefficient that correlates two series
+               based on the direction of their change/covariance, but not
+               their absolute values.
+
+    cross-correlate - the normalised cross-correlation of two time series.
+                      This can be modified by altering the ``lag`` parameter,
+                      where max(lag) = number of time points - 1.
+
+distance metric parameters:
+    k - if implemented will moderate dtw by the temporal correlation using an
+        adaptive tuning function
+
+    lag - cross-correlation lag to report
+
+Clustering algorithms available:
+    single-linkage - clustering on shortest distance between most proximal
+                     objects of two clusters
+
+    maximum-linkage - clustering on the longest distance between most distal
+                      objects of two clusters
+
+    average-linkage - clustering on the average distance of all objects
+                      of two clusters
+
+   Ward's linkage - clustering on the agglomeration that minimises the
+                    increase in variance for subsequent clusters
+
+Cluster assignment:
+    cut - the cut height threshold for the tree cutting algorithm.  If set
+          to 0 this will implement the dynamic tree cutting algorithm
+
+    deepsplit - deep splitting of the dendrogram which generates many smaller
+                clusters as opposed to fewer large clusters
+
+    min_size - minimum number of objects in each cluster following tree cutting
+
+use of replicates:
+    analysis_type - either replicates or resample.  resample will generate n
+                    pseudo datasets based on the resample parameter and cluster
+                    these all individually before a final consensus clustering.
+                    replicates will cluster with each replicate and take the
+                    consensus across these.
+
+    resample - the number of pseudo-data sets to generate for the resampling
+
+    seed - seed for random number generator
+
+    parallel - implement parallelisation of resampling and clustering of
+               individual resamples or replicates.  This will speed up distance
+               metric calculation at the cost of increase load on the HPC
+
+    chunks - number of chunks to split each file into for parallelisation
 
 Input
 -----
 Input are *.bam files in the format:
 
-    sample-time-replicate.bam
+    condition-time-replicate.bam
 
 and a gtf/gff file of transcripts/genes/features over which to
 count an analyse.
@@ -107,7 +179,7 @@ Pipeline output
 ===============
 
 The major output are a set of file with gene:cluster assignments and
-clustering metrics
+clustering metrics.
 
 Requirements:
 
@@ -188,7 +260,7 @@ def connect():
     return dbh
 
 
-@follows(connect, mkdir("plots.dir"))
+@follows(connect)
 @transform("reference.gtf.gz",
            suffix("reference.gtf.gz"),
            "refcoding.gtf.gz")
@@ -475,6 +547,8 @@ def conditionDiffExpression(infile, outfile):
     different expression based on interaction terms between condition
     and time point.  Uses DESeq2.
     '''
+
+    job_options = "-l mem_free=4G"
 
     statement = '''
     zcat %(infile)s |
@@ -863,7 +937,7 @@ if ANALYSIS == 'replicates':
     ###################################################################
     ###################################################################
 
-    @follows(mkdir("plots.dir"))
+    @follows(clusterAgree)
     @transform(clusterAgree,
                suffix("-cocluster.tsv"),
                "-consensus.tsv")
@@ -1255,7 +1329,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
     ###################################################################
     ###################################################################
 
-    @follows(mkdir("plots.dir"))
+    @follows(clusterAgree)
     @transform(clusterAgree,
                suffix("-cocluster.tsv"),
                "-consensus.tsv")

@@ -663,9 +663,9 @@ def mapReadsWithTophat(infiles, outfile):
     if "--butterfly-search" in PARAMS["tophat_options"]:
         # for butterfly search - require insane amount of
         # RAM.
-        job_options = " -l mem_free=50G"
+        job_memory = "50G"
     else:
-        job_options = " -l mem_free=%s" % PARAMS["tophat_memory"]
+        job_memory = PARAMS["tophat_memory"]
 
     m = PipelineMapping.Tophat(
         executable=P.substituteParameters(**locals())["tophat_executable"],
@@ -709,9 +709,9 @@ def mapReadsWithTophat2(infiles, outfile):
     if "--butterfly-search" in PARAMS["tophat2_options"]:
         # for butterfly search - require insane amount of
         # RAM.
-        job_options = " -l mem_free=50G"
+        job_memory = "50G"
     else:
-        job_options = " -l mem_free=%s" % PARAMS["tophat2_memory"]
+        job_memory = PARAMS["tophat2_memory"]
 
     m = PipelineMapping.Tophat2(
         executable=P.substituteParameters(**locals())["tophat2_executable"],
@@ -755,8 +755,7 @@ def mapReadsWithHisat(infiles, outfile):
 
     '''
     job_threads = PARAMS["hisat_threads"]
-
-    job_options = " -l mem_free=%s" % PARAMS["hisat_memory"]
+    job_memory = PARAMS["hisat_memory"]
 
     m = PipelineMapping.Hisat(
         executable=P.substituteParameters(**locals())["hisat_executable"],
@@ -867,7 +866,7 @@ def mapReadsWithGSNAP(infiles, outfile):
 
     infile, infile_splices = infiles
 
-    job_options = "-l mem_free=%s" % PARAMS["gsnap_memory"]
+    job_memory = PARAMS["gsnap_memory"]
     job_threads = PARAMS["gsnap_node_threads"]
     gsnap_mapping_genome = PARAMS["gsnap_genome"] or PARAMS["genome"]
 
@@ -898,7 +897,7 @@ def mapReadsWithSTAR(infile, outfile):
     '''
 
     job_threads = PARAMS["star_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["star_memory"]
+    job_memory = PARAMS["star_memory"]
 
     star_mapping_genome = PARAMS["star_genome"] or PARAMS["genome"]
 
@@ -999,6 +998,8 @@ def mapReadsWithBowtie(infiles, outfile):
     '''map reads with bowtie. For bowtie2 set executable apppropriately.'''
 
     job_threads = PARAMS["bowtie_threads"]
+    job_memory = "4G"
+
     m = PipelineMapping.Bowtie(
         executable=P.substituteParameters(**locals())["bowtie_executable"],
         strip_sequence=PARAMS["strip_sequence"])
@@ -1023,7 +1024,7 @@ def mapReadsWithBWA(infile, outfile):
     '''map reads with bwa'''
 
     job_threads = PARAMS["bwa_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["bwa_memory"]
+    job_memory = PARAMS["bwa_memory"]
 
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
@@ -1056,7 +1057,8 @@ def mapReadsWithStampy(infile, outfile):
     '''map reads with stampy'''
 
     job_threads = PARAMS["stampy_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["stampy_memory"]
+    job_memory = PARAMS["stampy_memory"]
+
     m = PipelineMapping.Stampy(strip_sequence=PARAMS["strip_sequence"])
     statement = m.build((infile,), outfile)
     P.run()
@@ -1087,11 +1089,12 @@ def mapReadsWithButter(infile, outfile):
         Butter does not support paired end reads''' % locals())
 
     job_threads = PARAMS["butter_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["butter_memory"]
+    job_memory = PARAMS["butter_memory"]
+
     m = PipelineMapping.Butter(
         strip_sequence=PARAMS["strip_sequence"],
         set_nh=PARAMS["butter_set_nh"])
-    statement = m.build((infile,), outfile)
+
     P.run()
 
 ###################################################################
@@ -1308,7 +1311,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_memory = "1.9G"
+    job_memory = "4G"
 
     bamfile, readsfile = infiles
 
@@ -1371,7 +1374,8 @@ def buildContextStats(infiles, outfile):
     infile, reffile = infiles
 
     min_overlap = 0.5
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
+
     statement = '''
        python %(scriptsdir)s/bam_vs_bed.py
               --min-overlap=%(min_overlap)f
@@ -1493,7 +1497,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     infile, genesets = infiles[0], infiles[1:]
 
     statements = []
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
     for geneset in genesets:
         chrom = re.match(
             "geneset.dir/refcoding\.(.+)\.gtf.gz", geneset).groups()[0]
@@ -1544,7 +1548,8 @@ def collateTranscriptCounts(infiles, outfile):
            suffix(".tsv.gz"),
            ".load")
 def loadTranscriptLevelReadCounts(infile, outfile):
-    P.load(infile, outfile, options="--add-index=transcript_id --allow-empty-file")
+    P.load(infile, outfile,
+           options="--add-index=transcript_id --allow-empty-file")
 
 
 @active_if(SPLICED_MAPPING)
@@ -1557,6 +1562,8 @@ def buildIntronLevelReadCounts(infiles, outfile):
     '''
 
     infile, exons = infiles
+
+    job_memory = "4G"
 
     if "transcriptome.dir" in infile:
         P.touch(outfile)
@@ -1650,7 +1657,7 @@ def buildBigWig(infile, outfile):
         scale = 1000000.0 / float(reads_mapped)
         tmpfile = P.getTempFilename()
         contig_sizes = PARAMS["annotations_interface_contigs"]
-        job_options = "-l mem_free=3G"
+        job_memory = "3G"
         statement = '''bedtools genomecov
         -ibam %(infile)s
         -g %(contig_sizes)s
@@ -1665,7 +1672,7 @@ def buildBigWig(infile, outfile):
         '''
     else:
         # wigToBigWig observed to use 16G
-        job_options = "-l mem_free=16G"
+        job_memory = "16G"
         statement = '''python %(scriptsdir)s/bam2wiggle.py
         --output-format=bigwig
         %(bigwig_options)s

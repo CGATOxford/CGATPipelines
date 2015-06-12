@@ -1638,6 +1638,8 @@ def buildTranscriptProfiles(infiles, outfile):
         print msg
         return
 
+    job_memory = "4G"
+
     # no input normalization, this is done later.
     options = ''
     # input_files = getInput( t )

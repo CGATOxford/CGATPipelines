@@ -447,10 +447,11 @@ def runDE(infiles, outfile, outdir,
     '''run DESeq or EdgeR.
 
     The job is split into smaller sections. The order of the input
-    data is randomized in order to avoid any biases due to chromosomes and
-    break up local correlations.
+    data is randomized in order to avoid any biases due to chromosomes
+    and break up local correlations.
 
     At the end, a new q-value is computed from all results.
+
     '''
 
     design_file, counts_file = infiles
