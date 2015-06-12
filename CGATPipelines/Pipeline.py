@@ -945,6 +945,23 @@ def mergeAndLoad(infiles,
     run()
 
 
+def connect():
+    '''connect to SQL database used in this pipeline.'''
+
+    # Note that in the future this might return an sqlalchemy or
+    # db.py handle.
+
+    if PARAMS["database_backend"] == "sqlite":
+        dbh = sqlite3.connect(PARAMS["database"])
+
+        statement = '''ATTACH DATABASE '%s' as annotations''' % (PARAMS["annotations_database"])
+        cc = dbh.cursor()
+        cc.execute(statement)
+        cc.close()
+
+    return dbh
+
+
 def createView(dbhandle, tables, tablename, outfile, view_type="TABLE",
                ignore_duplicates=True):
     '''create a view in database for tables.
@@ -1402,7 +1419,7 @@ def run(**kwargs):
 
             memory_spec = x.groups(0)
         else:
-            memory_spec = PARAMS["cluster_memory_default"]
+            memory_spec = PARAMS.get("cluster_memory_default", "2G")
 
         spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
                                   memory_spec))

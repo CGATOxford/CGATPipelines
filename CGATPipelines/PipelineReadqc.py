@@ -144,6 +144,10 @@ def buildExperimentReadQuality(infiles, outfile, datadir):
                                  "Per sequence quality scores",
                                  datadir)
     first = True
+
+    if len(data) == 0:
+        raise ValueError("received no data")
+
     for track, status, header, rows in data:
         T = track
         rows = [map(float, x.split("\t")) for x in rows]

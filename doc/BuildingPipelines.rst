@@ -258,20 +258,8 @@ Connecting to a database
 ------------------------
 
 To use data in the database in your tasks, you need to first connect
-to the database. It helps to encapsulate the connection in a separate
-function. For example::
-
-    def connect():
-	dbh = sqlite3.connect(PARAMS["database"])
-	statement = '''ATTACH DATABASE '%s' as annotations''' % (PARAMS["annotations_database"])
-	cc = dbh.cursor()
-	cc.execute(statement)
-	cc.close()
-
-	return dbh
-
-The above function will connect to the database. It will also attach a
-secondary database ``annotations``.
+to the database. The best way to do this is via the connect() method
+in Pipeline.py.
 
 The following example illustrates how to use the connection::
 
