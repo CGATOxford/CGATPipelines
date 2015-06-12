@@ -717,10 +717,28 @@ def buildReferenceGeneSetWithCDS(infile, outfile):
 #########################################################################
 
 
+@originate("protein_coding_gene_ids.tsv")
+def identifyProteinCodingGenes(outfile):
+    dbh = connect()
+    table = os.path.basename(PARAMS_ANNOTATIONS["interface_table_gene_info"])
+
+    try:
+        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
+        WHERE gene_biotype = 'protein_coding';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or gene_biotype column. "
+                   "Error message: '%s'" % error)
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("gene_id\n")
+        outf.write("\n".join((x[0] for x in select)) + "\n")
+
+
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
-def buildCodingGeneSet(infile, outfile):
+def buildCodingGeneSet(infiles, outfile):
     '''build a gene set with only protein coding transcripts.
 
     Genes are selected via their gene biotype in the GTF file.
@@ -730,11 +748,14 @@ def buildCodingGeneSet(infile, outfile):
     This set includes UTR and CDS.
     '''
 
+    infile, genes_tsv = infiles
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
-    --filter-method=proteincoding
+    --filter-method=gene
+    --map-tsv-file=%(gene_tsv)s
     --log=%(outfile)s.log
     | gzip > %(outfile)s
     '''
