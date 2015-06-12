@@ -1391,10 +1391,10 @@ def run(**kwargs):
                    "set job_memory local var instead")
 
             o = options["cluster_options"]
-            x = re.search("-l\S*mem_free\s*=\s(\S+)", o)
+            x = re.search("-l\s*mem_free\s*=\s*(\S+)", o)
             if x is None:
                 raise ValueError(
-                    "expecting mem_free in %s: '%s'" % o)
+                    "expecting mem_free in '%s'" % o)
 
             # remove match
             options["cluster_options"] = re.sub(
