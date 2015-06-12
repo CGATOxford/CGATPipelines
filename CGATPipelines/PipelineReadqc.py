@@ -65,8 +65,6 @@ def loadFastqc(filename,
     options.database_port = port
     options.allow_empty = True
 
-    print dir(options)
-
     for fn in glob.glob(filename):
         prefix = os.path.basename(os.path.dirname(fn))
         results = []
