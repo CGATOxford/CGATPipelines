@@ -146,8 +146,18 @@ HARDCODED_PARAMS = {
                 --cluster-num-jobs=%(cluster_num_jobs)i
                 --cluster-priority=%(cluster_priority)i
     """,
-    # command to get tab-separated output from sqlite3
+    # command to get tab-separated output from database
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
+    # database backend
+    'database_backend': "sqlite",
+    # name of database
+    'database_name': "csvdb",
+    # database connection options
+    'database_username': "cgat",
+    # database password - if required
+    'database_password': "",
+    # database port - if required
+    'database_port': 3306,
     # wrapper around non-CGAT scripts
     'cmd-run': """%(pipeline_scriptsdir)s/run.py""",
     # directory used for temporary local files
@@ -697,6 +707,7 @@ def load(infile,
          collapse=False,
          transpose=False,
          tablename=None,
+         retry=True,
          limit=0,
          shuffle=False):
     '''straight import from tab separated table.
@@ -711,9 +722,13 @@ def load(infile,
     loading.  The first column in the first row will be set to the
     string within transpose.
 
+    If *retry* is True, multiple attempts will be made if the data can
+    not be loaded at the first try, for example if a table is locked.
+
     If *limit* is set, only load the first n lines.
     If *shuffle* is set, randomize lines before loading. Together
     with *limit* this permits loading a sample of rows.
+
     '''
 
     if not tablename:
@@ -743,9 +758,34 @@ def load(infile,
         # ignore errors from cat or zcat due to broken pipe
         ignore_pipe_errors = True
 
+    opts = []
+
+    if retry:
+        opts.append(" --retry ")
+
+    backend = PARAMS["database_backend"]
+
+    if backend not in ("sqlite", "mysql", "postgres"):
+        raise NotImplementedError(
+            "backend %s not implemented" % backend)
+
+    opts.append("--database-backend=%s" % backend)
+    opts.append("--database-name=%s" %
+                PARAMS.get("database_name"))
+    opts.append("--database-host=%s" %
+                PARAMS.get("database_host", ""))
+    opts.append("--database-user=%s" %
+                PARAMS.get("database_username", ""))
+    opts.append("--database-password=%s" %
+                PARAMS.get("database_password", ""))
+    opts.append("--database-port=%s" %
+                PARAMS.get("database_port", 3306))
+
+    db_options = " ".join(opts)
+
     statement.append('''
     python %(scriptsdir)s/csv2db.py
-    %(csv2db_options)s
+    %(db_options)s
     %(options)s
     --table=%(tablename)s
     > %(outfile)s
@@ -1340,7 +1380,7 @@ def run(**kwargs):
         # get/set memory usage
         memory_spec = None
         if 'job_memory' in options:
-            memory_spec = PARAMS.get("cluster_memory_resource", "mem_free")
+            memory_spec = PARAMS.get("cluster_memory_default", "2G")
 
         elif "mem_free" in options["cluster_options"] and \
              PARAMS.get("cluster_memory_resource", False):
