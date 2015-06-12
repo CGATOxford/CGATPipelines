@@ -102,9 +102,11 @@ CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
 # root directory of CGAT Pipelines
 CGATPIPELINES_ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 # CGAT Pipeline scripts
-CGATPIPELINES_SCRIPTS_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "scripts")
+CGATPIPELINES_SCRIPTS_DIR = os.path.join(CGATPIPELINES_ROOT_DIR,
+                                         "scripts")
 # Directory of CGAT pipelines
-CGATPIPELINES_PIPELINE_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "CGATPipelines")
+CGATPIPELINES_PIPELINE_DIR = os.path.join(CGATPIPELINES_ROOT_DIR,
+                                          "CGATPipelines")
 
 # if Pipeline.py is called from an installed version, scripts are
 # located in the "bin" directory.
@@ -152,15 +154,23 @@ HARDCODED_PARAMS = {
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
-    # cluster options
+    # cluster queue to use
     'cluster_queue': 'all.q',
+    # priority of jobs in cluster queue
     'cluster_priority': -10,
+    # number of jobs to submit to cluster queue
     'cluster_num_jobs': 100,
+    # name of consumable resource to use for requesting memory
+    'cluster_memory_resource': "mem_free",
+    # amount of memory set by default for each job
+    'cluster_memory_default': "2G",
+    # general cluster options
     'cluster_options': "",
-    # Parallel environment to use
+    # parallel environment to use for multi-threaded jobs
     'cluster_parallel_environment': 'dedicated',
-    # ruffus job limits
+    # ruffus job limits for databases
     'jobs_limit_db': 10,
+    # ruffus job limits for R
     'jobs_limit_R': 1,
 }
 
@@ -734,9 +744,10 @@ def load(infile,
         ignore_pipe_errors = True
 
     statement.append('''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              %(options)s
-              --table=%(tablename)s
+    python %(scriptsdir)s/csv2db.py
+    %(csv2db_options)s
+    %(options)s
+    --table=%(tablename)s
     > %(outfile)s
     ''')
 
@@ -984,7 +995,7 @@ def isTest():
     '''return True if the pipeline is run in a "testing" mode
     (command line options --is-test has been given).'''
 
-    # note: do not test GLOBAL_OPTIONS as this method might have 
+    # note: do not test GLOBAL_OPTIONS as this method might have
     # been called before main()
     return "--is-test" in sys.argv
 
@@ -1288,7 +1299,8 @@ def run(**kwargs):
           of sessions available. If there are two many or sessions
           become not available after failed jobs, use ``qconf -secl``
           to list sessions and ``qconf -kec #`` to delete sessions.
-       2. Memory: 1G of free memory can be requested using ``-l mem_free=1G``.
+       2. Memory: 1G of free memory can be requested using the job_memory
+          variable: ``job_memory = "1G"``
           If there are error messages like "no available queue", then the
           problem could be that a particular complex attribute has
           not been defined (the code should be ``hc`` for ``host:complex``
@@ -1325,20 +1337,33 @@ def run(**kwargs):
                                   options.get("outfile", "ruffus")))),
             "%(cluster_options)s"]
 
-        # get memory usage
+        # get/set memory usage
+        memory_spec = None
         if 'job_memory' in options:
-            spec.append("-l %s=%s" %
-                        (PARAMS.get("cluster_memory_resource", "mem_free"),
-                         options["job_memory"]))
+            memory_spec = PARAMS.get("cluster_memory_resource", "mem_free")
 
         elif "mem_free" in options["cluster_options"] and \
              PARAMS.get("cluster_memory_resource", False):
 
-            options["cluster_options"] = re.sub(
-                "mem_free", PARAMS.get("cluster_memory_resource"),
-                options["cluster_options"])
             E.warn("use of mem_free in job options is deprecated, please"
                    "set job_memory local var instead")
+
+            o = options["cluster_options"]
+            x = re.search("-l\S*mem_free\s*=\s(\S+)", o)
+            if x is None:
+                raise ValueError(
+                    "expecting mem_free in %s: '%s'" % o)
+
+            # remove match
+            options["cluster_options"] = re.sub(
+                "-l\S*mem_free\s*=\s(\S+)", "", o)
+
+            memory_spec = x.groups(0)
+        else:
+            memory_spec = PARAMS["cluster_memory_default"]
+
+        spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
+                                  memory_spec))
 
         # if process has multiple threads, use a parallel environment
         if 'job_threads' in options:
@@ -1914,10 +1939,10 @@ def run_report(clean=True,
                pipeline_status_format="svg"):
     '''run CGATreport.
 
-    This will also run ruffus to create an svg image
-    of the pipeline status unless *with_pipeline_status* is
-    set to False. The image will be saved into the export 
-    directory.
+    This will also run ruffus to create an svg image of the pipeline
+    status unless *with_pipeline_status* is set to False. The image
+    will be saved into the export directory.
+
     '''
 
     if with_pipeline_status:
@@ -2087,7 +2112,7 @@ class RuffusLoggingFilter(logging.Filter):
                     task_status = "update"
                 elif line.startswith("Tasks which are up-to-date"):
                     task_status = "ignore"
-                
+
                 if line.startswith("Task = "):
                     if task_name:
                         yield task_name, task_status, list(split_by_job(block))
@@ -2117,7 +2142,7 @@ class RuffusLoggingFilter(logging.Filter):
         for task_name, task_status, jobs in split_by_task(ruffus_text):
             if task_name.startswith("(mkdir"):
                 continue
-            
+
             to_run = 0
             for job_name, job_status, job_message in jobs:
                 self.jobs[job_name] = (task_name, job_name)
@@ -2347,7 +2372,7 @@ def main(args=sys.argv):
         pipeline_action=None,
         pipeline_format="svg",
         pipeline_targets=[],
-        multiprocess=2,
+        multiprocess=40,
         logfile="pipeline.log",
         dry_run=False,
         force=False,
