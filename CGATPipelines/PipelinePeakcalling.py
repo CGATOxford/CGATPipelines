@@ -2239,18 +2239,18 @@ def runPeakRangerCCAT(infile, outfile, controlfile):
     assert controlfile is not None, "peakranger requires a control"
 
     statement = '''peakranger ccat
-              --output-section %(infile)s
+              --data %(infile)s
               --control %(controlfile)s
-              --output-section %(outfile)s
+              --output %(outfile)s
               --format bam
-              --FDR %(peakranger_fdr_threshold)f
-              --ext_length %(peakranger_extension_length)i
+              --FDR %(ccat_fdr_threshold)f
+              --ext_length %(ccat_extension_length)i
               --win_size %(ccat_winsize)i
               --win_step %(ccat_winstep)i
               --min_count %(ccat_mincount)i
               --min_score %(ccat_minscore)i
-              --thread %(peakranger_threads)i
-              %(peakranger_options)s
+              --thread %(ccat_threads)i
+              %(ccat_options)s
               >& %(outfile)s
     '''
 

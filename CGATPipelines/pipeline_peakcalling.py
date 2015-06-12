@@ -670,6 +670,9 @@ else:
 def buildBAMStats(infile, outfile):
     '''count number of reads mapped, duplicates, etc.
     '''
+
+    job_memory = "4G"
+
     statement = '''python
     %(scriptsdir)s/bam2stats.py
          --force-output
