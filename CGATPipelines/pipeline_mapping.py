@@ -1028,11 +1028,13 @@ def mapReadsWithBWA(infile, outfile):
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
             remove_non_unique=PARAMS["remove_non_unique"],
-            strip_sequence=PARAMS["strip_sequence"])
+            strip_sequence=PARAMS["strip_sequence"],
+            set_nh=PARAMS["bwa_set_nh"])
     elif PARAMS["bwa_algorithm"] == "mem":
         m = PipelineMapping.BWAMEM(
             remove_non_unique=PARAMS["remove_non_unique"],
-            strip_sequence=PARAMS["strip_sequence"])
+            strip_sequence=PARAMS["strip_sequence"],
+            set_nh=PARAMS["bwa_set_nh"])
     else:
         raise ValueError("bwa algorithm '%s' not known" % algorithm)
 

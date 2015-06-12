@@ -1509,8 +1509,15 @@ class Tophat2_fusion(Tophat2):
         # get tophat statement
         statement = Tophat.mapper(self, infiles, outfile)
 
-        # replace tophat options with tophat2 options
-        statement = re.sub("%\(tophat_", "%(tophat2_fusion_", statement)
+        # replace tophat options with tophat2 options and add fusion search cmd
+        statement = re.sub(re.escape("%(tophat_options)s"),
+                           ("%(tophat2_fusion_options)s --fusion-search "
+                            "--bowtie1 --no-coverage-search"),
+                           statement)
+
+        # replace all other tophat parameters with tophat2_fusion parameters
+        statement = re.sub(re.escape("%(tophat_"),
+                           "%(tophat2_fusion_", statement)
 
         return statement
 
