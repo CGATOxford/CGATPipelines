@@ -246,13 +246,13 @@ database Table names are given by the filenames, i.e, the data in
 :file:`data_1.tsv.gz` will be loaded into the table :file:`data_1`.
 
 The load mechanism uses the script :file:`csv2db.py` and can be
-configured using the configuration options ``database`` and
-``csv2db_options``. Additional options can be given via the optional
-*options* argument::
+configured using the configuration options in the ``database`` section
+of :file:`pipeline.ini`. Additional options can be given via the
+optional *options* argument::
 
-   @transform( 'data_*.tsv.gz', suffix('.tsv.gz'), '.load' )
+   @transform('data_*.tsv.gz', suffix('.tsv.gz'), '.load')
    def loadTables( infile, outfile ):
-      P.load( infile, outfile, "--add-index=gene_id" )
+      P.load(infile, outfile, "--add-index=gene_id")
 
 Connecting to a database
 ------------------------
@@ -262,10 +262,10 @@ to the database. It helps to encapsulate the connection in a separate
 function. For example::
 
     def connect():
-	dbh = sqlite3.connect( PARAMS["database"] )
+	dbh = sqlite3.connect(PARAMS["database"])
 	statement = '''ATTACH DATABASE '%s' as annotations''' % (PARAMS["annotations_database"])
 	cc = dbh.cursor()
-	cc.execute( statement )
+	cc.execute(statement)
 	cc.close()
 
 	return dbh
