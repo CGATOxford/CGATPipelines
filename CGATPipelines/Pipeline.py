@@ -150,6 +150,8 @@ HARDCODED_PARAMS = {
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
     # database backend
     'database_backend': "sqlite",
+    # database host
+    'database_host': "",
     # name of database
     'database_name': "csvdb",
     # database connection options

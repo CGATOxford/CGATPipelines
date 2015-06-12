@@ -49,10 +49,11 @@ def createGOFromENSEMBL(infile, outfile):
     statement = '''
     python %(scriptsdir)s/runGO.py
     --filename-dump=%(outfile)s
-    --host=%(go_host)s
-    --user=anonymous
-    --database=%(go_database)s
-    --port=%(go_port)i > %(outfile)s.log
+    --database-host=%(go_host)s
+    --database-user=anonymous
+    --database-name=%(go_database)s
+    --database-port=%(go_port)i
+    > %(outfile)s.log
     '''
 
     P.run()
