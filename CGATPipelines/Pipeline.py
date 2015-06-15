@@ -1405,7 +1405,7 @@ def run(**kwargs):
              PARAMS.get("cluster_memory_resource", False):
 
             E.warn("use of mem_free in job options is deprecated, please"
-                   "set job_memory local var instead")
+                   " set job_memory local var instead")
 
             o = options["cluster_options"]
             x = re.search("-l\s*mem_free\s*=\s*(\S+)", o)
@@ -1417,7 +1417,7 @@ def run(**kwargs):
             options["cluster_options"] = re.sub(
                 "-l\S*mem_free\s*=\s(\S+)", "", o)
 
-            memory_spec = x.groups(0)
+            memory_spec = x.groups()[0]
         else:
             memory_spec = PARAMS.get("cluster_memory_default", "2G")
 
