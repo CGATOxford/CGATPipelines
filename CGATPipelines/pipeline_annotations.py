@@ -2122,7 +2122,6 @@ if 0:
         outs.close()
 
 
-
 @transform("*/*.gff.gz",
            suffix(".gff.gz"),
            ".gffsummary.tsv.gz")
