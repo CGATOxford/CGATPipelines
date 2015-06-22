@@ -1042,15 +1042,10 @@ def loadDESeq(infile, outfile):
     '''load differential expression results.
     '''
     # add gene level follow convention "<level>_diff"
-    tablename = P.toTable(outfile) + "_gene_diff"
-    statement = '''zcat %(infile)s
-            | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=test_id
-              --table=%(tablename)s
-            > %(outfile)s
-    '''
-    P.run()
+    P.load(infile,
+           outfile,
+           tablename=P.toTable(outfile) + "_gene_diff",
+           options="--allow-empty-file --add-index=test_id")
 
 
 @follows(loadGeneSetGeneInformation)
@@ -1103,15 +1098,10 @@ def loadEdgeR(infile, outfile):
     '''load differential expression results.
     '''
     # add gene level follow convention "<level>_diff"
-    tablename = P.toTable(outfile) + "_gene_diff"
-    statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --allow-empty-file
-    --add-index=test_id
-    --table=%(tablename)s
-    > %(outfile)s
-    '''
-    P.run()
+    P.load(infile,
+           outfile,
+           tablename=P.toTable(outfile) + "_gene_diff",
+           options="--allow-empty-file --add-index=test_id")
 
 
 @follows(loadGeneSetGeneInformation)
@@ -1194,14 +1184,10 @@ def loadDESeq2(infile, outfile):
     # load table containing adjusted pvalues
     tmpf = P.getTempFilename("/ifs/scratch")
     df.to_csv(tmpf, sep="\t")
-    tablename = P.toTable(outfile) + "_gene_diff"
-    statement = ("cat %(tmpf)s |"
-                 "python %(scriptsdir)s/csv2db.py %(csv2db_options)s"
-                 " --add-index=gene_id"
-                 " --table=%(tablename)s"
-                 " > %(outfile)s")
-    P.run()
-
+    P.load(tmpf,
+           outfile,
+           tablename=P.toTable(outfile) + "_gene_diff",
+           options="--add-index=gene_id")
     os.unlink(tmpf)
 
 

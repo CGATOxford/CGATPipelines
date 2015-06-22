@@ -1530,18 +1530,9 @@ def buildOverlapWithinMethod(infiles, outfile):
 def loadOverlap(infile, outfile):
     '''load overlap results.
     '''
-
-    tablename = "overlap"
-
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --index=set1
-    --index=set2
-    --table=%(tablename)s
-    < %(infile)s > %(outfile)s
-    '''
-
-    P.run()
+    P.load(infile, outfile,
+           tablename="overlap",
+           options="--add-index=set1 --add-index=set2")
 
 
 @follows(loadDMRStats, loadSpikeResults,

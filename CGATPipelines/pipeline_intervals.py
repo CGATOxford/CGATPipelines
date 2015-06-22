@@ -497,19 +497,12 @@ def loadIntervals(infile, outfile):
 
     tmpfile.close()
 
-    tmpfilename = tmpfile.name
-    tablename = os.path.basename("%s_intervals" % track.asTable())
+    P.load(tmpfile.name,
+           outfile,
+           tablename=os.path.basename("%s_intervals" % track.asTable()),
+           options="--allow-empty-file "
+           "--add-index=interval_id")
 
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=interval_id
-              --table=%(tablename)s
-    < %(tmpfilename)s
-    > %(outfile)s
-    '''
-
-    P.run()
     os.unlink(tmpfile.name)
 
     E.info("%s\n" % str(c))
@@ -614,20 +607,21 @@ def loadContextStats(infiles, outfile):
     header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
                       for x in infiles])
     filenames = " ".join(infiles)
-    tablename = P.toTable(outfile)
+
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track")
 
     statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --missing-value=0
-                      --skip-titles
-                   %(filenames)s
-                | perl -p -e "s/bin/track/; s/\?/Q/g"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                > %(outfile)s
-                """
+    --header-names=%(header)s
+    --missing-value=0
+    --skip-titles
+    %(filenames)s
+    | perl -p -e "s/bin/track/; s/\?/Q/g"
+    | python %(scriptsdir)s/table2table.py --transpose
+    | %(load_statement)s
+    > %(outfile)s
+    """
     P.run()
 
 
@@ -972,16 +966,9 @@ def buildOverlap(infiles, outfile):
 def loadOverlap(infile, outfile):
     '''load overlap results.
     '''
-
-    tablename = "overlap"
-
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=set1
-              --add-index=set2
-              --table=%(tablename)s
-    < %(infile)s > %(outfile)s
-    '''
+    P.load(infile, outfile,
+           tablename="overlap",
+           options="--add-index=set1 --add-index=set2")
 
     P.run()
 
@@ -1101,10 +1088,6 @@ def loadMemeSummary(infiles, outfile):
 
     os.unlink(outf.name)
 
-############################################################
-############################################################
-############################################################
-
 
 @transform(exportMotifSequences,
            suffix(".fasta"),
@@ -1112,23 +1095,18 @@ def loadMemeSummary(infiles, outfile):
 def loadMotifSequenceComposition(infile, outfile):
     '''compute sequence composition of sequences used for ab-initio search.'''
 
-    tablename = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile))
 
     statement = '''
     python %(scriptsdir)s/fasta2table.py
         --section=na
         --log=%(outfile)s
     < %(infile)s
-    | python %(scriptsdir)s/csv2db.py
-        %(csv2db_options)s
-        --table=%(tablename)s
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
-
-############################################################
-############################################################
-############################################################
 
 
 @merge("*.motif", "motif_info.load")

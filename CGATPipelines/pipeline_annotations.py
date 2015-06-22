@@ -1398,16 +1398,17 @@ def importCpGIslandsFromUCSC(infile, outfile):
 def loadRepeats(infile, outfile):
     '''load total repeats length'''
 
-    headers = "contig,start,stop,class"
+    load_statement = P.build_load_statement(
+        tablename="repeats",
+        options="--add-index=class "
+        "--header-names=contig,start,stop,class")
+
     statement = """zcat %(infile)s
-    | python %(scriptsdir)s/gff2bed.py --set-name=class | grep -v "#"
+    | python %(scriptsdir)s/gff2bed.py --set-name=class
+    | grep -v "#"
     | cut -f1,2,3,4
-    | python %(scriptsdir)s/csv2db.py
-    --retry
-    --table=repeats
-    --header-names=%(headers)s
-    --add-index=class
-    > %(outfile)s; """
+    | %(load_statement)s
+    > %(outfile)s"""
     P.run()
 
 
@@ -1752,16 +1753,8 @@ def createGOSlim(infile, outfile):
            r"\1_assignments.load")
 def loadGOAssignments(infile, outfile):
     '''load GO assignments into database.'''
-    table = P.toTable(outfile)
-    statement = '''
-    zcat < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --table=%(table)s
-              --add-index=gene_id
-              --add-index=go_id
-    > %(outfile)s
-    '''
-    P.run()
+    P.load(infile, outfile,
+           options="--add-index=gene_id --add-index=go_id")
 
 
 @transform(createGO, suffix(".tsv.gz"), ".paths")
@@ -2079,15 +2072,6 @@ if 0:
     @files(PARAMS["filename_ucsc_encode"], "ucsc_encode.import")
     def importUCSCEncodeTracks(infile, outfile):
 
-        statement = '''
-        mysql --user=genome --host=genome-mysql.cse.ucsc.edu
-                 -A -B -e "SELECT * FROM %(tablename)s" %(ucsc_database)s |\
-        python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
-                  --table=%(tablename)s \
-        >> %(outfile)s
-
-        '''
-
         dbhandle = sqlite3.connect(PARAMS["database_name"])
 
         cc = dbhandle.cursor()
@@ -2102,7 +2086,16 @@ if 0:
                 E.info("skipping %(tablename)s - already exists" % locals())
                 continue
 
+            load_statement = P.build_load_statement(tablename)
+
             E.info("importing %(tablename)s" % locals())
+
+            statement = '''
+            mysql --user=genome --host=genome-mysql.cse.ucsc.edu
+            -A -B -e "SELECT * FROM %(tablename)s" %(ucsc_database)s
+            | %(load_statement)s
+            >> %(outfile)s
+            '''
             P.run()
 
     ############################################################
@@ -2129,85 +2122,6 @@ if 0:
         outs.close()
 
 
-# ############################################################
-# ############################################################
-# ############################################################
-# # Mappability
-# @files(os.path.join(PARAMS["gem_dir"],
-#                     PARAMS["genome"] + ".gem"),
-#        PARAMS["genome"] + ".mappability")
-# def calculateMappability(infile, outfile):
-#     '''Calculate mappability using GEM '''
-#     index = P.snip(infile, ".gem")
-#     job_threads = PARAMS["gem_threads"]
-#     statement = '''gem-mappability
-#     -t %(gem_threads)s -m %(gem_mismatches)s
-#     --max-indel-length %(gem_max_indel_length)s
-#     -l %(gem_window_size)s
-#     -I %(index)s -o %(outfile)s '''
-#     P.run()
-
-
-# @transform(calculateMappability, suffix(".mappability"),
-#            ".mappability.count")
-# def countMappableBases(infile, outfile):
-#     '''Count mappable bases in genome'''
-#     statement = '''cat %(infile)s | tr -cd ! | wc -c > %(outfile)s'''
-#     P.run()
-
-
-# @transform(countMappableBases, suffix(".count"), ".count.load")
-# def loadMappableBases(infile, outfile):
-#     '''load count of mappable bases in genome'''
-#     header = "total_mappable_bases"
-#     statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
-#                       --table=total_mappable_bases
-#                       --header-names=%(header)s
-#                    > %(outfile)s '''
-#     P.run()
-
-# ###################################################################
-
-
-# @transform(calculateMappability, suffix(".mappability"), ".split.log")
-# def splitMappabiliyFileByContig(infile, outfile):
-#     '''Count mappable bases in genome'''
-#     track = P.snip(os.path.basename(infile), ".mappability")
-#     statement = '''mkdir contigs;
-#     csplit -k -f contigs/contig %(infile)s '/^~[a-zA-Z]/' {100000}
-#     > %(outfile)s;
-#     rm contigs/contig00;'''
-#     P.run()
-
-# ###################################################################
-
-
-# @follows(splitMappabiliyFileByContig)
-# @merge("contigs/contig*", PARAMS["genome"] + "_mappability_per_contig.tsv")
-# def countMappableBasesPerContig(infiles, outfile):
-#     '''Count mappable bases for each contig'''
-#     for infile in infiles:
-#         statement = '''grep '~' %(infile)s
-#         | sed s/~//g >> %(outfile)s; cat %(infile)s | tr -cd !
-#         | wc -c >> %(outfile)s'''
-#         P.run()
-
-#     statement = '''sed -i '{N;s/\\n/\\t/g}' %(outfile)s;'''
-#     P.run()
-
-# ###################################################################
-
-
-# @transform(countMappableBasesPerContig, suffix(".tsv"), ".tsv.load")
-# def loadMappableBasesPerContig(infile, outfile):
-#     '''load count of mappable bases per contig '''
-#     header = "contig,mappable_bases"
-#     statement = '''cat %(infile)s
-#     | python %(scriptsdir)s/csv2db.py
-#     --table=mappable_bases_per_contig
-#     --header-names=%(header)s
-#     > %(outfile)s '''
-#     P.run()
 
 @transform("*/*.gff.gz",
            suffix(".gff.gz"),

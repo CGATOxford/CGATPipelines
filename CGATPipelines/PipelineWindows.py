@@ -880,11 +880,9 @@ def buildSpikeResults(infile, outfile):
     tablename = P.toTable(
         P.snip(outfile, "power.gz") + method + ".spike.load")
 
-    statement = '''cat %(tmpfile_name)s
-    | python %(scriptsdir)s/csv2db.py
-           --table=%(tablename)s
-           --add-index=fdr
-    > %(outfile)s.log'''
+    P.load(tmpfile_name,
+           outfile + ".log",
+           tablename=tablename,
+           options="--add-index=fdr")
 
-    P.run()
     os.unlink(tmpfile_name)

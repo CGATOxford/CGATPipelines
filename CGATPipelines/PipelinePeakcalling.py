@@ -1472,28 +1472,28 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
         "pvalue", "fold", "qvalue",
         "macs_summit", "macs_nprobes"))
 
-    tablename = P.toTable(outfile) + "_peaks"
-
     if controlfile:
         control = "--control-bam-file=%(controlfile)s --control-offset=%(shift)i" % locals()
     else:
         control = ""
 
+    load_statement = P.build_load_statement(
+        P.toTable(outfile) + "_peaks",
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
-                           --counter=peaks
-                           --bam-file=%(bamfile)s
-                           --offset=%(shift)i
-                           %(control)s
-                           --output-all-fields
-                           --output-bed-headers=%(headers)s
-                           --log=%(outfile)s
-                < %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                       --add-index=contig,start
-                       --add-index=interval_id
-                       --table=%(tablename)s
-                       --allow-empty-file
-                > %(outfile)s'''
+    --counter=peaks
+    --bam-file=%(bamfile)s
+    --offset=%(shift)i
+    %(control)s
+    --output-all-fields
+    --output-bed-headers=%(headers)s
+    --log=%(outfile)s
+    < %(tmpfilename)s
+    | %(load_statement)s
+    > %(outfile)s'''
 
     P.run()
 
@@ -1508,26 +1508,26 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
             "Height",
             "SummitPosition"))
 
-        tablename = P.toTable(outfile) + "_summits"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_summits",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         # add a peak identifier and remove header
         statement = '''
-                    awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
-                    < %(filename_subpeaks)s
-                    | python %(scriptsdir)s/bed2table.py
-                               --counter=peaks
-                               --bam-file=%(bamfile)s
-                               --offset=%(shift)i
-                               %(control)s
-                               --output-all-fields
-                               --output-bed-headers=%(headers)s
-                               --log=%(outfile)s
-                    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                           --add-index=contig,start
-                           --add-index=interval_id
-                           --table=%(tablename)s
-                           --allow-empty-file
-                    > %(outfile)s'''
+        awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
+        < %(filename_subpeaks)s
+        | python %(scriptsdir)s/bed2table.py
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
 
         P.run()
 
@@ -1535,13 +1535,14 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
     # load diagnostic data
     if os.path.exists(filename_diag):
 
-        tablename = P.toTable(outfile) + "_diagnostics"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_diagnostics",
+            options="--map=fc:str")
+
         statement = '''
         cat %(filename_diag)s
         | sed "s/FC range.*/fc\\tnpeaks\\tp90\\tp80\\tp70\\tp60\\tp50\\tp40\\tp30\\tp20/"
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                  --map=fc:str
-                  --table=%(tablename)s
+        | %(load_statement)s
         >> %(outfile)s
         '''
         P.run()
@@ -1661,28 +1662,28 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
         "pvalue", "fold", "qvalue",
         "macs_nprobes"))
 
-    tablename = P.toTable(outfile) + "_peaks"
-
     if controlfile:
         control = "--control-bam-file=%(controlfile)s --control-offset=%(shift)i" % locals()
     else:
         control = ""
 
+    load_statement = P.build_load_statement(
+        P.toTable(outfile) + "_peaks",
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
-                           --counter=peaks
-                           --bam-file=%(bamfile)s
-                           --offset=%(shift)i
-                           %(control)s
-                           --output-all-fields
-                           --output-bed-headers=%(headers)s
-                           --log=%(outfile)s
-                < %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                       --add-index=contig,start
-                       --add-index=interval_id
-                       --table=%(tablename)s
-                       --allow-empty-file
-                > %(outfile)s'''
+    --counter=peaks
+    --bam-file=%(bamfile)s
+    --offset=%(shift)i
+    %(control)s
+    --output-all-fields
+    --output-bed-headers=%(headers)s
+    --log=%(outfile)s
+    < %(tmpfilename)s
+    | %(load_statement)s
+    > %(outfile)s'''
 
     P.run()
 
@@ -1697,26 +1698,26 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
             "Height",
             "SummitPosition"))
 
-        tablename = P.toTable(outfile) + "_summits"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_summits",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         # add a peak identifier and remove header
         statement = '''
-                    zcat %(filename_subpeaks)s
-                    | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
-                    | python %(scriptsdir)s/bed2table.py
-                               --counter=peaks
-                               --bam-file=%(bamfile)s
-                               --offset=%(shift)i
-                               %(control)s
-                               --output-all-fields
-                               --output-bed-headers=%(headers)s
-                               --log=%(outfile)s
-                    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                           --add-index=contig,start
-                           --add-index=interval_id
-                           --table=%(tablename)s
-                           --allow-empty-file
-                    > %(outfile)s'''
+        zcat %(filename_subpeaks)s
+        | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
+        | python %(scriptsdir)s/bed2table.py
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
 
         P.run()
 
@@ -1728,26 +1729,26 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
             "interval_id",
             "Height"))
 
-        tablename = P.toTable(outfile) + "_regions"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_regions",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         # add a peak identifier and remove header
         statement = '''
-                    cat %(filename_broadpeaks)s
-                    | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4)}'
-                    | python %(scriptsdir)s/bed2table.py
-                               --counter=peaks
-                               --bam-file=%(bamfile)s
-                               --offset=%(shift)i
-                               %(control)s
-                               --output-all-fields
-                               --output-bed-headers=%(headers)s
-                               --log=%(outfile)s
-                    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                           --add-index=contig,start
-                           --add-index=interval_id
-                           --table=%(tablename)s
-                           --allow-empty-file
-                    > %(outfile)s'''
+        cat %(filename_broadpeaks)s
+        | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4)}'
+        | python %(scriptsdir)s/bed2table.py
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
 
         P.run()
 
@@ -1806,13 +1807,17 @@ def loadZinba(infile, outfile, bamfile,
                        "--control-offset=%(offset)i" % locals())
 
         # Steve - Guessing these are actually "peak calls"
-        tablename = P.toTable(outfile) + "_peaks"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_peaks",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         headers = "contig,start,end,interval_id,sig,maxloc,maxval,median,qvalue"
 
         statement = '''cat %(infilename)s
-                    | python %(scriptsdir)s/csv_cut.py
-                         Chrom Start Stop Sig Maxloc Max Median qValue
+        | python %(scriptsdir)s/csv_cut.py
+        Chrom Start Stop Sig Maxloc Max Median qValue
         | awk -v FS='\\t' -v OFS='\\t' \
         '/Chrom/ {next; } \
         {$4=sprintf("%%i\\t%%s", ++a, $4); print}'
@@ -1824,16 +1829,16 @@ def loadZinba(infile, outfile, bamfile,
         --output-all-fields
         --output-bed-headers=%(headers)s
         --log=%(outfile)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-        --add-index=contig,start
-        --add-index=interval_id
-        --table=%(tablename)s
-        --allow-empty-file
+        | %(load_statement)s
         > %(outfile)s'''
 
         P.run()
 
-        tablename = P.toTable(outfile) + "_summits"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_summits",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         statement = '''cat %(infilename)s
         | python %(scriptsdir)s/csv_cut.py Chrom pStart pStop Sig Maxloc Max Median qValue
@@ -1848,11 +1853,7 @@ def loadZinba(infile, outfile, bamfile,
         --output-all-fields
         --output-bed-headers=%(headers)s
         --log=%(outfile)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-        --add-index=contig,start
-        --add-index=interval_id
-        --table=%(tablename)s
-        --allow-empty-file
+        | %(load_statement)s
         > %(outfile)s'''
 
         P.run()
@@ -1958,6 +1959,11 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
         control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
 
     tablename = P.toTable(outfile) + "_regions"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
 
     headers = "contig,start,end,interval_id,chip_reads,control_reads,pvalue,fold,fdr"
 
@@ -1973,11 +1979,7 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
     --output-all-fields
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_options)s
     > %(outfile)s'''
 
     P.run()
@@ -2116,6 +2118,13 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
     bedfile = infile + "_region.bed"
     headers = "contig,start,end,interval_id,qvalue,strand"
     tablename = P.toTable(outfile) + "_" + table_suffix
+
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
     --counter=peaks
     --bam-file=%(bamfile)s
@@ -2125,17 +2134,19 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
     < <( grep -v "fdrFailed" %(bedfile)s )
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_statement)s
     > %(outfile)s'''
     P.run()
 
     bedfile = infile + "_summit.bed"
     headers = "contig,start,end,interval_id,qvalue,strand"
     tablename = P.toTable(outfile) + "_summits"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
     --counter=peaks
     --bam-file=%(bamfile)s
@@ -2145,11 +2156,7 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
     < <( grep -v "fdrFailed" %(bedfile)s )
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
@@ -2321,22 +2328,24 @@ def loadSPP(infile, outfile, bamfile, controlfile=None):
     bedfile = infile + ".narrowpeak.txt"
     headers = "contig,start,end,interval_id,peakval1,qvalue,peakpos"
     tablename = P.toTable(outfile) + "_peaks"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%i\\n", $1,$2,$3,++a,$7,$9,$1+$10);}'
-                < %(bedfile)s
-                | python %(scriptsdir)s/bed2table.py
-                           --counter=peaks
-                           --bam-file=%(bamfile)s
-                           --offset=%(offset)i
-                           %(control)s
-                           --output-all-fields
-                           --output-bed-headers=%(headers)s
-                           --log=%(outfile)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                       --add-index=contig,start
-                       --add-index=interval_id
-                       --table=%(tablename)s
-                       --allow-empty-file
-                > %(outfile)s'''
+    < %(bedfile)s
+    | python %(scriptsdir)s/bed2table.py
+    --counter=peaks
+    --bam-file=%(bamfile)s
+    --offset=%(offset)i
+    %(control)s
+    --output-all-fields
+    --output-bed-headers=%(headers)s
+    --log=%(outfile)s
+    | %(load_statement)s
+    > %(outfile)s'''
 
     #
     #  TODO - spp does calculate summit positions, these should be loaded
@@ -2384,7 +2393,8 @@ def summarizeSPP(infiles, outfile):
 
                 elif line.startswith("done. read"):
                     reads.append(
-                        re.match("done. read (\d+) fragments", line).groups()[0])
+                        re.match("done. read (\d+) fragments",
+                                 line).groups()[0])
 
                 elif line.startswith("shift\t"):
                     shift = int(re.match("shift\t(\d+)\n", line).groups()[0])
@@ -2397,8 +2407,9 @@ def summarizeSPP(infiles, outfile):
                     npeaks = int(
                         re.match("detected_peaks\t(\d+)\n", line).groups()[0])
 
-        outf.write("\t".join(map(str, (track, files[0], reads[0], files[1], reads[1],
-                                       shift, fdr, threshold, npeaks))) + "\n")
+        outf.write("\t".join(map(str, (
+            track, files[0], reads[0], files[1], reads[1],
+            shift, fdr, threshold, npeaks))) + "\n")
 
     outf.close()
 
@@ -2862,19 +2873,11 @@ def loadIntervalsFromBed(bedfile, track, outfile,
 
     tmpfile.close()
 
-    tmpfilename = tmpfile.name
-    tablename = "%s_intervals" % track.asTable()
+    P.load(tmpfile.name,
+           outfile,
+           tablename="%s_intervals" % track.asTable(),
+           options="--add-index=interval-id --allow-empty-file")
 
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=interval_id
-              --table=%(tablename)s
-    < %(tmpfilename)s
-    > %(outfile)s
-    '''
-
-    P.run()
     os.unlink(tmpfile.name)
 
     E.info("%s\n" % str(c))
@@ -2966,6 +2969,12 @@ def loadScripture(infile, outfile, bamfile, controlfile=None):
 
     headers = "contig,start,end,interval_id,score,pvalue,score2,score3,score4"
     tablename = P.toTable(outfile) + "_peaks"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''zcat %(bedfile)s
     | awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%f\\t%%f\\t%%f\\n", $1,$2,$3,++a,$5,$7,$8,$9,$10);}'
     | python %(scriptsdir)s/bed2table.py
@@ -2976,11 +2985,7 @@ def loadScripture(infile, outfile, bamfile, controlfile=None):
     --output-all-fields
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()

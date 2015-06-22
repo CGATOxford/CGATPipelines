@@ -703,6 +703,47 @@ def toTable(outfile):
     return quote(name)
 
 
+def build_load_statement(tablename, retry=True, options=""):
+    '''build a database load command to be used
+    in a pipe statement.'''
+
+    opts = []
+
+    if retry:
+        opts.append(" --retry ")
+
+    backend = PARAMS["database_backend"]
+
+    if backend not in ("sqlite", "mysql", "postgres"):
+        raise NotImplementedError(
+            "backend %s not implemented" % backend)
+
+    opts.append("--database-backend=%s" % backend)
+    opts.append("--database-name=%s" %
+                PARAMS.get("database_name"))
+    opts.append("--database-host=%s" %
+                PARAMS.get("database_host", ""))
+    opts.append("--database-user=%s" %
+                PARAMS.get("database_username", ""))
+    opts.append("--database-password=%s" %
+                PARAMS.get("database_password", ""))
+    opts.append("--database-port=%s" %
+                PARAMS.get("database_port", 3306))
+
+    db_options = " ".join(opts)
+
+    statement = ('''
+    python %(scriptsdir)s/csv2db.py
+    %(db_options)s
+    %(options)s
+    --table=%(tablename)s
+    ''')
+
+    load_statement = buildStatement()
+
+    return load_statement
+
+
 def load(infile,
          outfile=None,
          options="",
@@ -737,6 +778,7 @@ def load(infile,
         tablename = toTable(outfile)
 
     statement = []
+
     if infile.endswith(".gz"):
         statement.append("zcat %(infile)s")
     else:
@@ -760,40 +802,11 @@ def load(infile,
         # ignore errors from cat or zcat due to broken pipe
         ignore_pipe_errors = True
 
-    opts = []
+    statement.append(build_load_statement(tablename,
+                                          options=options,
+                                          retry=retry))
 
-    if retry:
-        opts.append(" --retry ")
-
-    backend = PARAMS["database_backend"]
-
-    if backend not in ("sqlite", "mysql", "postgres"):
-        raise NotImplementedError(
-            "backend %s not implemented" % backend)
-
-    opts.append("--database-backend=%s" % backend)
-    opts.append("--database-name=%s" %
-                PARAMS.get("database_name"))
-    opts.append("--database-host=%s" %
-                PARAMS.get("database_host", ""))
-    opts.append("--database-user=%s" %
-                PARAMS.get("database_username", ""))
-    opts.append("--database-password=%s" %
-                PARAMS.get("database_password", ""))
-    opts.append("--database-port=%s" %
-                PARAMS.get("database_port", 3306))
-
-    db_options = " ".join(opts)
-
-    statement.append('''
-    python %(scriptsdir)s/csv2db.py
-    %(db_options)s
-    %(options)s
-    --table=%(tablename)s
-    > %(outfile)s
-    ''')
-
-    statement = " | ".join(statement)
+    statement = " | ".join(statement) + " > %(outfile)s"
 
     run()
 
@@ -820,10 +833,8 @@ def concatenateAndLoad(infiles,
 
     infiles = " ".join(infiles)
 
-    tablename = toTable(outfile)
-
     passed_options = options
-    load_options, options = [], []
+    load_options, options = ["--add-index=track"], []
 
     if regex_filename:
         options.append("--regex-filename='%s'" % regex_filename)
@@ -839,19 +850,21 @@ def concatenateAndLoad(infiles,
     else:
         no_titles = ""
 
-    options = " ".join(options)
-    load_options = " ".join(load_options) + " " + passed_options
+    options = " ".join(options + load_options + passed_options)
+
+    load_statement = build_load_statement(toTable(outfile),
+                                          options=options,
+                                          retry=retry)
+
     statement = '''python %(scriptsdir)s/combine_tables.py
-                     --cat=%(cat)s
-                     --missing-value=%(missing_value)s
-                     %(no_titles)s
-                     %(options)s
-                   %(infiles)s
-                   | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                      --add-index=track
-                      --table=%(tablename)s
-                      %(load_options)s
-                   > %(outfile)s'''
+    --cat=%(cat)s
+    --missing-value=%(missing_value)s
+    %(no_titles)s
+    %(options)s
+    %(infiles)s
+    | %(load_statement)s
+    > %(outfile)s'''
+
     run()
 
 
@@ -921,27 +934,27 @@ def mergeAndLoad(infiles,
         filenames = " ".join(
             ["<( cat %s %s )" % (x, column_filter) for x in infiles])
 
-    tablename = toTable(outfile)
-
     if row_wise:
         transform = """| perl -p -e "s/bin/track/"
         | python %(scriptsdir)s/table2table.py --transpose""" % PARAMS
     else:
         transform = ""
 
+    load_statement = build_load_statement(
+        toTable(outfile),
+        options="--add-index=track " + options,
+        retry=retry)
+
     statement = """python %(scriptsdir)s/combine_tables.py
-                      %(header_stmt)s
-                      --skip-titles
-                      --missing-value=0
-                      --ignore-empty
-                   %(filenames)s
-                %(transform)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                      --add-index=track
-                      --table=%(tablename)s
-                      %(options)s
-                > %(outfile)s
-            """
+    %(header_stmt)s
+    --skip-titles
+    --missing-value=0
+    --ignore-empty
+    %(filenames)s
+    %(transform)s
+    | %(load_statement)s
+    > %(outfile)s
+    """
     run()
 
 
@@ -1197,8 +1210,6 @@ def buildStatement(**kwargs):
     if statement.endswith(";"):
         statement = statement[:-1]
 
-    L.debug("running statement:\n%s" % statement)
-
     return statement
 
 
@@ -1380,7 +1391,32 @@ def run(**kwargs):
                                            options['cluster_queue'])
     options['without_cluster'] = options.get('without_cluster')
 
-    def setupJob(session, options):
+    job_memory = None
+
+    if 'job_memory' in options:
+        job_memory = PARAMS.get("cluster_memory_default", "2G")
+
+    elif "mem_free" in options["cluster_options"] and \
+         PARAMS.get("cluster_memory_resource", False):
+
+        E.warn("use of mem_free in job options is deprecated, please"
+               " set job_memory local var instead")
+
+        o = options["cluster_options"]
+        x = re.search("-l\s*mem_free\s*=\s*(\S+)", o)
+        if x is None:
+            raise ValueError(
+                "expecting mem_free in '%s'" % o)
+
+        job_memory = x.groups()[0]
+
+        # remove memory spec from job options
+        options["cluster_options"] = re.sub(
+            "-l\S*mem_free\s*=\s(\S+)", "", o)
+    else:
+        job_memory = PARAMS.get("cluster_memory_default", "2G")
+
+    def setupJob(session, options, job_memory):
 
         jt = session.createJobTemplate()
         jt.workingDirectory = os.getcwd()
@@ -1396,33 +1432,8 @@ def run(**kwargs):
                                   options.get("outfile", "ruffus")))),
             "%(cluster_options)s"]
 
-        # get/set memory usage
-        memory_spec = None
-        if 'job_memory' in options:
-            memory_spec = PARAMS.get("cluster_memory_default", "2G")
-
-        elif "mem_free" in options["cluster_options"] and \
-             PARAMS.get("cluster_memory_resource", False):
-
-            E.warn("use of mem_free in job options is deprecated, please"
-                   " set job_memory local var instead")
-
-            o = options["cluster_options"]
-            x = re.search("-l\s*mem_free\s*=\s*(\S+)", o)
-            if x is None:
-                raise ValueError(
-                    "expecting mem_free in '%s'" % o)
-
-            # remove match
-            options["cluster_options"] = re.sub(
-                "-l\S*mem_free\s*=\s(\S+)", "", o)
-
-            memory_spec = x.groups()[0]
-        else:
-            memory_spec = PARAMS.get("cluster_memory_default", "2G")
-
         spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
-                                  memory_spec))
+                                  job_memory))
 
         # if process has multiple threads, use a parallel environment
         if 'job_threads' in options:
@@ -1456,7 +1467,7 @@ def run(**kwargs):
         not options["without_cluster"] and \
         GLOBAL_SESSION is not None
 
-    def buildJobScript(statement):
+    def buildJobScript(statement, job_memory):
         '''build job script from statement.
 
         returns (name_of_script, stdout_path, stderr_path)
@@ -1474,6 +1485,14 @@ def run(**kwargs):
         tmpfile.write("module list &>> %s\n" % shellfile)
         tmpfile.write(
             'echo "END----------------------------------" >> %s\n' % shellfile)
+
+        # restrict virtual memory
+        # Note that there are resources in SGE which could do this directly
+        # such as v_hmem.
+        # Note that limiting resident set sizes (RSS) with ulimit is not
+        # possible in newer kernels.
+        tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
+
         tmpfile.write(
             expandStatement(
                 statement,
@@ -1500,12 +1519,14 @@ def run(**kwargs):
             if options.get("dryrun", False):
                 return
 
-            jt = setupJob(session, options)
+            jt = setupJob(session, options, job_memory)
 
             job_ids, filenames = [], []
             for statement in statement_list:
+                L.debug("running statement:\n%s" % statement)
 
-                job_path, stdout_path, stderr_path = buildJobScript(statement)
+                job_path, stdout_path, stderr_path = buildJobScript(statement,
+                                                                    job_memory)
 
                 jt.remoteCommand = job_path
                 jt.outputPath = ":" + stdout_path
@@ -1540,13 +1561,15 @@ def run(**kwargs):
         else:
 
             statement = buildStatement(**options)
+            L.debug("running statement:\n%s" % statement)
 
             if options.get("dryrun", False):
                 return
 
-            job_path, stdout_path, stderr_path = buildJobScript(statement)
+            job_path, stdout_path, stderr_path = buildJobScript(statement,
+                                                                job_memory)
 
-            jt = setupJob(session, options)
+            jt = setupJob(session, options, job_memory)
 
             jt.remoteCommand = job_path
             # later: allow redirection of stdout and stderr to files;
@@ -1595,6 +1618,8 @@ def run(**kwargs):
             return
 
         for statement in statement_list:
+            L.debug("running statement:\n%s" % statement)
+
             # process substitution <() and >() does not
             # work through subprocess directly. Thus,
             # the statement needs to be wrapped in

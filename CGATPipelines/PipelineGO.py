@@ -373,12 +373,6 @@ def runGOFromDatabase(outfile, outdir,
                    ontology_file=ontology_file,
                    samples=samples)
 
-############################################################
-############################################################
-############################################################
-##
-############################################################
-
 
 def loadGO(infile, outfile, tablename):
     '''import GO results into individual tables.'''
@@ -389,23 +383,20 @@ def loadGO(infile, outfile, tablename):
         P.touch(outfile)
         return
 
+    load_statement = P.build_load_statement(
+        tablename=tablename,
+        options="--allow-empty-file "
+        "--add-index=category "
+        "--add-index=goid ")
+
     statement = '''
-    python %(toolsdir)s/cat_tables.py %(indir)s/*.overall |\
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
-              --allow-empty-file \
-              --add-index=category \
-              --add-index=goid \
-              --table=%(tablename)s \
+    python %(toolsdir)s/cat_tables.py %(indir)s/*.overall
+    | %(load_statement)s
     > %(outfile)s
     '''
     P.run()
 
 
-############################################################
-############################################################
-############################################################
-##
-############################################################
 def loadGOs(infiles, outfile, tablename):
     '''import GO results into a single table.
 
@@ -458,23 +449,15 @@ def loadGOs(infiles, outfile, tablename):
         tempf2.write("%s\t%s\n" % (line[:-1], str(qvalue)))
 
     tempf2.close()
-    tempfilename = tempf2.name
-    print tempf1.name
-    print tempf2.name
 
-    statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
-              --allow-empty-file 
-              --add-index=category 
-              --add-index=track,geneset,annotationset
-              --add-index=geneset
-              --add-index=annotationset
-              --add-index=goid 
-              --table=%(tablename)s 
-    < %(tempfilename)s
-    > %(outfile)s
-    '''
-    P.run()
+    P.load(tempf2.name, outfile,
+           tablename=tablename,
+           options="--allow-empty-file "
+           "--add-index=category "
+           "--add-index=track,geneset,annotationset "
+           "--add-index=geneset "
+           "--add-index=annotationset "
+           "--add-index=goid ")
 
-    #os.unlink( tempf1.name )
-    #os.unlink( tempf2.name )
+    os.unlink(tempf1.name)
+    os.unlink(tempf2.name)
