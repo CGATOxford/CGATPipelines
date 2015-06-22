@@ -169,7 +169,6 @@ PROCESSED_INPUT_GLOB = [os.path.join("processed.dir", x)
                         for x in INPUT_FORMATS]
 
 
-
 def connect():
     '''
     Setup a connection to an sqlite database
@@ -370,7 +369,9 @@ def buildFastQCSummaryBasicStatistics(infiles, outfile):
                                                      exportdir)
 
 
-@follows(mkdir("experiment.dir"), mkdir("experiment.dir/processed.dir"), loadFastqc)
+@follows(mkdir("experiment.dir"),
+         mkdir("experiment.dir/processed.dir"),
+         loadFastqc)
 @collate(runFastqc,
          regex("(.*)-([^-]*).fastqc"),
          r"experiment.dir/\1_per_sequence_quality.tsv")
