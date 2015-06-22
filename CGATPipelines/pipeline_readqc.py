@@ -157,6 +157,7 @@ INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz"]
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
 REGEX_TRACK = regex(r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
+REGEX_FASTQC = regex(r"([^/]+).fastqc")
 
 SEQUENCEFILES_REGEX = regex(
     r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)")
@@ -351,7 +352,7 @@ def runFastqScreen(infiles, outfile):
     shutil.rmtree(tempdir)
 
 
-@transform(runFastqc, "status_summary.tsv.gz")
+@transform(runFastqc, suffix(".fastqc"), "status_summary.tsv.gz")
 def buildFastQCSummaryStatus(infiles, outfile):
     '''load fastqc status summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
@@ -359,7 +360,7 @@ def buildFastQCSummaryStatus(infiles, outfile):
 
 
 @follows(loadFastqc)
-@transform(runFastqc, "basic_statistics_summary.tsv.gz")
+@transform(runFastqc, suffix(".fastqc"), "basic_statistics_summary.tsv.gz")
 def buildFastQCSummaryBasicStatistics(infiles, outfile):
     '''load fastqc summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
