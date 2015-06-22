@@ -325,6 +325,7 @@ def loadFastqc(infile, outfile):
                               port=PARAMS["database_port"])
     P.touch(outfile)
 
+
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
