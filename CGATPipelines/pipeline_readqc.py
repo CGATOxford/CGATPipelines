@@ -184,13 +184,13 @@ if PARAMS.get("preprocessors", None):
     PREPROCESSTOOLS = [tool for tool
                        in P.asList(PARAMS["preprocessors"])]
     preprocess_prefix = ("-".join(PREPROCESSTOOLS[::-1]) + "-")
-
     if PARAMS["auto_remove"]:
         @follows(mkdir("fasta.dir"))
         @transform(INPUT_FORMATS,
                    SEQUENCEFILES_REGEX,
                    r"fasta.dir/\1.fasta")
         def makeAdaptorFasta(infile, outfile):
+
             '''
             Make a single fasta file for each sample of all contaminant adaptor
             sequences for removal
@@ -214,12 +214,13 @@ if PARAMS.get("preprocessors", None):
             PipelinePreprocess.mergeAdaptorFasta(infiles, outfile)
 
     else:
+
         @follows(mkdir("fasta.dir"))
         @transform(INPUT_FORMATS,
                    SEQUENCEFILES_REGEX,
                    r"fasta.dir/\1.fasta")
         def aggregateAdaptors(infile, outfile):
-
+            print("I'm there\n")
             P.touch(outfile)
 
     @follows(mkdir("processed.dir"),
@@ -282,7 +283,7 @@ else:
         pass
 
 
-@follows(mkdir(PARAMS["exportdir"]),
+@follows(processReads, mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
 @transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
            REGEX_TRACK,
@@ -330,7 +331,7 @@ def loadFastqc(infile, outfile):
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
            REGEX_TRACK,
-            r"%s/fastq_screen/\1.fastq.1_screen.png" % PARAMS['exportdir'])
+           r"%s/fastq_screen/\1.fastq.1_screen.png" % PARAMS['exportdir'])
 def runFastqScreen(infiles, outfile):
     '''run FastqScreen on input files.'''
 
@@ -412,7 +413,8 @@ def loadFastqcSummary(infile, outfile):
     P.load(infile, outfile, options="--add-index=track")
 
 
-@follows(loadFastqc,
+@follows(processReads,
+         loadFastqc,
          loadFastqcSummary,
          loadExperimentLevelReadQualities,
          runFastqScreen)
