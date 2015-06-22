@@ -109,7 +109,7 @@ def buildPicardAlignmentStats(infile, outfile, genome_file):
 
     # Picard seems to have problem if quality information is missing
     # or there is no sequence/quality information within the bam file.
-    # Thus, add it explicitely.
+    # Thus, add it explicitly.
     statement = '''cat %(infile)s
     | python %(scriptsdir)s/bam2bam.py -v 0
     --method=set-sequence --output-sam
