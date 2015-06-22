@@ -21,16 +21,17 @@ Overview
 Usage
 =====
 
-See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general information how to use CGAT pipelines.
+See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general
+information how to use CGAT pipelines.
 
 Configuration
 -------------
 
-The pipeline requires a configured :file:`pipeline.ini` file. 
+The pipeline requires a configured :file:`pipeline.ini` file.
 
-The sphinxreport report requires a :file:`conf.py` and :file:`sphinxreport.ini` file 
-(see :ref:`PipelineReporting`). To start with, use the files supplied with the
-Example_ data.
+The sphinxreport report requires a :file:`conf.py` and
+:file:`sphinxreport.ini` file (see :ref:`PipelineReporting`). To start
+with, use the files supplied with the Example_ data.
 
 Input
 -----
@@ -63,11 +64,12 @@ Optional inputs
 Requirements
 ------------
 
-The pipeline requires the results from :doc:`pipeline_annotations`. Set the configuration variable 
+The pipeline requires the results from
+:doc:`pipeline_annotations`. Set the configuration variable
 :py:data:`annotations_database` and :py:data:`annotations_dir`.
 
-On top of the default CGAT setup, the pipeline requires the following software to be in the 
-path:
+On top of the default CGAT setup, the pipeline requires the following
+software to be in the path:
 
 +--------------------+-------------------+------------------------------------------------+
 |*Program*           |*Version*          |*Purpose*                                       |
@@ -83,8 +85,9 @@ The major output is in the database file :file:`csvdb`.
 Example
 =======
 
-Example data is available at http://www.cgat.org/~andreas/sample_data/pipeline_variants.tgz.
-To run the example, simply unpack and untar::
+Example data is available at
+http://www.cgat.org/~andreas/sample_data/pipeline_variants.tgz.  To
+run the example, simply unpack and untar::
 
    wget http://www.cgat.org/~andreas/sample_data/pipeline_variants.tgz
    tar -xvzf pipeline_variants.tgz
@@ -232,22 +235,10 @@ def buildAnnotations(infile, outfile, sample):
 def loadAnnotations(infile, outfile):
     '''load variant annotations into database'''
 
-    tablename = P.toTable(outfile)
-
-    statement = '''gunzip < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
-              --quick
-              --map=gene_id:str 
-              --add-index=gene_id 
-              --table=%(tablename)s
-              --map=base_qualities:text 
-    > %(outfile)s
-    '''
-    P.run()
-
-###################################################################
-###################################################################
-###################################################################
+    P.load(infile, outfile,
+           options="--map=gene_id:str "
+           "--add-index=gene_id "
+           "--map=base_qualities:text ")
 
 
 @merge(buildAnnotations, 'annotations.load')
@@ -270,15 +261,8 @@ def mergeAnnotations(infiles, outfile):
             outf.write("%s\t%s" % (track, lines[i]))
     outf.close()
 
-    statement = '''cat anno.txt |
-                   python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
-                       --table=%(tablename)s 
-                   > %(outfile)s'''
-    P.run()
-
-###################################################################
-###################################################################
-###################################################################
+    P.load('anno.text',
+           outfile)
 
 
 @transform(buildAnnotations,
@@ -286,8 +270,6 @@ def mergeAnnotations(infiles, outfile):
            '_annotations.summary')
 def summarizeAnnotations(infile, outfile):
     '''compute summary stats for annotation files.'''
-
-    to_cluster = True
 
     # count substitutions for each category
     statement = '''gunzip 
@@ -304,27 +286,13 @@ def summarizeAnnotations(infile, outfile):
     '''
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @transform(summarizeAnnotations,
            suffix('_annotations.summary'),
            '_annotations_summary.load')
 def loadAnnotationsSummary(infile, outfile):
     '''load annotations'''
-
-    tablename = P.toTable(outfile)
-
-    statement = '''cat
-    < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
-              --add-index=code
-              --table=%(tablename)s
-    > %(outfile)s
-    '''
-    P.run()
+    P.load(infile, outfile, options="--add-index=code")
 
 ###################################################################
 ###################################################################
@@ -337,7 +305,6 @@ def loadAnnotationsSummary(infile, outfile):
 def buildEffects(infile, outfile, sample):
     """annotate snps with gene set."""
 
-    to_cluster = True
     seleno = "seleno.list"
     transcripts = os.path.join(
         PARAMS["annotations_dir"], PARAMS_ANNOTATIONS["interface_geneset_cds_gtf"])
@@ -366,32 +333,20 @@ def loadEffects(infile, outfile):
 
     root = infile[:-len(".effects.gz")]
 
-    statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
-              --from-zipped \
-              --add-index=transcript_id \
-              --table=%(root)s_effects \
-    < %(infile)s > %(outfile)s
-    '''
-    P.run()
+    P.load(infile,
+           outfile,
+           tablename=root + "_effects",
+           options="--add-index=transcript_id")
 
     for suffix in ("cds", "intron", "splicing", "translation"):
 
-        statement = '''
-        gunzip < %(infile)s.%(suffix)s.gz
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
-        --allow-empty-file
-        --add-index=transcript_id 
-        --table=%(root)s_effects_%(suffix)s 
-        --ignore-column=seq_na
-        --ignore-column=seq_aa
-        >> %(outfile)s
-        '''
-        P.run()
-
-###################################################################
-###################################################################
-###################################################################
+        P.load(infile,
+               outfile,
+               tablename=root + "_effects_" + suffix,
+               options="--add-index=transcript_id "
+               "--allow-empty-file "
+               "--ignore-column=seq_na "
+               "--ignore-column=seq_aa")
 
 
 @merge(buildEffects, "effects.load")
@@ -414,12 +369,9 @@ def mergeEffects(infiles, outfile):
             outf.write("%s\t%s" % (track, lines[i]))
     outf.close()
 
-    statement = '''cat effect.txt |
-                   python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
-                       --add-index=transcript_id \
-                       --table=%(tablename)s \
-                   > %(outfile)s'''
-    P.run()
+    P.load("effect.txt",
+           outfile,
+           options="--add-index=transcript_id")
 
     for suffix in ("cds", "intron", "splicing", "translation", "genes"):
 
@@ -441,19 +393,13 @@ def mergeEffects(infiles, outfile):
         outf.close()
         tmpfilename = outf.name
 
-        statement = '''cat %(tmpfilename)s |
-                       python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
-                           --allow-empty-file
-                           --add-index=transcript_id 
-                           --table=%(tablename)s_%(suffix)s 
-                           --ignore-column=seq_na
-                           --ignore-column=seq_aa
-                       >> %(outfile)s'''
-        P.run()
-
-###################################################################
-###################################################################
-###################################################################
+        P.load(outf.name,
+               outfile,
+               tablename=tabelname + "_" + suffix,
+               options="--add-index=transcript_id "
+               "--allow-empty-file "
+               "--ignore-column=seq_na "
+               "--ignore-column=seq_aa")
 
 
 @transform(loadEffects, suffix("_effects.load"), "_effects_genes.load")
@@ -494,10 +440,6 @@ def summarizeEffectsPerGene(infile, outfile):
     dbhandle.commit()
 
     P.touch(outfile)
-
-###################################################################
-###################################################################
-###################################################################
 
 
 @merge(mergeEffects, "effects_genes.load")
@@ -776,49 +718,35 @@ def runPolyphen(infile, outfile, model):
 
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @transform(buildPolyphenInput, suffix(".input"), "_map.load")
 def loadPolyphenMap(infile, outfile):
     '''load polyphen input data.'''
 
-    table = P.toTable(outfile)
-    statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=snp_id 
-              --add-index=track,transcript_id
-              --add-index=contig,pos
-              --add-index=protein_id
-              --add-index=transcript_id
-              --table=%(table)s 
-    < %(infile)s.map
-    > %(outfile)s
-    '''
-    P.run()
-
-###################################################################
-###################################################################
-###################################################################
+    P.load(infile + ".map",
+           outfile,
+           options="--add-index=snp_id "
+           "--add-index=track,transcript_id "
+           "--add-index=contig,pos "
+           "--add-index=protein_id "
+           "--add-index=transcript_id ")
 
 
 @transform(runPolyphen, suffix(".output.gz"), ".load")
 def loadPolyphen(infile, outfile):
     '''load polyphen results.'''
 
-    table = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=snp_id "
+        "--add-index=protein_id "
+        "--map=effect:str")
 
     statement = '''
     gunzip 
     < %(infile)s
     | perl -p -e "s/o_acc/protein_id/; s/ +//g; s/^#//;"
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=snp_id 
-              --add-index=protein_id
-              --table=%(table)s 
-              --map=effect:str
+    | %(load_statement)s
     > %(outfile)s
     '''
     P.run()
@@ -976,33 +904,20 @@ def analysePolyphen(infile, outfile):
 
     outf.close()
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @transform(analysePolyphen, suffix(".genestats"), "_genestats.load")
 def loadPolyphenAnalysis(infile, outfile):
     '''load polyphen analysis results.'''
 
-    table = P.toTable(outfile)
-
-    statement = '''
-    cat < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=gene_id 
-              --map=code:str
-              --table=%(table)s 
-    > %(outfile)s
-    '''
-    P.run()
-
-###################################################################
-###################################################################
-###################################################################
+    P.load(infile, outfile,
+           options="--add-index=gene_id --map=code:str")
 
 
-@split(loadPolyphenMap, ("counts_shared.matrix", "counts_segregation.matrix", "counts_pid.matrix", "counts_distance.matrix", "counts.tree"
+@split(loadPolyphenMap, ("counts_shared.matrix",
+                         "counts_segregation.matrix",
+                         "counts_pid.matrix",
+                         "counts_distance.matrix",
+                         "counts.tree"
                          ))
 def buildSharedSNPMatrix(infiles, outfiles):
     '''build matrix of shared coding nonsynonymous SNPs.

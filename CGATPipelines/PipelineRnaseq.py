@@ -1056,18 +1056,13 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
 
         Expression.writeExpressionResults(tmpname, results)
 
-        statement = '''cat %(tmpname)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=treatment_name
-              --add-index=control_name
-              --add-index=test_id
-              --table=%(tablename)s
-         >> %(outfile)s.log
-         '''
-
-        P.run()
-
+        P.load(infile, outfile,
+               tablename=tablename,
+               options="--allow-empty-file "
+               "--add-index=treatment_name "
+               "--add-index=control_name "
+               "--add-index=test_id")
+               
     for fn, level in (("cds.fpkm_tracking.gz", "cds"),
                       ("genes.fpkm_tracking.gz", "gene"),
                       ("isoforms.fpkm_tracking.gz", "isoform"),
@@ -1075,15 +1070,12 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
 
         tablename = prefix + "_" + level + "_levels"
 
-        statement = '''zcat %(indir)s/%(fn)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=tracking_id
-              --table=%(tablename)s
-         >> %(outfile)s.log
-         '''
-
-        P.run()
+        P.load(infile, outfile,
+               tablename=tablename,
+               options="--allow-empty-file "
+               "--add-index=tracking_id "
+               "--add-index=control_name "
+               "--add-index=test_id")
 
     # Jethro - load tables of sample specific cuffdiff fpkm values into csvdb
     # IMS: First read in lookup table for CuffDiff/Pipeline sample name
@@ -1175,14 +1167,11 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
 
         outf.close()
 
-        statement = ("cat %(tmpf)s |"
-                     " python %(scriptsdir)s/csv2db.py "
-                     "  %(csv2db_options)s"
-                     "  --allow-empty-file"
-                     "  --add-index=gene_id"
-                     "  --table=%(tablename)s"
-                     " >> %(outfile)s.log")
-        P.run()
+        P.load(tmpf,
+               outfile,
+               tablename=tablename,
+               options="--allow-empty-file "
+               " --add-index=gene_id")
 
         os.unlink(tmpf)
 

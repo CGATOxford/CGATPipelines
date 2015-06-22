@@ -739,7 +739,7 @@ def build_load_statement(tablename, retry=True, options=""):
     --table=%(tablename)s
     ''')
 
-    load_statement = buildStatement()
+    load_statement = buildStatement(**locals())
 
     return load_statement
 
@@ -850,7 +850,7 @@ def concatenateAndLoad(infiles,
     else:
         no_titles = ""
 
-    options = " ".join(options + load_options + passed_options)
+    options = " ".join(options + load_options) + " " + passed_options
 
     load_statement = build_load_statement(toTable(outfile),
                                           options=options,
