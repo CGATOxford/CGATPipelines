@@ -1088,15 +1088,10 @@ def mapReadsWithButter(infile, outfile):
         Butter does not support paired end reads''' % locals())
 
     job_threads = PARAMS["butter_threads"]
-<<<<<<< HEAD
-    job_memory = PARAMS["butter_memory"]
-    m = PipelineMapping.Butter(strip_sequence=PARAMS["strip_sequence"])
-=======
     job_options = "-l mem_free=%s" % PARAMS["butter_memory"]
     m = PipelineMapping.Butter(
         strip_sequence=PARAMS["strip_sequence"],
         set_nh=PARAMS["butter_set_nh"])
->>>>>>> 14345e89bfb43ee910097db3c6f94058beafdd2c
     statement = m.build((infile,), outfile)
     P.run()
 
@@ -1313,12 +1308,7 @@ def buildBAMStats(infiles, outfile):
     '''
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
-
-<<<<<<< HEAD
-    job_memory = "12G"
-=======
     job_memory = "1.9G"
->>>>>>> 14345e89bfb43ee910097db3c6f94058beafdd2c
 
     bamfile, readsfile = infiles
 
