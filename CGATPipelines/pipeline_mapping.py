@@ -718,7 +718,8 @@ def mapReadsWithTophat2(infiles, outfile):
         strip_sequence=PARAMS["strip_sequence"])
 
     infile, reffile, transcriptfile = infiles
-    tophat2_options = tophat2_options + " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = PARAMS["tophat2_options"] + \
+                      " --raw-juncs %(reffile)s " % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -1311,7 +1312,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_memory = "4G"
+    job_memory = "8G"
 
     bamfile, readsfile = infiles
 

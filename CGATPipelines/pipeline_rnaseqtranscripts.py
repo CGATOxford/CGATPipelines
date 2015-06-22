@@ -748,7 +748,7 @@ def buildCodingGeneSet(infiles, outfile):
     This set includes UTR and CDS.
     '''
 
-    infile, genes_tsv = infiles
+    infile, gene_tsv = infiles
 
     statement = '''
     zcat %(infile)s
@@ -800,10 +800,12 @@ def buildCodingTranscriptSet(infile, outfile):
 
 # Nick - added building of a mask file for omitting certain regions during
 # gene model building
+# Tom - this needs updating for ensembl >v79 GTFs
+# (no longer contain "rRNA" in source")
 
 
 @files(os.path.join(PARAMS["annotations_dir"],
-                    "geneset_all.gtf.gz"),
+                    PARAMS_ANNOTATIONS["interface_geneset_all_gtf"]),
        "geneset_mask.gtf")
 def buildMaskGtf(infile, outfile):
     '''
