@@ -330,7 +330,7 @@ def loadFastqc(infile, outfile):
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
            REGEX_TRACK,
-           r"\1.fastqscreen")
+            r"%s/fastq_screen/\1.fastq.1_screen.png" % PARAMS['exportdir'])
 def runFastqScreen(infiles, outfile):
     '''run FastqScreen on input files.'''
 
@@ -353,7 +353,7 @@ def runFastqScreen(infiles, outfile):
     shutil.rmtree(tempdir)
 
 
-@transform(runFastqc, suffix(".fastqc"), "status_summary.tsv.gz")
+@merge(runFastqc, "status_summary.tsv.gz")
 def buildFastQCSummaryStatus(infiles, outfile):
     '''load fastqc status summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
@@ -361,7 +361,7 @@ def buildFastQCSummaryStatus(infiles, outfile):
 
 
 @follows(loadFastqc)
-@transform(runFastqc, suffix(".fastqc"), "basic_statistics_summary.tsv.gz")
+@merge(runFastqc, "basic_statistics_summary.tsv.gz")
 def buildFastQCSummaryBasicStatistics(infiles, outfile):
     '''load fastqc summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
