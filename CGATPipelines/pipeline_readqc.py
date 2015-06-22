@@ -157,7 +157,6 @@ INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz"]
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
 REGEX_TRACK = regex(r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
-REGEX_FASTQC = regex(r"([^/]+).fastqc")
 
 SEQUENCEFILES_REGEX = regex(
     r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)")
@@ -168,6 +167,7 @@ UNPROCESSED_INPUT_GLOB = INPUT_FORMATS
 # List of processed (trimmed, etc) input files
 PROCESSED_INPUT_GLOB = [os.path.join("processed.dir", x)
                         for x in INPUT_FORMATS]
+
 
 
 def connect():
@@ -370,7 +370,7 @@ def buildFastQCSummaryBasicStatistics(infiles, outfile):
                                                      exportdir)
 
 
-@follows(mkdir("experiment.dir"))
+@follows(mkdir("experiment.dir"), mkdir("experiment.dir/processed.dir"), loadFastqc)
 @collate(runFastqc,
          regex("(.*)-([^-]*).fastqc"),
          r"experiment.dir/\1_per_sequence_quality.tsv")
