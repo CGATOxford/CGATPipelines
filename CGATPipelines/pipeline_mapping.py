@@ -278,6 +278,7 @@ def connect():
 
     return dbh
 
+
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
@@ -718,8 +719,7 @@ def mapReadsWithTophat2(infiles, outfile):
         strip_sequence=PARAMS["strip_sequence"])
 
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + \
-                      " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = PARAMS["tophat2_options"] + " --raw-juncs %(reffile)s " % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
