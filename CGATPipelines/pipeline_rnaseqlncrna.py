@@ -218,7 +218,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_annotations_database"])
     cc = dbh.cursor()
@@ -239,7 +239,7 @@ def Rconnect():
     R('''library("RSQLite")''')
     R('''library("sciplot")''')
     R('''drv <- dbDriver("SQLite")''')
-    R('''con <- dbConnect(drv, dbname = "%s") ''' % PARAMS["database"])
+    R('''con <- dbConnect(drv, dbname = "%s") ''' % PARAMS["database_name"])
     return R('''con''')
 
 #########################################################################

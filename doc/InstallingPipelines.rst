@@ -58,7 +58,8 @@ Software requirements
 On top of pipeline specific bioinformatics software, CGAT pipelines
 make use a variety of software. Unfortunately we can't support many
 versions. The following table gives a list software that are currently
-being required, installed and the location where the dependency arises:
+being required, installed and the location where the dependency
+arises:
 
 .. How to create this table:
 .. python scripts/cgat_list_dependencies.py | tab2rst
@@ -192,9 +193,10 @@ Please see the installation instructions for the `CGAT Toolkit
 Python libraries
 ----------------
 
-CGAT uses python extensively and is currently developed against python 2.7.1. Python
-2.6 should work as well, but some libraries present in 2.7.1 but missing in 2.6
-might need to be installed. Scripts have not yet been ported to python 3.
+CGAT uses python extensively and is currently developed against python
+2.7.1. Python 2.6 should work as well, but some libraries present in
+2.7.1 but missing in 2.6 might need to be installed. Scripts have not
+yet been ported to python 3.
 
 The CGAT pipelines require several python libraries to be installed.
 When installing the CGAT code collection, these dependencies are

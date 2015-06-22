@@ -890,7 +890,7 @@ def confirmParentage(infiles, outfile):
         'family', 'sample', 'father', 'mother', 'sex', 'status'])
     trio = P.snip(os.path.basename(pedfile), ".ped")
     trio = trio.replace(".", "_").replace("-", "_")
-    database = PARAMS["database"]
+    database = PARAMS["database_name"]
     proband = None
     mother = None
     father = None

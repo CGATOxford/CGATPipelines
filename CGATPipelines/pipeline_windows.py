@@ -175,7 +175,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' %\
                 (PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -229,7 +229,7 @@ def buildBackgroundWindows(infile, outfile):
     '''compute regions with high background count in input
     '''
 
-    job_options = "-l mem_free=16G"
+    job_memory = "16G"
 
     statement = '''
     python %(scriptsdir)s/wig2bed.py
@@ -427,9 +427,8 @@ def buildCpGCoverage(infiles, outfile):
     # could be done in very little memory.
 
     infile, cpg_file = infiles
-    to_cluster = True
 
-    job_options = "-l mem_free=16G"
+    job_memory = "16G"
 
     statement = '''
     zcat %(infile)s
@@ -836,7 +835,8 @@ def summarizeAllWindowsReadCounts(infile, outfile):
     '''perform summarization of read counts'''
 
     prefix = P.snip(outfile, ".tsv")
-    job_options = "-l mem_free=32G"
+    job_memory = "32G"
+
     statement = '''python %(scriptsdir)s/runExpression.py
     --method=summary
     --tags-tsv-file=%(infile)s
@@ -1266,7 +1266,7 @@ def mergeDMRWindows(infile, outfile):
 
     prefix = P.snip(outfile, ".tsv.gz")
 
-    job_options = "-l mem_free=3G"
+    job_memory = "3G"
 
     statement = '''
     zcat %(infile)s
@@ -1593,7 +1593,7 @@ def buildContextStats(infiles, outfile):
     infile, reffile = infiles
 
     min_overlap = 0.5
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
 
     statement = '''
        python %(scriptsdir)s/bam_vs_bed.py

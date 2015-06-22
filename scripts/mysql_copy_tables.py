@@ -106,7 +106,7 @@ def main(argv=None):
         target_database="gbrowser_%s",
     )
 
-    (options, args) = E.Start(parser, add_mysql_options=True)
+    (options, args) = E.Start(parser, add_database_options=True)
 
     dbhandle = MySQLdb.Connect(host=options.host,
                                user=options.user,

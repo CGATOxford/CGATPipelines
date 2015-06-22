@@ -202,7 +202,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -385,7 +385,7 @@ if PARAMS["background_match"]:
                                                input_foreground,
                                                fasta_file,
                                                outfile,
-                                               PARAMS["database"],
+                                               PARAMS["database_name"],
                                                PARAMS["genesets_header"],
                                                PARAMS["background_match_stat"],
                                                PARAMS["sig_testing_method"])
@@ -520,7 +520,7 @@ def buildMatchMetrics(infile, outfile):
     '''
     tablename = filenameToTablename(
         os.path.basename(P.snip(infile, ".load"))) + "_result"
-    PipelineTFM.frequencyMetrics(PARAMS["database"], tablename, outfile)
+    PipelineTFM.frequencyMetrics(PARAMS["database_name"], tablename, outfile)
 
 ###############################################################################
 ###############################################################################
@@ -647,7 +647,7 @@ if PARAMS['sig_testing_method'] == "fisher":
 
             PipelineTFM.testSignificanceOfMatrices(background,
                                                    foreground,
-                                                   PARAMS["database"],
+                                                   PARAMS["database_name"],
                                                    match_table,
                                                    outfile)
 
@@ -771,7 +771,7 @@ def collateEnrichmentOfTFBS(infiles, outfile):
     def _fetch(table_name):
         table_name = table_name.replace("-", "_")
         # retrieve table
-        dbh = sqlite3.connect(PARAMS["database"])
+        dbh = sqlite3.connect(PARAMS["database_name"])
         cc = dbh.cursor()
         data = cc.execute("SELECT * FROM %s" % table_name).fetchall()
         cc.close()

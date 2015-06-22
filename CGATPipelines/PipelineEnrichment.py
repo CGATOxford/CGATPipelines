@@ -319,7 +319,7 @@ def buildGeneSetAnnotations(infiles, outfile, slice):
     else:
         where = "is_%(slice)s" % locals()
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     subsets = []
 
@@ -557,7 +557,7 @@ def buildAnnotatorSegmentsROI(tmpdir, roi_class, outfile, overlap=None):
     tmpsegments = os.path.join(tmpdir, "segments")
     to_cluster = True
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     if overlap:
         statement = '''

@@ -49,10 +49,11 @@ def createGOFromENSEMBL(infile, outfile):
     statement = '''
     python %(scriptsdir)s/runGO.py
     --filename-dump=%(outfile)s
-    --host=%(go_host)s
-    --user=anonymous
-    --database=%(go_database)s
-    --port=%(go_port)i > %(outfile)s.log
+    --database-host=%(go_host)s
+    --database-user=anonymous
+    --database-name=%(go_database)s
+    --database-port=%(go_port)i
+    > %(outfile)s.log
     '''
 
     P.run()
@@ -82,7 +83,7 @@ def createGOFromGeneOntology(infile, outfile):
         " annotation_extension"
         " gene_product_form_id")
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     cc = dbh.cursor()
     map_uniprot2ensembl = dict(
         cc.execute("SELECT DISTINCT gene_name, gene_id FROM transcript_info").fetchall())
@@ -347,7 +348,7 @@ def runGOFromDatabase(outfile, outdir,
     ``statement_foreground`` and ``statement_background``
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     cc = dbhandle.cursor()
     fg = set([x[0] for x in cc.execute(statement_fg).fetchall()])

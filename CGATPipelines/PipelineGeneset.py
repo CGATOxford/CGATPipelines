@@ -540,7 +540,7 @@ def buildCDSFasta(infile, outfile):
 
     tmpfile = P.getTempFile(".")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
     tmpfile.write("protein_id\ttranscript_id\n")
     tmpfile.write("\n".join(

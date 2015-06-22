@@ -17,6 +17,7 @@ def FastqcSectionIterator(infile):
     """iterate over FASTQC output file and yield each section.
     """
     data = []
+    name, status, header, data = None, None, None, None
     for line in infile:
         if line.startswith(">>END_MODULE"):
             yield name, status, header, data
@@ -44,8 +45,25 @@ def collectFastQCSections(infiles, section, datadir):
     return results
 
 
-def loadFastqc(filename):
-    '''load FASTQC stats.'''
+def loadFastqc(filename,
+               backend="sqlite",
+               database="csvdb",
+               host="",
+               username="",
+               password="",
+               port=3306):
+    '''load FASTQC statistics.'''
+
+    parser = CSV2DB.buildParser()
+    (options, args) = parser.parse_args([])
+
+    options.database_backend = backend
+    options.database_host = host
+    options.database_name = database
+    options.database_username = username
+    options.database_password = password
+    options.database_port = port
+    options.allow_empty = True
 
     for fn in glob.glob(filename):
         prefix = os.path.basename(os.path.dirname(fn))
@@ -57,20 +75,14 @@ def loadFastqc(filename):
             if name == "Basic Statistics":
                 continue
 
-            parser = CSV2DB.buildParser()
-            (options, args) = parser.parse_args([])
             options.tablename = prefix + "_" + re.sub(" ", "_", name)
-            options.allow_empty = True
 
             inf = cStringIO.StringIO("\n".join([header] + data) + "\n")
             CSV2DB.run(inf, options)
             results.append((name, status))
 
         # load status table
-        parser = CSV2DB.buildParser()
-        (options, args) = parser.parse_args([])
         options.tablename = prefix + "_status"
-        options.allow_empty = True
 
         inf = cStringIO.StringIO(
             "\n".join(["name\tstatus"] +
@@ -89,7 +101,6 @@ def buildFastQCSummaryStatus(infiles, outfile, datadir):
         filename = os.path.join(datadir,
                                 track + "*_fastqc",
                                 "fastqc_data.txt")
-        
         # there can be missing sections
         for fn in glob.glob(filename):
             stats = collections.defaultdict(str)
@@ -99,7 +110,7 @@ def buildFastQCSummaryStatus(infiles, outfile, datadir):
 
             results.append((track, fn, stats))
             names.update(stats.keys())
-            
+
     names = list(names)
     outf.write("track\tfilename\t%s\n" % "\t".join(names))
     for track, fn, stats in results:
@@ -133,6 +144,10 @@ def buildExperimentReadQuality(infiles, outfile, datadir):
                                  "Per sequence quality scores",
                                  datadir)
     first = True
+
+    if len(data) == 0:
+        raise ValueError("received no data")
+
     for track, status, header, rows in data:
         T = track
         rows = [map(float, x.split("\t")) for x in rows]

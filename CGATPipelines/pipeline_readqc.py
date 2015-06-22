@@ -212,7 +212,13 @@ def loadFastqc(infile, outfile):
     filename = os.path.join(
         PARAMS["exportdir"], "fastqc", track + "*_fastqc", "fastqc_data.txt")
 
-    PipelineReadqc.loadFastqc(filename)
+    PipelineReadqc.loadFastqc(filename,
+                              backend=PARAMS["database_backend"],
+                              database=PARAMS["database_name"],
+                              host=PARAMS["database_host"],
+                              username=PARAMS["database_username"],
+                              password=PARAMS["database_password"],
+                              port=PARAMS["database_port"])
     P.touch(outfile)
 
 # if preprocess tools are specified, process reads and run fastqc on output
@@ -352,7 +358,7 @@ else:
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
            REGEX_TRACK,
-           r"\1.txt")
+           r"\1.fastqscreen")
 def runFastqScreen(infiles, outfile):
     '''run FastqScreen on input files.'''
 

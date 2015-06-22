@@ -330,7 +330,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -1550,7 +1550,7 @@ def buildPrunedGeneSet(infiles, outfile):
 
     tablename = P.quote(P.snip(tracking, ".load") + "_tracking")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     tables = Database.getTables(dbhandle)
     if tablename in tables:
         cc = dbhandle.cursor()
@@ -2154,7 +2154,7 @@ def buildReproducibility(infile, outfile):
 
     replicates = PipelineTracks.getSamplesInTrack(track, TRACKS)
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tablename = "%s_cuffcompare_fpkm" % track.asTable()
     tablename2 = "%s_cuffcompare_tracking" % track.asTable()

@@ -32,7 +32,7 @@ def buildDMRStats(tables, method, outfile):
 
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     def togeneset(tablename):
         return re.match("([^_]+)_", tablename).groups()[0]

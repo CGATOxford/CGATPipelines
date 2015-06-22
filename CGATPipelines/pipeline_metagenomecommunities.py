@@ -263,7 +263,7 @@ def connect():
 
     This method also attaches to helper databases.
     '''
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     return dbh
 
 ###################################################################
