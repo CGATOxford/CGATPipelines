@@ -270,7 +270,8 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
+        PARAMS["annotations_db"])
+
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
@@ -337,13 +338,36 @@ def buildReferenceGeneSet(infile, outfile):
 
 
 @active_if(SPLICED_MAPPING)
+@originate("protein_coding_gene_ids.tsv")
+def identifyProteinCodingGenes(outfile):
+    dbh = connect()
+    table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
+
+    try:
+        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
+        WHERE gene_biotype = 'protein_coding';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or gene_biotype column. "
+                   "Error message: '%s'" % error)
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("gene_id\n")
+        outf.write("\n".join((x[0] for x in select)) + "\n")
+
+
+@active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
-def buildCodingGeneSet(infile, outfile):
+def buildCodingGeneSet(infiles, outfile):
     '''build a gene set with only protein coding transcripts.
 
-    Genes are selected via their gene biotype in the GTF file.
+    Genes are no longer selected via their gene biotype in the GTF file.
+
+    Genes are now identified from the annotation database table and then
+    provided in a tsv file to gtf2gtf.py
+
     Note that this set will contain all transcripts of protein
     coding genes, including processed transcripts.
 
@@ -351,11 +375,14 @@ def buildCodingGeneSet(infile, outfile):
 
     '''
 
+    infile, genes_tsv = infiles
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
-    --filter-method=proteincoding
+    --filter-method=gene
+    --map-tsv-file=%(genes_tsv)s
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s
@@ -690,6 +717,7 @@ def mapReadsWithTophat2(infiles, outfile):
     m = PipelineMapping.Tophat2(
         executable=P.substituteParameters(**locals())["tophat2_executable"],
         strip_sequence=PARAMS["strip_sequence"])
+
     infile, reffile, transcriptfile = infiles
     tophat2_options = PARAMS["tophat2_options"] + \
         " --raw-juncs %(reffile)s " % locals()
@@ -1048,7 +1076,7 @@ def mapReadsWithStampy(infile, outfile):
            r"butter.dir/\1.butter.bam")
 def mapReadsWithButter(infile, outfile):
     '''map reads with butter'''
-    # easier to check whether infiles arepaired reads here
+    # easier to check whether infiles are paired reads here
     if infile.endswith(".sra"):
         outdir = P.getTempDir()
         f = Sra.sneak(infile, outdir)
@@ -1061,8 +1089,10 @@ def mapReadsWithButter(infile, outfile):
         Butter does not support paired end reads''' % locals())
 
     job_threads = PARAMS["butter_threads"]
-    job_memory = PARAMS["butter_memory"]
-    m = PipelineMapping.Butter(strip_sequence=PARAMS["strip_sequence"])
+    job_options = "-l mem_free=%s" % PARAMS["butter_memory"]
+    m = PipelineMapping.Butter(
+        strip_sequence=PARAMS["strip_sequence"],
+        set_nh=PARAMS["butter_set_nh"])
     statement = m.build((infile,), outfile)
     P.run()
 
@@ -1101,7 +1131,7 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
     if "merge_pattern_output" not in PARAMS or \
        not PARAMS["merge_pattern_output"]:
         raise ValueError(
-            "no output pattern 'merge_pattern_output' specificied")
+            "no output pattern 'merge_pattern_output' specified")
 
     @collate(MAPPINGTARGETS,
              regex("%s\.([^.]+).bam" % PARAMS["merge_pattern_input"].strip()),
@@ -1251,8 +1281,7 @@ def buildBAMStats(infiles, outfile):
     '''
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
-
-    job_memory = "12G"
+    job_memory = "1.9G"
 
     bamfile, readsfile = infiles
 
@@ -1756,7 +1785,7 @@ def full():
     pass
 
 
-@follows(buildJunctions)
+@follows(buildCodingGeneSet)
 def test():
     pass
 
