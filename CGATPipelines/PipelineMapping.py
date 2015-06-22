@@ -1417,7 +1417,6 @@ class Tophat(Mapper):
 
     def __init__(self, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
-        
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -1576,6 +1575,7 @@ class Tophat2_fusion(Tophat2):
         ''' % locals()
 
         return statement
+
 
 class TopHat_fusion(Mapper):
 
