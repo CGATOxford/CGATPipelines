@@ -351,15 +351,15 @@ def runFastqScreen(infiles, outfile):
     shutil.rmtree(tempdir)
 
 
-@merge((runFastqcFinal, runFastqc), "status_summary.tsv.gz")
+@transform(runFastqc, "status_summary.tsv.gz")
 def buildFastQCSummaryStatus(infiles, outfile):
     '''load fastqc status summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
     PipelineReadqc.buildFastQCSummaryStatus(infiles, outfile, exportdir)
 
 
-@follows(loadFastqcFinal, loadFastqc)
-@merge((runFastqcFinal, runFastqc), "basic_statistics_summary.tsv.gz")
+@follows(loadFastqc)
+@transform(runFastqc, "basic_statistics_summary.tsv.gz")
 def buildFastQCSummaryBasicStatistics(infiles, outfile):
     '''load fastqc summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
