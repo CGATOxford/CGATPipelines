@@ -2589,7 +2589,10 @@ def main(args=sys.argv):
 
     elif options.pipeline_action == "dump":
         # convert to normal dictionary (not defaultdict) for parsing purposes
-        print "dump = %s" % str(dict(PARAMS))
+	#print "dump = %s" % str(dict(PARAMS))
+	print "Printing out pipeline parameters: "
+	for k in sorted(PARAMS):
+            print k, "=", PARAMS[k]
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
