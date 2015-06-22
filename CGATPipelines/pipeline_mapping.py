@@ -278,6 +278,7 @@ def connect():
 
     return dbh
 
+
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
