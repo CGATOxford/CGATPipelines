@@ -158,6 +158,10 @@ INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz"]
 # a directory as part of the track.
 REGEX_TRACK = regex(r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 
+# Regular expression to extract a track from both processed and unprocessed
+# files
+REGEX_TRACK_BOTH = regex(r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
+
 SEQUENCEFILES_REGEX = regex(
     r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 
@@ -329,8 +333,8 @@ def loadFastqc(infile, outfile):
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
-           REGEX_TRACK,
-           r"%s/fastq_screen/\1.fastq.1_screen.png" % PARAMS['exportdir'])
+           REGEX_TRACK_BOTH,
+           r"%s/fastq_screen/\2.fastq.1_screen.png" % PARAMS['exportdir'])
 def runFastqScreen(infiles, outfile):
     '''run FastqScreen on input files.'''
 
@@ -373,8 +377,8 @@ def buildFastQCSummaryBasicStatistics(infiles, outfile):
          mkdir("experiment.dir/processed.dir"),
          loadFastqc)
 @collate(runFastqc,
-         regex("(.*)-([^-]*).fastqc"),
-         r"experiment.dir/\1_per_sequence_quality.tsv")
+         regex("(processed.dir/)*(.*)-([^-]*).fastqc"),
+         r"experiment.dir/\2_per_sequence_quality.tsv")
 def buildExperimentLevelReadQuality(infiles, outfile):
     """
     Collate per sequence read qualities for all replicates per experiment.
