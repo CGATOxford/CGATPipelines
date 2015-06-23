@@ -35,7 +35,7 @@ import CGATPipelines.Pipeline as P
 
 
 def getPicardOptions():
-    return "-l mem_free=1.4G -l picard=1"
+    return "-l mem_free=1.4G"
 
 
 def getNumReadsFromReadsFile(infile):
