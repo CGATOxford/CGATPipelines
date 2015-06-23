@@ -373,9 +373,7 @@ def buildFastQCSummaryBasicStatistics(infiles, outfile):
                                                      exportdir)
 
 
-@follows(mkdir("experiment.dir"),
-         mkdir("experiment.dir/processed.dir"),
-         loadFastqc)
+@follows(mkdir("experiment.dir"), loadFastqc)
 @collate(runFastqc,
          regex("(processed.dir/)*(.*)-([^-]*).fastqc"),
          r"experiment.dir/\2_per_sequence_quality.tsv")
