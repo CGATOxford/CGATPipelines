@@ -936,6 +936,8 @@ def runCuffCompare(infiles, outfile, reffile):
     genome = os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fa"
     genome = os.path.abspath(genome)
 
+    job_memory = "15G"
+
     # note: cuffcompare adds \0 bytes to gtf file - replace with '.'
     statement = '''
         %(cmd_extract)s;
@@ -1054,6 +1056,7 @@ def mergeUsingCuffmerge(infiles, outfile):
 #########################################################################
 
 
+@jobs_limit(1, "db")
 @transform((compareTranscriptsBetweenExperiments,
             compareTranscriptsPerExperiment),
            suffix(".cuffcompare"),
@@ -1075,6 +1078,8 @@ def loadTranscriptComparison(infile, outfile):
     tmpfile = P.getTempFilename(dir=".")
     tmpfile2 = P.getTempFilename(dir=".")
     tmpfile3 = P.getTempFilename(dir=".")
+
+    csv2db_options=PARAMS.get("csv2db_options","") + " --database=%s" % PARAMS["database"]
 
     # cuffcompare doesn't output stats if there are too many input files
     # this will cause parseTranscriptComparision to fall over
@@ -1101,6 +1106,7 @@ def loadTranscriptComparison(infile, outfile):
               --allow-empty-file
               --add-index=track
               --table=%(tablename)s
+
         > %(outfile)s
         '''
 
@@ -1369,6 +1375,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
               --allow-empty-file
               --add-index=track
               --table=%(tablename)s
+              --database=%(database)s
         > %(outfile)s
         '''
 
@@ -1443,6 +1450,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
               --add-index=transfrag_id
               --add-index=code
               --table=%(tablename)s
+              --database=%(database)s
     >> %(outfile)s
     '''
 
@@ -1460,6 +1468,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
               --add-index=gene_id
               --add-index=track
               --table=%(tablename)s
+              --database=%(database)s
     >> %(outfile)s
     '''
 
@@ -1472,6 +1481,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
               --allow-empty-file
               --add-index=transfrag_id
               --table=%(tablename)s
+              --database=%(database)s
     >> %(outfile)s
     '''
 
@@ -1509,6 +1519,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
     | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
               --add-index=locus_id
               --table=%(tablename)s
+              --database=%(database)s
     >> %(outfile)s
     '''
 
@@ -2179,7 +2190,7 @@ def buildReproducibility(infile, outfile):
     for rep1, rep2 in itertools.combinations(replicates, 2):
 
         track1, track2 = rep1.asTable(), rep2.asTable()
-
+        
         def _write(statement, code):
             print statement
             data = Database.executewait(dbhandle, statement).fetchall()
@@ -2232,7 +2243,7 @@ def buildReproducibility(infile, outfile):
 
     R('''library(RSQLite)''')
     R('''drv = dbDriver( "SQLite" )''')
-    R('''con <- dbConnect(drv, dbname = 'csvdb')''')
+    R('''con <- dbConnect(drv, dbname = '%s')''' % PARAMS["database"])
     columns = ",".join([x.asTable() for x in replicates])
     data = R(
         '''data = dbGetQuery(con, "SELECT %(columns)s
@@ -2271,7 +2282,8 @@ def loadReproducibility(infile, outfile):
     # P.toTable(outfile)
     tablename = P.toTable(outfile)
     statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s
-    --log=%(outfile)s.log --allow-empty-file=True < %(infile)s'''
+    --log=%(outfile)s.log --allow-empty-file=True 
+    --database=%(database)s < %(infile)s'''
 
 #########################################################################
 #########################################################################

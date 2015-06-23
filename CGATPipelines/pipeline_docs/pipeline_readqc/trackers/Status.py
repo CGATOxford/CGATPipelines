@@ -1,5 +1,6 @@
 import os
 import collections
+from ReadqcReport import DATABASE
 from CGATReport.Tracker import Status
 
 
@@ -8,8 +9,9 @@ class FastqcStatus(Status):
     '''status information for mapping stage.'''
 
     def __init__(self, *args, **kwargs):
-        Status.__init__(self, *args, **kwargs)
-
+        
+        Status.__init__(self, *args, backend=DATABASE, **kwargs)
+        
         data = self.getAll("SELECT * FROM status_summary")
         # reorganize into dictionary with keys [track][quality]
         keys = data.keys()
