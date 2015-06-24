@@ -1444,6 +1444,7 @@ def run(**kwargs):
             spec.append(
                 "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
 
+        print spec
         jt.nativeSpecification = " ".join(spec) % options
         # keep stdout and stderr separate
         jt.joinFiles = False
@@ -1677,7 +1678,9 @@ def submit(module, function, params=None,
            infiles=None, outfiles=None,
            to_cluster=True,
            logfile=None,
-           job_options=""):
+           job_options="",
+           job_threads=1,
+           job_memory=""):
     '''submit a python *function* as a job to the cluster.
 
     The function should reside in *module*. If *module* is
@@ -2731,7 +2734,9 @@ def _pickle_args(args, kwargs):
         use_args = ["to_cluster",
                     "logfile",
                     "job_options",
-                    "job_queue"]
+                    "job_queue",
+                    "job_threads",
+                    "job_memory"]
 
         submit_args = {}
 
