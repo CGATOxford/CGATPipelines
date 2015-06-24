@@ -416,8 +416,7 @@ def loadFastqcSummary(infile, outfile):
     P.load(infile, outfile, options="--add-index=track")
 
 
-@follows(processReads,
-         loadFastqc,
+@follows(loadFastqc,
          loadFastqcSummary,
          loadExperimentLevelReadQualities,
          runFastqScreen)

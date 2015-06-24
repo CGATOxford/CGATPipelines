@@ -1182,6 +1182,9 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
 
 else:
     @follows(countReads)
+    @transform(SEQUENCEFILES,
+               SEQUENCEFILES_REGEX,
+               r"nreads.dir/\1.nreads")
     def mergeReadCounts():
         pass
 
