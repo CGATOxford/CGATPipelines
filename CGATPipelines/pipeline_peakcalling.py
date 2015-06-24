@@ -337,9 +337,13 @@ P.getParameters(
 
 PARAMS = P.PARAMS
 
-PARAMS_ANNOTATIONS = P.peekParameters(
+PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py")
+    "pipeline_annotations.py",
+    prefix="annotations_",
+    update_interface=True))
+
+print "annotations_interface_contigs", PARAMS["annotations_interface_contigs"]
 
 PipelinePeakcalling.PARAMS = PARAMS
 
@@ -732,7 +736,7 @@ def mergeBackgroundWindows(infiles, outfile):
 
     infiles = " ".join(infiles)
     genomefile = os.path.join(
-        PARAMS["annotations_dir"], PARAMS_ANNOTATIONS['interface_contigs'])
+        PARAMS["annotations_dir"], PARAMS['annotations_interface_contigs'])
     statement = '''
     zcat %(infiles)s
     | bedtools slop -i stdin
@@ -927,7 +931,7 @@ def loadMACS(infile, outfile):
            regex(r"(.*)/(.*).macs"),
            add_inputs(os.path.join(
                PARAMS["annotations_dir"],
-               PARAMS_ANNOTATIONS["interface_contigs"])),
+               PARAMS["annotations_interface_contigs"])),
            (os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.treat.bw"),
             os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.control.bw")))
 def cleanMACS(infiles, outfiles):
@@ -1001,7 +1005,12 @@ def callPeaksWithMACS2(infile, outfile):
     controls = getControl(Sample(track), suffix=".call.bam")
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
     contigsfile = os.path.join(PARAMS["annotations_dir"],
-                               PARAMS_ANNOTATIONS["interface_contigs_tsv"])
+                               PARAMS["annotations_interface_contigs"])
+
+    print "annoatations.dir", PARAMS["annotations_dir"]
+    print "interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"]
+    print "contigsfile: ", contigsfile
+
     PipelinePeakcalling.runMACS2(
         infile,
         outfile,
@@ -1491,7 +1500,7 @@ def applyIDR(infiles, outfile):
     job_options = "-l mem_free=4G"
 
     chromosome_table = os.path.join(
-        PARAMS["annotations_dir"], PARAMS_ANNOTATIONS["interface_contigs"])
+        PARAMS["annotations_dir"], PARAMS["annotations_interface_contigs"])
 
     for infile1, infile2 in itertools.combinations(infiles, 2):
         E.info("applyIDR: processing %s and %s" % (infile1, infile2))
@@ -1553,7 +1562,7 @@ def callPeaksWithScripture(infile, outfile):
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
 
     contig_sizes = os.path.join(PARAMS["annotations_dir"],
-                                PARAMS_ANNOTATIONS["interface_contigs"])
+                                PARAMS["annotations_interface_contigs"])
 
     PipelinePeakcalling.runScripture(infile,
                                      outfile,
