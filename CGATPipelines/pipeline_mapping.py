@@ -1095,6 +1095,7 @@ def mapReadsWithButter(infile, outfile):
     m = PipelineMapping.Butter(
         strip_sequence=PARAMS["strip_sequence"],
         set_nh=PARAMS["butter_set_nh"])
+
     P.run()
 
 ###################################################################
@@ -1186,6 +1187,8 @@ else:
     @transform(SEQUENCEFILES,
                SEQUENCEFILES_REGEX,
                r"nreads.dir/\1.nreads")
+    # this decorator for the dummy mergeReadCounts is needed to prevent
+    # rerunning of all downstream functions.
     def mergeReadCounts():
         pass
 
@@ -1195,8 +1198,9 @@ else:
 # QC targets
 ###################################################################
 
-############################################################
-########################################################################################################################
+###################################################################
+###################################################################
+###################################################################
 #
 # This is not a pipelined task - remove?
 #
@@ -1284,6 +1288,7 @@ def buildBAMStats(infiles, outfile):
     '''
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
+
     job_memory = "8G"
 
     bamfile, readsfile = infiles
