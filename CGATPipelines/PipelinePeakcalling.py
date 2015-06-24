@@ -2266,7 +2266,6 @@ def runSPP(infile, outfile, controlfile):
     job_threads = PARAMS["spp_threads"]
     assert controlfile is not None, "spp requires a control"
 
-
     statement = '''
     python %(scriptsdir)s/runSPP.py
            --input-format=bam
