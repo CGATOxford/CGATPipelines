@@ -217,13 +217,12 @@ if PARAMS.get("preprocessors", None):
             PipelinePreprocess.mergeAdaptorFasta(infiles, outfile)
 
     else:
-
         @follows(mkdir("fasta.dir"))
         @transform(INPUT_FORMATS,
                    SEQUENCEFILES_REGEX,
                    r"fasta.dir/\1.fasta")
         def aggregateAdaptors(infile, outfile):
-            print("I'm there\n")
+
             P.touch(outfile)
 
     @follows(mkdir("processed.dir"),
