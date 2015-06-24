@@ -60,7 +60,6 @@ import pandas.rpy.common as com
 from rpy2.robjects import r
 import rpy2.robjects as robj
 from rpy2.robjects.packages import importr
-from rpy2.robjects.packages import importr
 from rpy2.robjects.vectors import FloatVector
 import CGATPipelines.PipelineTracks as PipelineTracks
 stats = importr('stats')

@@ -9,6 +9,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 EXPORTDIR = P.get('readqc_exportdir', P.get('exportdir', 'export'))
 DATADIR = P.get('readqc_datadir', P.get('datadir', '.'))
 DATABASE = P.get('readqc_backend', P.get('sql_backend', 'sqlite:///./csvdb'))
+PROCESSEDDIR = "processed.dir" 
 
 TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
     glob.glob("%s/*.sra" % DATADIR), "(\S+).sra") +\
@@ -17,7 +18,11 @@ TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
     PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
         glob.glob("%s/*.fastq.1.gz" % DATADIR), "(\S+).fastq.1.gz") +\
     PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
-        glob.glob("*.csfasta.gz"), "(\S+).csfasta.gz")
+        glob.glob("*.csfasta.gz"), "(\S+).csfasta.gz") +\
+    PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
+        glob.glob("%s/*.fastq.gz" % PROCESSEDDIR), "(\S+).fastq.gz") +\
+    PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
+        glob.glob("%s/*.fastq.1.gz" % PROCESSEDDIR), "(\S+).fastq.1.gz")
 
 
 class ReadqcTracker(TrackerSQL):

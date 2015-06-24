@@ -1313,7 +1313,7 @@ def full():
     pass
 
 
-@follows(extractEBioinfo)
+@follows(defineEBioStudies)
 def test():
     pass
 
