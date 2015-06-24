@@ -1272,35 +1272,7 @@ def loadPicardDuplicationStats(infiles, outfiles):
     # separate load function while testing
     PipelineMappingQC.loadPicardDuplicationStats(infiles, outfiles)
 
-# ############################################################
-# ############################################################
-# ############################################################
-# @merge( buildBAMs, "mapping_stats.load" )
-# def loadMappingStats( infiles, outfile ):
 
-#     header = ",".join( [P.snip( x, ".bam") for x in infiles] )
-#     filenames = " ".join( [ "%s.tsv" % x for x in infiles ] )
-#     tablename = P.toTable( outfile )
-
-#     statement = """python %(scriptsdir)s/combine_tables.py
-#                       --header-names=%(header)s
-#                       --missing-value=0
-#                       --ignore-empty
-#                    %(filenames)s
-#                 | perl -p -e "s/bin/track/"
-#                 | perl -p -e "s/unique/unique_alignments/"
-#                 | python %(scriptsdir)s/table2table.py --transpose
-#                 | python %(scriptsdir)s/csv2db.py
-#                       --add-index=track
-#                       --table=%(tablename)s
-#                 > %(outfile)s
-#             """
-#     P.run()
-
-
-############################################################
-############################################################
-############################################################
 @follows(countReads, mergeReadCounts)
 @transform(MAPPINGTARGETS,
            regex("(.*)/(.*)\.(.*).bam"),
@@ -1398,32 +1370,21 @@ def loadContextStats(infiles, outfile):
     header = ",".join([os.path.basename(P.snip(x, ".contextstats"))
                       for x in infiles])
     filenames = " ".join(infiles)
-    tablename = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track")
 
     statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --missing-value=0
-                      --skip-titles
-                   %(filenames)s
-                | perl -p -e "s/(bin|category)/track/; s/\?/Q/g"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                > %(outfile)s
-                """
+    --header-names=%(header)s
+    --missing-value=0
+    --skip-titles
+    %(filenames)s
+    | perl -p -e "s/(bin|category)/track/; s/\?/Q/g"
+    | python %(scriptsdir)s/table2table.py --transpose
+    | %(load_statement)s
+    > %(outfile)s
+    """
     P.run()
-
-    dbhandle = sqlite3.connect(PARAMS["database_name"])
-
-# The following is not necessary any more as context stats now also outputs a "total" column
-#    cc = Database.execute
-#    statement = '''UPDATE %(tablename)s SET mapped =
-#                                       (SELECT b.alignments_mapped FROM bam_stats AS b
-#                                            WHERE %(tablename)s.track = b.track)''' % locals()#
-#
-#    cc = Database.executewait( dbhandle, statement )
-#    dbhandle.commit()
 
 ###################################################################
 ###################################################################
@@ -1694,7 +1655,9 @@ def loadBigWigStats(infiles, outfile):
     headers = ",".join([P.snip(os.path.basename(x), ".bw")
                         for x in infiles])
 
-    tablename = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track")
 
     statement = '''python %(scriptsdir)s/combine_tables.py
     --header-names=%(headers)s
@@ -1704,9 +1667,7 @@ def loadBigWigStats(infiles, outfile):
     %(data)s
     | perl -p -e "s/bin/track/"
     | python %(scriptsdir)s/table2table.py --transpose
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=track
-    --table=%(tablename)s
+    | %(load_statement)s
     > %(outfile)s
     '''
 
@@ -1811,7 +1772,7 @@ def createViewMapping(infile, outfile):
     tables = (("bam_stats", "track", ),
               ("context_stats", "track", ))
 
-    # do not use: ( "picard_stats_alignment_summary_metrics", "track" ), )
+    # do not use: ("picard_stats_alignment_summary_metrics", "track"),)
     # as there are multiple rows per track for paired-ended data.
 
     P.createView(dbh, tables, tablename, outfile, view_type)

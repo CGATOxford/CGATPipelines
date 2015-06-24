@@ -1,4 +1,3 @@
-
 ##########################################################################
 #
 #   MRC FGU Computational Genomics Group
@@ -59,15 +58,16 @@ override a shared configuration setting and a default configuration
 setting.
 
 Configuration files follow the ini format (see the python
-`ConfigParser <http://docs.python.org/library/configparser.html>` documentation).
-The configuration file is organized by section and the variables are documented within 
-the file. In order to get a local configuration file in the current directory, type::
+`ConfigParser <http://docs.python.org/library/configparser.html>`
+documentation).  The configuration file is organized by section and
+the variables are documented within the file. In order to get a local
+configuration file in the current directory, type::
 
     python <codedir>/pipeline_cpg.py config
 
-The sphinxreport report requires a :file:`conf.py` and :file:`sphinxreport.ini` file 
-(see :ref:`PipelineReporting`). To start with, use the files supplied with the
-Example_ data.
+The sphinxreport report requires a :file:`conf.py` and
+:file:`sphinxreport.ini` file (see :ref:`PipelineReporting`). To start
+with, use the files supplied with the Example_ data.
 
 
 Input
@@ -248,17 +248,12 @@ def loadPicardAlignStats(infiles, outfile):
         for i in range(1, len(lines)):
             outf.write("%s\t%s" % (track, lines[i]))
     outf.close()
-    tmpfilename = outf.name
 
     # Load into database
-    tablename = P.toTable(outfile)
-    statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s 
-                > %(outfile)s'''
-    P.run()
-    os.unlink(tmpfilename)
+    P.load(outf.name,
+           outfile,
+           options="--add-index=track")
+    os.unlink(outf.name)
 
 #########################################################################
 
@@ -266,12 +261,12 @@ def loadPicardAlignStats(infiles, outfile):
 @transform(buildBAM, suffix(".bam"), ".dedup.bam")
 def dedup(infiles, outfile):
     '''Remove duplicate alignments from BAM files.'''
-    to_cluster = USECLUSTER
     track = P.snip(outfile, ".bam")
-    statement = '''MarkDuplicates INPUT=%(infiles)s  ASSUME_SORTED=true OUTPUT=%(outfile)s 
-                       METRICS_FILE=%(track)s.dupstats REMOVE_DUPLICATES=true 
-                       VALIDATION_STRINGENCY=SILENT; 
-                       samtools index %(outfile)s; ''' % locals()
+    statement = '''MarkDuplicates INPUT=%(infiles)s
+    ASSUME_SORTED=true OUTPUT=%(outfile)s
+    METRICS_FILE=%(track)s.dupstats REMOVE_DUPLICATES=true
+    VALIDATION_STRINGENCY=SILENT;
+    samtools index %(outfile)s; ''' % locals()
     P.run()
 
 #########################################################################
@@ -281,7 +276,7 @@ def dedup(infiles, outfile):
 def loadPicardDuplicateStats(infiles, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
     # Join data for all tracks into single file
-    outf = open('dupstats.txt', 'w')
+    outf = IOTools.openFile('dupstats.txt', 'w')
     first = True
     for f in infiles:
         track = P.snip(os.path.basename(f), ".dedup.bam")
@@ -297,16 +292,11 @@ def loadPicardDuplicateStats(infiles, outfile):
         outf.write("%s\t%s" % (track, lines[1]))
 
     outf.close()
-    tmpfilename = outf.name
 
     # Load into database
-    tablename = P.toTable(outfile)
-    statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s 
-                > %(outfile)s '''
-    P.run()
+    P.load(outf.name,
+           outfile,
+           options="--add-index=track")
 
 ############################################################
 ############################################################
@@ -317,7 +307,6 @@ def loadPicardDuplicateStats(infiles, outfile):
 @files([("%s.dedup.bam" % x, "%s.macs" % x) for x in TRACKS])
 def runMACSsolo(infile, outfile):
     '''Run MACS for peak detection.'''
-    to_cluster = USECLUSTER
     track = P.snip(os.path.basename(infile), ".dedup.bam")
     statement = '''macs14 -t%(infile)s 
                           --set-name=%(track)s

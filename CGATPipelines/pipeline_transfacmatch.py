@@ -1,6 +1,4 @@
-"""
-
-========================
+"""========================
 Transfac match pipeline
 ========================
 
@@ -32,8 +30,8 @@ information how to use CGAT pipelines.
 Configuration
 -------------
 
-The pipeline requires a configured :file:`pipeline.ini` file.
-The pipeline looks for a configuration file in several places:
+The pipeline requires a configured :file:`pipeline.ini` file.  The
+pipeline looks for a configuration file in several places:
 
    1. The default configuration in the :term:`code directory`.
    2. A shared configuration file :file:`../pipeline.ini`.
@@ -45,10 +43,9 @@ setting.
 
 Configuration files follow the ini format (see the python
 `ConfigParser <http://docs.python.org/library/configparser.html>`
-documentation).
-The configuration file is organized by section and the variables
-are documented within the file. In order to get a local configuration
-file in the current directory, type::
+documentation).  The configuration file is organized by section and
+the variables are documented within the file. In order to get a local
+configuration file in the current directory, type::
 
     python <codedir>/pipeline_transfacmatch.py config
 
@@ -71,9 +68,9 @@ least bed4 formatted, i.e., each interval should be labelled
 Background and foreground sets
 +++++++++++++++++++++++++++++++
 
-Background and foreground sets are required to test for enrichments
-of TF motifs. These are therefore subsets of the bed or gtf file.
-It consists of a :term:`tsv` file:
+Background and foreground sets are required to test for enrichments of
+TF motifs. These are therefore subsets of the bed or gtf file.  It
+consists of a :term:`tsv` file:
 
 +---------+
 |   id    |
@@ -95,13 +92,13 @@ Its location is specified in the pipeline.ini.
 Motif profiles
 +++++++++++++++
 
-The pipeline requires a file that contains a selection of matrices
-to search with defined cutoffs.
-Transfac match will search only matrices that are specified in profile.
-It is advised that all matrices in the transfac profile are used.
+The pipeline requires a file that contains a selection of matrices to
+search with defined cutoffs.  Transfac match will search only matrices
+that are specified in profile.  It is advised that all matrices in the
+transfac profile are used.
 
-It will return only hits with scores that are
-equal or higher than specified in profiles.
+It will return only hits with scores that are equal or higher than
+specified in profiles.
 
 
 Requirements
@@ -151,12 +148,6 @@ import rpy2.robjects as robjects
 import CGATPipelines.PipelineTransfacMatch as PipelineTFM
 import CGATPipelines.Pipeline as P
 
-###############################################################################
-###############################################################################
-###############################################################################
-use_cluster = True
-
-
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
@@ -191,10 +182,6 @@ INPUT_BACKGROUND = glob.glob("*.background.tsv")
 TRACK_FOREGROUND = [P.snip(x, ".foreground.tsv") for x in INPUT_FOREGROUND]
 TRACK_BACKGROUND = [P.snip(x, ".background.tsv") for x in INPUT_BACKGROUND]
 
-###############################################################################
-###############################################################################
-###############################################################################
-
 
 def connect():
     '''connect to database.
@@ -211,31 +198,6 @@ def connect():
 
     return dbh
 
-# P.toTable()
-###############################################################################
-###############################################################################
-###############################################################################
-
-
-def filenameToTablename(filename):
-    '''
-    converts filename containing "." to tablename where "." converted to "_"
-    '''
-    return filename.replace(".", "_")
-
-# P.touch()
-###############################################################################
-###############################################################################
-###############################################################################
-
-
-def sentinelFile(filename):
-    '''
-    create empty file for updating purposes
-    '''
-    outf = open(filename, "w")
-    outf.write("file created for ruffus update")
-    outf.close()
 
 ###############################################################################
 ###############################################################################
@@ -343,17 +305,10 @@ def loadGCContent(infile, outfile):
     load the results the GC content for each background
     and foreground
     '''
-    tablename = filenameToTablename(P.snip(os.path.basename(infile), ".tsv"))
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s
-                   --log=%(outfile)s.log
-                   --add-index=id
-                   %(csv2db_options)s
-                   < %(infile)s > %(outfile)s'''
-    P.run()
+    P.load(infile, outfile,
+           options="--add-index=id")
 
-###############################################################################
-###############################################################################
-###############################################################################
+
 if PARAMS["background_match"]:
     @collate(loadGCContent, regex("GC_content.dir/"
                                   "(.+)\.(?:background|foreground)\.gc\.load"),
@@ -416,18 +371,8 @@ if PARAMS["background_match"]:
         load the CpG compostion of matched background set
         '''
 
-        to_cluster = True
-        tablename = filenameToTablename(
-            P.snip(os.path.basename(outfile), ".load"))
-        statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s
-                       --log=%(outfile)s.log
-                       %(csv2db_options)s
-                       < %(infile)s > %(outfile)s'''
-        P.run()
+        P.load(infile, outfile)
 
-###############
-# target
-##############
 if PARAMS["background_match"]:
     @follows(loadMatchedGCComposition)
     def GC():
@@ -488,18 +433,9 @@ def loadMatchResults(infile, outfile):
                                        details.sequence])) + "\n")
     temp.close()
 
-    to_cluster = True
-    job_options = "-l mem_free=64G"
-
-    inf = temp.name
-    tablename = filenameToTablename(os.path.basename(infile))
-    statement = ("python %(scriptsdir)s/csv2db.py"
-                 "  -t %(tablename)s"
-                 "  --log=%(outfile)s.log"
-                 "  --add-index=seq_id"
-                 "  %(csv2db_options)s"
-                 " < %(inf)s > %(outfile)s")
-    P.run()
+    P.load(temp.name,
+           outfile,
+           options="--add-index=seq_id")
     os.unlink(temp.name)
 
 ###############################################################################
@@ -532,22 +468,7 @@ def loadMatchMetrics(infile, outfile):
     '''
     load match metrics
     '''
-    tablename = filenameToTablename(os.path.basename(infile))
-
-    to_cluster = True
-
-    job_options = " -l mem_free=16G"
-
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s
-                   --log=%(outfile)s.log
-                   --add-index=seq_id
-                   %(csv2db_options)s
-                   < %(infile)s > %(outfile)s'''
-    P.run()
-
-###########
-# target
-###########
+    P.load(infile, outfile, options="--add-index=seq_id")
 
 
 @follows(loadMatchMetrics)
@@ -567,7 +488,7 @@ if PARAMS['sig_testing_method'] == "fisher":
         @follows(loadMatchResults,
                  loadMatchedGCComposition,
                  mkdir("match_test.dir"))
-        #@jobs_limit(1, "FisherTest")
+        # @jobs_limit(1, "FisherTest")
         @collate([matchBackgroundForSequenceComposition, calculateGCContent],
                  regex(".+/(.+)\.(?:foreground.gc|matched.background)\.tsv"),
                  r"match_test.dir/\1.matched.significance")
@@ -749,14 +670,9 @@ def loadEnrichmentOfTFBS(infile, outfile):
     load the results of the enrichment
     '''
 
-    to_cluster = True
-    tablename = filenameToTablename(os.path.basename(infile))
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s
-                  --log=%(outfile)s.log
-                  --add-index=matrix_id
-                  %(csv2db_options)s
-                  < %(infile)s > %(outfile)s'''
-    P.run()
+    P.load(infile,
+           outfile,
+           options="--add-index=matrix_id")
 
 
 @collate(loadEnrichmentOfTFBS,
@@ -821,19 +737,7 @@ def collateEnrichmentOfTFBS(infiles, outfile):
            suffix(".significance.tsv"),
            ".load")
 def loadCollatedEnrichmentOfTFBS(infile, outfile):
-    tablename = P.snip(os.path.basename(infile), ".significance.tsv")
-    statement = ("python %(scriptsdir)s/csv2db.py"
-                 "  -t %(tablename)s"
-                 "  --log=%(outfile)s.log"
-                 "  --add-index=matrix_id"
-                 "  %(csv2db_options)s"
-                 " < %(infile)s > %(outfile)s")
-    P.run()
-
-
-##############
-# target
-##############
+    P.load(infile, outfile, options="--add-index=matrix_id")
 
 
 @posttask(touch_file("complete.flag"))

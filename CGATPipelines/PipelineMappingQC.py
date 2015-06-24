@@ -284,19 +284,11 @@ def loadPicardMetrics(infiles, outfile, suffix,
 
     outf.close()
 
-    tmpfilename = outf.name
+    P.load(outf.name,
+           outfile,
+           options="--add-index=track --allow-empty-file")
 
-    to_cluster = False
-    statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                      --allow-empty-file
-                > %(outfile)s
-               '''
-    P.run()
-
-    os.unlink(tmpfilename)
+    os.unlink(outf.name)
 
 
 def loadPicardHistogram(infiles, outfile, suffix, column,
@@ -321,19 +313,22 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
 
     # there might be a variable number of columns in the tables
     # only take the first ignoring the rest
+
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=track "
+        " --header-names=%s,%s"
+        " --allow-empty-file"
+        " --replace-header" % (column, header))
+
     statement = """python %(scriptsdir)s/combine_tables.py
-                      --regex-start="## HISTOGRAM"
-                      --missing-value=0
-                      --take=2
-                   %(filenames)s
-                | python %(scriptsdir)s/csv2db.py
-                      --allow-empty-file
-                      --header-names=%(column)s,%(header)s
-                      --replace-header
-                      --add-index=track
-                      --table=%(tablename)s
-                >> %(outfile)s
-                """
+    --regex-start="## HISTOGRAM"
+    --missing-value=0
+    --take=2
+    %(filenames)s
+    | %(load_statement)s
+    >> %(outfile)s
+    """
 
     P.run()
 
@@ -406,8 +401,7 @@ def loadPicardDuplicateStats(infiles, outfile, pipeline_suffix=".bam"):
 def loadPicardCoverageStats(infiles, outfile):
     '''Import coverage statistics into SQLite'''
 
-    tablename = P.toTable(outfile)
-    outf = open('coverage.txt', 'w')
+    outf = P.getTempFile(".")
     first = True
     for f in infiles:
         track = P.snip(os.path.basename(f), ".cov")
@@ -418,15 +412,10 @@ def loadPicardCoverageStats(infiles, outfile):
         first = False
         outf.write("%s\t%s" % (track, lines[1]))
     outf.close()
-    tmpfilename = outf.name
-    statement = '''cat %(tmpfilename)s
-                   | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                      --ignore-empty
-                      --retry
-                   > %(outfile)s '''
-    P.run()
+    P.load(outf.name,
+           outfile,
+           options="--ignore-empty --add-index=track")
+    os.unlink(outf.name)
 
 
 def buildBAMStats(infile, outfile):
@@ -446,38 +435,41 @@ def loadBAMStats(infiles, outfile):
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
-    tablename = P.toTable(outfile)
+
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track "
+        " --allow-empty-file")
+
     E.info("loading bam stats - summary")
     statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --missing-value=0
-                      --ignore-empty
-                   %(filenames)s
-                | perl -p -e "s/bin/track/"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
-                      --allow-empty-file
-                      --add-index=track
-                      --table=%(tablename)s
-                > %(outfile)s"""
+    --header-names=%(header)s
+    --missing-value=0
+    --ignore-empty
+    %(filenames)s
+    | perl -p -e "s/bin/track/"
+    | python %(scriptsdir)s/table2table.py --transpose
+    | %(load_statement)s
+    > %(outfile)s"""
     P.run()
 
     for suffix in ("nm", "nh"):
         E.info("loading bam stats - %s" % suffix)
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
-        tname = "%s_%s" % (tablename, suffix)
+        
+        load_statement = P.build_load_statement(
+            "%s_%s" % (tablename, suffix),
+            options=" --allow-empty-file")
 
         statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --skip-titles
-                      --missing-value=0
-                      --ignore-empty
-                   %(filenames)s
-                | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
-                      --table=%(tname)s
-                      --allow-empty-file
-                >> %(outfile)s """
+        --header-names=%(header)s
+        --skip-titles
+        --missing-value=0
+        --ignore-empty
+        %(filenames)s
+        | perl -p -e "s/bin/%(suffix)s/"
+        | %(load_statement)s
+        >> %(outfile)s """
         P.run()
 
     # load mapping qualities, there are two columns per row
@@ -486,18 +478,19 @@ def loadBAMStats(infiles, outfile):
     for suffix in ("mapq",):
         E.info("loading bam stats - %s" % suffix)
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
-        tname = "%s_%s" % (tablename, suffix)
+
+        load_statement = P.build_load_statement(
+            "%s_%s" % (tablename, suffix),
+            options=" --allow-empty-file")
 
         statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --skip-titles
-                      --missing-value=0
-                      --ignore-empty
-                      --take=3
-                   %(filenames)s
-                | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
-                      --table=%(tname)s
-                      --allow-empty-file
-                >> %(outfile)s """
+        --header-names=%(header)s
+        --skip-titles
+        --missing-value=0
+        --ignore-empty
+        --take=3
+        %(filenames)s
+        | perl -p -e "s/bin/%(suffix)s/"
+        | %(load_statement)s
+        >> %(outfile)s """
         P.run()

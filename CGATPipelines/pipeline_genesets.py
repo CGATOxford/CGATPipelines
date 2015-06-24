@@ -320,14 +320,15 @@ def loadHypergeometricAnalysis(infile, outfile):
 
     for section in sections:
         tablename = 'hypergeometric_%s_%s' % (track, section)
+        load_statement = P.build_load_statement(
+            tablename=tablename)
+
         statement = '''
         python %(scriptsdir)s/combine_tables.py
         --cat=track
         --regex-filename="hypergeometric.dir/%(track)s.tsv.dir/(\S+).%(section)s"
         hypergeometric.dir/%(track)s.tsv.dir/*.%(section)s
-        | python %(scriptsdir)s/csv2db.py
-        %(csv2db_options)s
-        --table=%(tablename)s
+        | %(load_statement)s
         >> %(outfile)s'''
         P.run()
 
