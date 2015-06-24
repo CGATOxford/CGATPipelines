@@ -719,8 +719,7 @@ def mapReadsWithTophat2(infiles, outfile):
         strip_sequence=PARAMS["strip_sequence"])
 
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + \
-        " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = PARAMS["tophat2_options"] + " --raw-juncs %(reffile)s " % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -1031,11 +1030,13 @@ def mapReadsWithBWA(infile, outfile):
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
             remove_non_unique=PARAMS["remove_non_unique"],
-            strip_sequence=PARAMS["strip_sequence"])
+            strip_sequence=PARAMS["strip_sequence"],
+            set_nh=PARAMS["bwa_set_nh"])
     elif PARAMS["bwa_algorithm"] == "mem":
         m = PipelineMapping.BWAMEM(
             remove_non_unique=PARAMS["remove_non_unique"],
-            strip_sequence=PARAMS["strip_sequence"])
+            strip_sequence=PARAMS["strip_sequence"],
+            set_nh=PARAMS["bwa_set_nh"])
     else:
         raise ValueError("bwa algorithm '%s' not known" % algorithm)
 
@@ -1089,11 +1090,11 @@ def mapReadsWithButter(infile, outfile):
         Butter does not support paired end reads''' % locals())
 
     job_threads = PARAMS["butter_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["butter_memory"]
+    job_memory = PARAMS["butter_memory"]
+
     m = PipelineMapping.Butter(
         strip_sequence=PARAMS["strip_sequence"],
         set_nh=PARAMS["butter_set_nh"])
-    statement = m.build((infile,), outfile)
     P.run()
 
 ###################################################################
@@ -1195,8 +1196,7 @@ else:
 ###################################################################
 
 ############################################################
-############################################################
-############################################################
+########################################################################################################################
 #
 # This is not a pipelined task - remove?
 #
@@ -1284,7 +1284,7 @@ def buildBAMStats(infiles, outfile):
     '''
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
-    job_memory = "1.9G"
+    job_memory = "8G"
 
     bamfile, readsfile = infiles
 

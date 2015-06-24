@@ -39,6 +39,7 @@ import CGAT.VCF as VCF
 import collections
 import re
 import urllib
+import copy
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
 
@@ -565,14 +566,16 @@ def defineEBioStudies(cancer_types, outfile):
     study2table_dict = collections.defaultdict(list)
 
     soup = makeSoup(cancer_studies_url)
-    for line in soup.body:
-        if isinstance(line, NavigableString):
-            values = unicode(line).strip().split("\t")
-            if len(values) > 1:
-                cancer_type = values[1].split(" (")[0]
-                if cancer_type in cancer_types:
-                    study = re.sub(".\n", "", values[0])
-                    type2study_dict[cancer_type].append(study)
+    for lines in soup.body:
+        if isinstance(lines, NavigableString):
+            for line in lines.split("\n"):
+                if "cancer_study_id" not in line:
+                    values = unicode(line).strip().split("\t")
+                    if len(values) > 1:
+                        cancer_type = values[1].split(" (")[0]
+                        if cancer_type in cancer_types:
+                            study = re.sub(".\n", "", values[0])
+                            type2study_dict[cancer_type].append(study)
 
     for study_list in type2study_dict.values():
         for study in study_list:
@@ -602,12 +605,7 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
 
     genes = set()
 
-    n = 0
     for vcf in vcfs:
-        if n > 0:
-            break
-        else:
-            n += 1
         infile = VCF.VCFFile(IOTools.openFile(vcf))
         for vcf_entry in infile:
             # assumes all vcf entries without "REJECT" are "PASS"
@@ -623,20 +621,55 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
         lambda: collections.defaultdict(
             lambda: collections.defaultdict(int)))
 
+    def chunks(l, n):
+        ''' Yield successive n-sized chunks from l '''
+        for i in xrange(0, len(l), n):
+            yield l[i:i+n]
+
+    # delete me
+    print "number of genes: ", len(list(genes))
+
     for line in eBio_ids:
         tissue, study, table = line.strip().split("\t")
-        for gene in genes:
+
+        n = 0
+
+        for i in xrange(0, len(list(genes)), 500):
+
+            genes_chunk = list(genes)[i:i+500]
+
+            # TS sporadic error when querying with a single gene at a time
+            # "urllib2.URLError: <urlopen error [Errno 110] Connection timed out>"
+            # max URL length appears to be 8200 characters,
+            # try doing 500 genes at a time?
+
+            gene_list = "+".join(list(genes_chunk))
+
+            n += 500
+
+            print "number of genes processed: ", n
+
             url = ("http://www.cbioportal.org/webservice.do?cmd=getProfileData&"
                    "case_set_id=%(study)s_all&genetic_profile_id=%(table)s&"
-                   "gene_list=%(gene)s" % locals())
-            print url
+                   "gene_list=%(gene_list)s" % locals())
+
             df = pd.io.parsers.read_csv(url, comment="#", sep="\t",
                                         header=False, index_col=0)
+            # delete me
+            print url
 
-            # check dataframe contains data!
-            if df.shape[0] != 0:
-                tissue_counts[tissue][gene]["total"] += df.shape[1]-2
-                tissue_counts[tissue][gene]["mutations"] += int(df.count(1))-1
+            for gene in genes_chunk:
+                tmp_df = df[df['COMMON'] == gene]
+                # check dataframe contains data!
+                if tmp_df.shape[0] != 0:
+                    # seem to be having issues with gene set containing duplicates!
+                    # --> dataframe with repeated instances of gene after selection
+                    # so splice to first row and recreate dataframe from series
+                    if tmp_df.shape[0] > 1:
+                        tmp_df = pd.DataFrame(tmp_df.iloc[0]).T
+
+                    tissue_counts[tissue][gene]["total"] += tmp_df.shape[1]-2
+                    tissue_counts[tissue][gene]["mutations"] += int(tmp_df.count(1))-1
 
     out = IOTools.openFile(outfile, "w")
 
@@ -651,7 +684,7 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
             total = tissue_counts[tissue][gene]["total"]
             mutations = tissue_counts[tissue][gene]["mutations"]
             print "total: ", total, "mutations: ", mutations
-            freq_values.append(np.divide(float(mutations), total))
+            freq_values.append(round(np.divide(float(mutations), total), 4))
 
         out.write("%s\t%s\n" % (gene, "\t".join(map(str, freq_values))))
 
