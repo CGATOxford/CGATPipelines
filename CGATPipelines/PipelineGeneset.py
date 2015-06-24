@@ -1130,6 +1130,8 @@ def sortGTF(infile, outfile, order="contig+gene"):
     else:
         compress = "cat"
 
+    job_memory = "4G"
+
     statement = '''%(uncompress)s %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=%(order)s --log=%(outfile)s.log

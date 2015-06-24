@@ -2073,7 +2073,7 @@ def runPeakRanger(infile, outfile, controlfile):
     '''run peak ranger
     '''
 
-    job_options = "-l mem_free=8G"
+    job_memory = "8G"
 
     assert controlfile is not None, "peakranger requires a control"
 
@@ -2265,6 +2265,7 @@ def runSPP(infile, outfile, controlfile):
 
     job_threads = PARAMS["spp_threads"]
     assert controlfile is not None, "spp requires a control"
+
 
     statement = '''
     python %(scriptsdir)s/runSPP.py
