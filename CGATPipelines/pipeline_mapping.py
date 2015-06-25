@@ -1184,6 +1184,11 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
 
 else:
     @follows(countReads)
+    @transform(SEQUENCEFILES,
+               SEQUENCEFILES_REGEX,
+               r"nreads.dir/\1.nreads")
+    # this decorator for the dummy mergeReadCounts is needed to prevent
+    # rerunning of all downstream functions.
     def mergeReadCounts():
         pass
 
@@ -1193,9 +1198,9 @@ else:
 # QC targets
 ###################################################################
 
-############################################################
-############################################################
-############################################################
+###################################################################
+###################################################################
+###################################################################
 #
 # This is not a pipelined task - remove?
 #
