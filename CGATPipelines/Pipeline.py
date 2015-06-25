@@ -1398,7 +1398,7 @@ def run(**kwargs):
     job_memory = None
 
     if 'job_memory' in options:
-        job_memory = PARAMS.get("cluster_memory_default", "2G")
+        job_memory = options['job_memory']
 
     elif "mem_free" in options["cluster_options"] and \
          PARAMS.get("cluster_memory_resource", False):
@@ -1444,7 +1444,6 @@ def run(**kwargs):
             spec.append(
                 "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
 
-        print spec
         jt.nativeSpecification = " ".join(spec) % options
         # keep stdout and stderr separate
         jt.joinFiles = False

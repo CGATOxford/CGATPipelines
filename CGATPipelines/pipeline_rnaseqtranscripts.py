@@ -2022,6 +2022,8 @@ def classifyTranscripts(infiles, outfile):
     # IMS: changed to allow different classifiers
     counter = PARAMS['gtf2table_classifier']
 
+    job_memory = "4G"
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2table.py
@@ -2045,6 +2047,7 @@ def classifyTranscriptsCuffcompare(infiles, outfile):
     '''classify transcripts.
     '''
     to_cluster = True
+    job_memory = "4G"
 
     infile, reference = infiles
 
