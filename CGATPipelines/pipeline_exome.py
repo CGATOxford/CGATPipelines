@@ -189,8 +189,7 @@ import CGATPipelines.PipelineExome as PipelineExome
 
 
 P.getParameters(
-    ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
-     "../exome.ini", "exome.ini"])
+    ["%s/pipeline.ini" % os.path.splitext(__file__)[0], "pipeline.ini"])
 
 PARAMS = P.PARAMS
 INPUT_FORMATS = ("*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz")
