@@ -48,7 +48,7 @@ PARAMS = {}
 
 
 def getGATKOptions():
-    return "-l mem_free=1.4G -l picard=1"
+    return "-l mem_free=1.4G"
 
 
 def makeSoup(address):
