@@ -270,7 +270,7 @@ def mapReads(infiles, outfile):
     '''Map reads to the genome using BWA-MEM (output=SAM), convert to BAM,
     sort and index BAM file'''
     job_options = "-l mem_free=8G"
-    job_threads = 2
+    job_threads = PARAMS["bwa_threads"]
     track = P.snip(os.path.basename(outfile), ".bam")
     m = PipelineMapping.BWAMEM(remove_unique=PARAMS["bwa_remove_non_unique"])
     statement = m.build((infiles,), outfile)
@@ -317,8 +317,7 @@ def GATKReadGroups(infile, outfile):
     track = re.sub(r'-\w+-\w+\.bam', '', os.path.basename(infile))
     tmpdir_gatk = P.getTempDir('.')
     job_options = getGATKOptions()
-    job_threads = 3
-
+    job_threads = PARAMS["gatk_threads"]
     library = PARAMS["readgroup_library"]
     platform = PARAMS["readgroup_platform"]
     platform_unit = PARAMS["readgroup_platform_unit"]
@@ -402,12 +401,12 @@ def mergeBAMs(infiles, outfile):
     statement = '''MergeSamFiles
                    INPUT=%(inputfiles)s
                    OUTPUT=%(outfile)s
-                   ASSUME_SORTED=true; '''
+                   ASSUME_SORTED=true; checkpoint; '''
     statement += '''samtools index %(outfile)s ;''' % locals()
     P.run()
-    # zapfiles?
-    for inputfile in infiles:
-        IOTools.zapFile(inputfile)
+    
+    #for inputfile in infiles:
+    #    IOTools.zapFile(inputfile)
 
 ###############################################################################
 ###############################################################################
@@ -544,7 +543,7 @@ def haplotypeCaller(infile, outfile):
     '''Call SNVs and indels using GATK HaplotypeCaller in individuals'''
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     job_options = getGATKOptions()
-    job_threads = 3
+    job_threads = PARAMS["gatk_threads"]
     dbsnp = PARAMS["gatk_dbsnp"]
     intervals = PARAMS["roi_intervals"]
     padding = PARAMS["roi_padding"]
@@ -682,7 +681,7 @@ def loadNDR(infile, outfile):
 def annotateVariantsSNPeff(infile, outfile):
     '''Annotate variants using SNPeff'''
     job_options = "-l mem_free=6G"
-    job_threads = 4
+    job_threads = PARAMS["annotation_threads"]
     snpeff_genome = PARAMS["annotation_snpeff_genome"]
     config = PARAMS["annotation_snpeff_config"]
     statement = '''/ifs/apps/bio/snpEff-3.3-dev/snpEff.sh eff
@@ -754,7 +753,7 @@ def variantRecalibratorSnps(infile, outfile):
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     dbsnp = PARAMS["gatk_dbsnp"]
     job_options = getGATKOptions()
-    job_threads = 3
+    job_threads = PARAMS["gatk_threads"]
     track = P.snip(outfile, ".recal")
     kgenomes = PARAMS["gatk_kgenomes"]
     hapmap = PARAMS["gatk_hapmap"]
@@ -791,7 +790,7 @@ def variantRecalibratorIndels(infile, outfile):
     '''Create variant recalibration file'''
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     job_options = getGATKOptions()
-    job_threads = 3
+    job_threads = PARAMS["gatk_threads"]
     track = P.snip(outfile, ".recal")
     mills = PARAMS["gatk_mills"]
     dbsnp = PARAMS["gatk_dbsnp"]
@@ -827,10 +826,11 @@ def applyVariantRecalibrationIndels(infiles, outfile):
 def annotateVariantsSNPsift(infile, outfile):
     '''Add annotations using SNPsift'''
     job_options = "-l mem_free=6G"
-    job_threads = 4
+    job_threads = PARAMS["annotation_threads"]
     track = P.snip(os.path.basename(infile), ".vqsr.vcf")
     dbNSFP = PARAMS["annotation_snpsift_dbnsfp"]
     thousand_genomes = PARAMS["annotation_thousand_genomes"]
+    exac = PARAMS["annotation_exac"]
     # The following statement is not fully implemented yet
     # statement = '''SnpSift.sh geneSets -v
     # /ifs/projects/proj016/data/1000Genomes/msigdb.v4.0.symbols.gmt %(infile)s
@@ -839,8 +839,10 @@ def annotateVariantsSNPsift(infile, outfile):
     statement = '''SnpSift.sh dbnsfp -v -db %(dbNSFP)s %(infile)s
                     > variants/%(track)s_temp1.vcf; checkpoint;
                     SnpSift.sh annotate %(thousand_genomes)s
-                    variants/%(track)s_temp1.vcf > %(outfile)s;
-                    rm -f variants/%(track)s_temp1.vcf;''' % locals()
+                    variants/%(track)s_temp1.vcf > %(track)s_temp2.vcf;
+                    checkpoint; SnpSift.sh annotate -info AC_Adj,AN_Adj,AF 
+                    %(exac)s %(track)s_temp2.vcf > %(outfile)s; 
+                    rm -f variants/%(track)s_temp*.vcf;''' % locals()
     P.run()
 
 ###############################################################################

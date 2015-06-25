@@ -24,7 +24,7 @@ class dominants(ExomeTracker):
 
     def __call__(self, track, slice=None):
         return self.getAll(
-            "SELECT d.CHROM, d.POS, d.REF, d.ALT, d.ID, SNPEFF_CODON_CHANGE, SNPEFF_AMINO_ACID_CHANGE, SNPEFF_EXON_ID, SNPEFF_GENE_NAME, SNPEFF_TRANSCRIPT_ID, SNPEFF_EFFECT, SNPEFF_FUNCTIONAL_CLASS, SNPEFF_IMPACT, SNPEFF_GENE_BIOTYPE, EFF, dbNSFP_1000Gp1_AF, dbNSFP_ESP6500_AA_AF, dbNSFP_ESP6500_EA_AF, dbNSFP_29way_logOdds, dbNSFP_GERP___NR, dbNSFP_GERP___RS, dbNSFP_Interpro_domain, dbNSFP_Polyphen2_HVAR_pred, dbNSFP_SIFT_score, FILTER, BaseQRankSum, FS, MQ, MQ0, MQRankSum, QD, ReadPosRankSum FROM %(track)s_dominant_table AS d INNER JOIN all_samples_snpeff_table AS s ON d.CHROM = s.CHROM AND d.POS = s.POS WHERE (dbNSFP_1000Gp1_AF is null OR dbNSFP_1000Gp1_AF<0.01) AND (dbNSFP_ESP6500_AA_AF is null OR dbNSFP_ESP6500_AA_AF<0.01) AND COMMON is null AND FILTER='PASS' " % locals())
+            "SELECT d.CHROM, d.POS, d.REF, d.ALT, d.ID, SNPEFF_CODON_CHANGE, SNPEFF_AMINO_ACID_CHANGE, SNPEFF_EXON_ID, SNPEFF_GENE_NAME, SNPEFF_TRANSCRIPT_ID, SNPEFF_EFFECT, SNPEFF_FUNCTIONAL_CLASS, SNPEFF_IMPACT, SNPEFF_GENE_BIOTYPE, EFF, dbNSFP_1000Gp1_AF, dbNSFP_ESP6500_AA_AF, dbNSFP_ESP6500_EA_AF, AC_Adj, AN_Adj, dbNSFP_29way_logOdds, dbNSFP_GERP___NR, dbNSFP_GERP___RS, dbNSFP_Interpro_domain, dbNSFP_Polyphen2_HVAR_pred, dbNSFP_SIFT_score, FILTER, BaseQRankSum, FS, MQ, MQ0, MQRankSum, QD, ReadPosRankSum FROM %(track)s_dominant_table AS d INNER JOIN all_samples_snpeff_table AS s ON d.CHROM = s.CHROM AND d.POS = s.POS WHERE (dbNSFP_1000Gp1_AF is null OR dbNSFP_1000Gp1_AF<0.01) AND (dbNSFP_ESP6500_AA_AF is null OR dbNSFP_ESP6500_AA_AF<0.01) AND COMMON is null AND CAST(AC_Adj AS FLOAT)/AN_Adj)<0.01 AND FILTER='PASS' " % locals())
 
 
 class deNovos(ExomeTracker):
