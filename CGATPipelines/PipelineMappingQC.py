@@ -457,6 +457,8 @@ def loadBAMStats(infiles, outfile):
         E.info("loading bam stats - %s" % suffix)
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
         
+        tablename = "%s_%s" % (P.toTable(outfile), suffix)
+
         load_statement = P.build_load_statement(
             "%s_%s" % (tablename, suffix),
             options=" --allow-empty-file")
