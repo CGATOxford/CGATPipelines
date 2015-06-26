@@ -1679,7 +1679,7 @@ def submit(module, function, params=None,
            logfile=None,
            job_options="",
            job_threads=1,
-           job_memory=""):
+           job_memory=False):
     '''submit a python *function* as a job to the cluster.
 
     The function should reside in *module*. If *module* is
@@ -1689,6 +1689,9 @@ def submit(module, function, params=None,
     input/output filenames. Neither options supports yet nested lists.
 
     '''
+
+    if not job_memory:
+        job_memory = PARAMS.get("cluster_memory_default", "2G")
 
     if type(infiles) in (list, tuple):
         infiles = " ".join(["--input=%s" % x for x in infiles])
