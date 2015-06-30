@@ -1222,6 +1222,7 @@ def runCuffdiff(bamfiles,
                 outfile,
                 cuffdiff_options="",
                 threads=4,
+                memory="4G",
                 fdr=0.1,
                 mask_file=None):
     '''estimate differential expression using cuffdiff.
@@ -1247,7 +1248,7 @@ def runCuffdiff(bamfiles,
         pass
 
     job_threads = threads
-
+    job_memory = memory
     # replicates are separated by ","
     reps = collections.defaultdict(list)
     for bamfile in bamfiles:
