@@ -344,78 +344,6 @@ class MastMotifEvalues(Mast):
                 "SELECT %(x)s FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())
         return r
 
-# class MastNumberOfMotifs( Mast ):
-#     '''number of motifs matching within intervals.'''
-
-#     def __call__(self, track, slice = None ):
-#         data = self.getValues( "SELECT nmatches FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals() )
-#         return odict( (("nmatches", data), ))
-
-# class MastAllCorrelations( Mast ):
-#     '''correlating all measures.'''
-
-#     def __call__(self, track, slice = None ):
-#         field = "length"
-#         data = self.get( """SELECT m.evalue, m.nmatches, i.length, i.peakval, i.avgval
-#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
-#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'
-#                                  ORDER BY i.%(field)s DESC"""
-#                               % locals() )
-#         return odict( zip( ("evalue", "nmatches", "length", "peakval", "avgval"),
-#                            zip(*data)))
-
-# class MastPairwiseCorrelation( Mast ):
-#     '''base class for correlating two measures.'''
-
-#     def __call__(self, track, slice = None ):
-
-#         field1 = self.mField1
-#         field2 = self.mField2
-#         data = self.get( """SELECT %(field1)s as a, %(field2)s AS b
-#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
-#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'"""
-#                               % locals() )
-
-#         return odict(zip( (field1, field2), zip(*data) ))
-
-# class MastEvalueVersusLength( MastPairwiseCorrelation ):
-#     '''correlate evalue with interval length.'''
-#     mField1 = "evalue"
-#     mField2 = "i.length"
-
-# class MastEvalueVersusNumberOfMatches( MastPairwiseCorrelation ):
-#     '''correlate evalue with number of motifs found.'''
-#     mField1 = "evalue"
-#     mField2 = "nmatches"
-
-# class MastEvalueVersusPeakVal( MastPairwiseCorrelation ):
-#     '''correlate evalue with peak value.'''
-#     mField2 = "evalue"
-#     mField1 = "peakval"
-
-# class MastNMatchesVersusPeakVal( MastPairwiseCorrelation ):
-#     '''correlate evalue with peak value.'''
-#     mField2 = "nmatches"
-#     mField1 = "peakval"
-
-# class MastPeakValPerNMatches( MastPairwiseCorrelation ):
-#     '''correlate evalue with peak value.'''
-#     mField1 = "nmatches"
-#     mField2 = "peakval"
-
-#     def __call__(self, track, slice = None ):
-
-#         data = MastPairwiseCorrelation.__call__( self, track, slice )
-
-#         n = odict()
-#         for x in sorted( data["nmatches"] ):
-#             n[x] = []
-
-#         for nmatches, peakval in sorted(zip( data["nmatches"], data["peakval"] )):
-#             n[nmatches].append( peakval )
-
-#         return odict( n )
-
 
 class MastMotifLocation(Mast):
 
@@ -508,116 +436,7 @@ class MastCurve(Mast):
 
         return data
 
-# class MastROC( Mast ):
-#     '''return a ROC curve. The ROC tests various peak parameters
-#     whether they are good descriptors of a motif.
 
-#     True/false positives are identified by the presence/absence
-#     of a motif. The presence is tested using the E-value of
-#     a motif.
-#     '''
-
-#     mPattern = "_mast$"
-#     mFields = ("peakval", "avgval", "length" )
-
-#     def __call__(self, track, slice = None):
-#         data = []
-
-# obtain evalue distribution
-#         evalues = self.getValues( "SELECT evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())
-
-#         if len(evalues) == 0: return odict()
-
-#         try:
-#             bin_edges, with_motifs, explained = computeMastCurve( evalues )
-#         except ValueError, msg:
-#             return odict()
-
-# determine the e-value cutoff as the maximum of "explained"
-#         cutoff = bin_edges[numpy.argmax( explained )]
-
-# retrieve values of interest together with e-value
-#         result = odict()
-
-#         for field in self.mFields:
-
-#             values = self.get( """SELECT i.%(field)s, m.evalue
-#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
-#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'
-#                                  ORDER BY i.%(field)s DESC"""
-#                               % locals() )
-
-#             try:
-#                 roc = Stats.computeROC( [ (x[0], x[1] <= cutoff) for x in values ])
-#             except ValueError, msg:
-# ignore results where there are no positives among values.
-#                 continue
-
-#             result[field] = odict( zip( ("FPR", "TPR"), zip(*roc)) )
-#         return result
-
-# class MastROCNMatches( Mast ):
-#     '''return a ROC curve. The ROC tests various peak parameters
-#     whether they are good descriptors of a motif.
-
-#     True/false positives are identified by the presence/absence
-#     of a motif using the field nmatches
-#     '''
-
-#     mPattern = "_mast$"
-#     mFields = ("peakval", "avgval", "length" )
-
-#     def __call__(self, track, slice = None):
-#         data = []
-
-# retrieve values of interest together with e-value
-#         result = odict()
-
-#         for field in self.mFields:
-
-#             values = self.get( """SELECT i.%(field)s, m.nmatches
-#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
-#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'
-#                                  ORDER BY i.%(field)s DESC"""
-#                               % locals() )
-
-#             try:
-#                 roc = Stats.computeROC( [ (x[0], x[1] > 0) for x in values ])
-#             except ValueError, msg:
-# ignore results where there are no positives among values.
-#                 continue
-
-#             result[field] = odict( zip( ("FPR", "TPR"), zip(*roc)) )
-
-#         return result
-
-# class MastAUC( MastROC ):
-#     '''return AUC for a ROC curve. The ROC tests various peak parameters
-#     whether they are good descriptors of a motif.
-
-#     True/false positives are identified by the presence/absence
-#     of a motif.
-#     '''
-
-#     mPattern = "_mast$"
-#     mFields = ("peakval", "avgval", "length" )
-
-#     def __call__(self, track, slice = None):
-
-#         data = MastROC.__call__(self, track, slice )
-#         for k, d in data.iteritems():
-#             data[k] = Stats.getAreaUnderCurve( d['FPR'], d['TPR'] )
-#         return data
-
-# class MastEvalues( Mast ):
-#     """return arrays of mast evalues.
-#     """
-#     mPattern = "_mast$"
-
-#     def __call__(self, track, slice = None):
-
-#         return odict( (("evalue", self.getValues( "SELECT evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())),
-#                        ("evalue - control", self.getValues( "SELECT min_evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals()))))
 
 
 class MastPeakValWithMotif(Mast):
@@ -644,40 +463,7 @@ class MastPeakValWithMotif(Mast):
         return odict(zip(("peakval", "proportion with motif", "recall"),
                          zip(*result)))
 
-# class MastPeakValWithMotifEvalue( Mast ):
-#     '''return for each peakval the proportion of intervals
-#     that have a motif.
 
-#     This class uses the ROC Evalue as cutoff.
-#     '''
-
-#     def __call__(self, track, slice = None ):
-
-
-# obtain evalue distribution
-#         evalues = self.getValues( "SELECT evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals() )
-
-#         if len(evalues) == 0: return odict()
-
-#         try:
-#             bin_edges, with_motifs, explained = computeMastCurve( evalues )
-#         except ValueError, msg:
-#             return odict()
-
-# determine the e-value cutoff as the maximum of "explained"
-#         cutoff = bin_edges[numpy.argmax( explained )]
-
-#         data = self.get( '''
-#         SELECT i.peakval, m.evalue
-#         FROM %(track)s_intervals AS i,
-#              %(track)s_mast AS m
-#         WHERE m.id = i.interval_id \
-#            AND m.motif = '%(slice)s' ORDER BY i.peakval DESC''' % locals() )
-
-#         result = Stats.getSensitivityRecall( [ (int(x[0]), x[1] < cutoff) for x in data ] )
-
-# return odict( zip( ("peakval", "proportion with motif", "recall" ), zip(
-# *result ) ) )
 
 class MemeInputSequenceComposition(IntervalTracker):
 
@@ -796,6 +582,54 @@ class DremeRuns(MotifRuns):
                 _getinfo(negatives))
 
 
+class MemeChipRuns(MotifRuns):
+    prog="memechip"
+
+    def getInputInfo(self, track, slice):
+        track = re.sub("-", "_", track)
+        
+        return [("nsequences", 
+                 self.getValue(
+                     "SELECT COUNT (*) from %s_memechip_motifseq_stats" % track)),
+                ("nbases", 
+                 self.getValue(
+                     "SELECT SUM(nA+nG+nT+nC) FROM %s_memechip_motifseq_stats" % track))]
+
+    def getTracks(self):
+        return self.getValues("SELECT DISTINCT track FROM memechip_seeds")
+
+    def getSlices(self):
+        return ["MemeChip (:ref:`memechip_details`)"]
+
+    def getNMotifs(self, track, slice=None):
+        return self.getValue('''SELECT COUNT(*) from memechip_seeds 
+                                WHERE track = '%(track)s' ''')
+
+    def getLink(self, track, slice):
+        return "`Full MemeChip Output <%s/index.html>`_" \
+            % self.getExportDir(track, "memechip")
+
+    def checkexists(self, track, slice):
+        return True
+    
+    
+def line2lines(values):
+    output = []
+    values = list(set(str(values).split()))
+    
+    if len(values) == 1:
+        return values[0]
+    while len(values) > 0:
+        tmp = []
+        while sum(len(x) for x in tmp) < 20 and len(values) > 0:
+            tmp.append(values.pop(0))
+            output.append(" ".join(tmp))
+            
+        output = "\n".join(output)
+        
+    return output
+
+
 class MemeResults(IntervalTracker):
 
     def getTracks(self):
@@ -806,6 +640,27 @@ class MemeResults(IntervalTracker):
 
     def __call__(self, track, slice=None):
 
+        statement = '''SELECT DISTINCT
+                              primary_id as ID,
+                              group_concat(track2, " ") as other_tracks
+                      FROM %(slice)s_seeds as seeds
+                      LEFT JOIN %(slice)s_track_comparisons as comps
+                           ON seeds.track = comps.track1
+                          AND seeds.primary_id = comps.Query_ID
+                      WHERE track = '%(track)s'
+                      GROUP BY primary_id'''
+
+        alt_statement = '''SELECT DISTINCT primary_id as ID,
+                                           'NA' as other_tracks
+                                 FROM %(slice)s_seeds
+                                 WHERE track = '%(track)s' '''
+        try:
+            motifs_to_keep = self.getDataFrame(statement)
+        except:
+            motifs_to_keep = self.getDataFrame(alt_statement)
+
+        motifs_to_keep.set_index("ID", inplace=True)
+        
         resultsdir = os.path.abspath(
             os.path.join(EXPORTDIR, slice + ".dir", "%s.meme" % track))
         if not os.path.exists(resultsdir):
@@ -819,6 +674,9 @@ class MemeResults(IntervalTracker):
         result = odict()
         for motif in motifs.getiterator("motif"):
             nmotif += 1
+            if nmotif not in motifs_to_keep.index:
+                continue
+
             motif_img = "%s/logo%i.png" % (resultsdir, nmotif)
             motif_rc_img = "%s/logo_rc%i.png" % (resultsdir, nmotif)
             img, rc_img = "na", "na"
@@ -838,6 +696,8 @@ class MemeResults(IntervalTracker):
                  (track, nmotif, resultsdir, nmotif)),
                 ("img", img),
                 ("rev", rc_img),
+                ("Similar motif found in:", 
+                 line2lines(motifs_to_keep.loc[nmotif]["other_tracks"])),
             ))
 
         return result
@@ -852,6 +712,28 @@ class DremeResults(IntervalTracker):
         return self.getValues("SELECT DISTINCT method FROM dreme_summary")
 
     def __call__(self, track, slice=None):
+
+        statement = '''SELECT DISTINCT
+                              primary_id as ID,
+                              group_concat(track2, " ") as other_tracks
+                      FROM %(slice)s_seeds as seeds
+                      LEFT JOIN %(slice)s_track_comparisons as comps
+                           ON seeds.track = comps.track1
+                          AND seeds.primary_id = comps.Query_ID
+                      WHERE track = '%(track)s'
+                      GROUP BY primary_id'''
+
+        alt_statement = '''SELECT DISTINCT primary_id as ID,
+                                           'NA' as other_tracks
+                                 FROM %(slice)s_seeds
+                                 WHERE track = '%(track)s' '''
+        try:
+            motifs_to_keep = self.getDataFrame(statement)
+        except:
+            print alt_statement % locals()
+            motifs_to_keep = self.getDataFrame(alt_statement)
+
+        motifs_to_keep.set_index("ID", inplace=True)
 
         resultsdir = os.path.abspath(
             os.path.join(EXPORTDIR, slice + ".dir", "%s.dreme" % track))
@@ -874,7 +756,10 @@ class DremeResults(IntervalTracker):
             seq = motif.get("seq")
             nmotif += 1
             id = motif.get("id")
-            seq = motif.get("seq")
+
+            if seq not in motifs_to_keep.index.values:
+                print "%s not in %s" % (seq, motifs_to_keep.index.values)
+                continue
 
             motif_img = "%(resultsdir)s/%(id)snc_%(seq)s.png" % locals()
             rc_file = glob.glob(os.path.join(resultsdir, "%(id)src_*" % locals()))
@@ -910,10 +795,51 @@ class DremeResults(IntervalTracker):
                  (track, resultsdir)),
                 ("img", img),
                 ("rc_img", rc_img),
+                ("Simialr motif found in:", 
+                 line2lines(motifs_to_keep.loc[seq]["other_tracks"])),
             ))
 
         return result
         
+class MemeChipResults(IntervalTracker):
+
+    def getTracks(self):
+        return self.getValues("SELECT DISTINCT track FROM memechip_seeds")
+
+    def __call__(self, track):
+
+        print EXPORTDIR
+        resultsdir = os.path.abspath(os.path.join(EXPORTDIR, "memechip.dir",
+                                                  track + ".memechip"))
+
+        statement = '''SELECT DISTINCT
+                              primary_id as ID,
+                              consensus,
+                              nsites as '# seed matches',
+                              nClustered as "# in cluster",
+                              totalHits as '# cluster matches',
+                              E as 'E-value',
+                              group_concat(track2, " ") as "Similar motif found in"
+                      FROM memechip_seeds as seeds
+                      LEFT JOIN meme_chip_comparisons as comps
+                           ON seeds.track = comps.track1
+                          AND seeds.primary_id = comps.Query_ID
+                      WHERE track = '%(track)s'
+                      GROUP BY primary_id'''
+
+        results = self.getDataFrame(statement)
+      
+        
+        results["Similar motif found in"] = results["Similar motif found in"].apply(line2lines)
+  
+        img_tmp = '''.. image:: memechip.dir/%s_%i.png
+   :scale: 25%%'''
+        
+        results["logo"] = results["ID"].apply(lambda x: img_tmp % (track,x))
+        results["link"] = "`MEME-CHIP report <%s/index.html>`_" % resultsdir
+
+        return results
+
 
 class SequenceSubset(IntervalTracker):
 
