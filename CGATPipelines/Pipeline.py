@@ -1497,7 +1497,8 @@ def run(**kwargs):
         # (shellquote(statement), shellfile) )
         tmpfile.write("set | sed 's/^/%s : /' &>> %s\n" %
                       (job_name, shellfile))
-        tmpfile.write("module list | sed 's/^/%s: /' &>> %s\n" %
+        # module list outputs to stderr, so merge stderr and stdout
+        tmpfile.write("module list 2>&1 | sed 's/^/%s: /' &>> %s\n" %
                       (job_name, shellfile))
         tmpfile.write("hostname | sed 's/^/%s: /' &>> %s\n" %
                       (job_name, shellfile))
