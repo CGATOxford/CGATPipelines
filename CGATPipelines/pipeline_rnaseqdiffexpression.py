@@ -146,7 +146,7 @@ Requirements
 
 The pipeline requires the results from
 :doc:`pipeline_annotations`. Set the configuration variable
-:py:data:`annotations_database` and :py:data:`annotations_dir`.
+:py:data:`annotations_annotations_database` and :py:data:`annotations_dir`.
 
 On top of the default CGAT setup, the pipeline requires the following
 software to be in the path:
@@ -378,8 +378,6 @@ def buildMaskGtf(infile, outfile):
     dbh = connect()
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
     table2 = os.path.basename(PARAMS["annotations_interface_table_gene_stats"])
-    print table
-    print table2
 
     try:
         select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
@@ -396,7 +394,6 @@ def buildMaskGtf(infile, outfile):
         E.critical("sqlite3 cannot find table or contig column. "
                    "Error message: '%s'" % error)
     chrM_list = [x[0] for x in select2]
-    print type(chrM_list)
 
     geneset = IOTools.openFile(infile)
     outf = open(outfile, "wb")
