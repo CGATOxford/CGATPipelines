@@ -1419,20 +1419,20 @@ def run(**kwargs):
     else:
         job_memory = PARAMS.get("cluster_memory_default", "2G")
 
-    def setupJob(session, options, job_memory):
+    def setupJob(session, options, job_memory, job_name):
 
         jt = session.createJobTemplate()
         jt.workingDirectory = os.getcwd()
         jt.jobEnvironment = {'BASH_ENV': '~/.bashrc'}
         jt.args = []
+        if not re.match("[a-zA-Z]", job_name[0]):
+            job_name = "_" + job_name
+
         spec = [
             "-V",
             "-q %(cluster_queue)s",
             "-p %(cluster_priority)i",
-            "-N %s" % ("_" +
-                       re.sub("[:]", "_",
-                              os.path.basename(
-                                  options.get("outfile", "ruffus")))),
+            "-N %s" % job_name,
             "%(cluster_options)s"]
 
         # limit memory of cluster jobs
@@ -1471,33 +1471,37 @@ def run(**kwargs):
         not options["without_cluster"] and \
         GLOBAL_SESSION is not None
 
-    def buildJobScript(statement, job_memory):
+    # SGE compatible job_name
+    job_name = re.sub(
+        "[:]", "_",
+        os.path.basename(options.get("outfile", "ruffus")))
+
+    def buildJobScript(statement, job_memory, job_name):
         '''build job script from statement.
 
         returns (name_of_script, stdout_path, stderr_path)
         '''
 
         tmpfile = getTempFile(dir=os.getcwd())
-        jobname = os.path.basename(tmpfile.name)
         # disabled: -l -O expand_aliases\n" )
         tmpfile.write("#!/bin/bash\n")
         tmpfile.write(
-            'echo "%s: START--------------------------------" >> %s\n' %
-            (jobname, shellfile))
+            'echo "%s : START -> %s" >> %s\n' %
+            (job_name, tmpfile.name, shellfile))
         # disabled - problems with quoting
         # tmpfile.write( '''echo 'statement=%s' >> %s\n''' %
         # (shellquote(statement), shellfile) )
-        tmpfile.write("set | sed 's/^/%s: /' &>> %s\n" %
-                      (jobname, shellfile))
+        tmpfile.write("set | sed 's/^/%s : /' &>> %s\n" %
+                      (job_name, shellfile))
         tmpfile.write("module list | sed 's/^/%s: /' &>> %s\n" %
-                      (jobname, shellfile))
+                      (job_name, shellfile))
         tmpfile.write("hostname | sed 's/^/%s: /' &>> %s\n" %
-                      (jobname, shellfile))
+                      (job_name, shellfile))
         tmpfile.write("cat /proc/meminfo | sed 's/^/%s: /' &>> %s\n" %
-                      (jobname, shellfile))
+                      (job_name, shellfile))
         tmpfile.write(
-            'echo "%s: END----------------------------------" >> %s\n' %
-            (jobname, shellfile))
+            'echo "%s : END -> %s" >> %s\n' %
+            (job_name, tmpfile.name, shellfile))
 
         # restrict virtual memory
         # Note that there are resources in SGE which could do this directly
@@ -1533,14 +1537,15 @@ def run(**kwargs):
             if options.get("dryrun", False):
                 return
 
-            jt = setupJob(session, options, job_memory)
+            jt = setupJob(session, options, job_memory, job_name)
 
             job_ids, filenames = [], []
             for statement in statement_list:
                 L.debug("running statement:\n%s" % statement)
 
                 job_path, stdout_path, stderr_path = buildJobScript(statement,
-                                                                    job_memory)
+                                                                    job_memory,
+                                                                    job_name)
 
                 jt.remoteCommand = job_path
                 jt.outputPath = ":" + stdout_path
@@ -1581,9 +1586,10 @@ def run(**kwargs):
                 return
 
             job_path, stdout_path, stderr_path = buildJobScript(statement,
-                                                                job_memory)
+                                                                job_memory,
+                                                                job_name)
 
-            jt = setupJob(session, options, job_memory)
+            jt = setupJob(session, options, job_memory, job_name)
 
             jt.remoteCommand = job_path
             # later: allow redirection of stdout and stderr to files;
