@@ -425,7 +425,7 @@ def runCufflinks(infiles, outfile):
 
 
 @transform(runCufflinks,
-          suffix(".cufflinks"),
+           suffix(".cufflinks"),
            ".load")
 def loadCufflinks(infile, outfile):
     '''load expression level measurements.'''

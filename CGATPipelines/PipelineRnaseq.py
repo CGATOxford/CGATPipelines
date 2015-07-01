@@ -1062,7 +1062,7 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
                "--add-index=treatment_name "
                "--add-index=control_name "
                "--add-index=test_id")
-               
+
     for fn, level in (("cds.fpkm_tracking.gz", "cds"),
                       ("genes.fpkm_tracking.gz", "gene"),
                       ("isoforms.fpkm_tracking.gz", "isoform"),
@@ -1255,7 +1255,7 @@ def runCuffdiff(bamfiles,
     # Error is:
     # BAM record error: found spliced alignment without XS attribute
     # AH: compress output in outdir
-    job_memory="24G"
+    job_memory = "7G"
     statement = '''date > %(outfile)s.log;
     hostname >> %(outfile)s.log;
     cuffdiff --output-dir %(outdir)s
