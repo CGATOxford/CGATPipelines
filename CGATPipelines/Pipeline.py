@@ -1,3 +1,4 @@
+
 ##########################################################################
 #
 #   MRC FGU Computational Genomics Group
@@ -175,7 +176,7 @@ HARDCODED_PARAMS = {
     # name of consumable resource to use for requesting memory
     'cluster_memory_resource': "mem_free",
     # amount of memory set by default for each job
-    'cluster_memory_default': "2G",
+    'cluster_memory_default': "4G",
     # general cluster options
     'cluster_options': "",
     # parallel environment to use for multi-threaded jobs
@@ -818,6 +819,7 @@ def concatenateAndLoad(infiles,
                        cat=None,
                        has_titles=True,
                        missing_value="na",
+                       retry=True,
                        options=""):
     '''concatenate categorical tables and load into a database.
 
@@ -874,6 +876,7 @@ def mergeAndLoad(infiles,
                  columns=(0, 1),
                  regex=None,
                  row_wise=True,
+                 retry=True,
                  options="",
                  prefixes=None):
     '''merge categorical tables and load into a database.
@@ -1394,7 +1397,7 @@ def run(**kwargs):
     job_memory = None
 
     if 'job_memory' in options:
-        job_memory = PARAMS.get("cluster_memory_default", "2G")
+        job_memory = PARAMS.get("cluster_memory_default", "4G")
 
     elif "mem_free" in options["cluster_options"] and \
          PARAMS.get("cluster_memory_resource", False):
@@ -1432,6 +1435,7 @@ def run(**kwargs):
                                   options.get("outfile", "ruffus")))),
             "%(cluster_options)s"]
 
+        # limit memory of cluster jobs
         spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
                                   job_memory))
 
@@ -1474,24 +1478,34 @@ def run(**kwargs):
         '''
 
         tmpfile = getTempFile(dir=os.getcwd())
+        jobname = os.path.basename(tmpfile.name)
         # disabled: -l -O expand_aliases\n" )
         tmpfile.write("#!/bin/bash\n")
         tmpfile.write(
-            'echo "START--------------------------------" >> %s\n' % shellfile)
+            'echo "%s: START--------------------------------" >> %s\n' %
+            (jobname, shellfile))
         # disabled - problems with quoting
         # tmpfile.write( '''echo 'statement=%s' >> %s\n''' %
         # (shellquote(statement), shellfile) )
-        tmpfile.write("set &>> %s\n" % shellfile)
-        tmpfile.write("module list &>> %s\n" % shellfile)
+        tmpfile.write("set | sed 's/^/%s: /' &>> %s\n" %
+                      (jobname, shellfile))
+        tmpfile.write("module list | sed 's/^/%s: /' &>> %s\n" %
+                      (jobname, shellfile))
+        tmpfile.write("hostname | sed 's/^/%s: /' &>> %s\n" %
+                      (jobname, shellfile))
+        tmpfile.write("cat /proc/meminfo | sed 's/^/%s: /' &>> %s\n" %
+                      (jobname, shellfile))
         tmpfile.write(
-            'echo "END----------------------------------" >> %s\n' % shellfile)
+            'echo "%s: END----------------------------------" >> %s\n' %
+            (jobname, shellfile))
 
         # restrict virtual memory
         # Note that there are resources in SGE which could do this directly
         # such as v_hmem.
         # Note that limiting resident set sizes (RSS) with ulimit is not
         # possible in newer kernels.
-        tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
+        # AH: disabled until memory issues are resolved
+        # tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
 
         tmpfile.write(
             expandStatement(
