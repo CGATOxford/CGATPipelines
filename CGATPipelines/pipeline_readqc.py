@@ -261,7 +261,7 @@ if PARAMS.get("preprocessors", None):
             trimmomatic_options = adapter_options + trimmomatic_options
 
         job_threads = PARAMS["threads"]
-        job_options = "-l mem_free=%s" % PARAMS["general_memory"]
+        job_memory = "24G"
 
         m = PipelinePreprocess.MasterProcessor(
             save=PARAMS["save"],

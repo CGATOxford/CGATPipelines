@@ -1255,6 +1255,7 @@ def runCuffdiff(bamfiles,
     # Error is:
     # BAM record error: found spliced alignment without XS attribute
     # AH: compress output in outdir
+    job_memory="24G"
     statement = '''date > %(outfile)s.log;
     hostname >> %(outfile)s.log;
     cuffdiff --output-dir %(outdir)s

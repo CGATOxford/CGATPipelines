@@ -23,7 +23,6 @@ The pipeline performs the following:
 
    * compute tag counts on an exon, transcript and gene level for each
      of the genesets. The following tag counting methods are implemented:
-
       * featureCounts_
       * gtf2table
 
@@ -115,7 +114,9 @@ Design matrices
 
 Design matrices are imported by placing :term:`tsv` formatted files
 into the :term:`working directory`. A design matrix describes the
-experimental design to test. Each design file has four columns::
+experimental design to test. The design files should be named
+design*.tsv.
+Each design file has four columns::
 
       track   include group   pair
       CW-CD14-R1      0       CD14    1
@@ -405,7 +406,7 @@ def runCufflinks(infiles, outfile):
 
 
 @transform(runCufflinks,
-           suffix(".cufflinks"),
+          suffix(".cufflinks"),
            ".load")
 def loadCufflinks(infile, outfile):
     '''load expression level measurements.'''
