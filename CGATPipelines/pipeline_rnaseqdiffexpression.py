@@ -353,7 +353,7 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
+        PARAMS["annotations_annotations_database"])
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
@@ -375,11 +375,33 @@ def buildMaskGtf(infile, outfile):
     to "chrM". for use with cufflinks
 
     '''
+    dbh = connect()
+    table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
+    table2 = os.path.basename(PARAMS["annotations_interface_table_gene_stats"])
+    print table
+    print table2
+
+    try:
+        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
+        WHERE gene_biotype = 'rRNA';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or gene_biotype column. "
+                   "Error message: '%s'" % error)
+    rrna_list = [x[0] for x in select]
+
+    try:
+        select2 = dbh.execute("""SELECT DISTINCT gene_id FROM %(table2)s
+        WHERE contig = 'chrM';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or contig column. "
+                   "Error message: '%s'" % error)
+    chrM_list = [x[0] for x in select2]
+    print type(chrM_list)
+
     geneset = IOTools.openFile(infile)
     outf = open(outfile, "wb")
     for entry in GTF.iterator(geneset):
-        if re.findall("rRNA", entry.source) or re.findall(
-                "chrM", entry.contig):
+        if entry.gene_id in rrna_list or entry.gene_id in chrM_list:
             outf.write("\t".join((map(
                 str,
                 [entry.contig, entry.source, entry.feature,
@@ -953,7 +975,7 @@ def summarizeCounts(infile, outfile):
     '''perform summarization of read counts'''
 
     prefix = P.snip(outfile, ".tsv")
-    job_options = "-l mem_free=32G"
+    job_memory = "32G"
     statement = '''python %(scriptsdir)s/runExpression.py
               --method=summary
               --tags-tsv-file=%(infile)s
