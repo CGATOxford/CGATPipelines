@@ -257,7 +257,7 @@ optional *options* argument::
 In order for the load mechanism to be transparent, it is best avoided
 to call the :file:`csv2db.py` script directly. Instead, use the
 :meth:`Pipeline.load` function. If the :file:`csv2db.py` needs to
-called at the end of succession of statement, use the 
+called at the end of a succession of statements, use the
 :meth:`Pipeline.build_load_statement` method, for example::
 
    def loadTranscript2Gene(infile, outfile):

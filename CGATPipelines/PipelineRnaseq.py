@@ -1062,13 +1062,14 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
                "--add-index=treatment_name "
                "--add-index=control_name "
                "--add-index=test_id")
-               
+
     for fn, level in (("cds.fpkm_tracking.gz", "cds"),
                       ("genes.fpkm_tracking.gz", "gene"),
                       ("isoforms.fpkm_tracking.gz", "isoform"),
                       ("tss_groups.fpkm_tracking.gz", "tss")):
 
         tablename = prefix + "_" + level + "_levels"
+        infile = os.path.join(indir, fn)
 
         P.load(infile, outfile,
                tablename=tablename,
