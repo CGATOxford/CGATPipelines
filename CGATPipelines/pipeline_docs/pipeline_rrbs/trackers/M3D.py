@@ -1,5 +1,4 @@
-
-from SphinxReport.Tracker import *
+from CGATReport.Tracker import *
 from rrbsReport import *
 
 

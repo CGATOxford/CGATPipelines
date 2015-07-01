@@ -197,7 +197,7 @@ REGEX_FORMATS = regex(r"(\S+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 
 
 def getGATKOptions():
-    return "-l mem_free=1.4G -l picard=1"
+    return "-l mem_free=1.4G"
 
 ###############################################################################
 ###############################################################################

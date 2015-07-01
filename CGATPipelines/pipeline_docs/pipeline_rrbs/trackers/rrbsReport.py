@@ -5,9 +5,9 @@ import types
 import itertools
 import glob
 
-from SphinxReport.Tracker import *
-from collections import OrderedDict as odict
-from SphinxReport.Utils import PARAMS as P
+from CGATReport.Tracker import *
+from CGATReport.Utils import PARAMS as P
+import CGATPipelines.PipelineTracks as PipelineTracks
 
 # get from config file
 UCSC_DATABASE = "hg19"

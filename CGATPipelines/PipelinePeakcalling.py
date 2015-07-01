@@ -169,7 +169,7 @@ def getMinimumMappedReads(infiles):
     return min(v)
 
 
-def getExonLocations(filename):
+def getExonLocations(filename, database):
     '''return a list of exon locations as Bed entries
     from a file contain a one ensembl gene ID per line
     '''
@@ -179,7 +179,7 @@ def getExonLocations(filename):
         ensembl_ids.append(line.strip())
     fh.close()
 
-    dbhandle = sqlite3.connect(PARAMS["annotations_database"])
+    dbhandle = sqlite3.connect(database)
     cc = dbhandle.cursor()
 
     gene_ids = []
@@ -356,7 +356,7 @@ def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
         statement.append('''samtools sort @IN@ @OUT@''')
 
     if dedup:
-        job_options = "-l mem_free=16G -l picard=1"
+        job_options = "-l mem_free=16G"
         statement.append('''MarkDuplicates
         INPUT=@IN@
         ASSUME_SORTED=true
@@ -1055,7 +1055,7 @@ def runMACS(infile, outfile,
     -t %(infile)s
     --diag
     --verbose=10
-    --set-name=%(outfile)s
+    --name=%(outfile)s
     --format=BAM
     %(options)s
     %(macs_options)s
@@ -1197,7 +1197,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile, remove=True):
         raise OSError("bedgraph file %s does not exist" % infile)
 
     if not os.path.exists(contigsfile):
-        raise OSError("contig size file %s does not exist" % infile)
+        raise OSError("contig size file %s does not exist" % contigsfile)
 
     statement = '''
          bedGraphToBigWig %(infile)s %(contigsfile)s %(outfile)s
@@ -1210,6 +1210,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile, remove=True):
 
 def runMACS2(infile, outfile,
              controlfile=None,
+             contigsfile=None,
              force_single_end=False,
              tagsize=None):
     '''run MACS for peak detection from BAM files.
@@ -1254,7 +1255,7 @@ def runMACS2(infile, outfile,
     %(format_options)s
     --treatment %(infile)s
     --verbose=10
-    --set-name=%(outfile)s
+    --name=%(outfile)s
     --qvalue=%(macs2_max_qvalue)s
     --bdg
     --SPMR
@@ -1269,8 +1270,8 @@ def runMACS2(infile, outfile,
         bedfile = outfile + "_" + suffix + ".bed"
         if os.path.exists(bedfile):
             statement = '''
-                 bgzip -f %(bedfile)s
-                 tabix -f-p bed %(bedfile)s.gz
+                 bgzip -f %(bedfile)s;
+                 tabix -f -p bed %(bedfile)s.gz
             '''
         P.run()
 
@@ -1279,13 +1280,11 @@ def runMACS2(infile, outfile,
     # compressing only saves 60%
     if os.path.exists(outfile + "_treat_pileup.bdg"):
         bedGraphToBigwig(outfile + "_treat_pileup.bdg",
-                         os.path.join(PARAMS["annotations_dir"],
-                                      "contigs.tsv"),
+                         contigsfile,
                          outfile + "_treat_pileup.bw")
     if os.path.exists(outfile + "_control_lambda.bdg"):
         bedGraphToBigwig(outfile + "_control_lambda.bdg",
-                         os.path.join(PARAMS["annotations_dir"],
-                                      "contigs.tsv"),
+                         contigsfile,
                          outfile + "_control_lambda.bw")
 
     # index and compress peak file
@@ -1932,7 +1931,8 @@ def runSICER(infile,
 ############################################################
 
 
-def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
+def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow",
+              fragment_size=None):
     '''load Sicer results.'''
 
     to_cluster = True
@@ -1943,7 +1943,7 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
     window = PARAMS["sicer_" + mode + "_window_size"]
     gap = PARAMS["sicer_" + mode + "_gap_size"]
     fdr = "%8.6f" % PARAMS["sicer_fdr_threshold"]
-    offset = PARAMS["sicer_fragment_size"]
+    offset = fragment_size
 
     # taking the file islands-summary-FDR, which contains
     # 'summary file of significant islands with requirement of FDR=0.01'
@@ -2075,14 +2075,17 @@ def runPeakRanger(infile, outfile, controlfile):
     '''run peak ranger
     '''
 
-    job_options = "-l mem_free=8G"
+    job_memory = "8G"
 
     assert controlfile is not None, "peakranger requires a control"
 
     statement = '''peakranger ranger
-              --output-section <( python %(scriptsdir)s/bam2bam.py -v 0 --method=set-sequence < %(infile)s)
-              --control <( python %(scriptsdir)s/bam2bam.py -v 0 --method=set-sequence < %(controlfile)s)
-              --output-section %(outfile)s
+              --data <( python %(scriptsdir)s/bam2bam.py -v 0
+                --method=set-sequence < %(infile)s)
+
+              --control <( python %(scriptsdir)s/bam2bam.py -v 0
+                --method=set-sequence < %(controlfile)s)
+              --output %(outfile)s
               --format bam
               --pval %(peakranger_pvalue_threshold)f
               --FDR %(peakranger_fdr_threshold)f
@@ -2243,18 +2246,18 @@ def runPeakRangerCCAT(infile, outfile, controlfile):
     assert controlfile is not None, "peakranger requires a control"
 
     statement = '''peakranger ccat
-              --output-section %(infile)s
+              --data %(infile)s
               --control %(controlfile)s
-              --output-section %(outfile)s
+              --output %(outfile)s
               --format bam
-              --FDR %(peakranger_fdr_threshold)f
-              --ext_length %(peakranger_extension_length)i
+              --FDR %(ccat_fdr_threshold)f
+              --ext_length %(ccat_extension_length)i
               --win_size %(ccat_winsize)i
               --win_step %(ccat_winstep)i
               --min_count %(ccat_mincount)i
               --min_score %(ccat_minscore)i
-              --thread %(peakranger_threads)i
-              %(peakranger_options)s
+              --thread %(ccat_threads)i
+              %(ccat_options)s
               >& %(outfile)s
     '''
 
@@ -2412,6 +2415,25 @@ def summarizeSPP(infiles, outfile):
             shift, fdr, threshold, npeaks))) + "\n")
 
     outf.close()
+
+
+def estimateSPPQualityMetrics(infile, track, controlfile, outfile):
+    '''estimate ChIP-Seq quality metrics using SPP'''
+
+    job_options = "-l mem_free=4G"
+
+    statement = '''
+    Rscript %(pipeline_rdir)s/run_spp.R -c=%(infile)s -i=%(controlfile)s -rf \
+           -savp -out=%(outfile)s
+    >& %(outfile)s.log'''
+
+    P.run()
+
+    if os.path.exists(track + ".pdf"):
+        dest = os.path.join(PARAMS["exportdir"], "quality", track + ".pdf")
+        if os.path.exists(dest):
+            os.unlink(dest)
+        shutil.move(track + ".pdf", dest)
 
 
 def createGenomeWindows(genome, outfile, windows):

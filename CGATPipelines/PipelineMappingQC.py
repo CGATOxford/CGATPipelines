@@ -35,7 +35,7 @@ import CGATPipelines.Pipeline as P
 
 
 def getPicardOptions():
-    return "-l mem_free=1.4G -l picard=1"
+    return "-l mem_free=1.4G"
 
 
 def getNumReadsFromReadsFile(infile):
@@ -109,7 +109,7 @@ def buildPicardAlignmentStats(infile, outfile, genome_file):
 
     # Picard seems to have problem if quality information is missing
     # or there is no sequence/quality information within the bam file.
-    # Thus, add it explicitely.
+    # Thus, add it explicitly.
     statement = '''cat %(infile)s
     | python %(scriptsdir)s/bam2bam.py -v 0
     --method=set-sequence --output-sam
@@ -459,6 +459,8 @@ def loadBAMStats(infiles, outfile):
         E.info("loading bam stats - %s" % suffix)
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
         
+        tablename = "%s_%s" % (P.toTable(outfile), suffix)
+
         load_statement = P.build_load_statement(
             "%s_%s" % (tablename, suffix),
             options="--allow-empty-file")

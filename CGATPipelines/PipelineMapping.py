@@ -1537,6 +1537,46 @@ class Tophat2(Tophat):
         return statement
 
 
+class Tophat2_fusion(Tophat2):
+
+    executable = "tophat2"
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement for infiles.'''
+
+        # get tophat statement
+        statement = Tophat.mapper(self, infiles, outfile)
+
+        # replace tophat options with tophat2 options and add fusion search cmd
+        statement = re.sub(re.escape("%(tophat_options)s"),
+                           ("%(tophat2_fusion_options)s --fusion-search "
+                            "--bowtie1 --no-coverage-search"),
+                           statement)
+
+        # replace all other tophat parameters with tophat2_fusion parameters
+        statement = re.sub(re.escape("%(tophat_"),
+                           "%(tophat2_fusion_", statement)
+
+        return statement
+
+    def postprocess(self, infiles, outfile):
+        '''collect output data and postprocess.'''
+
+        track = P.snip(outfile, ".bam")
+        tmpdir_tophat = self.tmpdir_tophat
+
+        statement = '''
+        gzip < %(tmpdir_tophat)s/junctions.bed
+        > %(track)s.junctions.bed.gz;
+        mv %(tmpdir_tophat)s/logs %(outfile)s.logs;
+        mv %(tmpdir_tophat)s/accepted_hits.bam %(outfile)s;
+        mv %(tmpdir_tophat)s/fusions.out %%(fusions)s;
+        samtools index %(outfile)s;
+        ''' % locals()
+
+        return statement
+
+
 class TopHat_fusion(Mapper):
 
     # tophat can map colour space files directly
