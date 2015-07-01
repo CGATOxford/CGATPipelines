@@ -1276,7 +1276,7 @@ QCTARGETS = [mapToQCTargets[x] for x in P.asList(PARAMS["methods"])]
 def plotDETagStats(infile, outfile):
     '''plot differential expression stats'''
 
-    job_memory = "4G"
+    job_memory = "8G"
 
     statement = '''
     python %(scriptsdir)s/runExpression.py

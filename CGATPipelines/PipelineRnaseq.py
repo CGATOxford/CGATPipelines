@@ -1069,6 +1069,7 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
                       ("tss_groups.fpkm_tracking.gz", "tss")):
 
         tablename = prefix + "_" + level + "_levels"
+        infile = os.path.join(indir, fn)
 
         P.load(infile, outfile,
                tablename=tablename,

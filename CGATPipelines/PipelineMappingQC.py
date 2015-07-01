@@ -436,8 +436,10 @@ def loadBAMStats(infiles, outfile):
                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
 
+    tablename = P.toTable(outfile)
+
     load_statement = P.build_load_statement(
-        P.toTable(outfile),
+        tablename,
         options="--add-index=track "
         " --allow-empty-file")
 
@@ -461,7 +463,7 @@ def loadBAMStats(infiles, outfile):
 
         load_statement = P.build_load_statement(
             "%s_%s" % (tablename, suffix),
-            options=" --allow-empty-file")
+            options="--allow-empty-file")
 
         statement = """python %(scriptsdir)s/combine_tables.py
         --header-names=%(header)s

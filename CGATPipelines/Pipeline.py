@@ -1,3 +1,4 @@
+
 ##########################################################################
 #
 #   MRC FGU Computational Genomics Group
@@ -179,7 +180,7 @@ HARDCODED_PARAMS = {
     # name of consumable resource to use for requesting memory
     'cluster_memory_resource': "mem_free",
     # amount of memory set by default for each job
-    'cluster_memory_default': "2G",
+    'cluster_memory_default': "4G",
     # general cluster options
     'cluster_options': "",
     # parallel environment to use for multi-threaded jobs
@@ -822,6 +823,7 @@ def concatenateAndLoad(infiles,
                        cat=None,
                        has_titles=True,
                        missing_value="na",
+                       retry=True,
                        options=""):
     '''concatenate categorical tables and load into a database.
 
@@ -878,6 +880,7 @@ def mergeAndLoad(infiles,
                  columns=(0, 1),
                  regex=None,
                  row_wise=True,
+                 retry=True,
                  options="",
                  prefixes=None):
     '''merge categorical tables and load into a database.
@@ -1420,22 +1423,23 @@ def run(**kwargs):
     else:
         job_memory = PARAMS.get("cluster_memory_default", "2G")
 
-    def setupJob(session, options, job_memory):
+    def setupJob(session, options, job_memory, job_name):
 
         jt = session.createJobTemplate()
         jt.workingDirectory = os.getcwd()
         jt.jobEnvironment = {'BASH_ENV': '~/.bashrc'}
         jt.args = []
+        if not re.match("[a-zA-Z]", job_name[0]):
+            job_name = "_" + job_name
+
         spec = [
             "-V",
             "-q %(cluster_queue)s",
             "-p %(cluster_priority)i",
-            "-N %s" % ("_" +
-                       re.sub("[:]", "_",
-                              os.path.basename(
-                                  options.get("outfile", "ruffus")))),
+            "-N %s" % job_name,
             "%(cluster_options)s"]
 
+        # limit memory of cluster jobs
         spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
                                   job_memory))
 
@@ -1471,7 +1475,12 @@ def run(**kwargs):
         not options["without_cluster"] and \
         GLOBAL_SESSION is not None
 
-    def buildJobScript(statement, job_memory):
+    # SGE compatible job_name
+    job_name = re.sub(
+        "[:]", "_",
+        os.path.basename(options.get("outfile", "ruffus")))
+
+    def buildJobScript(statement, job_memory, job_name):
         '''build job script from statement.
 
         returns (name_of_script, stdout_path, stderr_path)
@@ -1481,21 +1490,31 @@ def run(**kwargs):
         # disabled: -l -O expand_aliases\n" )
         tmpfile.write("#!/bin/bash\n")
         tmpfile.write(
-            'echo "START--------------------------------" >> %s\n' % shellfile)
+            'echo "%s : START -> %s" >> %s\n' %
+            (job_name, tmpfile.name, shellfile))
         # disabled - problems with quoting
         # tmpfile.write( '''echo 'statement=%s' >> %s\n''' %
         # (shellquote(statement), shellfile) )
-        tmpfile.write("set &>> %s\n" % shellfile)
-        tmpfile.write("module list &>> %s\n" % shellfile)
+        tmpfile.write("set | sed 's/^/%s : /' &>> %s\n" %
+                      (job_name, shellfile))
+        # module list outputs to stderr, so merge stderr and stdout
+        tmpfile.write("module list 2>&1 | sed 's/^/%s: /' &>> %s\n" %
+                      (job_name, shellfile))
+        tmpfile.write("hostname | sed 's/^/%s: /' &>> %s\n" %
+                      (job_name, shellfile))
+        tmpfile.write("cat /proc/meminfo | sed 's/^/%s: /' &>> %s\n" %
+                      (job_name, shellfile))
         tmpfile.write(
-            'echo "END----------------------------------" >> %s\n' % shellfile)
+            'echo "%s : END -> %s" >> %s\n' %
+            (job_name, tmpfile.name, shellfile))
 
         # restrict virtual memory
         # Note that there are resources in SGE which could do this directly
         # such as v_hmem.
         # Note that limiting resident set sizes (RSS) with ulimit is not
         # possible in newer kernels.
-        #tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
+        # AH: disabled until memory issues are resolved
+        # tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
 
         tmpfile.write(
             expandStatement(
@@ -1523,14 +1542,15 @@ def run(**kwargs):
             if options.get("dryrun", False):
                 return
 
-            jt = setupJob(session, options, job_memory)
+            jt = setupJob(session, options, job_memory, job_name)
 
             job_ids, filenames = [], []
             for statement in statement_list:
                 L.debug("running statement:\n%s" % statement)
 
                 job_path, stdout_path, stderr_path = buildJobScript(statement,
-                                                                    job_memory)
+                                                                    job_memory,
+                                                                    job_name)
 
                 jt.remoteCommand = job_path
                 jt.outputPath = ":" + stdout_path
@@ -1571,9 +1591,10 @@ def run(**kwargs):
                 return
 
             job_path, stdout_path, stderr_path = buildJobScript(statement,
-                                                                job_memory)
+                                                                job_memory,
+                                                                job_name)
 
-            jt = setupJob(session, options, job_memory)
+            jt = setupJob(session, options, job_memory, job_name)
 
             jt.remoteCommand = job_path
             # later: allow redirection of stdout and stderr to files;

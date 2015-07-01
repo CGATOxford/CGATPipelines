@@ -481,7 +481,7 @@ def runDE(infiles, outfile, outdir,
     --input-header
     --output-header
     --split-at-lines=200000
-    --cluster-options="-l mem_free=8G"
+    --cluster-options="-l mem_free=16G"
     --log=%(outfile)s.log
     --output-filename-pattern=%(outdir)s/%%s
     --subdirs

@@ -335,8 +335,8 @@ def buildCpGComposition(infile, outfile):
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/bed2table.py
-          --counter=composition-cpg
-          --genome-file=%(genome_dir)s/%(genome)s
+    --counter=composition-cpg
+    --genome-file=%(genome_dir)s/%(genome)s
     | gzip
     > %(outfile)s
     '''
@@ -428,11 +428,11 @@ def buildCpGCoverage(infiles, outfile):
 
     infile, cpg_file = infiles
 
-    job_memory = "16G"
+    job_memory = "32G"
 
     statement = '''
     zcat %(infile)s
-    | coverageBed -a stdin -b %(cpg_file)s -counts
+    | bedtools coverage -a stdin -b %(cpg_file)s -counts
     | cut -f 6
     | python %(scriptsdir)s/data2histogram.py
     | gzip
@@ -1629,7 +1629,7 @@ def buildTranscriptProfiles(infiles, outfile):
         print msg
         return
 
-    job_memory = "4G"
+    job_memory = "8G"
 
     # no input normalization, this is done later.
     options = ''

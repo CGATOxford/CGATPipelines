@@ -1464,7 +1464,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     infile, genesets = infiles[0], infiles[1:]
 
     statements = []
-    job_memory = "4G"
+    job_memory = "8G"
     for geneset in genesets:
         chrom = re.match(
             "geneset.dir/refcoding\.(.+)\.gtf.gz", geneset).groups()[0]
@@ -1590,6 +1590,8 @@ def buildTranscriptProfiles(infiles, outfile):
     '''build gene coverage profiles.'''
 
     bamfile, gtffile = infiles
+
+    job_memory = "8G"
 
     statement = '''python %(scriptsdir)s/bam2geneprofile.py
     --output-filename-pattern="%(outfile)s.%%s"
