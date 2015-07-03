@@ -840,10 +840,10 @@ def concatenateAndLoad(infiles,
     infiles = " ".join(infiles)
 
     passed_options = options
-    load_options, options = ["--add-index=track"], []
+    load_options, cat_options = ["--add-index=track"], []
 
     if regex_filename:
-        options.append("--regex-filename='%s'" % regex_filename)
+        cat_options.append("--regex-filename='%s'" % regex_filename)
 
     if header:
         load_options.append("--header-names=%s" % header)
@@ -851,22 +851,21 @@ def concatenateAndLoad(infiles,
     if not cat:
         cat = "track"
 
-    if has_titles is False:
-        no_titles = "--no-titles"
-    else:
-        no_titles = ""
+    if not has_titles:
+        cat_options.append("--no-titles")
 
-    options = " ".join(options + load_options) + " " + passed_options
+    cat_options = " ".join(cat_options)
+    load_options = " ".join(load_options) + " " + passed_options
 
     load_statement = build_load_statement(toTable(outfile),
-                                          options=options,
+                                          options=load_options,
                                           retry=retry)
 
     statement = '''python %(scriptsdir)s/combine_tables.py
     --cat=%(cat)s
     --missing-value=%(missing_value)s
     %(no_titles)s
-    %(options)s
+    %(cat_options)s
     %(infiles)s
     | %(load_statement)s
     > %(outfile)s'''
