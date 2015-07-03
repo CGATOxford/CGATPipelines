@@ -902,51 +902,48 @@ def buildExpressionStats(dbhandle, tables, genesets, method, outfile, outdir):
                     int,
                     [(tuple(x[:l]), x[l]) for x in vals])
 
-            tested = toDict(
-                Database.executewait(
-                    dbhandle,
-                    "SELECT sample_1,sample_2, "
-                    "COUNT(*) FROM %(tablename_diff)s "
-                    "GROUP BY sample_1,sample_2" % locals()
-                    ).fetchall())
+            tested = toDict(Database.executewait(
+                dbhandle,
+                "SELECT treatment_name, control_name, "
+                "COUNT(*) FROM %(tablename_diff)s "
+                "GROUP BY treatment_name,control_name" % locals()
+                ).fetchall())
             status = toDict(Database.executewait(
                 dbhandle,
-                "SELECT sample_1,sample_2,status, "
+                "SELECT treatment_name, control_name, status, "
                 "COUNT(*) FROM %(tablename_diff)s "
-                "GROUP BY sample_1,sample_2,status"
+                "GROUP BY treatment_name,control_name,status"
                 % locals()).fetchall(), 3)
             signif = toDict(Database.executewait(
                 dbhandle,
-                '''SELECT sample_1,sample_2,
-                COUNT(*) FROM %(tablename_diff)s
-                WHERE significant == "yes"
-                GROUP BY sample_1,sample_2''' % locals()
+                "SELECT treatment_name, control_name, "
+                "COUNT(*) FROM %(tablename_diff)s "
+                "WHERE significant "
+                "GROUP BY treatment_name,control_name" % locals()
                 ).fetchall())
-            print(dict(signif))
 
             fold2 = toDict(Database.executewait(
                 dbhandle,
-                '''SELECT sample_1,sample_2,
-                COUNT(*) FROM %(tablename_diff)s
-                WHERE (log2_fold_change_ >= 1 or log2_fold_change_ <= -1)
-                AND (significant == "yes")
-                GROUP BY sample_1, sample_2, significant''' % locals()
-                ).fetchall())
+                "SELECT treatment_name, control_name, "
+                "COUNT(*) FROM %(tablename_diff)s "
+                "WHERE (l2fold >= 1 or l2fold <= -1) AND significant "
+                "GROUP BY treatment_name,control_name,significant"
+                % locals()).fetchall())
 
-            for sample_1, sample_2 in tested.keys():
+            for treatment_name, control_name in tested.keys():
                 outf.write("\t".join(map(str, (
                     design,
                     geneset,
                     level,
                     counting_method,
-                    sample_1,
-                    sample_2,
-                    tested[(sample_1, sample_2)],
+                    treatment_name,
+                    control_name,
+                    tested[(treatment_name, control_name)],
                     "\t".join(
-                        [str(status[(sample_1, sample_2, x)])
+                        [str(status[(treatment_name, control_name, x)])
                          for x in keys_status]),
-                    signif[(sample_1, sample_2)],
-                    fold2[(sample_1, sample_2)]))) + "\n")
+                    signif[(treatment_name, control_name)],
+                    fold2[(treatment_name, control_name)]))) + "\n")
 
             ###########################################
             ###########################################
@@ -954,7 +951,7 @@ def buildExpressionStats(dbhandle, tables, genesets, method, outfile, outdir):
             # plot length versus P-Value
             data = Database.executewait(
                 dbhandle,
-                "SELECT i.sum, p_value "
+                "SELECT i.sum, pvalue "
                 "FROM %(tablename_diff)s, "
                 "%(geneset)s_geneinfo as i "
                 "WHERE i.gene_id = test_id AND "
