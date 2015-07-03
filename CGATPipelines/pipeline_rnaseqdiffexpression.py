@@ -1021,6 +1021,9 @@ def loadTagCountSummary(infile, outfile):
          loadFeatureCountsSummary,
          aggregateGeneLevelReadCounts,
          aggregateFeatureCounts)
+@transform((summarizeCounts,
+            summarizeCountsPerDesign),
+           suffix("_stats.tsv"), "_stats.load")
 def counting():
     pass
 

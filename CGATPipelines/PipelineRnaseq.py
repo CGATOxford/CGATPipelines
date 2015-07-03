@@ -743,8 +743,8 @@ def mergeCufflinksFPKM(infiles, outfile,
     fpkm_tracking: isoforms
     '''
 
-    prefix = os.path.basename(outfile)
-    prefix = prefix[:prefix.index("_")]
+    prefix = os.path.basename(infiles[0])
+    prefix = prefix[:prefix.rfind("_")]
     print prefix
 
     headers = ",".join(
