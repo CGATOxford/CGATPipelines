@@ -620,7 +620,7 @@ def buildCuffdiffStats(infiles, outfile):
     outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, "cuffdiff", outfile, outdir)
+        tablenames, GENESETS, "cuffdiff", outfile, outdir)
 
 #########################################################################
 #########################################################################
@@ -1078,7 +1078,7 @@ def buildDESeqStats(infiles, outfile):
     outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, "deseq", outfile, outdir)
+        tablenames, GENESETS, "deseq", outfile, outdir)
 
 
 @transform(buildDESeqStats,
@@ -1131,10 +1131,11 @@ def loadEdgeR(infile, outfile):
 @merge(loadEdgeR, "edger_stats.tsv")
 def buildEdgeRStats(infiles, outfile):
     tablenames = [P.toTable(x) for x in infiles]
+    print tablenames
     outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, "edger", outfile, outdir)
+        tablenames, GENESETS, "edger", outfile, outdir)
 
 
 @transform(buildEdgeRStats,

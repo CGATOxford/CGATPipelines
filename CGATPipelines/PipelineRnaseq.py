@@ -829,31 +829,42 @@ def runFeatureCounts(annotations_file,
     P.run()
 
 
-def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
+def buildExpressionStats(dbhandle, tables, genesets, method, outfile, outdir):
     '''build expression summary statistics.
 
     Creates also diagnostic plots in
 
     <exportdir>/<method> directory.
     '''
-    def _split(tablename):
+    def _genesetintablename(table, genesets):
+        out = []
+        for g in genesets:
+            if str(g) in table:
+                out.append(str(g))
+        if (len(out) == 1):
+            return out[0]
+        elif (len(out) == 0):
+            raise ValueError("Geneset name not contained in: %s" % table)
+        else:
+            raise ValueError("Multiple genset names match: %s" % tablename)
+
+    def _split(tablename, geneset):
         # this would be much easier, if feature_counts/gene_counts/etc.
         # would not contain an underscore.
         try:
-            design, geneset, counting_method = re.match(
-                "([^_]+)_vs_([^_]+)_(.*)_%s" % method,
+            design, counting_method = re.match(
+                "([^_]+)_vs_%s_(.*)_%s" % (geneset, method),
                 tablename).groups()
         except AttributeError:
             try:
-                design, geneset = re.match(
-                    "([^_]+)_([^_]+)_%s" % method,
+                design = re.match(
+                    "([^_]+)_%s_%s" % (geneset, method),
                     tablename).groups()
-                print design, geneset
                 counting_method = "na"
             except AttributeError:
                 raise ValueError("can't parse tablename %s" % tablename)
 
-        return design, geneset, counting_method
+        return design, counting_method
 
         # return re.match("([^_]+)_", tablename ).groups()[0]
 
@@ -877,10 +888,11 @@ def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
     for level in CUFFDIFF_LEVELS:
 
         for tablename in tables:
-
+            geneset = _genesetintablename(tablename, genesets)
             tablename_diff = "%s_%s_diff" % (tablename, level)
             tablename_levels = "%s_%s_diff" % (tablename, level)
-            design, geneset, counting_method = _split(tablename_diff)
+            design, counting_method = _split(tablename_diff, geneset)
+
             if tablename_diff not in all_tables:
                 continue
 
@@ -888,50 +900,53 @@ def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
                 return collections.defaultdict(
                     int,
                     [(tuple(x[:l]), x[l]) for x in vals])
+            
 
             tested = toDict(
                 Database.executewait(
                     dbhandle,
-                    "SELECT treatment_name, control_name, "
+                    "SELECT sample_1,sample_2, "
                     "COUNT(*) FROM %(tablename_diff)s "
-                    "GROUP BY treatment_name,control_name" % locals()
+                    "GROUP BY sample_1,sample_2" % locals()
                     ).fetchall())
             status = toDict(Database.executewait(
                 dbhandle,
-                "SELECT treatment_name, control_name, status, "
+                "SELECT sample_1,sample_2,status, "
                 "COUNT(*) FROM %(tablename_diff)s "
-                "GROUP BY treatment_name,control_name,status"
+                "GROUP BY sample_1,sample_2,status"
                 % locals()).fetchall(), 3)
             signif = toDict(Database.executewait(
                 dbhandle,
-                "SELECT treatment_name, control_name, "
-                "COUNT(*) FROM %(tablename_diff)s "
-                "WHERE significant "
-                "GROUP BY treatment_name,control_name" % locals()
+                '''SELECT sample_1,sample_2,
+                COUNT(*) FROM %(tablename_diff)s
+                WHERE significant == "yes"
+                GROUP BY sample_1,sample_2''' % locals()
                 ).fetchall())
+            print(dict(signif))
 
             fold2 = toDict(Database.executewait(
                 dbhandle,
-                "SELECT treatment_name, control_name, "
-                "COUNT(*) FROM %(tablename_diff)s "
-                "WHERE (l2fold >= 1 or l2fold <= -1) AND significant "
-                "GROUP BY treatment_name,control_name,significant"
-                % locals()).fetchall())
+                '''SELECT sample_1,sample_2,
+                COUNT(*) FROM %(tablename_diff)s
+                WHERE (log2_fold_change_ >= 1 or log2_fold_change_ <= -1)
+                AND (significant == "yes")
+                GROUP BY sample_1, sample_2, significant''' % locals()
+                ).fetchall())
 
-            for treatment_name, control_name in tested.keys():
+            for sample_1, sample_2 in tested.keys():
                 outf.write("\t".join(map(str, (
                     design,
                     geneset,
                     level,
                     counting_method,
-                    treatment_name,
-                    control_name,
-                    tested[(treatment_name, control_name)],
+                    sample_1,
+                    sample_2,
+                    tested[(sample_1, sample_2)],
                     "\t".join(
-                        [str(status[(treatment_name, control_name, x)])
+                        [str(status[(sample_1, sample_2, x)])
                          for x in keys_status]),
-                    signif[(treatment_name, control_name)],
-                    fold2[(treatment_name, control_name)]))) + "\n")
+                    signif[(sample_1, sample_2)],
+                    fold2[(sample_1, sample_2)]))) + "\n")
 
             ###########################################
             ###########################################
@@ -939,7 +954,7 @@ def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
             # plot length versus P-Value
             data = Database.executewait(
                 dbhandle,
-                "SELECT i.sum, pvalue "
+                "SELECT i.sum, p_value "
                 "FROM %(tablename_diff)s, "
                 "%(geneset)s_geneinfo as i "
                 "WHERE i.gene_id = test_id AND "
