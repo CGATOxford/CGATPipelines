@@ -836,6 +836,7 @@ def buildExpressionStats(dbhandle, tables, genesets, method, outfile, outdir):
 
     <exportdir>/<method> directory.
     '''
+
     def _genesetintablename(table, genesets):
         out = []
         for g in genesets:
@@ -900,7 +901,6 @@ def buildExpressionStats(dbhandle, tables, genesets, method, outfile, outdir):
                 return collections.defaultdict(
                     int,
                     [(tuple(x[:l]), x[l]) for x in vals])
-            
 
             tested = toDict(
                 Database.executewait(
