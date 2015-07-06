@@ -48,6 +48,7 @@ import re
 import math
 import numpy
 import sqlite3
+import pandas
 
 import CGAT.GTF as GTF
 import CGAT.BamTools as BamTools
@@ -743,8 +744,8 @@ def mergeCufflinksFPKM(infiles, outfile,
     fpkm_tracking: isoforms
     '''
 
-    prefix = os.path.basename(outfile)
-    prefix = prefix[:prefix.index("_")]
+    prefix = os.path.basename(infiles[0])
+    prefix = prefix[:prefix.rfind("_")]
     print prefix
 
     headers = ",".join(
@@ -829,31 +830,43 @@ def runFeatureCounts(annotations_file,
     P.run()
 
 
-def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
+def buildExpressionStats(dbhandle, tables, genesets, method, outfile, outdir):
     '''build expression summary statistics.
 
     Creates also diagnostic plots in
 
     <exportdir>/<method> directory.
     '''
-    def _split(tablename):
+
+    def _genesetintablename(table, genesets):
+        out = []
+        for g in genesets:
+            if str(g) in table:
+                out.append(str(g))
+        if (len(out) == 1):
+            return out[0]
+        elif (len(out) == 0):
+            raise ValueError("Geneset name not contained in: %s" % table)
+        else:
+            raise ValueError("Multiple genset names match: %s" % tablename)
+
+    def _split(tablename, geneset):
         # this would be much easier, if feature_counts/gene_counts/etc.
         # would not contain an underscore.
         try:
-            design, geneset, counting_method = re.match(
-                "([^_]+)_vs_([^_]+)_(.*)_%s" % method,
+            design, counting_method = re.match(
+                "([^_]+)_vs_%s_(.*)_%s" % (geneset, method),
                 tablename).groups()
         except AttributeError:
             try:
-                design, geneset = re.match(
-                    "([^_]+)_([^_]+)_%s" % method,
+                design = re.match(
+                    "([^_]+)_%s_%s" % (geneset, method),
                     tablename).groups()
-                print design, geneset
                 counting_method = "na"
             except AttributeError:
                 raise ValueError("can't parse tablename %s" % tablename)
 
-        return design, geneset, counting_method
+        return design, counting_method
 
         # return re.match("([^_]+)_", tablename ).groups()[0]
 
@@ -877,10 +890,11 @@ def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
     for level in CUFFDIFF_LEVELS:
 
         for tablename in tables:
-
+            geneset = _genesetintablename(tablename, genesets)
             tablename_diff = "%s_%s_diff" % (tablename, level)
             tablename_levels = "%s_%s_diff" % (tablename, level)
-            design, geneset, counting_method = _split(tablename_diff)
+            design, counting_method = _split(tablename_diff, geneset)
+
             if tablename_diff not in all_tables:
                 continue
 
@@ -889,13 +903,12 @@ def buildExpressionStats(dbhandle, tables, method, outfile, outdir):
                     int,
                     [(tuple(x[:l]), x[l]) for x in vals])
 
-            tested = toDict(
-                Database.executewait(
-                    dbhandle,
-                    "SELECT treatment_name, control_name, "
-                    "COUNT(*) FROM %(tablename_diff)s "
-                    "GROUP BY treatment_name,control_name" % locals()
-                    ).fetchall())
+            tested = toDict(Database.executewait(
+                dbhandle,
+                "SELECT treatment_name, control_name, "
+                "COUNT(*) FROM %(tablename_diff)s "
+                "GROUP BY treatment_name,control_name" % locals()
+                ).fetchall())
             status = toDict(Database.executewait(
                 dbhandle,
                 "SELECT treatment_name, control_name, status, "
@@ -1051,12 +1064,25 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
         tablename = prefix + "_" + level + "_diff"
 
         infile = os.path.join(indir, fn)
-        results = parseCuffdiff(infile,
-                                min_fpkm=min_fpkm)
 
-        Expression.writeExpressionResults(tmpname, results)
+        # rename diff files to align column names with column names
+        # from deseq and edger. This is important for later processing
+        # of summary statistics and is done via loading into a pandas database
+        # and modifying the column headers accordingly
+        pandas_tmp = pandas.DataFrame.from_csv(infile, sep='\t')
+        pandas_tmp.rename(columns={'sample_1': 'treatment_name'}, inplace=True)
+        pandas_tmp.rename(columns={'sample_2': 'control_name'}, inplace=True)
+        pandas_tmp.rename(columns={'log2(fold_change)': 'l2fold'},
+                          inplace=True)
+        pandas_tmp.rename(columns={'p_value': 'pvalue'}, inplace=True)
+        pandas_tmp.rename(columns={'q_value': 'qvalue'}, inplace=True)
+        d = {"yes": 1, "no": 0}
+        pandas_tmp["significant"] = pandas_tmp["significant"].map(d)
 
-        P.load(infile, outfile,
+        os.remove(tmpname)
+        pandas_tmp.to_csv(tmpname, sep='\t', index_label='test_id')
+
+        P.load(tmpname, outfile,
                tablename=tablename,
                options="--allow-empty-file "
                "--add-index=treatment_name "
@@ -1256,6 +1282,7 @@ def runCuffdiff(bamfiles,
     # Error is:
     # BAM record error: found spliced alignment without XS attribute
     # AH: compress output in outdir
+    job_memory = "7G"
     statement = '''date > %(outfile)s.log;
     hostname >> %(outfile)s.log;
     cuffdiff --output-dir %(outdir)s

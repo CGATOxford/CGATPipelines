@@ -23,7 +23,6 @@ The pipeline performs the following:
 
    * compute tag counts on an exon, transcript and gene level for each
      of the genesets. The following tag counting methods are implemented:
-
       * featureCounts_
       * gtf2table
 
@@ -115,7 +114,9 @@ Design matrices
 
 Design matrices are imported by placing :term:`tsv` formatted files
 into the :term:`working directory`. A design matrix describes the
-experimental design to test. Each design file has four columns::
+experimental design to test. The design files should be named
+design*.tsv.
+Each design file has four columns::
 
       track   include group   pair
       CW-CD14-R1      0       CD14    1
@@ -145,7 +146,7 @@ Requirements
 
 The pipeline requires the results from
 :doc:`pipeline_annotations`. Set the configuration variable
-:py:data:`annotations_database` and :py:data:`annotations_dir`.
+:py:data:`annotations_annotations_database` and :py:data:`annotations_dir`.
 
 On top of the default CGAT setup, the pipeline requires the following
 software to be in the path:
@@ -352,7 +353,7 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
+        PARAMS["annotations_annotations_database"])
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
@@ -374,11 +375,30 @@ def buildMaskGtf(infile, outfile):
     to "chrM". for use with cufflinks
 
     '''
+    dbh = connect()
+    table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
+    table2 = os.path.basename(PARAMS["annotations_interface_table_gene_stats"])
+
+    try:
+        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
+        WHERE gene_biotype = 'rRNA';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or gene_biotype column. "
+                   "Error message: '%s'" % error)
+    rrna_list = [x[0] for x in select]
+
+    try:
+        select2 = dbh.execute("""SELECT DISTINCT gene_id FROM %(table2)s
+        WHERE contig = 'chrM';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or contig column. "
+                   "Error message: '%s'" % error)
+    chrM_list = [x[0] for x in select2]
+
     geneset = IOTools.openFile(infile)
     outf = open(outfile, "wb")
     for entry in GTF.iterator(geneset):
-        if re.findall("rRNA", entry.source) or re.findall(
-                "chrM", entry.contig):
+        if entry.gene_id in rrna_list or entry.gene_id in chrM_list:
             outf.write("\t".join((map(
                 str,
                 [entry.contig, entry.source, entry.feature,
@@ -600,7 +620,7 @@ def buildCuffdiffStats(infiles, outfile):
     outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, "cuffdiff", outfile, outdir)
+        tablenames, GENESETS, "cuffdiff", outfile, outdir)
 
 #########################################################################
 #########################################################################
@@ -952,7 +972,7 @@ def summarizeCounts(infile, outfile):
     '''perform summarization of read counts'''
 
     prefix = P.snip(outfile, ".tsv")
-    job_options = "-l mem_free=32G"
+    job_memory = "32G"
     statement = '''python %(scriptsdir)s/runExpression.py
               --method=summary
               --tags-tsv-file=%(infile)s
@@ -1001,6 +1021,9 @@ def loadTagCountSummary(infile, outfile):
          loadFeatureCountsSummary,
          aggregateGeneLevelReadCounts,
          aggregateFeatureCounts)
+@transform((summarizeCounts,
+            summarizeCountsPerDesign),
+           suffix("_stats.tsv"), "_stats.load")
 def counting():
     pass
 
@@ -1055,7 +1078,7 @@ def buildDESeqStats(infiles, outfile):
     outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, "deseq", outfile, outdir)
+        tablenames, GENESETS, "deseq", outfile, outdir)
 
 
 @transform(buildDESeqStats,
@@ -1108,10 +1131,11 @@ def loadEdgeR(infile, outfile):
 @merge(loadEdgeR, "edger_stats.tsv")
 def buildEdgeRStats(infiles, outfile):
     tablenames = [P.toTable(x) for x in infiles]
+    print tablenames
     outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, "edger", outfile, outdir)
+        tablenames, GENESETS, "edger", outfile, outdir)
 
 
 @transform(buildEdgeRStats,

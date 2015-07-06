@@ -864,7 +864,6 @@ def concatenateAndLoad(infiles,
     statement = '''python %(scriptsdir)s/combine_tables.py
     --cat=%(cat)s
     --missing-value=%(missing_value)s
-    %(no_titles)s
     %(cat_options)s
     %(infiles)s
     | %(load_statement)s
