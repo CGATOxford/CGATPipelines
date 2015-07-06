@@ -48,6 +48,7 @@ import re
 import math
 import numpy
 import sqlite3
+import pandas
 
 import CGAT.GTF as GTF
 import CGAT.BamTools as BamTools
@@ -1063,12 +1064,25 @@ def loadCuffdiff(infile, outfile, min_fpkm=1.0):
         tablename = prefix + "_" + level + "_diff"
 
         infile = os.path.join(indir, fn)
-        results = parseCuffdiff(infile,
-                                min_fpkm=min_fpkm)
 
-        Expression.writeExpressionResults(tmpname, results)
+        # rename diff files to align column names with column names
+        # from deseq and edger. This is important for later processing
+        # of summary statistics and is done via loading into a pandas database
+        # and modifying the column headers accordingly
+        pandas_tmp = pandas.DataFrame.from_csv(infile, sep='\t')
+        pandas_tmp.rename(columns={'sample_1': 'treatment_name'}, inplace=True)
+        pandas_tmp.rename(columns={'sample_2': 'control_name'}, inplace=True)
+        pandas_tmp.rename(columns={'log2(fold_change)': 'l2fold'},
+                          inplace=True)
+        pandas_tmp.rename(columns={'p_value': 'pvalue'}, inplace=True)
+        pandas_tmp.rename(columns={'q_value': 'qvalue'}, inplace=True)
+        d = {"yes": 1, "no": 0}
+        pandas_tmp["significant"] = pandas_tmp["significant"].map(d)
 
-        P.load(infile, outfile,
+        os.remove(tmpname)
+        pandas_tmp.to_csv(tmpname, sep='\t', index_label='test_id')
+
+        P.load(tmpname, outfile,
                tablename=tablename,
                options="--allow-empty-file "
                "--add-index=treatment_name "
