@@ -1030,7 +1030,7 @@ class BWA(Mapper):
             bwa aln %%(bwa_aln_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles)s
             > %(tmpdir)s/%(track)s.sai 2>>%(outfile)s.bwa.log;
-            bwa samse %%(bwa_index_dir)s/%%(genome)s
+            bwa samse %%(bwa_samse_options)s %%(bwa_index_dir)s/%%(genome)s
             %(tmpdir)s/%(track)s.sai %(infiles)s
             > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
             ''' % locals())
