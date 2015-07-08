@@ -69,7 +69,7 @@ class PipelineStatus(Status):
 
         x = re.search("# job started at ([^-]*) on", lines[1])
         if x:
-            started = x.groups()[1]
+            started = x.groups()[0]
 
         x = re.search(
             "# job finished in (\d+) seconds at ([^-]*) -- ", lines[-1])

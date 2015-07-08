@@ -327,7 +327,8 @@ PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
     prefix="annotations_",
-    update_interface=True))
+    update_interface=True,
+    restrict_interface=True))
 
 PipelineGeneset.PARAMS = PARAMS
 PipelineRnaseq.PARAMS = PARAMS
@@ -353,7 +354,7 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_annotations_database"])
+        PARAMS["annotations_database"])
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
@@ -379,20 +380,13 @@ def buildMaskGtf(infile, outfile):
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
     table2 = os.path.basename(PARAMS["annotations_interface_table_gene_stats"])
 
-    try:
-        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
-        WHERE gene_biotype = 'rRNA';""" % locals())
-    except sqlite3.OperationalError as error:
-        E.critical("sqlite3 cannot find table or gene_biotype column. "
-                   "Error message: '%s'" % error)
+    select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
+    WHERE gene_biotype = 'rRNA';""" % locals())
     rrna_list = [x[0] for x in select]
 
-    try:
-        select2 = dbh.execute("""SELECT DISTINCT gene_id FROM %(table2)s
-        WHERE contig = 'chrM';""" % locals())
-    except sqlite3.OperationalError as error:
-        E.critical("sqlite3 cannot find table or contig column. "
-                   "Error message: '%s'" % error)
+    select2 = dbh.execute("""SELECT DISTINCT gene_id FROM %(table2)s
+    WHERE contig = 'chrM';""" % locals())
+
     chrM_list = [x[0] for x in select2]
 
     geneset = IOTools.openFile(infile)

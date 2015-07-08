@@ -43,11 +43,9 @@ def importFromIterator(
     else:
         indices = ""
 
-    tmpfilename = tmpfile.name
-
-    P.load(infile,
+    P.load(tmpfile.name,
            outfile,
            tablename=tablename,
            options=indices)
 
-    os.unlink(tmpfilename)
+    os.unlink(tmpfile.name)

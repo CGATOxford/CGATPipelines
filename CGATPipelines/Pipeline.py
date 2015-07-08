@@ -1853,7 +1853,8 @@ def peekParameters(workingdir,
                    pipeline,
                    on_error_raise=None,
                    prefix=None,
-                   update_interface=False):
+                   update_interface=False,
+                   restrict_interface=False):
     '''peek configuration parameters from a *pipeline*
     in *workingdir*.
 
@@ -1868,7 +1869,9 @@ def peekParameters(workingdir,
     If *prefix* is set, all parameters will be prefixed by *prefix*.
 
     If *update_interface* is True, this method will also prefix any
-    options in the ``[interface]`` section with *wordinkdir*.
+    options in the ``[interface]`` section with *wordingdir*. If
+    *restrict_interface* is set, only interface parameters will be
+    output.
 
     If *on_error_raise* is set to a boolean, an error will be raised
     (or not) if there is an error during parameter peeking, for
@@ -1963,6 +1966,11 @@ def peekParameters(workingdir,
         for key, value in dump.items():
             if key.startswith("interface"):
                 dump[key] = os.path.join(workingdir, value)
+
+    # keep only interface if so required
+    if restrict_interface:
+        dump = dict([(k, v) for k, v in dump.iteritems()
+                     if k.startswith("interface")])
 
     # prefix all parameters
     if prefix is not None:

@@ -226,12 +226,14 @@ P.getParameters(
         'paired_end': False})
 
 PARAMS = P.PARAMS
-
+# Add parameters from the annotation pipeline, but
+# only the interface
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
     prefix="annotations_",
-    update_interface=True))
+    update_interface=True,
+    restrict_interface=True))
 
 PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
@@ -269,8 +271,14 @@ def connect():
     '''
 
     dbh = sqlite3.connect(PARAMS["database_name"])
-    statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_db"])
+
+    if not os.path.exists(PARAMS["annotations_database"]):
+        raise ValueError(
+            "can't find database '%s'" %
+            PARAMS["annotations_database"])
+
+    statement = '''ATTACH DATABASE '%s' as annotations''' % \
+                (PARAMS["annotations_database"])
 
     cc = dbh.cursor()
     cc.execute(statement)
@@ -340,15 +348,15 @@ def buildReferenceGeneSet(infile, outfile):
 @active_if(SPLICED_MAPPING)
 @originate("protein_coding_gene_ids.tsv")
 def identifyProteinCodingGenes(outfile):
+    """output a list of proteing coding gene identifiers."""
+
     dbh = connect()
+
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
 
-    try:
-        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
-        WHERE gene_biotype = 'protein_coding';""" % locals())
-    except sqlite3.OperationalError as error:
-        E.critical("sqlite3 cannot find table or gene_biotype column. "
-                   "Error message: '%s'" % error)
+    select = dbh.execute("""SELECT DISTINCT gene_id
+    FROM annotations.%(table)s
+    WHERE gene_biotype = 'protein_coding'""" % locals())
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("gene_id\n")
