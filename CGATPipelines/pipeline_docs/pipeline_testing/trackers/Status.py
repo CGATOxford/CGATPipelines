@@ -1,4 +1,6 @@
-from TestingReport import Status
+from CGATReport.Tracker import Status
+import glob
+import re
 
 
 class ComparisonStatus(Status):
@@ -39,3 +41,70 @@ class ComparisonStatus(Status):
         value = ",".join(["%s:%i" % (x, y) for x, y in data.items()])
 
         return status, value
+
+
+class PipelineStatus(Status):
+
+    tracks = [x[:-4] for x in glob.glob("*.dir")]
+
+    def testCompletion(self, track):
+        '''Check if the pipeline started and completed successfully.
+
+        PASS: the pipeline started and completed successfully.
+
+        FAIL: the pipeline started, but did not complete successfully
+
+        NA: the pipeline was not started.
+        '''
+
+        try:
+            lines = open(track + ".log").readlines()
+        except IOError:
+            return 'NA', 'no log file'
+
+        started = "not started"
+
+        if len(lines) < 1:
+            return 'FAIL', started
+
+        x = re.search("# job started at ([^-]*) on", lines[1])
+        if x:
+            started = x.groups()[0]
+
+        x = re.search(
+            "# job finished in (\d+) seconds at ([^-]*) -- ", lines[-1])
+        if not x:
+            return 'FAIL', started
+        else:
+            return 'PASS', x.groups()[1]
+
+    def testReport(self, track):
+        '''Check if building the pipeline report completed successfully.
+
+        PASS: the pipeline report was build successfully.
+
+        FAIL: the pipeline report was not built successfully.
+
+        NA: the pipeline report was not built.
+        '''
+
+        try:
+            lines = open(track + ".report").readlines()
+        except IOError:
+            return 'NA', 'no report'
+
+        lines = open(track + ".report").readlines()
+        started = [x for x in lines if x.startswith("# job started")]
+        finished = [x for x in lines if x.startswith("# job finished")]
+        error = [x for x in lines if "ERROR" in lines]
+
+        if len(started) == 0:
+            return 'WARN', 'never started'
+
+        if len(finished) == 0:
+            return 'FAIL', 'started, but never finished'
+
+        if error:
+            return 'FAIL', 'report caused errors'
+        else:
+            return 'PASS', 'report completed'
