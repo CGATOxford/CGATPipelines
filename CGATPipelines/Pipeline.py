@@ -1511,8 +1511,7 @@ def run(**kwargs):
         # such as v_hmem.
         # Note that limiting resident set sizes (RSS) with ulimit is not
         # possible in newer kernels.
-        # AH: disabled until memory issues are resolved
-        # tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
+        tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
 
         tmpfile.write(
             expandStatement(
