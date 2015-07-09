@@ -2117,7 +2117,7 @@ def run_report(clean=True,
     else:
         erase_return = ""
 
-    # in the latest, xvfb always returns with an error, thus
+    # in the current version, xvfb always returns with an error, thus
     # ignore these.
     erase_return = "|| true"
 
@@ -2126,10 +2126,16 @@ def run_report(clean=True,
     else:
         clean = ""
 
+    # with sphinx >1.3.1 the PYTHONPATH needs to be set explicitely as
+    # the virtual environment seems to be stripped. It is thus set to
+    # the contents of the current sys.path
+    syspath = ":".join(sys.path)
+
     statement = '''
     %(clean)s
     (export SPHINX_DOCSDIR=%(docdir)s;
     export SPHINX_THEMEDIR=%(themedir)s;
+    export PYTHONPATH=%(syspath)s;
     %(xvfb_command)s
     %(report_engine)s-build
            --num-jobs=%(report_threads)s
