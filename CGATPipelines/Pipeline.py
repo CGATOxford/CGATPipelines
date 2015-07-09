@@ -180,7 +180,7 @@ HARDCODED_PARAMS = {
     # name of consumable resource to use for requesting memory
     'cluster_memory_resource': "mem_free",
     # amount of memory set by default for each job
-    'cluster_memory_default': "4G",
+    'cluster_memory_default': "2G",
     # general cluster options
     'cluster_options': "",
     # parallel environment to use for multi-threaded jobs
