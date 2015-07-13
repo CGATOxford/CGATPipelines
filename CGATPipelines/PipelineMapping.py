@@ -670,7 +670,6 @@ class Mapper(object):
     def cleanup(self, outfile):
         '''clean up.'''
         statement = '''rm -rf %s;''' % (self.tmpdir_fastq)
-        # statement = ""
 
         return statement
 
