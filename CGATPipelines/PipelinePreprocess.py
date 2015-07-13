@@ -39,6 +39,7 @@ Code
 
 import re
 import os
+import shutil
 import collections
 import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
@@ -46,6 +47,8 @@ import CGAT.IOTools as IOTools
 import CGAT.Fastq as Fastq
 import CGATPipelines.PipelineMapping as Mapping
 import pandas.io.sql as pdsql
+import pandas
+import CGAT.Sra as Sra
 
 SequenceInformation = collections.namedtuple("SequenceInformation",
                                              """paired_end
@@ -111,7 +114,17 @@ def makeAdaptorFasta(infile, dbh, contaminants_file, outfile):
         sample.remove("fastq")
     elif infile.endswith(".sra"):
         sample.remove("sra")
-    # handle bug with different behaviours for single and paired-end data
+        # depending on whether sra contains single or paired-end data
+        # different behaviour is implemented
+        outdir = P.getTempDir()
+        f, format = Sra.peek(infile, outdir)
+        E.info("sra file contains the following files: %s" % f)
+        shutil.rmtree(outdir)
+        if len(f) == 1:
+            pass
+        elif len(f) == 2:
+            sample2 = sample+["2"]
+            sample += ["1"]
     elif infile.endswith(".fastq.1.gz"):
         # sample.remove("fastq")
         pass
@@ -123,8 +136,16 @@ def makeAdaptorFasta(infile, dbh, contaminants_file, outfile):
 
     sample = "_".join(sample)
     query = "SELECT * FROM %s_fastqc_Overrepresented_sequences;" % sample
-
     df = pdsql.read_sql(query, dbh, index_col=None)
+
+    # this section handles paired end data from sra files
+    if len(f) == 2:
+        sample2 = "_".join(sample2)
+        query = "SELECT * FROM %s_fastqc_Overrepresented_sequences;" % sample2
+        df2 = pdsql.read_sql(query, dbh, index_col=None)
+        df = df.append(df2)
+        df = df.reset_index(drop=True)
+
     # if there are no over represented sequences break here
     if not len(df):
         P.touch(outfile)

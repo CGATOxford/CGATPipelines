@@ -489,6 +489,8 @@ class Mapper(object):
 
                         infile = sra_extraction_files[0]
                         track = os.path.splitext(os.path.basename(infile))[0]
+                        if track.endswith("_1"):
+                            track = track[:-2]
 
                         statement.append("""gunzip < %(infile)s
                         | python %%(scriptsdir)s/fastq2fastq.py
