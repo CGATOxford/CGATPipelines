@@ -271,9 +271,6 @@ class MasterProcessor(Mapping.Mapper):
     # compress temporary fastq files with gzip
     compress = False
 
-    # convert to sanger quality scores
-    convert = False
-
     def __init__(self, save=True, summarise=False,
                  threads=1,
                  trimgalore_options=None,
@@ -324,7 +321,10 @@ class MasterProcessor(Mapping.Mapper):
         save_intermediates = save
         first = 1
 
-        if infile.endswith(".fastq.1.gz"):
+        # Some data can be tuples if passed on from preprocessing
+        if not isinstance(infile, basestring):
+            infiles = infile
+        elif infile.endswith(".fastq.1.gz"):
             bn = P.snip(infile, ".fastq.1.gz")
             infile2 = "%s.fastq.2.gz" % bn
             if not os.path.exists(infile2):

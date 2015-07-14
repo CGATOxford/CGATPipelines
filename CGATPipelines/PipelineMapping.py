@@ -530,7 +530,7 @@ class Mapper(object):
                              "%s/%s_converted.2.fastq%s" %
                              (tmpdir_fastq, track, extension)))
                 else:
-                    # Usually sra extraction files have output format
+                    # Usually sra extraction files have format
                     # '1_fastq.gz' for both single and paired end files
                     # This code corrects the output to the format expected by
                     # CGAT Pipelines
@@ -547,8 +547,8 @@ class Mapper(object):
                         infile2 = sra_extraction_files[1]
                         print basename
                         if basename.endswith("_1.fastq.gz"):
-                            basename1 = basename[:-11] + ".1.fastq.gz"
-                            basename2 = basename[:-11] + ".2.fastq.gz"
+                            basename1 = basename[:-11] + ".fastq.1.gz"
+                            basename2 = basename[:-11] + ".fastq.2.gz"
                         statement.append(
                             "mv %s %s/%s; mv %s %s/%s" %
                             (infile, tmpdir_fastq, basename1,

@@ -236,17 +236,6 @@ if PARAMS.get("preprocessors", None):
         '''process reads from .fastq format files
         Tasks specified in PREPROCESSTOOLS are run in order
         '''
-        if ((infile.endswith(".csfasta.gz") or
-             infile.endswith(".csfasta.F3.gz") or
-             infile.endswith(".sra") or
-             infile.endswith(".export.txt.gz") or
-             infile.endswith(".fa.gz"))):
-            raise NotImplementedError('''preprocessing of ".sra", "csfasta" (solid)
-            ".export.txt.gz" or ".fa.gz" files is not currently implemented.
-            Infile: %(infile)s''' % locals())
-        else:
-            pass
-
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["adapter_file"] or PARAMS["trimmomatic_adapter"]:
             if PARAMS["adapter_file"]:
