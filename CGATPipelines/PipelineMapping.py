@@ -545,7 +545,6 @@ class Mapper(object):
                             ("%s/%s" % (tmpdir_fastq, basename),))
                     elif len(sra_extraction_files) == 2:
                         infile2 = sra_extraction_files[1]
-                        print basename
                         if basename.endswith("_1.fastq.gz"):
                             basename1 = basename[:-11] + ".fastq.1.gz"
                             basename2 = basename[:-11] + ".fastq.2.gz"
@@ -683,8 +682,6 @@ class Mapper(object):
         self.tmpdir_fastq = tmpdir_fastq
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
-        print "; ".join(statement) + ";"
-        print fastqfiles
         return "; ".join(statement) + ";", fastqfiles
 
     def mapper(self, infiles, outfile):
@@ -840,8 +837,6 @@ class FastqScreen(Mapper):
             infile1, infile2 = infiles[0]
             input_files = '''-- paired %(infile1)s %(infile2)s''' % locals()
         else:
-            print nfiles
-            print infiles
             raise ValueError(
                 "unexpected number read files to map: %i " % nfiles)
 
@@ -890,7 +885,6 @@ class Sailfish(Mapper):
             library.append(strandedness)
 
         elif nfiles == 2:
-            print "infiles: ", infiles
             infile1, infile2 = infiles[0]
             input_file = '''-1 <(zcat %(infile1)s)
                             -2 <(zcat %(infile2)s)''' % locals()
