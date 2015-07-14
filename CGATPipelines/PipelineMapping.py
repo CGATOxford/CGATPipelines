@@ -489,9 +489,8 @@ class Mapper(object):
 
                         infile = sra_extraction_files[0]
                         track = os.path.splitext(os.path.basename(infile))[0]
-                        if track.endswith("_1"):
-                            track = track[:-2]
-
+                        if track.endswith("_1.fastq"):
+                            track = track[:-8]
                         statement.append("""gunzip < %(infile)s
                         | python %%(scriptsdir)s/fastq2fastq.py
                         --method=change-format --target-format=sanger
@@ -531,7 +530,34 @@ class Mapper(object):
                              "%s/%s_converted.2.fastq%s" %
                              (tmpdir_fastq, track, extension)))
                 else:
-                    fastqfiles.append(sra_extraction_files)
+                    # Usually sra extraction files have output format
+                    # '1_fastq.gz' for both single and paired end files
+                    # This code corrects the output to the format expected by
+                    # CGAT Pipelines
+                    infile = sra_extraction_files[0]
+                    basename = os.path.basename(infile)
+                    if (len(sra_extraction_files) == 1
+                            and basename.endswith("_1.fastq.gz")):
+                        basename = basename[:-11] + ".fastq.gz"
+                        statement.append(
+                            "mv %s %s/%s" % (infile, tmpdir_fastq, basename))
+                        fastqfiles.append(
+                            ("%s/%s" % (tmpdir_fastq, basename),))
+                    elif len(sra_extraction_files) == 2:
+                        infile2 = sra_extraction_files[1]
+                        print basename
+                        if basename.endswith("_1.fastq.gz"):
+                            basename1 = basename[:-11] + ".1.fastq.gz"
+                            basename2 = basename[:-11] + ".2.fastq.gz"
+                        statement.append(
+                            "mv %s %s/%s; mv %s %s/%s" %
+                            (infile, tmpdir_fastq, basename1,
+                             infile2, tmpdir_fastq, basename2))
+                        fastqfiles.append(
+                            ("%s/%s" % (tmpdir_fastq, basename1),
+                             "%s/%s" % (tmpdir_fastq, basename2)))
+                    else:
+                        fastqfiles.append(sra_extraction_files)
 
             elif infile.endswith(".fastq.gz"):
                 format = Fastq.guessFormat(
@@ -657,7 +683,8 @@ class Mapper(object):
         self.tmpdir_fastq = tmpdir_fastq
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
-
+        print "; ".join(statement) + ";"
+        print fastqfiles
         return "; ".join(statement) + ";", fastqfiles
 
     def mapper(self, infiles, outfile):
@@ -813,6 +840,8 @@ class FastqScreen(Mapper):
             infile1, infile2 = infiles[0]
             input_files = '''-- paired %(infile1)s %(infile2)s''' % locals()
         else:
+            print nfiles
+            print infiles
             raise ValueError(
                 "unexpected number read files to map: %i " % nfiles)
 
