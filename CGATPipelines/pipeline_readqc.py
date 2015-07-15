@@ -267,6 +267,7 @@ if PARAMS.get("preprocessors", None):
         statement = m.build((infile,), outfile, PREPROCESSTOOLS)
 
         P.run()
+        P.touch(outfile)
 
 else:
     @follows(mkdir("processed.dir"))
