@@ -170,7 +170,7 @@ UNPROCESSED_INPUT_GLOB = INPUT_FORMATS
 
 # List of processed (trimmed, etc) input files
 PROCESSED_INPUT_GLOB = [os.path.join("processed.dir", x)
-                        for x in INPUT_FORMATS]
+                        for x in ["*.fastq.1.gz", "*.fastq.gz"]]
 
 
 def connect():
@@ -323,7 +323,7 @@ def loadFastqc(infile, outfile):
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
 @transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
            REGEX_TRACK_BOTH,
-           r"%s/fastq_screen/\2.fastq.1_screen.png" % PARAMS['exportdir'])
+           r"%s/fastq_screen/\2.fastqscreen" % PARAMS['exportdir'])
 def runFastqScreen(infiles, outfile):
     '''run FastqScreen on input files.'''
 
@@ -342,8 +342,8 @@ def runFastqScreen(infiles, outfile):
     m = PipelineMapping.FastqScreen()
     statement = m.build((infiles,), outfile)
     P.run()
-
     shutil.rmtree(tempdir)
+    P.touch(outfile)
 
 
 @merge(runFastqc, "status_summary.tsv.gz")
