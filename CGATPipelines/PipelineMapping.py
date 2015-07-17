@@ -1971,7 +1971,6 @@ class STAR(Mapper):
             %(executable)s
                    --runMode alignReads
                    --runThreadN %%(star_threads)i
-                   --genomeLoad LoadAndRemove
                    --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
                    --outFileNamePrefix %(tmpdir)s/
                    --outStd SAM
@@ -1999,7 +1998,6 @@ class STAR(Mapper):
             %(executable)s
                    --runMode alignReads
                    --runThreadN %%(star_threads)i
-                   --genomeLoad LoadAndRemove
                    --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
                    --outFileNamePrefix %(tmpdir)s/
                    --outStd SAM
