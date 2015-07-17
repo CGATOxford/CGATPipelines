@@ -486,7 +486,7 @@ def loadComparison(infile, outfile):
            "_results.load")
 def loadResults(infile, outfile):
     '''load comparison data into database.'''
-    P.load(infile, outfile, options="--add_index=file")
+    P.load(infile, outfile, options="--add-index=file")
 
 
 @transform(mergeFileStatistics,
@@ -494,7 +494,7 @@ def loadResults(infile, outfile):
            "_reference.load")
 def loadReference(infile, outfile):
     '''load comparison data into database.'''
-    P.load(infile, outfile, options="--add_index=file")
+    P.load(infile, outfile, options="--add-index=file")
 
 
 @transform(runTests,
