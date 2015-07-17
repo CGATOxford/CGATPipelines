@@ -12,9 +12,9 @@ class ComparisonStatus(Status):
         d = self.get("SELECT DISTINCT track FROM md5_compare")
         return tuple([x[0] for x in d])
 
-    slices = ('MD5Comparison',)
+    slices = ('FileComparison',)
 
-    def testMD5Comparison(self, track):
+    def testFileComparison(self, track):
         '''
         PASS: All files exist and are the same.
 
@@ -47,7 +47,7 @@ class PipelineStatus(Status):
 
     tracks = [x[:-4] for x in glob.glob("*.dir")]
 
-    def testCompletion(self, track):
+    def testPipelineCompletion(self, track):
         '''Check if the pipeline started and completed successfully.
 
         PASS: the pipeline started and completed successfully.
@@ -78,7 +78,7 @@ class PipelineStatus(Status):
         else:
             return 'PASS', x.groups()[1]
 
-    def testReport(self, track):
+    def testReportCompletion(self, track):
         '''Check if building the pipeline report completed successfully.
 
         PASS: the pipeline report was build successfully.

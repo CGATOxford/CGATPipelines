@@ -117,13 +117,14 @@ class FilesWithProblems(TestingTracker):
 
     tracks = [x[:-4] for x in glob.glob("*.dir")]
 
-    slices = ("files_different_lines",
-              "files_different_md5",
-              "files_extra", "files_missing")
+    slices = ("different_lines",
+              "different_md5",
+              "extra",
+              "missing")
 
     def __call__(self, track, slice):
 
-        statement = """SELECT %(slice)s FROM md5_compare
+        statement = """SELECT files_%(slice)s FROM md5_compare
         WHERE track = '%(track)s'""" % locals()
 
         data = self.getValue(statement)

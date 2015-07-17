@@ -1,3 +1,5 @@
+.. _status:
+
 ======
 Status
 ======
@@ -8,7 +10,7 @@ MD5 Comparison
 The MD5 Comparison compares the files output by the latest pipeline
 run against the results of a reference pipeline run. A run was
 successfull if exactly the same files are present and all files are
-identical.
+identical. A list of the files are found in the :ref:`filelists`.
 
 .. report:: Status.ComparisonStatus
    :render: status
