@@ -1398,8 +1398,12 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
         return
 
     exportdir = os.path.join(PARAMS['exportdir'], 'macs')
-    if not os.path.exists(exportdir):
+    try:
         os.mkdir(exportdir)
+    except OSError:
+        # skip if directory exists
+        pass
+
     ###############################################################
     # create plot by calling R
     if os.path.exists(filename_r):
@@ -1579,11 +1583,12 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
         P.touch(outfile)
         return
 
-    # Jethro: os.mkdir can't create nested directories
-    # AH: use os.makedirs
     exportdir = os.path.join(PARAMS['exportdir'], 'macs2')
-    if not os.path.exists(exportdir):
+    try:
         os.makedirs(exportdir)
+    except OSError:
+        # skip if already exists
+        pass
 
     ###############################################################
     # create plot by calling R
