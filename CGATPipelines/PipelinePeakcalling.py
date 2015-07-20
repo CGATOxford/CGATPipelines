@@ -495,7 +495,6 @@ def buildBAMStats(infile, outfile):
     '''
 
     # no bedToBigBed
-    # to_cluster = True
     outs = IOTools.openFile(outfile, "w")
     outs.write("reads\tcategory\n")
     for line in pysam.flagstat(infile):
@@ -1463,8 +1462,6 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
 
     offset = shift * 2
 
-    to_cluster = True
-
     headers = ",".join((
         "contig", "start", "end",
         "interval_id",
@@ -1652,8 +1649,6 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
     E.info("%s: found peak shift of %i" % (track, shift))
 
     offset = shift * 2
-
-    to_cluster = True
 
     headers = ",".join((
         "contig", "start", "end",
@@ -1935,8 +1930,6 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow",
               fragment_size=None):
     '''load Sicer results.'''
 
-    to_cluster = True
-
     # build filename of input bedfile
     track = P.snip(os.path.basename(infile), ".sicer")
     sicerdir = infile + ".dir"
@@ -1979,7 +1972,7 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow",
     --output-all-fields
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
-    | %(load_options)s
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
