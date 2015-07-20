@@ -279,7 +279,12 @@ def mergeAndFilterGTF(infile, outfile, logfile,
 
 
 def resetGTFAttributes(infile, genome, gene_ids, outfile):
+    """set GTF attributes in file so that they are compatible with cufflinks.
 
+    This method runs cuffcompare with `infile` against itself to add
+    attributes such as p_id and tss_id.
+
+    """
     tmpfile1 = P.getTempFilename(".")
     tmpfile2 = P.getTempFilename(".")
 

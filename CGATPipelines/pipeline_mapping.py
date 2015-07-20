@@ -338,7 +338,7 @@ def buildReferenceGeneSet(infile, outfile):
     # Add tss_id and p_id
     PipelineMapping.resetGTFAttributes(
         infile=tmp_mergedfiltered,
-        genome=os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"]),
+        genome=os.path.join(PARAMS["genome_dir"], PARAMS["genome"]),
         gene_ids=gene_ids,
         outfile=outfile)
 
@@ -501,7 +501,7 @@ def buildReferenceTranscriptome(infile, outfile):
     gtf_file = P.snip(infile, ".gz")
 
     genome_file = os.path.abspath(
-        os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"] + ".fa"))
+        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
 
     statement = '''
     zcat %(infile)s
@@ -1234,7 +1234,7 @@ else:
 
 @transform(MAPPINGTARGETS,
            suffix(".bam"),
-           add_inputs(os.path.join(PARAMS["bowtie_index_dir"],
+           add_inputs(os.path.join(PARAMS["genome_dir"],
                                    PARAMS["genome"] + ".fa")),
            ".picard_stats")
 def buildPicardStats(infiles, outfile):
