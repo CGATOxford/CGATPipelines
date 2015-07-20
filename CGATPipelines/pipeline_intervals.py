@@ -12,13 +12,13 @@ genomic intervals and annotates them. The intervals are expected to
 be non-overlapping, which the pipeline checks.
 
 It performs the following analyses:
-   * Peak location
-      * requires a bam-file to be associated with each bed-file.
-   * Motif discovery using MEME
-   * Motif detection using MAST
-      * requires a set of known motifs
-   * Overlap with genomic context.
-   * Aggregate transcript/gene profiles
+
+* Peak location - where is the read density located within an interval.
+
+* Overlap with intervals describing genomic context. See
+  :doc:`pipeline_annotations`
+
+* Compute aggregate transcript/gene profiles
 
 Usage
 =====
@@ -46,7 +46,7 @@ documentation).  The configuration file is organized by section and
 the variables are documented within the file. In order to get a local
 configuration file in the current directory, type::
 
-    python <codedir>/pipeline_chipseq.py config
+    python <codedir>/pipeline_intervals.py config
 
 The following sections and parameters probably should be changed from
 the default values:
