@@ -697,7 +697,7 @@ def runCufflinks(infiles, outfile):
     cufflinks --label %(track)s
               --GTF <(gunzip < %(gtffile)s)
               --num-threads %(cufflinks_threads)i
-              --frag-bias-correct %(bowtie_index_dir)s/%(genome)s.fa
+              --frag-bias-correct %(genome_dir)s/%(genome)s.fa
               --library-type %(cufflinks_library_type)s
               %(cufflinks_options)s
               %(bamfile)s

@@ -593,7 +593,7 @@ def buildReferenceGeneSet(infile, outfile):
     statement = '''
     cuffcompare -r <( gunzip < %(tmpfilename)s )
          -T
-         -s %(bowtie_index_dir)s/%(genome)s.fa
+         -s %(genome_dir)s/%(genome)s.fa
          -o %(tmpfilename2)s
          <( gunzip < %(tmpfilename)s )
          <( gunzip < %(tmpfilename)s )
@@ -859,7 +859,7 @@ def buildTranscriptsWithCufflinks(infiles, outfile):
 
     # note: cufflinks adds \0 bytes to gtf file - replace with '.'
     genome_file = os.path.abspath(
-        os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"] + ".fa"))
+        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
 
     options = PARAMS["cufflinks_options"]
 
@@ -933,7 +933,7 @@ def runCuffCompare(infiles, outfile, reffile):
     cmd_extract = "; ".join(
         ["gunzip < %s > %s/%s" % (x, tmpdir, x) for x in infiles])
 
-    genome = os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"]) + ".fa"
+    genome = os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fa"
     genome = os.path.abspath(genome)
 
     # note: cuffcompare adds \0 bytes to gtf file - replace with '.'
@@ -1025,7 +1025,7 @@ def mergeUsingCuffmerge(infiles, outfile):
 
     tmp2 = P.getTempFilename(".")
 
-    genome = os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"]) + ".fa"
+    genome = os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fa"
     genome = os.path.abspath(genome)
     job_threads = PARAMS["cufflinks_threads"]
 

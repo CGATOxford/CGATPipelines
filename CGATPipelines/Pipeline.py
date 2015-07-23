@@ -2741,6 +2741,7 @@ def main(args=sys.argv):
 
     elif options.pipeline_action == "dump":
         # convert to normal dictionary (not defaultdict) for parsing purposes
+        # do not change this format below as it is exec'd in peekParameters()
         print "dump = %s" % str(dict(PARAMS))
 
     elif options.pipeline_action == "config":

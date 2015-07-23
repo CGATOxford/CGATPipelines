@@ -796,7 +796,7 @@ def buildReferenceGeneSet(infile, outfile):
     statement = '''
     cuffcompare -r <( gunzip < %(tmpfilename)s )
          -T
-         -s %(bowtie_index_dir)s/%(genome)s.fa
+         -s %(genome_dir)s/%(genome)s.fa
          -o %(tmpfilename2)s
          <( gunzip < %(tmpfilename)s )
          <( gunzip < %(tmpfilename)s )
@@ -1305,7 +1305,7 @@ def buildJunctionsDB(infiles, outfile):
     juncs_db %(min_anchor_length)i %(read_length)i
               <( zcat %(outfile_junctions)s )
               /dev/null /dev/null
-              %(bowtie_index_dir)s/%(genome)s.fa
+              %(genome_dir)s/%(genome)s.fa
               > %(outfile)s
               2> %(outfile)s.log
     '''
