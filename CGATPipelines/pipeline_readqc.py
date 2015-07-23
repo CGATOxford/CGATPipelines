@@ -217,15 +217,11 @@ if PARAMS.get("preprocessors", None):
 
     @follows(mkdir("processed.dir"),
              aggregateAdaptors)
-    @transform(INPUT_FORMATS,
+    @subdivide(INPUT_FORMATS,
                regex(SEQUENCEFILES_REGEX),
-               (r"processed.dir/trimmed-\1.fastq.gz",
-                r"processed.dir/trimmed-\1.fastq.1.gz",
-                r"processed.dir/trimmed-\1.fastq.2.gz"))
+               r"processed.dir/trimmed-\1.fastq*.gz")
     def processReads(infile, outfiles):
         '''process reads from .fastq and non .fastq format files
-        
-        Tasks specified in PREPROCESSTOOLS are run in order
         '''
 
         trimmomatic_options = PARAMS["trimmomatic_options"]

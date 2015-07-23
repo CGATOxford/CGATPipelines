@@ -1,5 +1,7 @@
 import os
 import glob
+import itertools
+import re
 from collections import OrderedDict as odict
 from CGATReport.Tracker import TrackerSQL, SingleTableTrackerRows
 from CGATReport.Utils import PARAMS as P
@@ -78,26 +80,40 @@ class FastQCDetails(ReadqcTracker):
 
     def __call__(self, track, slice=None):
 
-        # note there are spaces behind the %(image)s directive to accomodate
+        # note there are spaces behind the %(image)s directive to accommodate
         # for path substitution
         block = '''
+
 .. figure:: %(image)s
    :height: 300
+
+   %(title)s
+
 '''
 
         result = odict()
+
         for track in sorted([x.asFile() for x in TRACKS]):
+            if track.startswith("trimmed"):
+                continue
 
             files = glob.glob(
-                os.path.join(EXPORTDIR, "fastqc", "%s*_fastqc" % track))
+                os.path.join(EXPORTDIR, "fastqc", "*%s*_fastqc" % track))
+
+            text = ["%s\n\n" % track]
+
             for fn in sorted(files):
 
                 image = os.path.abspath(
                     os.path.join(fn, "Images", "%s.png" % slice))
                 if not os.path.exists(image):
                     continue
+                    
+                title = os.path.basename(image)
 
-                result[os.path.basename(fn)] = {'rst': block % locals()}
+                text.append(block % locals())
+
+            result[track] = {'rst': "\n".join(text)}
 
         return result
 

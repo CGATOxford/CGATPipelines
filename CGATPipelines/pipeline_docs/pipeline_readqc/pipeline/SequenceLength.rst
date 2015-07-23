@@ -1,6 +1,6 @@
-===========================
+============================
 Sequence Length Distribution
-===========================
+============================
 
 .. report:: ReadqcReport.FastQCDetails
    :render: user
