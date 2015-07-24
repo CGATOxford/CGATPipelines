@@ -47,6 +47,7 @@ import CGAT.Fastq as Fastq
 import CGATPipelines.PipelineMapping as Mapping
 import CGAT.Sra as Sra
 
+
 def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     '''
     Generate a .fasta file of adaptor sequences that are overrepresented
