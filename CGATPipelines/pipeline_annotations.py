@@ -844,9 +844,6 @@ def buildGeneSet(infile, outfile):
     --skip-missing
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
-    --method=set-gene_biotype-to-source
-    --log=%(outfile)s.log
     ''']
 
     if PARAMS["ensembl_remove_contigs"]:
@@ -855,7 +852,12 @@ def buildGeneSet(infile, outfile):
         statement.append(
             ''' --contig-pattern="%(ensembl_remove_contigs)s" ''')
 
-    statement.append(''' | gzip > %(outfile)s ''')
+    statement.append(
+        '''
+        | python %(scriptsdir)s/gtf2gtf.py
+        --method=set-gene_biotype-to-source
+        --log=%(outfile)s.log
+        | gzip > %(outfile)s ''')
 
     statement = " ".join(statement)
 
