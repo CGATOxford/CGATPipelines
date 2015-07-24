@@ -161,7 +161,8 @@ REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
 # Regular expression to extract a track from both processed and unprocessed
 # files
-REGEX_TRACK_BOTH = r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+REGEX_TRACK_BOTH = \
+    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
 SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
@@ -246,7 +247,7 @@ if PARAMS.get("preprocessors", None):
 
         job_threads = PARAMS["threads"]
         job_memory = "7G"
-        
+
         track = re.match(REGEX_TRACK, infile).groups()[0]
 
         m = PipelinePreprocess.MasterProcessor(
@@ -294,10 +295,12 @@ else:
         """dummy task - no processing of reads."""
         pass
 
+
 @transform(UNPROCESSED_INPUT_GLOB, regex("(.*)"), r"\1")
 def unprocessReads():
     """dummy task - no processing of reads."""
     pass
+
 
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))

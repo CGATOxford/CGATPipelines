@@ -271,7 +271,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
     # compress temporary fastq files with gzip
     compress = False
 
-    def __init__(self, 
+    def __init__(self,
                  save=True,
                  summarize=False,
                  threads=1,
@@ -307,7 +307,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
         track : string
             prefix for output files. The suffix ".fastq.gz" will
             be appended for single-end data sets. For paired end
-            data sets, two files will be created ending in 
+            data sets, two files will be created ending in
             ".fastq.1.gz" and ".fastq.2.gz"
 
         '''
@@ -361,7 +361,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
                         | python %%(scriptsdir)s/fastq2summary.py
                         --guess-format=illumina-1.8
                         > %(fn)s.summary""")
-                    
+
         cmd_process = " checkpoint; ".join(cmd_processors)
         cmd_clean = self.cleanup()
 
@@ -385,7 +385,7 @@ class ProcessTool(object):
     def get_num_files(self, infiles):
         """return the number of outputfiles created by
         processing `infiles`"""
-        
+
         # the default is that the same number of files are
         # returned
         return len(infiles)
@@ -501,7 +501,7 @@ class Trimmomatic(ProcessTool):
             infile1, infile2 = infiles
             outfile1, outfile2 = outfiles
 
-            cmd = '''trimmomatic PE 
+            cmd = '''trimmomatic PE
             -threads %(threads)i
             -phred%(offset)s
             %(infile1)s %(infile2)s
@@ -580,9 +580,10 @@ class Reconcile(ProcessTool):
         --output-filename-pattern=%(output_prefix)s.fastq.%%s.gz
         %(infile1)s %(infile2)s
         """ % locals()
-        
+
         return cmd
-    
+
+
 class Flash(ProcessTool):
 
     prefix = "flash"
@@ -615,7 +616,7 @@ class Flash(ProcessTool):
         checkpoint;
         mv %(outdir)s/%(track)s.extendedFrags.fastq %(outfile)s;
         ;''' % locals()
-        
+
         return cmd
 
     def postprocess(self, infiles):
@@ -645,5 +646,3 @@ class Flash(ProcessTool):
             postprocess_cmd = "checkpoint ;"
 
         return postprocess_cmd
-
-
