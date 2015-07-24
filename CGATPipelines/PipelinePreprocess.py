@@ -86,6 +86,9 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         known_contaminants = [(" ".join(x[:-1]), x[-1])
                               for x in known_contaminants]
 
+    # output the full sequence of the contaminant if found
+    # in the list of known contaminants, otherwise output
+    # the sequence reported by Fastqc.
     with IOTools.openFile(outfile, "w") as outf:
 
         for found_source, found_seq in found_contaminants:
