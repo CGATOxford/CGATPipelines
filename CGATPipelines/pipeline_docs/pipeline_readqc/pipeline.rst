@@ -8,5 +8,6 @@
    pipeline/PerBaseNContent.rst
    pipeline/SequenceDuplicationLevels.rst
    pipeline/SequenceLength.rst
+   pipeline/FastQScreen.rst
    pipeline/Filtering.rst
    python/Trackers.rst

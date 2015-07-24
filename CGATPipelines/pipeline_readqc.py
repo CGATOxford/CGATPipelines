@@ -31,10 +31,11 @@ ReadQc pipeline
 
 The readqc pipeline imports unmapped reads from one or more input
 files and performs basic quality control steps. The pipeline performs
-also read pre-processing.
+also read pre-processing such as quality trimming or adaptor removal.
 
 Quality metrics are based on the fastqc tools, see
-see http://www.bioinformatics.bbsrc.ac.uk/projects/fastqc/ for further details.
+http://www.bioinformatics.bbsrc.ac.uk/projects/fastqc/ for further
+details.
 
 Usage
 =====
@@ -42,8 +43,8 @@ Usage
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning`
 on general information how to use CGAT pipelines.
 
-When pre-processing reads before mapping, the workflow of the pipeline is
-as follows:
+When pre-processing reads before mapping, the workflow of the pipeline
+is as follows:
 
 1. Run the ``full`` target to perform initial QC on the raw data. Then
    build the report (``build_report`` target).
@@ -63,7 +64,9 @@ as follows:
 Configuration
 -------------
 
-No general configuration required.
+See :file:`pipeline.ini` for setting configuration values affecting
+the workflow (pre-processing or no pre-processing) and options for
+various pre-processing tools.
 
 Input
 -----
@@ -98,7 +101,7 @@ Pipeline output
 ----------------
 
 The major output is a set of HTML pages and plots reporting on the quality of
-the sequence archive
+the sequence archive.
 
 Example
 =======
@@ -115,6 +118,15 @@ To run the example, simply unpack and untar::
 
 Code
 ====
+
+To add a new pre-processing tool, the following changes are required:
+
+1. Add a new tool wrapper to :module:`PipelinePreprocess`. Derive
+   the wrapper from :class:`PipelinePreprocess.ProcessTools`. Make
+   sure to add a corresponding entry in the Requirements section of
+   the module.
+
+2. Add the tool to the task :func:`processReads` in this module.
 
 Requirements:
 
@@ -159,9 +171,6 @@ REGEX_TRACK_BOTH = \
     r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
 SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)"
-
-# List of unprocessed input files
-UNPROCESSED_INPUT_GLOB = INPUT_FORMATS
 
 
 def connect():
@@ -292,7 +301,7 @@ else:
         pass
 
 
-@transform(UNPROCESSED_INPUT_GLOB, regex("(.*)"), r"\1")
+@transform(INPUT_FORMATS, regex("(.*)"), r"\1")
 def unprocessReads():
     """dummy task - no processing of reads."""
     pass
