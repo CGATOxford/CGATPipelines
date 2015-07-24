@@ -21,8 +21,7 @@ The module currently provides modules to perform:
     * sliding window quality trimming (sickle, trimmomatic)
     * RRBS-specific trimming (trimgalore)
 
-It has been tested with:
-   * .fastq: paired-end and single-end
+To add a new tool, derive a new class from :class:`ProcessTools`.
 
 Requirements:
 
@@ -41,7 +40,6 @@ Code
 import re
 import os
 import shutil
-import collections
 import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
@@ -51,53 +49,8 @@ import CGATPipelines.PipelineMapping as Mapping
 import pandas.io.sql as pdsql
 import CGAT.Sra as Sra
 
-SequenceInformation = collections.namedtuple("SequenceInformation",
-                                             """paired_end
-                                                 filename_first
-                                                 filename_second
-                                                 readlength_first
-                                                 readlength_second
-                                                 is_colour""")
 
-
-def getReadLengthFromFastq(filename):
-    '''return readlength from a fasta/fastq file.
-
-    Only the first read is inspected. If there are
-    different read lengths in the file, though luck.
-
-    '''
-
-    with IOTools.openFile(filename) as infile:
-        record = iterate(infile).next()
-        readlength = len(record.seq)
-        return readlength
-
-
-def reverseComplement(sequence):
-    '''
-    Reverse complement a sequence
-    '''
-    sequence = sequence.upper()
-    rev_seq = ''
-    for nt in sequence:
-        if nt == 'A':
-            rev_seq += 'T'
-        elif nt == 'T':
-            rev_seq += 'A'
-        elif nt == 'C':
-            rev_seq += 'G'
-        elif nt == 'G':
-            rev_seq += 'C'
-        elif nt == 'N':
-            rev_seq = 'N'
-
-    rev_seq = rev_seq[::-1]
-
-    return rev_seq
-
-
-def makeAdaptorFasta(infile, dbh, contaminants_file, outfile):
+def makeAdaptorFasta(infile, outfile, dbh, contaminants_file):
     '''
     Generate a .fasta file of adaptor sequences that are overrepresented
     in the reads from a sample.
@@ -232,35 +185,6 @@ def mergeAdaptorFasta(infiles, outfile):
     with IOTools.openFile(outfile, "w") as outfle:
         for key, value in fasta_dict.items():
             outfle.write(">%s\n%s\n" % (key, list(value)[0]))
-
-
-def getSequencingInformation(track):
-    '''glean sequencing information from *track*.'''
-
-    colour = False
-    if os.path.exists("%s.fastq.gz" % track):
-        first_pair = "%s.fastq.gz" % track
-        second_pair = None
-    elif os.path.exists("%s.fastq.1.gz" % track):
-        first_pair = "%s.fastq.1.gz" % track
-        second_pair = "%s.fastq.2.gz" % track
-    elif os.path.exists("%s.csfasta.gz" % track):
-        first_pair = "%s.csfasta.gz" % track
-        second_pair = None
-        colour = True
-
-    second_length = None
-    if second_pair:
-        if not os.path.exists(second_pair):
-            raise IOError("could not find second pair %s for %s" %
-                          (second_pair, first_pair))
-        second_length = getReadLengthFromFastq(second_pair)
-
-    return SequenceInformation._make((second_pair is not None,
-                                      first_pair, second_pair,
-                                      getReadLengthFromFastq(first_pair),
-                                      second_length,
-                                      colour))
 
 
 class MasterProcessor(Mapping.SequenceCollectionProcessor):

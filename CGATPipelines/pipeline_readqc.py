@@ -188,9 +188,9 @@ if PARAMS.get("preprocessors", None):
             '''
             contams = PARAMS['contaminants']
             PipelinePreprocess.makeAdaptorFasta(infile=infile,
+                                                outfile=outfile,
                                                 dbh=connect(),
-                                                contaminants_file=contams,
-                                                outfile=outfile)
+                                                contaminants_file=contams)
 
         @follows(makeAdaptorFasta)
         @collate(makeAdaptorFasta,
