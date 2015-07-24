@@ -35,7 +35,8 @@ Requirements:
 
 * cufflinks >= 2.2.1
 * fastq-dump >= 2.1.7
-* fastqc >= 0.9.2
+* fastqc >= 0.11.2
+* fastq_screen >= 0.4.4
 * sailfish >= 0.6.3
 * picardtools >= 1.106
 * samtools >= 1.1
@@ -456,9 +457,8 @@ class SequenceCollectionProcessor(object):
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
-                f, format = Sra.peek(infile, outdir)
+                f, format = Sra.peek(infile)
                 E.info("sra file contains the following files: %s" % f)
-                shutil.rmtree(outdir)
 
                 # add extraction command to statement
                 statement.append(Sra.extract(infile, tmpdir_fastq))
