@@ -116,11 +116,6 @@ To run the example, simply unpack and untar::
 Requirements
 ==============
 
-* fastqc
-* fastq_screen
-* sickle >= 1.33
-* cutadapt >= 1.7.1
-
 Code
 ====
 
@@ -223,7 +218,7 @@ if PARAMS.get("preprocessors", None):
                regex(SEQUENCEFILES_REGEX),
                r"processed.dir/trimmed-\1.fastq*.gz")
     def processReads(infile, outfiles):
-        '''process reads from .fastq and non .fastq format files
+        '''process reads from .fastq and other sequence files
         '''
 
         trimmomatic_options = PARAMS["trimmomatic_options"]

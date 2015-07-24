@@ -24,16 +24,17 @@ The module currently provides modules to perform:
 It has been tested with:
    * .fastq: paired-end and single-end
 
+Requirements:
 
-
-To do
-=====
-
-How to deal with flash?
-e.g this is the only tool that doesn't do one-to-one processing
+* sickle >= 1.33
+* fastx >= 0.0.13
+* cutadapt >= 1.7.1
+* trimmomatic >= 0.32
+* trimgalore >= 0.3.3
+* flash >= 1.2.6
 
 Code
-----
+====
 
 '''
 
