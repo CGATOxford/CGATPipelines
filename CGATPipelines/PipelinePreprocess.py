@@ -77,6 +77,7 @@ def makeAdaptorFasta(infile, outfile, dbh, contaminants_file):
         if len(f) == 1:
             pass
         elif len(f) == 2:
+            sample += ["fastq"]
             sample2 = sample+["2"]
             sample += ["1"]
     elif infile.endswith(".fastq.1.gz"):
@@ -93,7 +94,7 @@ def makeAdaptorFasta(infile, outfile, dbh, contaminants_file):
     df = pdsql.read_sql(query, dbh, index_col=None)
 
     # this section handles paired end data from sra files
-    if len(f) == 2:
+    if infile.endswith(".sra") and len(f) == 2:
         sample2 = "_".join(sample2)
         query = "SELECT * FROM %s_fastqc_Overrepresented_sequences;" % sample2
         df2 = pdsql.read_sql(query, dbh, index_col=None)
