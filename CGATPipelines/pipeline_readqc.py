@@ -132,6 +132,7 @@ from ruffus import *
 # import useful standard python modules
 import sys
 import os
+import re
 import shutil
 import sqlite3
 
@@ -245,8 +246,8 @@ if PARAMS.get("preprocessors", None):
 
         job_threads = PARAMS["threads"]
         job_memory = "7G"
-
-        track = P.snip(outfiles[0], ".fastq.gz")
+        
+        track = re.match(REGEX_TRACK, infile).groups()[0]
 
         m = PipelinePreprocess.MasterProcessor(
             save=PARAMS["save"],
@@ -283,7 +284,7 @@ if PARAMS.get("preprocessors", None):
                     cutadapt_options,
                     threads=PARAMS["threads"]))
 
-        statement = m.build((infile,), outfiles, track)
+        statement = m.build((infile,), "processed.dir/trimmed-", track)
 
         P.run()
 
