@@ -35,7 +35,8 @@ Requirements:
 
 * cufflinks >= 2.2.1
 * fastq-dump >= 2.1.7
-* fastqc >= 0.9.2
+* fastqc >= 0.11.2
+* fastq_screen >= 0.4.4
 * sailfish >= 0.6.3
 * picardtools >= 1.106
 * samtools >= 1.1
