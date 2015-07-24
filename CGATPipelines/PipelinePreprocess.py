@@ -39,153 +39,65 @@ Code
 
 import re
 import os
-import shutil
+import sqlite3
 import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
+import CGATPipelines.PipelineTracks as PipelineTracks
 import CGAT.IOTools as IOTools
 import CGAT.Fastq as Fastq
-import CGAT.Genomics as Genomics
 import CGATPipelines.PipelineMapping as Mapping
-import pandas.io.sql as pdsql
 import CGAT.Sra as Sra
 
-
-def makeAdaptorFasta(infile, outfile, dbh, contaminants_file):
+def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     '''
     Generate a .fasta file of adaptor sequences that are overrepresented
     in the reads from a sample.
     Requires cutadapt >= 1.7
     '''
+    tracks = [track]
 
-    sample = infile.split("/")[-1].rstrip(".gz")
-    # replace '-'  and '.' with '_'
-    sample = sample.replace("-", "_")
-    sample = sample.replace(".", "_")
-    sample = sample.split("_")
+    if infile.endswith(".sra"):
+        # patch for SRA files, look at multiple tracks
+        f, fastq_format = Sra.peek(infile)
+        if len(f) == 2:
+            tracks = [track + "_1", track + "_2"]
 
-    # handle fastq, paired-end and sra
-    if infile.endswith(".fastq.gz"):
-        sample.remove("fastq")
-    elif infile.endswith(".sra"):
-        sample.remove("sra")
-        # depending on whether sra contains single or paired-end data
-        # different behaviour is implemented
-        outdir = P.getTempDir()
-        f, format = Sra.peek(infile, outdir)
-        E.info("sra file contains the following files: %s" % f)
-        shutil.rmtree(outdir)
-        if len(f) == 1:
-            pass
-        elif len(f) == 2:
-            sample += ["fastq"]
-            sample2 = sample+["2"]
-            sample += ["1"]
-    elif infile.endswith(".fastq.1.gz"):
-        # sample.remove("fastq")
-        pass
-    elif infile.endswith(".fastq.2.gz"):
-        # sample.remove("fastq")
-        pass
-    else:
-        raise AttributeError("unrecognised sequence file format")
+    found_contaminants = []
+    for t in tracks:
+        table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
+        
+        query = "SELECT Possible_Source, Sequence FROM %s_fastqc_Overrepresented_sequences;" % table
 
-    sample = "_".join(sample)
-    query = "SELECT * FROM %s_fastqc_Overrepresented_sequences;" % sample
-    df = pdsql.read_sql(query, dbh, index_col=None)
+        cc = dbh.cursor()
+        try:
+            found_contaminants.extend(cc.execute(query).fetchall())
+        except sqlite3.OperationalError:
+            # empty table
+            continue
 
-    # this section handles paired end data from sra files
-    if infile.endswith(".sra") and len(f) == 2:
-        sample2 = "_".join(sample2)
-        query = "SELECT * FROM %s_fastqc_Overrepresented_sequences;" % sample2
-        df2 = pdsql.read_sql(query, dbh, index_col=None)
-        df = df.append(df2)
-        df = df.reset_index(drop=True)
-
-    # if there are no over represented sequences break here
-    if not len(df):
+    if len(found_contaminants) == 0:
         P.touch(outfile)
-        return None
+        return
 
-    # generate contamination sequence dictionary
-    contam_dict = {}
-    for idx in df.index:
-        overid = df.loc[idx]['Possible_Source']
-        overid = overid.split(" (")[0]
-        if not re.search("No Hit", overid):
-            overid = overid.replace(",", "")
-            overid = overid.replace(" ", "_")
-            seqid = df.loc[idx]['Sequence']
-            contam_dict[overid] = seqid
-        else:
-            pass
+    # read contaminants from existing file
+    with IOTools.openFile(contaminants_file, "r") as inf:
+        known_contaminants = [l.split() for l in inf
+                              if not l.startswith("#") and l.strip()]
+        known_contaminants = [(" ".join(x[:-1]), x[-1])
+                              for x in known_contaminants]
 
-    overreps = set(df['Possible_Source'])
-    # pull out suspected adaptor contamination name
-    ids = [x.split(" (")[0] for x in overreps if not re.search("No Hit", x)]
-    ids = [h.replace(",", "") for h in ids]
-    ids = [g.replace(" ", "_") for g in ids]
+    with IOTools.openFile(outfile, "w") as outf:
 
-    # line comments begin with '#'
-    # adaptor name and sequence are split with tabs and end with both newline
-    # and carriage returns.  Put these in a reference dictionary
-
-    with IOTools.openFile(contaminants_file, "r") as cfile:
-        lines = cfile.readlines()
-    adapt_list = [l for l in lines if not re.search("#", l)]
-    adapt_dict = {}
-
-    for each in adapt_list:
-        # source of bugs - row names contains whitespace
-        # that may interfere with down stream processing of fasta file
-        # remove extraneous ','
-        each = each.split("\t")
-        each = [k.rstrip("\r\n") for k in each]
-        each = [h for h in each if len(h)]
-        if len(each):
-            seq_id = each[0].replace(",", "")
-            seq_id = seq_id.replace(" ", "_")
-            adapt_dict[seq_id] = each[1]
-        else:
-            pass
-
-    with IOTools.openFile(outfile, "w") as ofile:
-        for ad in ids:
-            try:
-                ofile.write(">%s\n%s\n" % (ad, adapt_dict[ad]))
-            except KeyError:
-                ofile.write(">%s\n%s\n" % (ad, contam_dict[ad]))
-
-
-def mergeAdaptorFasta(infiles, outfile):
-    '''
-    Merge fasta files of adapter contamination,
-    include reverse complement, remove duplicate sequences
-    '''
-
-    fasta_dict = {}
-    for each in infiles:
-        with IOTools.openFile(each, "r") as infle:
-            for line in infle:
-                if line[0] == '>':
-                    adapt = line.lstrip(">").rstrip("\n")
-                    fasta_dict[adapt] = set()
-                    fasta_dict[adapt + "_R"] = set()
-                else:
-                    seq = line.rstrip("\n")
-                    rev_seq = Genomics.complement(seq)
-                    fasta_dict[adapt].add(seq)
-                    fasta_dict[adapt + "_R"].add(rev_seq)
-
-    # if there are no adapters to remove break the pipeline here
-    if not len(fasta_dict):
-        raise AttributeError("There are no overrepresented sequences in "
-                             "these fastq files.  Please turn off this "
-                             "feature and re-run the pipeline")
-    else:
-        pass
-    with IOTools.openFile(outfile, "w") as outfle:
-        for key, value in fasta_dict.items():
-            outfle.write(">%s\n%s\n" % (key, list(value)[0]))
+        for found_source, found_seq in found_contaminants:
+            found = False
+            for known_source, known_seq in known_contaminants:
+                # output complete contaminant sequence if known
+                # (partial or complete subsequence)
+                if found_seq in known_seq:
+                    found = True
+                    outf.write(">%s\n%s\n" % (known_source, known_seq))
+            if not found:
+                # output found sequence if not known
+                outf.write(">%s\n%s\n" % (found_source, found_seq))
 
 
 class MasterProcessor(Mapping.SequenceCollectionProcessor):

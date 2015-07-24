@@ -113,11 +113,10 @@ To run the example, simply unpack and untar::
    cd test_readqc
    python <srcdir>/pipeline_readqc.py make full
 
-Requirements
-==============
-
 Code
 ====
+
+Requirements:
 
 """
 
@@ -184,25 +183,29 @@ if PARAMS.get("preprocessors", None):
         def makeAdaptorFasta(infile, outfile):
             '''Make a single fasta file for each sample of all contaminant adaptor
             sequences for removal
-
             '''
-            contams = PARAMS['contaminants']
-            PipelinePreprocess.makeAdaptorFasta(infile=infile,
-                                                outfile=outfile,
-                                                dbh=connect(),
-                                                contaminants_file=contams)
+            PipelinePreprocess.makeAdaptorFasta(
+                infile=infile,
+                outfile=outfile,
+                track=re.match(REGEX_TRACK, infile).groups()[0],
+                dbh=connect(),
+                contaminants_file=PARAMS['contaminants'])
 
-        @follows(makeAdaptorFasta)
-        @collate(makeAdaptorFasta,
-                 regex("fasta.dir/(.+).fasta"),
-                 r"%s" % PARAMS['adapter_file'])
+        @merge(makeAdaptorFasta, "contaminants.fasta")
         def aggregateAdaptors(infiles, outfile):
             '''
             Collate fasta files into a single contaminants file for
             adapter removal.
             '''
+            tempfile = P.getTempFilename()
+            infiles = " ".join(infiles)
 
-            PipelinePreprocess.mergeAdaptorFasta(infiles, outfile)
+            statement = """
+            cat %(infiles)s | fastx_reverse_complement > %(tempfile)s;
+            cat %(tempfile)s %(infiles)s | fastx_collapser > %(outfile)s;
+            rm -f %(tempfile)s
+            """
+            P.run()
 
     else:
         @follows(mkdir("fasta.dir"))
@@ -218,7 +221,7 @@ if PARAMS.get("preprocessors", None):
                regex(SEQUENCEFILES_REGEX),
                r"processed.dir/trimmed-\1.fastq*.gz")
     def processReads(infile, outfiles):
-        '''process reads from .fastq and other sequence files
+        '''process reads from .fastq and other sequence files.
         '''
 
         trimmomatic_options = PARAMS["trimmomatic_options"]
@@ -230,12 +233,10 @@ if PARAMS.get("preprocessors", None):
                     PARAMS["trimmomatic_p_thresh"],
                     PARAMS["trimmomatic_c_thresh"])
 
-        adapter_file = PARAMS.get("adapter_file", None)
-
-        if adapter_file:
+        if PARAMS["auto_remove"]:
             trimmomatic_options = trimmomatic_options + \
                 " ILLUMINACLIP:%s:%s:%s:%s " % (
-                    adapter_file,
+                    "contaminants.fasta",
                     PARAMS["trimmomatic_mismatches"],
                     PARAMS["trimmomatic_p_thresh"],
                     PARAMS["trimmomatic_c_thresh"])
@@ -274,8 +275,8 @@ if PARAMS.get("preprocessors", None):
                     threads=PARAMS["threads"]))
             elif tool == "cutadapt":
                 cutadapt_options = PARAMS["cutadapt_options"]
-                if adapter_file:
-                    cutadapt_options += " -a file:%(adapter_file)s "
+                if PARAMS["auto_remove"]:
+                    cutadapt_options += " -a file:contaminants.fasta "
                 m.add(PipelinePreprocess.Trimmomatic(
                     cutadapt_options,
                     threads=PARAMS["threads"]))
@@ -432,11 +433,6 @@ def loadFastqcSummary(infile, outfile):
          loadExperimentLevelReadQualities,
          runFastqScreen)
 def full():
-    pass
-
-
-@follows(processReads)
-def test():
     pass
 
 

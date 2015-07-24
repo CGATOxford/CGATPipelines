@@ -457,9 +457,8 @@ class SequenceCollectionProcessor(object):
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
-                f, format = Sra.peek(infile, outdir)
+                f, format = Sra.peek(infile)
                 E.info("sra file contains the following files: %s" % f)
-                shutil.rmtree(outdir)
 
                 # add extraction command to statement
                 statement.append(Sra.extract(infile, tmpdir_fastq))
