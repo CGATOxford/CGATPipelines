@@ -60,18 +60,19 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         # patch for SRA files, look at multiple tracks
         f, fastq_format = Sra.peek(infile)
         if len(f) == 2:
-            tracks = [track + "_1", track + "_2"]
+            tracks = [track + "_fastq_1", track + "_fastq_2"]
 
     found_contaminants = []
     for t in tracks:
         table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
-        
+
         query = "SELECT Possible_Source, Sequence FROM %s_fastqc_Overrepresented_sequences;" % table
 
         cc = dbh.cursor()
         try:
             found_contaminants.extend(cc.execute(query).fetchall())
-        except sqlite3.OperationalError:
+        except sqlite3.OperationalError, msg:
+            print msg
             # empty table
             continue
 
