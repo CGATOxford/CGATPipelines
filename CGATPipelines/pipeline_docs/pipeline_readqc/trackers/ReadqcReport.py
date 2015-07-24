@@ -107,13 +107,8 @@ class FastQCDetails(ReadqcTracker):
                 blocks.append(ResultBlock(block % locals(),
                                           os.path.basename(fn)))
 
-            if len(blocks) > 2:
-                width = len(blocks) % 2
-                if width == 0:
-                    width = len(blocks)
-                text.append("\n".join(layoutBlocks(blocks, "column-%i" % width)))
-            else:
-                text.append(str(blocks))
+            text.append("\n".join(layoutBlocks(
+                blocks, "grid")))
 
             result[track] = {'rst': "\n".join(text)}
 
