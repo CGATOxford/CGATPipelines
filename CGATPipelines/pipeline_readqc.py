@@ -302,7 +302,7 @@ else:
 
 
 @transform(INPUT_FORMATS, regex("(.*)"), r"\1")
-def unprocessReads():
+def unprocessReads(infiles, outfiles):
     """dummy task - no processing of reads."""
     pass
 
