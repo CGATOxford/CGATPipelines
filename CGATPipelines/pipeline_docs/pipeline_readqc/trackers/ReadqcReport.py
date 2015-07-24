@@ -1,10 +1,9 @@
 import os
 import glob
-import itertools
-import re
 from collections import OrderedDict as odict
 from CGATReport.Tracker import TrackerSQL, SingleTableTrackerRows
 from CGATReport.Utils import PARAMS as P
+from CGATReport.Utils import ResultBlock, ResultBlocks, layoutBlocks
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 # parameterization
@@ -82,15 +81,9 @@ class FastQCDetails(ReadqcTracker):
 
         # note there are spaces behind the %(image)s directive to accommodate
         # for path substitution
-        block = '''
-
-.. figure:: %(image)s
+        block = """.. figure:: %(image)s                                                                   
    :height: 300
-
-   %(title)s
-
-'''
-
+"""
         result = odict()
 
         for track in sorted([x.asFile() for x in TRACKS]):
@@ -102,16 +95,25 @@ class FastQCDetails(ReadqcTracker):
 
             text = ["%s\n\n" % track]
 
+            blocks = ResultBlocks()
+
             for fn in sorted(files):
 
                 image = os.path.abspath(
                     os.path.join(fn, "Images", "%s.png" % slice))
                 if not os.path.exists(image):
                     continue
-                    
-                title = os.path.basename(image)
 
-                text.append(block % locals())
+                blocks.append(ResultBlock(block % locals(),
+                                          os.path.basename(fn)))
+
+            if len(blocks) > 2:
+                width = len(blocks) % 2
+                if width == 0:
+                    width = len(blocks)
+                text.append("\n".join(layoutBlocks(blocks, "column-%i" % width)))
+            else:
+                text.append(str(blocks))
 
             result[track] = {'rst': "\n".join(text)}
 
