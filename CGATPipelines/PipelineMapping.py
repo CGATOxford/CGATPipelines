@@ -369,20 +369,11 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     os.unlink(tmpfile2)
 
 
-class Mapper(object):
+class SequenceCollectionProcessor(object):
+    """base class for processors of sequence collections.
 
-    '''map reads.
-
-    preprocesses the input data, calls mapper and post-process the output data.
-
-    All in a single statement to be send to the cluster.
-    '''
-
-    datatype = "fastq"
-
-    # set to True if you want to preserve colour space files.
-    # By default, they are converted to fastq.
-    preserve_colourspace = False
+    Processors of sequence collections are mappers, trimmers, etc.
+    """
 
     # compress temporary fastq files with gzip
     compress = False
@@ -390,23 +381,12 @@ class Mapper(object):
     # convert to sanger quality scores
     convert = False
 
-    # strip bam files of sequenca and quality information
-    strip_sequence = False
+    # set to True if you want to preserve colour space files.
+    # By default, they are converted to fastq.
+    preserve_colourspace = False
 
-    # remove non-unique matches in a post-processing step.
-    # Many aligners offer this option in the mapping stage
-    # If only unique matches are required, it is better to
-    # configure the aligner as removing in post-processing
-    # adds to processing time.
-    remove_non_unique = False
-
-    def __init__(self, executable=None,
-                 strip_sequence=False,
-                 remove_non_unique=False):
-        if executable:
-            self.executable = executable
-        self.strip_sequence = strip_sequence
-        self.remove_non_unique = remove_non_unique
+    def __init__(self, *args, **kwargs):
+        pass
 
     def quoteFile(self, filename):
         '''add uncompression for compressed files.
@@ -422,17 +402,17 @@ class Mapper(object):
             return filename
 
     def preprocess(self, infiles, outfile):
-        '''build preprocessing statement
+        '''build a preprocessing statement
 
         Build a command line statement that extracts/converts
         various input formats to fastq formatted files.
 
         Mapping qualities are changed to solexa format.
 
-        returns the statement and the fastq files to map.
+        returns the statement and the fastq files to process
         '''
 
-        assert len(infiles) > 0, "no input files for mapping"
+        assert len(infiles) > 0, "no input files for processing"
 
         tmpdir_fastq = P.getTempDir()
 
@@ -688,6 +668,41 @@ class Mapper(object):
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
         return "; ".join(statement) + ";", fastqfiles
+
+
+class Mapper(SequenceCollectionProcessor):
+
+    '''map reads.
+
+    preprocesses the input data, calls mapper and post-process the output data.
+
+    All in a single statement to be send to the cluster.
+    '''
+
+    datatype = "fastq"
+
+    # strip bam files of sequenca and quality information
+    strip_sequence = False
+
+    # remove non-unique matches in a post-processing step.
+    # Many aligners offer this option in the mapping stage
+    # If only unique matches are required, it is better to
+    # configure the aligner as removing in post-processing
+    # adds to processing time.
+    remove_non_unique = False
+
+    def __init__(self,
+                 executable=None,
+                 strip_sequence=False,
+                 remove_non_unique=False,
+                 *args, **kwargs):
+
+        SequenceCollectionProcessor.__init__(self, *args, **kwargs)
+
+        if executable:
+            self.executable = executable
+        self.strip_sequence = strip_sequence
+        self.remove_non_unique = remove_non_unique
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
