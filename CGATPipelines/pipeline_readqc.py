@@ -31,10 +31,11 @@ ReadQc pipeline
 
 The readqc pipeline imports unmapped reads from one or more input
 files and performs basic quality control steps. The pipeline performs
-also read pre-processing.
+also read pre-processing such as quality trimming or adaptor removal.
 
 Quality metrics are based on the fastqc tools, see
-see http://www.bioinformatics.bbsrc.ac.uk/projects/fastqc/ for further details.
+http://www.bioinformatics.bbsrc.ac.uk/projects/fastqc/ for further
+details.
 
 Usage
 =====
@@ -42,8 +43,8 @@ Usage
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning`
 on general information how to use CGAT pipelines.
 
-When pre-processing reads before mapping, the workflow of the pipeline is
-as follows:
+When pre-processing reads before mapping, the workflow of the pipeline
+is as follows:
 
 1. Run the ``full`` target to perform initial QC on the raw data. Then
    build the report (``build_report`` target).
@@ -63,7 +64,9 @@ as follows:
 Configuration
 -------------
 
-No general configuration required.
+See :file:`pipeline.ini` for setting configuration values affecting
+the workflow (pre-processing or no pre-processing) and options for
+various pre-processing tools.
 
 Input
 -----
@@ -98,7 +101,7 @@ Pipeline output
 ----------------
 
 The major output is a set of HTML pages and plots reporting on the quality of
-the sequence archive
+the sequence archive.
 
 Example
 =======
@@ -113,16 +116,19 @@ To run the example, simply unpack and untar::
    cd test_readqc
    python <srcdir>/pipeline_readqc.py make full
 
-Requirements
-==============
-
-* fastqc
-* fastq_screen
-* sickle >= 1.33
-* cutadapt >= 1.7.1
-
 Code
 ====
+
+To add a new pre-processing tool, the following changes are required:
+
+1. Add a new tool wrapper to :module:`PipelinePreprocess`. Derive
+   the wrapper from :class:`PipelinePreprocess.ProcessTools`. Make
+   sure to add a corresponding entry in the Requirements section of
+   the module.
+
+2. Add the tool to the task :func:`processReads` in this module.
+
+Requirements:
 
 """
 
@@ -132,6 +138,7 @@ from ruffus import *
 # import useful standard python modules
 import sys
 import os
+import re
 import shutil
 import sqlite3
 
@@ -156,21 +163,14 @@ INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz"]
 
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
-REGEX_TRACK = regex(r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
+REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
 # Regular expression to extract a track from both processed and unprocessed
 # files
-REGEX_TRACK_BOTH = regex(r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
+REGEX_TRACK_BOTH = \
+    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
-SEQUENCEFILES_REGEX = regex(
-    r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)")
-
-# List of unprocessed input files
-UNPROCESSED_INPUT_GLOB = INPUT_FORMATS
-
-# List of processed (trimmed, etc) input files
-PROCESSED_INPUT_GLOB = [os.path.join("processed.dir", x)
-                        for x in ["*.fastq.1.gz", "*.fastq.gz"]]
+SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
 
 def connect():
@@ -184,101 +184,133 @@ def connect():
 # if preprocess tools are specified, preprocessing is done on output that has
 # already been generated in the first run
 if PARAMS.get("preprocessors", None):
-    PREPROCESSTOOLS = [tool for tool
-                       in P.asList(PARAMS["preprocessors"])]
-    preprocess_prefix = ("-".join(PREPROCESSTOOLS[::-1]) + "-")
     if PARAMS["auto_remove"]:
         @follows(mkdir("fasta.dir"))
         @transform(INPUT_FORMATS,
-                   SEQUENCEFILES_REGEX,
+                   regex(SEQUENCEFILES_REGEX),
                    r"fasta.dir/\1.fasta")
         def makeAdaptorFasta(infile, outfile):
-
-            '''
-            Make a single fasta file for each sample of all contaminant adaptor
+            '''Make a single fasta file for each sample of all contaminant adaptor
             sequences for removal
             '''
-            contams = PARAMS['contaminants']
-            PipelinePreprocess.makeAdaptorFasta(infile=infile,
-                                                dbh=connect(),
-                                                contaminants_file=contams,
-                                                outfile=outfile)
+            PipelinePreprocess.makeAdaptorFasta(
+                infile=infile,
+                outfile=outfile,
+                track=re.match(REGEX_TRACK, infile).groups()[0],
+                dbh=connect(),
+                contaminants_file=PARAMS['contaminants'])
 
-        @follows(makeAdaptorFasta)
-        @collate(makeAdaptorFasta,
-                 regex("fasta.dir/(.+).fasta"),
-                 r"%s" % PARAMS['adapter_file'])
+        @merge(makeAdaptorFasta, "contaminants.fasta")
         def aggregateAdaptors(infiles, outfile):
             '''
             Collate fasta files into a single contaminants file for
             adapter removal.
             '''
+            tempfile = P.getTempFilename()
+            infiles = " ".join(infiles)
 
-            PipelinePreprocess.mergeAdaptorFasta(infiles, outfile)
+            statement = """
+            cat %(infiles)s | fastx_reverse_complement > %(tempfile)s;
+            cat %(tempfile)s %(infiles)s | fastx_collapser > %(outfile)s;
+            rm -f %(tempfile)s
+            """
+            P.run()
 
     else:
         @follows(mkdir("fasta.dir"))
         @transform(INPUT_FORMATS,
-                   SEQUENCEFILES_REGEX,
+                   regex(SEQUENCEFILES_REGEX),
                    r"fasta.dir/\1.fasta")
         def aggregateAdaptors(infile, outfile):
-
             P.touch(outfile)
 
     @follows(mkdir("processed.dir"),
-             mkdir("log.dir"),
-             mkdir("summary.dir"),
              aggregateAdaptors)
-    @transform(INPUT_FORMATS,
-               SEQUENCEFILES_REGEX,
-               r"processed.dir/%s\1.\g<suffix>" % preprocess_prefix)
-    def processReads(infile, outfile):
-        '''process reads from .fastq format files
-        Tasks specified in PREPROCESSTOOLS are run in order
+    @subdivide(INPUT_FORMATS,
+               regex(SEQUENCEFILES_REGEX),
+               r"processed.dir/trimmed-\1.fastq*.gz")
+    def processReads(infile, outfiles):
+        '''process reads from .fastq and other sequence files.
         '''
-        trimmomatic_options = PARAMS["trimmomatic_options"]
-        if PARAMS["adapter_file"] or PARAMS["trimmomatic_adapter"]:
-            if PARAMS["adapter_file"]:
-                adapter_file = PARAMS["adapter_file"]
-            else:
-                adapter_file = PARAMS["trimmomatic_adapter"]
 
-            adapter_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
-                adapter_file,
-                PARAMS["trimmomatic_mismatches"],
-                PARAMS["trimmomatic_p_thresh"], PARAMS["trimmomatic_c_thresh"])
-            trimmomatic_options = adapter_options + trimmomatic_options
+        trimmomatic_options = PARAMS["trimmomatic_options"]
+        if PARAMS["trimmomatic_adapter"]:
+            trimmomatic_options = trimmomatic_options + \
+                " ILLUMINACLIP:%s:%s:%s:%s " % (
+                    PARAMS["trimmomatic_adapter"],
+                    PARAMS["trimmomatic_mismatches"],
+                    PARAMS["trimmomatic_p_thresh"],
+                    PARAMS["trimmomatic_c_thresh"])
+
+        if PARAMS["auto_remove"]:
+            trimmomatic_options = trimmomatic_options + \
+                " ILLUMINACLIP:%s:%s:%s:%s " % (
+                    "contaminants.fasta",
+                    PARAMS["trimmomatic_mismatches"],
+                    PARAMS["trimmomatic_p_thresh"],
+                    PARAMS["trimmomatic_c_thresh"])
 
         job_threads = PARAMS["threads"]
         job_memory = "7G"
 
+        track = re.match(REGEX_TRACK, infile).groups()[0]
+
         m = PipelinePreprocess.MasterProcessor(
             save=PARAMS["save"],
-            summarise=PARAMS["summarise"],
-            threads=PARAMS["threads"],
-            trimgalore_options=PARAMS["trimgalore_options"],
-            trimmomatic_options=trimmomatic_options,
-            sickle_options=PARAMS["sickle_options"],
-            flash_options=PARAMS["flash_options"],
-            fastx_trimmer_options=PARAMS["fastx_trimmer_options"],
-            cutadapt_options=PARAMS["cutadapt_options"],
-            adapter_file=PARAMS['adapter_file'])
+            summarize=PARAMS["summarize"],
+            threads=PARAMS["threads"])
 
-        statement = m.build((infile,), outfile, PREPROCESSTOOLS)
+        for tool in P.asList(PARAMS["preprocessors"]):
+
+            if tool == "fastx_trimmer":
+                m.add(PipelinePreprocess.FastxTrimmer(
+                    PARAMS["fastx_trimmer_options"],
+                    threads=PARAMS["threads"]))
+            elif tool == "trimmomatic":
+                m.add(PipelinePreprocess.Trimmomatic(
+                    trimmomatic_options,
+                    threads=PARAMS["threads"]))
+            elif tool == "sickle":
+                m.add(PipelinePreprocess.Trimmomatic(
+                    PARAMS["sickle_options"],
+                    threads=PARAMS["threads"]))
+            elif tool == "trimgalore":
+                m.add(PipelinePreprocess.Trimmomatic(
+                    PARAMS["trimgalore_options"],
+                    threads=PARAMS["threads"]))
+            elif tool == "flash":
+                m.add(PipelinePreprocess.Trimmomatic(
+                    PARAMS["flash_options"],
+                    threads=PARAMS["threads"]))
+            elif tool == "cutadapt":
+                cutadapt_options = PARAMS["cutadapt_options"]
+                if PARAMS["auto_remove"]:
+                    cutadapt_options += " -a file:contaminants.fasta "
+                m.add(PipelinePreprocess.Trimmomatic(
+                    cutadapt_options,
+                    threads=PARAMS["threads"]))
+
+        statement = m.build((infile,), "processed.dir/trimmed-", track)
 
         P.run()
-        P.touch(outfile)
 
 else:
     @follows(mkdir("processed.dir"))
     def processReads():
+        """dummy task - no processing of reads."""
         pass
 
 
-@follows(processReads, mkdir(PARAMS["exportdir"]),
+@transform(INPUT_FORMATS, regex("(.*)"), r"\1")
+def unprocessReads(infiles, outfiles):
+    """dummy task - no processing of reads."""
+    pass
+
+
+@follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
-@transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
-           REGEX_TRACK,
+@transform((unprocessReads, processReads),
+           regex(REGEX_TRACK),
            r"\1.fastqc")
 def runFastqc(infiles, outfile):
     '''run Fastqc on each input file.
@@ -319,10 +351,10 @@ def loadFastqc(infile, outfile):
     P.touch(outfile)
 
 
-@follows(processReads, mkdir(PARAMS["exportdir"]),
+@follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
-@transform(UNPROCESSED_INPUT_GLOB + PROCESSED_INPUT_GLOB,
-           REGEX_TRACK_BOTH,
+@transform((unprocessReads, processReads),
+           regex(REGEX_TRACK_BOTH),
            r"%s/fastq_screen/\2.fastqscreen" % PARAMS['exportdir'])
 def runFastqScreen(infiles, outfile):
     '''run FastqScreen on input files.'''
@@ -410,11 +442,6 @@ def loadFastqcSummary(infile, outfile):
          loadExperimentLevelReadQualities,
          runFastqScreen)
 def full():
-    pass
-
-
-@follows(processReads)
-def test():
     pass
 
 
