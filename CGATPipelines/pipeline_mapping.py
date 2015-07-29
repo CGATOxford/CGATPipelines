@@ -404,9 +404,10 @@ def buildCodingGeneSet(infiles, outfile):
 
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
-@merge(PARAMS["annotations_interface_geneset_flat_gtf"],
-       add_inputs(identifyProteinCodingGenes),
-       "geneset.dir/introns.gtf.gz")
+@transform(PARAMS["annotations_interface_geneset_flat_gtf"],
+           regex(".*"),
+           add_inputs(identifyProteinCodingGenes),
+           "geneset.dir/introns.gtf.gz")
 def buildIntronGeneModels(infiles, outfile):
     '''build protein-coding intron-transcipts.
 
