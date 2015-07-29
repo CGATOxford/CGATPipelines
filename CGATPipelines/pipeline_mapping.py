@@ -405,8 +405,9 @@ def buildCodingGeneSet(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
 @merge(PARAMS["annotations_interface_geneset_flat_gtf"],
+       add_inputs(identifyProteinCodingGenes),
        "geneset.dir/introns.gtf.gz")
-def buildIntronGeneModels(infile, outfile):
+def buildIntronGeneModels(infiles, outfile):
     '''build protein-coding intron-transcipts.
 
     Intron-transcripts are the reverse complement of transcripts.
@@ -422,11 +423,13 @@ def buildIntronGeneModels(infile, outfile):
 
     filename_exons = PARAMS["annotations_interface_geneset_exons_gtf"]
 
+    infile, genes_tsv = infiles
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
-    --filter-method=proteincoding
+    --map-tsv-file=%(genes_tsv)s
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort
