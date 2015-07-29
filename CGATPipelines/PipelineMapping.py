@@ -691,10 +691,12 @@ class Mapper(SequenceCollectionProcessor):
     # adds to processing time.
     remove_non_unique = False
 
+
     def __init__(self,
                  executable=None,
                  strip_sequence=False,
                  remove_non_unique=False,
+                 tool_options="",
                  *args, **kwargs):
 
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
@@ -703,6 +705,9 @@ class Mapper(SequenceCollectionProcessor):
             self.executable = executable
         self.strip_sequence = strip_sequence
         self.remove_non_unique = remove_non_unique
+
+        # tool options to be passed on to the mapping tool
+        self.tool_options = tool_options
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -727,12 +732,16 @@ class Mapper(SequenceCollectionProcessor):
         cmd_postprocess = self.postprocess(infiles, outfile)
         cmd_clean = self.cleanup(outfile)
 
-        assert cmd_preprocess.strip().endswith(";")
-        assert cmd_mapper.strip().endswith(";")
+        assert cmd_preprocess.strip().endswith(";"),\
+            "missing ';' at end of command %s" % cmd_preprocess.strip()
+        assert cmd_mapper.strip().endswith(";"),\
+            "missing ';' at end of command %s" % cmd_mapper.strip()
         if cmd_postprocess:
-            assert cmd_postprocess.strip().endswith(";")
+            assert cmd_postprocess.strip().endswith(";"),\
+                "missing ';' at end of command %s" % cmd_postprocess.strip()
         if cmd_clean:
-            assert cmd_clean.strip().endswith(";")
+            assert cmd_clean.strip().endswith(";"),\
+                "missing ';' at end of command %s" % cmd_clean.strip()
 
         statement = " checkpoint; ".join((cmd_preprocess,
                                           cmd_mapper,
@@ -2068,13 +2077,18 @@ class STAR(Mapper):
 
 
 class Bowtie(Mapper):
-
-    '''map with bowtie against genome.'''
+    '''map with bowtie or bowtie2 against genome.'''
 
     # bowtie can map colour space files directly
     preserve_colourspace = True
 
     executable = "bowtie"
+
+    # prefix to denote index file
+    index_option = ""
+
+    # use SAM output in bowtie
+    output_option = "--sam"
 
     def __init__(self, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
@@ -2127,12 +2141,10 @@ class Bowtie(Mapper):
         else:
             index_prefix = "%(bowtie_index_dir)s/%(genome)s"
 
-        # bowtie outputs sam per default
-        if executable == 'bowtie':
-            data_options.append('--sam')
-
+        index_option = self.index_option
+        output_option = self.output_option
+        tool_options = self.tool_options
         data_options = " ".join(data_options)
-
         tmpdir_fastq = self.tmpdir_fastq
 
         if nfiles == 1:
@@ -2141,9 +2153,10 @@ class Bowtie(Mapper):
             %(executable)s --quiet
             --threads %%(bowtie_threads)i
             %(data_options)s
-            %%(bowtie_options)s
-            %(index_prefix)s
+            %(tool_options)s
+            %(index_option)s %(index_prefix)s
             %(infiles)s
+            %(output_option)s
             2>%(outfile)s.log
             | awk -v OFS="\\t" '{sub(/\/[12]$/,"",$1);print}'
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
@@ -2158,9 +2171,10 @@ class Bowtie(Mapper):
             %(executable)s --quiet
             --threads %%(bowtie_threads)i
             %(data_options)s
-            %%(bowtie_options)s
-            %(index_prefix)s
+            %(tool_options)s
+            %(index_option)s %(index_prefix)s
             -1 %(infiles1)s -2 %(infiles2)s
+            %(output_option)s
             2>%(outfile)s.log
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
             1>&2 2>> %(outfile)s.log;
@@ -2199,6 +2213,18 @@ class Bowtie(Mapper):
         ''' % locals()
 
         return statement
+
+
+class Bowtie2(Bowtie):
+    '''map with bowtie2 against genome.'''
+
+    executable = "bowtie2"
+
+    # prefix to denote index file
+    index_option = "-x"
+
+    # output option - default is SAM for botwie2
+    output_option = ""
 
 
 class BowtieTranscripts(Mapper):
