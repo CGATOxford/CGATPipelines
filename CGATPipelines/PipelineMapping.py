@@ -691,7 +691,6 @@ class Mapper(SequenceCollectionProcessor):
     # adds to processing time.
     remove_non_unique = False
 
-
     def __init__(self,
                  executable=None,
                  strip_sequence=False,
