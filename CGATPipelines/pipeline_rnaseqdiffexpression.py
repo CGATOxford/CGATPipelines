@@ -496,6 +496,7 @@ def runCuffdiff(infiles, outfile):
                                geneset_file,
                                outfile,
                                threads=PARAMS.get("cuffdiff_threads", 4),
+                               memory=PARAMS.get("cuffdiff_memory", "4G"),
                                cuffdiff_options=options,
                                fdr=PARAMS["cuffdiff_fdr"],
                                mask_file=mask_file)
