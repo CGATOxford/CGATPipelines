@@ -2015,12 +2015,12 @@ class STAR(Mapper):
             infiles1 = " ".join([x[0] for x in infiles])
             infiles2 = " ".join([x[1] for x in infiles])
 
-            # patch for compressed files
             if infiles[0][0].endswith(".gz"):
-                files = "<( zcat %(infiles1)s ) <( zcat %(infiles2)s )" % \
-                        locals()
+                compress_option = "--readFilesCommand zcat"
             else:
-                files = "%(infiles1)s %(infiles2)s" % locals()
+                compress_option = ""
+
+            files = "%(infiles1)s %(infiles2)s" % locals()
 
             statement = '''
             %(executable)s
@@ -2031,6 +2031,7 @@ class STAR(Mapper):
                    --outStd SAM
                    --outSAMunmapped Within
                    %%(star_options)s
+                   %(compress_option)s
                    --readFilesIn %(files)s
                    > %(tmpdir)s/%(track)s.sam
                    2> %(outfile)s.log;
