@@ -312,6 +312,12 @@ def getParameters(filenames=["pipeline.ini", ],
         if os.path.exists(fn):
             filenames.insert(0, fn)
 
+    # IMS: Several legacy scripts call this with a sting as input
+    # rather than a list. Check for this and correct
+
+    if isinstance(filenames, basestring):
+        filenames = [filenames]
+
     if default_ini:
         # The link between CGATPipelines and Pipeline.py
         # needs to severed at one point.
