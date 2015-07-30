@@ -312,7 +312,7 @@ def runGOFromFiles(outfile,
 
     if samples is not None:
         options.append("--fdr")
-        options.append("--method=sample --sample-size=%(samples)i" % locals())
+        options.append("--sample-size=%(samples)i" % locals())
         options.append("--fdr-method=empirical")
     else:
         options.append("--fdr")
