@@ -351,6 +351,11 @@ if [ $TRAVIS_INSTALL ] ; then
    # enable Conda env
    source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
 
+   # need to install the CGAT Code Collection as well
+   git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
+   cd $CGAT_HOME/cgat-code-at-travis
+   python setup.py develop
+
    # python preparation
    cd $CGAT_HOME
    python setup.py develop
