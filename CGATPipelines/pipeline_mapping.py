@@ -447,7 +447,7 @@ def buildIntronGeneModels(infiles, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=set-transcript-to-gene
     --log=%(outfile)s.log
-    | perl -p -e 's/intron/exon/'
+    | awk -v OFS="\t" -v FS="\t" '{$3="exon"; print}'
     | gzip
     > %(outfile)s
     '''
@@ -479,7 +479,7 @@ def buildCodingExons(infile, outfile):
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
-    | perl -p -e "s/CDS/exon/"
+    | awk -v OFS="\t" -v FS="\t" '{$3="exon"; print}'
     | python %(scriptsdir)s/gtf2gtf.py
     --method=merge-exons
     --log=%(outfile)s.log
