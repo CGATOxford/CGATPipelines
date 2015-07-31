@@ -171,13 +171,14 @@ def countReadsWithinWindows(bedfile,
 def aggregateWindowsReadCounts(infiles,
                                outfile,
                                regex="(.*)\..*"):
-    '''aggregate several results from coverageBed
-    into a single file.
+    '''aggregate several results from coverageBed results into a single
+    file.
 
     *regex* is used to extract the track name from the filename.
     The default removes any suffix.
 
     coverageBed outputs the following columns:
+
     1 Contig
     2 Start
     3 Stop
@@ -193,7 +194,6 @@ def aggregateWindowsReadCounts(infiles,
     For bed6: use column 7
     For bed12: use column 13
 
-    Windows without any counts will not be output.
     '''
 
     # get bed format
@@ -201,8 +201,8 @@ def aggregateWindowsReadCounts(infiles,
     # +1 as awk is 1-based
     column = bed_columns - 4 + 1
 
-    src = " ".join(['''<( zcat %s |
-              awk '{printf("%%s:%%i-%%i\\t%%i\\n", $1,$2,$3,$%s );}' ) ''' %
+    src = " ".join(["""<( zcat %s |
+              awk '{printf("%%s:%%i-%%i\\t%%i\\n", $1,$2,$3,$%s );}')""" %
                     (x, column) for x in infiles])
     tmpfile = P.getTempFilename(".")
     statement = '''paste %(src)s > %(tmpfile)s'''
@@ -219,8 +219,7 @@ def aggregateWindowsReadCounts(infiles,
         data = line[:-1].split("\t")
         genes = list(set([data[x] for x in range(0, len(data), 2)]))
         values = [int(data[x]) for x in range(1, len(data), 2)]
-        if sum(values) == 0:
-            continue
+
         assert len(genes) == 1, \
             "paste command failed, wrong number of genes per line: '%s'" % line
         outf.write("%s\t%s\n" % (genes[0], "\t".join(map(str, values))))
