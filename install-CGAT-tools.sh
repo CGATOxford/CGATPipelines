@@ -131,17 +131,8 @@ get_cgat_env() {
 
 if [ $TRAVIS_INSTALL ] ; then
 
-   if [ $TEST_PRODUCTION_SCRIPTS ] ; then
-
-      CGAT_HOME=$TRAVIS_BUILD_DIR
-      CONDA_INSTALL_TYPE="cgat-scripts"
-
-   else
-
-      CGAT_HOME=$TRAVIS_BUILD_DIR
-      CONDA_INSTALL_TYPE="cgat-devel"
-
-   fi # if-production scripts
+   CGAT_HOME=$TRAVIS_BUILD_DIR
+   CONDA_INSTALL_TYPE="cgat-devel"
 
 else
 
@@ -300,7 +291,7 @@ if [ "$OS" != "travis" ] ; then
          echo " Installation did not finish properly. "
          echo 
          echo " Please submit this issue via Git Hub: "
-         echo " https://github.com/CGATOxford/cgat/issue "
+         echo " https://github.com/CGATOxford/cgat/issues "
 	 echo
          echo " Debugging: "
          echo " CFLAGS: "$CFLAGS
@@ -320,7 +311,7 @@ if [ "$OS" != "travis" ] ; then
       echo " Installation did not finish properly. "
       echo
       echo " Please submit this issue via Git Hub: "
-      echo " https://github.com/CGATOxford/cgat/issue "
+      echo " https://github.com/CGATOxford/cgat/issues "
       echo
       echo " Debugging: "
       echo " CGAT_HOME: "$CGAT_HOME
@@ -334,7 +325,7 @@ if [ "$OS" != "travis" ] ; then
       echo
       echo " To activate the CGAT environment type: "
       echo " $ source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE"
-      [ "$INSTALL_SCRIPTS" == "1" ] && echo " cgat --help"
+      [ $INSTALL_SCRIPTS ] && echo " cgat --help"
       echo
       echo " To deactivate the environment, use:"
       echo " $ source deactivate"
@@ -359,11 +350,6 @@ if [ $TRAVIS_INSTALL ] ; then
 
    # enable Conda env
    source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
-
-   # need to install the CGAT Code Collection as well
-   git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
-   cd $CGAT_HOME/cgat-code-at-travis
-   python setup.py develop
 
    # python preparation
    cd $CGAT_HOME
@@ -477,7 +463,7 @@ if [ ! $? -eq 0 ] ; then
    echo " There was a problem updating the installation. "
    echo 
    echo " Please submit this issue via Git Hub: "
-   echo " https://github.com/CGATOxford/cgat/issue "
+   echo " https://github.com/CGATOxford/cgat/issues "
    echo 
 
 else 
