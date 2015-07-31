@@ -620,6 +620,7 @@ def countReadsWithinWindows(infiles, outfile):
 def aggregateWindowsReadCounts(infiles, outfile):
     '''aggregate tag counts into a single file.
     '''
+
     PipelineWindows.aggregateWindowsReadCounts(infiles,
                                                outfile,
                                                regex="(.*).counts.bed.gz")
