@@ -1313,6 +1313,12 @@ def runFIMO(motifs, database, outfile, exportdir, options={}):
 def getSeedMotifs(motif_file, tomtom_file, outfile):
 
     ungrouped = MemeMotifFile(IOTools.openFile(motif_file))
+
+    if len(ungrouped) == 0:
+        with IOTools.openFile(outfile, "w") as outf:
+            outf.write(str(ungrouped))
+        return
+
     E.debug("%s: Loaded %i motifs" % (motif_file, len(ungrouped)))
     tomtom = pandas.read_csv(tomtom_file, sep="\t")
     tomtom["Query ID"] = tomtom["Query ID"].astype(str)
