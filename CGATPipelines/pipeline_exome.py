@@ -828,7 +828,7 @@ def annotateVariantsSNPsift(infile, outfile):
     job_threads = PARAMS["annotation_threads"]
     track = P.snip(os.path.basename(infile), ".vqsr.vcf")
     dbNSFP = PARAMS["annotation_snpsift_dbnsfp"]
-    thousand_genomes = PARAMS["annotation_thousand_genomes"]
+    clinvar = PARAMS["annotation_clinvar"]
     exac = PARAMS["annotation_exac"]
     # The following statement is not fully implemented yet
     # statement = '''SnpSift.sh geneSets -v
@@ -837,7 +837,7 @@ def annotateVariantsSNPsift(infile, outfile):
 
     statement = '''SnpSift.sh dbnsfp -v -db %(dbNSFP)s %(infile)s
                     > variants/%(track)s_temp1.vcf; checkpoint;
-                    SnpSift.sh annotate %(thousand_genomes)s
+                    SnpSift.sh annotate %(clinvar)s
                     variants/%(track)s_temp1.vcf > %(track)s_temp2.vcf;
                     checkpoint; SnpSift.sh annotate -info AC_Adj,AN_Adj,AF 
                     %(exac)s %(track)s_temp2.vcf > %(outfile)s; 
