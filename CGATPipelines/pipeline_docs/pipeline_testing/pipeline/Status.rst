@@ -1,3 +1,5 @@
+.. _status:
+
 ======
 Status
 ======
@@ -5,11 +7,10 @@ Status
 MD5 Comparison
 ==============
 
-The MD5 Comparison compares the files output by
-the latest pipeline run against the results of
-a reference pipeline run. A run was successfull
-if exactly the same files are present and all
-files are identical.
+The MD5 Comparison compares the files output by the latest pipeline
+run against the results of a reference pipeline run. A run was
+successfull if exactly the same files are present and all files are
+identical. A list of the files are found in the :ref:`filelists`.
 
 .. report:: Status.ComparisonStatus
    :render: status
@@ -19,10 +20,10 @@ files are identical.
 Completion status
 ====================
 
-The following report lists the completion status of the pipelines, 
-pipelines that have run and completed successfully.
+Looking at the logfiles, the this section lists the completion status
+of runnning the pipeline and building the report.
 
-.. report:: TestingReport.PipelineStatus 
+.. report:: Status.PipelineStatus 
    :render: status                  
    
    Status report of pipeline running. The info field shows the last
@@ -31,10 +32,16 @@ pipelines that have run and completed successfully.
 Report status
 =============
 
-The following report lists the completion status of the reports that
-are associated with each pipelines.
+Looking at the logfiles of the report building, the report below
+list the number of errors and warnings encountered when building the
+report.
 
 .. report:: TestingReport.ReportTable
    :render: table
 
-   Table with detailed report results.
+   Table summarizing the logfile of running the reports. The columns
+   are:
+   report_error -- number of errors in the report
+   report_warning -- number of warnings in the report
+   error -- number of error messsages in the logfile
+   warning -- number of warning messages in the logfile

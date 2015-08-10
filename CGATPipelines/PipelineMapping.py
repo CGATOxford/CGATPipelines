@@ -35,7 +35,8 @@ Requirements:
 
 * cufflinks >= 2.2.1
 * fastq-dump >= 2.1.7
-* fastqc >= 0.9.2
+* fastqc >= 0.11.2
+* fastq_screen >= 0.4.4
 * sailfish >= 0.6.3
 * picardtools >= 1.106
 * samtools >= 1.1
@@ -279,7 +280,12 @@ def mergeAndFilterGTF(infile, outfile, logfile,
 
 
 def resetGTFAttributes(infile, genome, gene_ids, outfile):
+    """set GTF attributes in file so that they are compatible with cufflinks.
 
+    This method runs cuffcompare with `infile` against itself to add
+    attributes such as p_id and tss_id.
+
+    """
     tmpfile1 = P.getTempFilename(".")
     tmpfile2 = P.getTempFilename(".")
 
@@ -296,7 +302,7 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     # I was not able to resolve this, it was a complex
     # bug dependent on both the read libraries and the input reference gtf
     # files
-    job_options = "-l mem_free=2G"
+    job_memory = "2G"
 
     statement = '''
     cuffcompare -r <( gunzip < %(infile)s )
@@ -364,20 +370,11 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     os.unlink(tmpfile2)
 
 
-class Mapper(object):
+class SequenceCollectionProcessor(object):
+    """base class for processors of sequence collections.
 
-    '''map reads.
-
-    preprocesses the input data, calls mapper and post-process the output data.
-
-    All in a single statement to be send to the cluster.
-    '''
-
-    datatype = "fastq"
-
-    # set to True if you want to preserve colour space files.
-    # By default, they are converted to fastq.
-    preserve_colourspace = False
+    Processors of sequence collections are mappers, trimmers, etc.
+    """
 
     # compress temporary fastq files with gzip
     compress = False
@@ -385,23 +382,12 @@ class Mapper(object):
     # convert to sanger quality scores
     convert = False
 
-    # strip bam files of sequenca and quality information
-    strip_sequence = False
+    # set to True if you want to preserve colour space files.
+    # By default, they are converted to fastq.
+    preserve_colourspace = False
 
-    # remove non-unique matches in a post-processing step.
-    # Many aligners offer this option in the mapping stage
-    # If only unique matches are required, it is better to
-    # configure the aligner as removing in post-processing
-    # adds to processing time.
-    remove_non_unique = False
-
-    def __init__(self, executable=None,
-                 strip_sequence=False,
-                 remove_non_unique=False):
-        if executable:
-            self.executable = executable
-        self.strip_sequence = strip_sequence
-        self.remove_non_unique = remove_non_unique
+    def __init__(self, *args, **kwargs):
+        pass
 
     def quoteFile(self, filename):
         '''add uncompression for compressed files.
@@ -417,17 +403,17 @@ class Mapper(object):
             return filename
 
     def preprocess(self, infiles, outfile):
-        '''build preprocessing statement
+        '''build a preprocessing statement
 
         Build a command line statement that extracts/converts
         various input formats to fastq formatted files.
 
         Mapping qualities are changed to solexa format.
 
-        returns the statement and the fastq files to map.
+        returns the statement and the fastq files to process
         '''
 
-        assert len(infiles) > 0, "no input files for mapping"
+        assert len(infiles) > 0, "no input files for processing"
 
         tmpdir_fastq = P.getTempDir()
 
@@ -471,9 +457,8 @@ class Mapper(object):
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
-                f, format = Sra.peek(infile, outdir)
+                f, format = Sra.peek(infile)
                 E.info("sra file contains the following files: %s" % f)
-                shutil.rmtree(outdir)
 
                 # add extraction command to statement
                 statement.append(Sra.extract(infile, tmpdir_fastq))
@@ -489,7 +474,8 @@ class Mapper(object):
 
                         infile = sra_extraction_files[0]
                         track = os.path.splitext(os.path.basename(infile))[0]
-
+                        if track.endswith("_1.fastq"):
+                            track = track[:-8]
                         statement.append("""gunzip < %(infile)s
                         | python %%(scriptsdir)s/fastq2fastq.py
                         --method=change-format --target-format=sanger
@@ -529,7 +515,33 @@ class Mapper(object):
                              "%s/%s_converted.2.fastq%s" %
                              (tmpdir_fastq, track, extension)))
                 else:
-                    fastqfiles.append(sra_extraction_files)
+                    # Usually sra extraction files have format
+                    # '1_fastq.gz' for both single and paired end files
+                    # This code corrects the output to the format expected by
+                    # CGAT Pipelines
+                    infile = sra_extraction_files[0]
+                    basename = os.path.basename(infile)
+                    if (len(sra_extraction_files) == 1
+                            and basename.endswith("_1.fastq.gz")):
+                        basename = basename[:-11] + ".fastq.gz"
+                        statement.append(
+                            "mv %s %s/%s" % (infile, tmpdir_fastq, basename))
+                        fastqfiles.append(
+                            ("%s/%s" % (tmpdir_fastq, basename),))
+                    elif len(sra_extraction_files) == 2:
+                        infile2 = sra_extraction_files[1]
+                        if basename.endswith("_1.fastq.gz"):
+                            basename1 = basename[:-11] + ".fastq.1.gz"
+                            basename2 = basename[:-11] + ".fastq.2.gz"
+                        statement.append(
+                            "mv %s %s/%s; mv %s %s/%s" %
+                            (infile, tmpdir_fastq, basename1,
+                             infile2, tmpdir_fastq, basename2))
+                        fastqfiles.append(
+                            ("%s/%s" % (tmpdir_fastq, basename1),
+                             "%s/%s" % (tmpdir_fastq, basename2)))
+                    else:
+                        fastqfiles.append(sra_extraction_files)
 
             elif infile.endswith(".fastq.gz"):
                 format = Fastq.guessFormat(
@@ -655,8 +667,46 @@ class Mapper(object):
         self.tmpdir_fastq = tmpdir_fastq
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
-
         return "; ".join(statement) + ";", fastqfiles
+
+
+class Mapper(SequenceCollectionProcessor):
+
+    '''map reads.
+
+    preprocesses the input data, calls mapper and post-process the output data.
+
+    All in a single statement to be send to the cluster.
+    '''
+
+    datatype = "fastq"
+
+    # strip bam files of sequenca and quality information
+    strip_sequence = False
+
+    # remove non-unique matches in a post-processing step.
+    # Many aligners offer this option in the mapping stage
+    # If only unique matches are required, it is better to
+    # configure the aligner as removing in post-processing
+    # adds to processing time.
+    remove_non_unique = False
+
+    def __init__(self,
+                 executable=None,
+                 strip_sequence=False,
+                 remove_non_unique=False,
+                 tool_options="",
+                 *args, **kwargs):
+
+        SequenceCollectionProcessor.__init__(self, *args, **kwargs)
+
+        if executable:
+            self.executable = executable
+        self.strip_sequence = strip_sequence
+        self.remove_non_unique = remove_non_unique
+
+        # tool options to be passed on to the mapping tool
+        self.tool_options = tool_options
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
@@ -670,7 +720,6 @@ class Mapper(object):
     def cleanup(self, outfile):
         '''clean up.'''
         statement = '''rm -rf %s;''' % (self.tmpdir_fastq)
-        # statement = ""
 
         return statement
 
@@ -682,12 +731,16 @@ class Mapper(object):
         cmd_postprocess = self.postprocess(infiles, outfile)
         cmd_clean = self.cleanup(outfile)
 
-        assert cmd_preprocess.strip().endswith(";")
-        assert cmd_mapper.strip().endswith(";")
+        assert cmd_preprocess.strip().endswith(";"),\
+            "missing ';' at end of command %s" % cmd_preprocess.strip()
+        assert cmd_mapper.strip().endswith(";"),\
+            "missing ';' at end of command %s" % cmd_mapper.strip()
         if cmd_postprocess:
-            assert cmd_postprocess.strip().endswith(";")
+            assert cmd_postprocess.strip().endswith(";"),\
+                "missing ';' at end of command %s" % cmd_postprocess.strip()
         if cmd_clean:
-            assert cmd_clean.strip().endswith(";")
+            assert cmd_clean.strip().endswith(";"),\
+                "missing ';' at end of command %s" % cmd_clean.strip()
 
         statement = " checkpoint; ".join((cmd_preprocess,
                                           cmd_mapper,
@@ -782,6 +835,45 @@ class FastQc(Mapper):
         return " ".join(statement)
 
 
+class FastqScreen(Mapper):
+
+    '''run Fastq_screen to test contamination by other organisms.'''
+
+    compress = True
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement on infiles
+        The output is created in outdir. The output files
+        are extracted.
+        '''
+
+        if len(infiles) > 1:
+            raise ValueError(
+                "Fastq_screen can only operate on one fastq file at a time")
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+            input_files = infiles[0][0]
+        elif nfiles == 2:
+            infile1, infile2 = infiles[0]
+            input_files = '''-- paired %(infile1)s %(infile2)s''' % locals()
+        else:
+            raise ValueError(
+                "unexpected number read files to map: %i " % nfiles)
+
+        statement = '''fastq_screen %%(fastq_screen_options)s
+                    --outdir %%(outdir)s --conf %%(tempdir)s/fastq_screen.conf
+                    %(input_files)s;''' % locals()
+        return statement
+
+
 class Sailfish(Mapper):
 
     '''run Sailfish to quantify transcript abundance from fastq files'''
@@ -810,7 +902,7 @@ class Sailfish(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            input_file = '''-r <(zcat %(infile)s)''' % locals()
+            input_file = '''-r <(zcat %s)''' % infiles[0][0]
             library = ['''"T=SE:''']
             if self.strand == "sense":
                 strandedness = '''S=S"'''
@@ -821,7 +913,6 @@ class Sailfish(Mapper):
             library.append(strandedness)
 
         elif nfiles == 2:
-            print "infiles: ", infiles
             infile1, infile2 = infiles[0]
             input_file = '''-1 <(zcat %(infile1)s)
                             -2 <(zcat %(infile2)s)''' % locals()
@@ -947,7 +1038,7 @@ class BWA(Mapper):
             bwa aln %%(bwa_aln_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles)s
             > %(tmpdir)s/%(track)s.sai 2>>%(outfile)s.bwa.log;
-            bwa samse %%(bwa_index_dir)s/%%(genome)s
+            bwa samse %%(bwa_samse_options)s %%(bwa_index_dir)s/%%(genome)s
             %(tmpdir)s/%(track)s.sai %(infiles)s
             > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
             ''' % locals())
@@ -1498,6 +1589,46 @@ class Tophat2(Tophat):
         return statement
 
 
+class Tophat2_fusion(Tophat2):
+
+    executable = "tophat2"
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement for infiles.'''
+
+        # get tophat statement
+        statement = Tophat.mapper(self, infiles, outfile)
+
+        # replace tophat options with tophat2 options and add fusion search cmd
+        statement = re.sub(re.escape("%(tophat_options)s"),
+                           ("%(tophat2_fusion_options)s --fusion-search "
+                            "--bowtie1 --no-coverage-search"),
+                           statement)
+
+        # replace all other tophat parameters with tophat2_fusion parameters
+        statement = re.sub(re.escape("%(tophat_"),
+                           "%(tophat2_fusion_", statement)
+
+        return statement
+
+    def postprocess(self, infiles, outfile):
+        '''collect output data and postprocess.'''
+
+        track = P.snip(outfile, ".bam")
+        tmpdir_tophat = self.tmpdir_tophat
+
+        statement = '''
+        gzip < %(tmpdir_tophat)s/junctions.bed
+        > %(track)s.junctions.bed.gz;
+        mv %(tmpdir_tophat)s/logs %(outfile)s.logs;
+        mv %(tmpdir_tophat)s/accepted_hits.bam %(outfile)s;
+        mv %(tmpdir_tophat)s/fusions.out %%(fusions)s;
+        samtools index %(outfile)s;
+        ''' % locals()
+
+        return statement
+
+
 class TopHat_fusion(Mapper):
 
     # tophat can map colour space files directly
@@ -1868,7 +1999,6 @@ class STAR(Mapper):
             %(executable)s
                    --runMode alignReads
                    --runThreadN %%(star_threads)i
-                   --genomeLoad LoadAndRemove
                    --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
                    --outFileNamePrefix %(tmpdir)s/
                    --outStd SAM
@@ -1885,23 +2015,23 @@ class STAR(Mapper):
             infiles1 = " ".join([x[0] for x in infiles])
             infiles2 = " ".join([x[1] for x in infiles])
 
-            # patch for compressed files
             if infiles[0][0].endswith(".gz"):
-                files = "<( zcat %(infiles1)s ) <( zcat %(infiles2)s )" % \
-                        locals()
+                compress_option = "--readFilesCommand zcat"
             else:
-                files = "%(infiles1)s %(infiles2)s" % locals()
+                compress_option = ""
+
+            files = "%(infiles1)s %(infiles2)s" % locals()
 
             statement = '''
             %(executable)s
                    --runMode alignReads
                    --runThreadN %%(star_threads)i
-                   --genomeLoad LoadAndRemove
                    --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
                    --outFileNamePrefix %(tmpdir)s/
                    --outStd SAM
                    --outSAMunmapped Within
                    %%(star_options)s
+                   %(compress_option)s
                    --readFilesIn %(files)s
                    > %(tmpdir)s/%(track)s.sam
                    2> %(outfile)s.log;
@@ -1947,13 +2077,18 @@ class STAR(Mapper):
 
 
 class Bowtie(Mapper):
-
-    '''map with bowtie against genome.'''
+    '''map with bowtie or bowtie2 against genome.'''
 
     # bowtie can map colour space files directly
     preserve_colourspace = True
 
     executable = "bowtie"
+
+    # prefix to denote index file
+    index_option = ""
+
+    # use SAM output in bowtie
+    output_option = "--sam"
 
     def __init__(self, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
@@ -2006,12 +2141,10 @@ class Bowtie(Mapper):
         else:
             index_prefix = "%(bowtie_index_dir)s/%(genome)s"
 
-        # bowtie outputs sam per default
-        if executable == 'bowtie':
-            data_options.append('--sam')
-
+        index_option = self.index_option
+        output_option = self.output_option
+        tool_options = self.tool_options
         data_options = " ".join(data_options)
-
         tmpdir_fastq = self.tmpdir_fastq
 
         if nfiles == 1:
@@ -2020,9 +2153,10 @@ class Bowtie(Mapper):
             %(executable)s --quiet
             --threads %%(bowtie_threads)i
             %(data_options)s
-            %%(bowtie_options)s
-            %(index_prefix)s
+            %(tool_options)s
+            %(index_option)s %(index_prefix)s
             %(infiles)s
+            %(output_option)s
             2>%(outfile)s.log
             | awk -v OFS="\\t" '{sub(/\/[12]$/,"",$1);print}'
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
@@ -2037,9 +2171,10 @@ class Bowtie(Mapper):
             %(executable)s --quiet
             --threads %%(bowtie_threads)i
             %(data_options)s
-            %%(bowtie_options)s
-            %(index_prefix)s
+            %(tool_options)s
+            %(index_option)s %(index_prefix)s
             -1 %(infiles1)s -2 %(infiles2)s
+            %(output_option)s
             2>%(outfile)s.log
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
             1>&2 2>> %(outfile)s.log;
@@ -2078,6 +2213,18 @@ class Bowtie(Mapper):
         ''' % locals()
 
         return statement
+
+
+class Bowtie2(Bowtie):
+    '''map with bowtie2 against genome.'''
+
+    executable = "bowtie2"
+
+    # prefix to denote index file
+    index_option = "-x"
+
+    # output option - default is SAM for botwie2
+    output_option = ""
 
 
 class BowtieTranscripts(Mapper):

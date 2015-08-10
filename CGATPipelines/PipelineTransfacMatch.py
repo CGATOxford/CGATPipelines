@@ -229,7 +229,6 @@ def matchBgSequenceComposition(gc_load_files,
         for data in cc.execute("""SELECT * FROM %s;""" % tablename):
             interval_id = data[3].split(" ")[0]
             cpg = data[2]
-            print cpg
 
             # jj: store background in 1 percent bins
             cpg_str = "%.3f" % cpg

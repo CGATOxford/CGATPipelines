@@ -46,6 +46,13 @@ gsnap:
 
 star:
     executable: star
+    version: --version
+    regex: STAR_(\S+)
+
+hisat:
+    executable: hisat
+    version: --version
+    regex: 'version (\S+)'
 
 cufflinks:
     executable: cufflinks
@@ -66,6 +73,39 @@ fastqc:
     executable: fastqc
     version: --version
     regex: 'FastQC v(\S+)'
+
+fastq_screen:
+    executable: fastq_screen
+    version: --version
+    regex: 'fastq_screen v(\S+)'
+
+trimmomatic:
+    executable: trimmomatic
+
+cutadapt:
+    executable: cutadapt
+    version: --version
+    regex: '(\S+)'
+
+sickle:
+    executable: sickle
+    version: --version
+    regex: 'sickle version (\S+)'
+
+trimgalore:
+    executable: trim_galore
+    version: --version
+    regex: 'version (\S+)'
+
+flash:
+    executable: flash
+    version: --version
+    regex: 'FLASH v(\S+)'
+
+fastx:
+    executable: fastx_trimmer
+    version: -h
+    regex: 'FASTX Toolkit (\S+)' 
 
 sailfish:
     executable: sailfish

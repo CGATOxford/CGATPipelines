@@ -171,13 +171,14 @@ def countReadsWithinWindows(bedfile,
 def aggregateWindowsReadCounts(infiles,
                                outfile,
                                regex="(.*)\..*"):
-    '''aggregate several results from coverageBed
-    into a single file.
+    '''aggregate several results from coverageBed results into a single
+    file.
 
     *regex* is used to extract the track name from the filename.
     The default removes any suffix.
 
     coverageBed outputs the following columns:
+
     1 Contig
     2 Start
     3 Stop
@@ -193,7 +194,6 @@ def aggregateWindowsReadCounts(infiles,
     For bed6: use column 7
     For bed12: use column 13
 
-    Windows without any counts will not be output.
     '''
 
     # get bed format
@@ -201,8 +201,8 @@ def aggregateWindowsReadCounts(infiles,
     # +1 as awk is 1-based
     column = bed_columns - 4 + 1
 
-    src = " ".join(['''<( zcat %s |
-              awk '{printf("%%s:%%i-%%i\\t%%i\\n", $1,$2,$3,$%s );}' ) ''' %
+    src = " ".join(["""<( zcat %s |
+              awk '{printf("%%s:%%i-%%i\\t%%i\\n", $1,$2,$3,$%s );}')""" %
                     (x, column) for x in infiles])
     tmpfile = P.getTempFilename(".")
     statement = '''paste %(src)s > %(tmpfile)s'''
@@ -219,8 +219,7 @@ def aggregateWindowsReadCounts(infiles,
         data = line[:-1].split("\t")
         genes = list(set([data[x] for x in range(0, len(data), 2)]))
         values = [int(data[x]) for x in range(1, len(data), 2)]
-        if sum(values) == 0:
-            continue
+
         assert len(genes) == 1, \
             "paste command failed, wrong number of genes per line: '%s'" % line
         outf.write("%s\t%s\n" % (genes[0], "\t".join(map(str, values))))
@@ -447,10 +446,11 @@ def runDE(infiles, outfile, outdir,
     '''run DESeq or EdgeR.
 
     The job is split into smaller sections. The order of the input
-    data is randomized in order to avoid any biases due to chromosomes and
-    break up local correlations.
+    data is randomized in order to avoid any biases due to chromosomes
+    and break up local correlations.
 
     At the end, a new q-value is computed from all results.
+
     '''
 
     design_file, counts_file = infiles
@@ -480,7 +480,7 @@ def runDE(infiles, outfile, outdir,
     --input-header
     --output-header
     --split-at-lines=200000
-    --cluster-options="-l mem_free=8G"
+    --cluster-options="-l mem_free=16G"
     --log=%(outfile)s.log
     --output-filename-pattern=%(outdir)s/%%s
     --subdirs
@@ -879,11 +879,9 @@ def buildSpikeResults(infile, outfile):
     tablename = P.toTable(
         P.snip(outfile, "power.gz") + method + ".spike.load")
 
-    statement = '''cat %(tmpfile_name)s
-    | python %(scriptsdir)s/csv2db.py
-           --table=%(tablename)s
-           --add-index=fdr
-    > %(outfile)s.log'''
+    P.load(tmpfile_name,
+           outfile + ".log",
+           tablename=tablename,
+           options="--add-index=fdr")
 
-    P.run()
     os.unlink(tmpfile_name)

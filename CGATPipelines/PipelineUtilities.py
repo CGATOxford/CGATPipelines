@@ -41,6 +41,23 @@ except:
     PARAMS = {}
 
 
+def getDatabase():
+    '''Looks for the location of the database in a list
+    of different places in the ini file. If it is not found,
+    return "". This allows new database ini style, while
+    maintaining backwards compatability. In thoery data_name is
+    always present as it is set by Pipeline.py'''
+
+    locations = ["database", "database_name"]
+
+    for location in locations:
+        database = PARAMS.get(location, None)
+        if database is not None:
+            return database
+
+    return ""
+
+
 # ################### Database Queries ##############
 def db_execute(cc, statements):
     '''excute a statement or statements against a cursor'''
@@ -52,7 +69,7 @@ def db_execute(cc, statements):
         cc.execute(statement)
 
 
-def execute(queries, database=PARAMS.get("database", ""), attach=False):
+def execute(queries, database=getDatabase(), attach=False):
     '''Execute a statement or a  list of statements (sequentially)'''
 
     dbhandle = sqlite3.connect(database)
@@ -65,7 +82,7 @@ def execute(queries, database=PARAMS.get("database", ""), attach=False):
     cc.close()
 
 
-def fetch(query, database=PARAMS.get("database", ""), attach=False):
+def fetch(query, database=getDatabase(), attach=False):
     '''Fetch all query results and return'''
 
     try:
@@ -84,7 +101,7 @@ def fetch(query, database=PARAMS.get("database", ""), attach=False):
 
 
 def fetch_with_names(query,
-                     database=PARAMS.get("database", ""),
+                     database=getDatabase(),
                      attach=False):
     '''Fetch query results and returns them as an array of row arrays, in
        which the first entry is an array of the field names
@@ -115,7 +132,7 @@ def fetch_with_names(query,
 
 
 def fetch_DataFrame(query,
-                    database=PARAMS.get("database", ""),
+                    database=getDatabase(),
                     attach=False):
     '''Fetch query results and returns them as a pandas dataframe'''
 
@@ -149,7 +166,7 @@ def fetch_DataFrame(query,
 
 def write_DataFrame(dataframe,
                     tablename,
-                    database=PARAMS.get("database", ""),
+                    database=getDatabase(),
                     index=False,
                     if_exists='replace'):
     '''write a pandas dataframe to an sqlite db, index on given columns

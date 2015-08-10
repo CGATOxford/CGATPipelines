@@ -312,6 +312,7 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
 
     tmpfile = P.getTempFile(".")
 
+    total_repeats = 0
     for table in tables:
         E.info("%s: loading repeats from %s" % (ucsc_database, table))
         cc = dbhandle.cursor()
@@ -326,6 +327,10 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
             n += 1
             tmpfile.write("\t".join(map(str, data)) + "\n")
         E.info("%s: %s=%i repeats downloaded" % (ucsc_database, table, n))
+        total_repeats += n
+
+    if total_repeats == 0:
+        raise ValueErrror("did not find any repeats for %s" % ucsc_database)
 
     tmpfile.close()
     tmpfilename = tmpfile.name
@@ -371,6 +376,7 @@ def importRepeatsFromEnsembl(infile, outfile,
     P.run()
 
 
+@jobs_limit(1, "UCSC")
 @files([(None, "%s_repeats.gff.gz" % x, x)
         for x in (PARAMS["query"], PARAMS["target"])])
 def importRepeats(infile, outfile, track):

@@ -43,15 +43,9 @@ def importFromIterator(
     else:
         indices = ""
 
-    tmpfilename = tmpfile.name
+    P.load(tmpfile.name,
+           outfile,
+           tablename=tablename,
+           options=indices)
 
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --table=%(tablename)s
-    %(indices)s
-    < %(tmpfilename)s > %(outfile)s
-    '''
-
-    P.run()
-
-    os.unlink(tmpfilename)
+    os.unlink(tmpfile.name)

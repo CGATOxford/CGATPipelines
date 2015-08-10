@@ -1,3 +1,4 @@
+
 ##########################################################################
 #
 #   MRC FGU Computational Genomics Group
@@ -99,12 +100,17 @@ CGATSCRIPTS_ROOT_DIR = os.path.dirname(os.path.dirname(E.__file__))
 # CGAT Code collection scripts
 CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
 
+
 # root directory of CGAT Pipelines
 CGATPIPELINES_ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 # CGAT Pipeline scripts
-CGATPIPELINES_SCRIPTS_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "scripts")
+CGATPIPELINES_SCRIPTS_DIR = os.path.join(CGATPIPELINES_ROOT_DIR,
+                                         "scripts")
 # Directory of CGAT pipelines
-CGATPIPELINES_PIPELINE_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "CGATPipelines")
+CGATPIPELINES_PIPELINE_DIR = os.path.join(CGATPIPELINES_ROOT_DIR,
+                                          "CGATPipelines")
+# CGAT Pipeline R scripts
+CGATPIPELINES_R_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "R")
 
 # if Pipeline.py is called from an installed version, scripts are
 # located in the "bin" directory.
@@ -135,6 +141,7 @@ HARDCODED_PARAMS = {
     'toolsdir': CGATSCRIPTS_SCRIPTS_DIR,
     'pipeline_scriptsdir': CGATPIPELINES_SCRIPTS_DIR,
     'pipelinedir': CGATPIPELINES_PIPELINE_DIR,
+    'pipeline_rdir': CGATPIPELINES_R_DIR,
     # script to perform map/reduce like computation.
     'cmd-farm': """python %(pipeline_scriptsdir)s/farm.py
                 --method=drmaa
@@ -144,23 +151,43 @@ HARDCODED_PARAMS = {
                 --cluster-num-jobs=%(cluster_num_jobs)i
                 --cluster-priority=%(cluster_priority)i
     """,
-    # command to get tab-separated output from sqlite3
+    # command to get tab-separated output from database
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
+    # database backend
+    'database_backend': "sqlite",
+    # database host
+    'database_host': "",
+    # name of database
+    'database_name': "csvdb",
+    # database connection options
+    'database_username': "cgat",
+    # database password - if required
+    'database_password': "",
+    # database port - if required
+    'database_port': 3306,
     # wrapper around non-CGAT scripts
     'cmd-run': """%(pipeline_scriptsdir)s/run.py""",
     # directory used for temporary local files
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
-    # cluster options
+    # cluster queue to use
     'cluster_queue': 'all.q',
+    # priority of jobs in cluster queue
     'cluster_priority': -10,
+    # number of jobs to submit to cluster queue
     'cluster_num_jobs': 100,
+    # name of consumable resource to use for requesting memory
+    'cluster_memory_resource': "mem_free",
+    # amount of memory set by default for each job
+    'cluster_memory_default': "2G",
+    # general cluster options
     'cluster_options': "",
-    # Parallel environment to use
+    # parallel environment to use for multi-threaded jobs
     'cluster_parallel_environment': 'dedicated',
-    # ruffus job limits
+    # ruffus job limits for databases
     'jobs_limit_db': 10,
+    # ruffus job limits for R
     'jobs_limit_R': 1,
 }
 
@@ -284,6 +311,12 @@ def getParameters(filenames=["pipeline.ini", ],
                           ".cgat")
         if os.path.exists(fn):
             filenames.insert(0, fn)
+
+    # IMS: Several legacy scripts call this with a sting as input
+    # rather than a list. Check for this and correct
+
+    if isinstance(filenames, basestring):
+        filenames = [filenames]
 
     if default_ini:
         # The link between CGATPipelines and Pipeline.py
@@ -681,12 +714,54 @@ def toTable(outfile):
     return quote(name)
 
 
+def build_load_statement(tablename, retry=True, options=""):
+    '''build a database load command to be used
+    in a pipe statement.'''
+
+    opts = []
+
+    if retry:
+        opts.append(" --retry ")
+
+    backend = PARAMS["database_backend"]
+
+    if backend not in ("sqlite", "mysql", "postgres"):
+        raise NotImplementedError(
+            "backend %s not implemented" % backend)
+
+    opts.append("--database-backend=%s" % backend)
+    opts.append("--database-name=%s" %
+                PARAMS.get("database_name"))
+    opts.append("--database-host=%s" %
+                PARAMS.get("database_host", ""))
+    opts.append("--database-user=%s" %
+                PARAMS.get("database_username", ""))
+    opts.append("--database-password=%s" %
+                PARAMS.get("database_password", ""))
+    opts.append("--database-port=%s" %
+                PARAMS.get("database_port", 3306))
+
+    db_options = " ".join(opts)
+
+    statement = ('''
+    python %(scriptsdir)s/csv2db.py
+    %(db_options)s
+    %(options)s
+    --table=%(tablename)s
+    ''')
+
+    load_statement = buildStatement(**locals())
+
+    return load_statement
+
+
 def load(infile,
          outfile=None,
          options="",
          collapse=False,
          transpose=False,
          tablename=None,
+         retry=True,
          limit=0,
          shuffle=False):
     '''straight import from tab separated table.
@@ -701,15 +776,20 @@ def load(infile,
     loading.  The first column in the first row will be set to the
     string within transpose.
 
+    If *retry* is True, multiple attempts will be made if the data can
+    not be loaded at the first try, for example if a table is locked.
+
     If *limit* is set, only load the first n lines.
     If *shuffle* is set, randomize lines before loading. Together
     with *limit* this permits loading a sample of rows.
+
     '''
 
     if not tablename:
         tablename = toTable(outfile)
 
     statement = []
+
     if infile.endswith(".gz"):
         statement.append("zcat %(infile)s")
     else:
@@ -733,14 +813,11 @@ def load(infile,
         # ignore errors from cat or zcat due to broken pipe
         ignore_pipe_errors = True
 
-    statement.append('''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              %(options)s
-              --table=%(tablename)s
-    > %(outfile)s
-    ''')
+    statement.append(build_load_statement(tablename,
+                                          options=options,
+                                          retry=retry))
 
-    statement = " | ".join(statement)
+    statement = " | ".join(statement) + " > %(outfile)s"
 
     run()
 
@@ -752,6 +829,7 @@ def concatenateAndLoad(infiles,
                        cat=None,
                        has_titles=True,
                        missing_value="na",
+                       retry=True,
                        options=""):
     '''concatenate categorical tables and load into a database.
 
@@ -767,13 +845,11 @@ def concatenateAndLoad(infiles,
 
     infiles = " ".join(infiles)
 
-    tablename = toTable(outfile)
-
     passed_options = options
-    load_options, options = [], []
+    load_options, cat_options = ["--add-index=track"], []
 
     if regex_filename:
-        options.append("--regex-filename='%s'" % regex_filename)
+        cat_options.append("--regex-filename='%s'" % regex_filename)
 
     if header:
         load_options.append("--header-names=%s" % header)
@@ -781,24 +857,24 @@ def concatenateAndLoad(infiles,
     if not cat:
         cat = "track"
 
-    if has_titles is False:
-        no_titles = "--no-titles"
-    else:
-        no_titles = ""
+    if not has_titles:
+        cat_options.append("--no-titles")
 
-    options = " ".join(options)
+    cat_options = " ".join(cat_options)
     load_options = " ".join(load_options) + " " + passed_options
+
+    load_statement = build_load_statement(toTable(outfile),
+                                          options=load_options,
+                                          retry=retry)
+
     statement = '''python %(scriptsdir)s/combine_tables.py
-                     --cat=%(cat)s
-                     --missing-value=%(missing_value)s
-                     %(no_titles)s
-                     %(options)s
-                   %(infiles)s
-                   | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                      --add-index=track
-                      --table=%(tablename)s
-                      %(load_options)s
-                   > %(outfile)s'''
+    --cat=%(cat)s
+    --missing-value=%(missing_value)s
+    %(cat_options)s
+    %(infiles)s
+    | %(load_statement)s
+    > %(outfile)s'''
+
     run()
 
 
@@ -808,6 +884,7 @@ def mergeAndLoad(infiles,
                  columns=(0, 1),
                  regex=None,
                  row_wise=True,
+                 retry=True,
                  options="",
                  prefixes=None):
     '''merge categorical tables and load into a database.
@@ -868,28 +945,45 @@ def mergeAndLoad(infiles,
         filenames = " ".join(
             ["<( cat %s %s )" % (x, column_filter) for x in infiles])
 
-    tablename = toTable(outfile)
-
     if row_wise:
         transform = """| perl -p -e "s/bin/track/"
         | python %(scriptsdir)s/table2table.py --transpose""" % PARAMS
     else:
         transform = ""
 
+    load_statement = build_load_statement(
+        toTable(outfile),
+        options="--add-index=track " + options,
+        retry=retry)
+
     statement = """python %(scriptsdir)s/combine_tables.py
-                      %(header_stmt)s
-                      --skip-titles
-                      --missing-value=0
-                      --ignore-empty
-                   %(filenames)s
-                %(transform)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                      --add-index=track
-                      --table=%(tablename)s
-                      %(options)s
-                > %(outfile)s
-            """
+    %(header_stmt)s
+    --skip-titles
+    --missing-value=0
+    --ignore-empty
+    %(filenames)s
+    %(transform)s
+    | %(load_statement)s
+    > %(outfile)s
+    """
     run()
+
+
+def connect():
+    '''connect to SQL database used in this pipeline.'''
+
+    # Note that in the future this might return an sqlalchemy or
+    # db.py handle.
+
+    if PARAMS["database_backend"] == "sqlite":
+        dbh = sqlite3.connect(PARAMS["database"])
+
+        statement = '''ATTACH DATABASE '%s' as annotations''' % (PARAMS["annotations_database"])
+        cc = dbh.cursor()
+        cc.execute(statement)
+        cc.close()
+
+    return dbh
 
 
 def createView(dbhandle, tables, tablename, outfile, view_type="TABLE",
@@ -984,7 +1078,7 @@ def isTest():
     '''return True if the pipeline is run in a "testing" mode
     (command line options --is-test has been given).'''
 
-    # note: do not test GLOBAL_OPTIONS as this method might have 
+    # note: do not test GLOBAL_OPTIONS as this method might have
     # been called before main()
     return "--is-test" in sys.argv
 
@@ -1126,8 +1220,6 @@ def buildStatement(**kwargs):
     statement = " ".join(re.sub("\t+", " ", statement).split("\n")).strip()
     if statement.endswith(";"):
         statement = statement[:-1]
-
-    L.debug("running statement:\n%s" % statement)
 
     return statement
 
@@ -1288,7 +1380,8 @@ def run(**kwargs):
           of sessions available. If there are two many or sessions
           become not available after failed jobs, use ``qconf -secl``
           to list sessions and ``qconf -kec #`` to delete sessions.
-       2. Memory: 1G of free memory can be requested using ``-l mem_free=1G``.
+       2. Memory: 1G of free memory can be requested using the job_memory
+          variable: ``job_memory = "1G"``
           If there are error messages like "no available queue", then the
           problem could be that a particular complex attribute has
           not been defined (the code should be ``hc`` for ``host:complex``
@@ -1309,37 +1402,51 @@ def run(**kwargs):
                                            options['cluster_queue'])
     options['without_cluster'] = options.get('without_cluster')
 
-    def setupJob(session, options):
+    job_memory = None
+
+    if 'job_memory' in options:
+        job_memory = options['job_memory']
+
+    elif "mem_free" in options["cluster_options"] and \
+         PARAMS.get("cluster_memory_resource", False):
+
+        E.warn("use of mem_free in job options is deprecated, please"
+               " set job_memory local var instead")
+
+        o = options["cluster_options"]
+        x = re.search("-l\s*mem_free\s*=\s*(\S+)", o)
+        if x is None:
+            raise ValueError(
+                "expecting mem_free in '%s'" % o)
+
+        job_memory = x.groups()[0]
+
+        # remove memory spec from job options
+        options["cluster_options"] = re.sub(
+            "-l\S*mem_free\s*=\s(\S+)", "", o)
+    else:
+        job_memory = PARAMS.get("cluster_memory_default", "2G")
+
+    def setupJob(session, options, job_memory, job_name):
 
         jt = session.createJobTemplate()
         jt.workingDirectory = os.getcwd()
         jt.jobEnvironment = {'BASH_ENV': '~/.bashrc'}
         jt.args = []
+        if not re.match("[a-zA-Z]", job_name[0]):
+            job_name = "_" + job_name
+
         spec = [
             "-V",
             "-q %(cluster_queue)s",
             "-p %(cluster_priority)i",
-            "-N %s" % ("_" +
-                       re.sub("[:]", "_",
-                              os.path.basename(
-                                  options.get("outfile", "ruffus")))),
+            "-N %s" % job_name,
             "%(cluster_options)s"]
 
-        # get memory usage
-        if 'job_memory' in options:
-            spec.append("-l %s=%s" %
-                        (PARAMS.get("cluster_memory_resource", "mem_free"),
-                         options["job_memory"]))
+        # limit memory of cluster jobs
+        spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
+                                  job_memory))
 
-        elif "mem_free" in options["cluster_options"] and \
-             PARAMS.get("cluster_memory_resource", False):
-
-            options["cluster_options"] = re.sub(
-                "mem_free", PARAMS.get("cluster_memory_resource"),
-                options["cluster_options"])
-            E.warn("use of mem_free in job options is deprecated, please"
-                   "set job_memory local var instead")
-                                                
         # if process has multiple threads, use a parallel environment
         if 'job_threads' in options:
             spec.append(
@@ -1372,7 +1479,12 @@ def run(**kwargs):
         not options["without_cluster"] and \
         GLOBAL_SESSION is not None
 
-    def buildJobScript(statement):
+    # SGE compatible job_name
+    job_name = re.sub(
+        "[:]", "_",
+        os.path.basename(options.get("outfile", "ruffus")))
+
+    def buildJobScript(statement, job_memory, job_name):
         '''build job script from statement.
 
         returns (name_of_script, stdout_path, stderr_path)
@@ -1382,14 +1494,31 @@ def run(**kwargs):
         # disabled: -l -O expand_aliases\n" )
         tmpfile.write("#!/bin/bash\n")
         tmpfile.write(
-            'echo "START--------------------------------" >> %s\n' % shellfile)
+            'echo "%s : START -> %s" >> %s\n' %
+            (job_name, tmpfile.name, shellfile))
         # disabled - problems with quoting
         # tmpfile.write( '''echo 'statement=%s' >> %s\n''' %
         # (shellquote(statement), shellfile) )
-        tmpfile.write("set &>> %s\n" % shellfile)
-        tmpfile.write("module list &>> %s\n" % shellfile)
+        tmpfile.write("set | sed 's/^/%s : /' &>> %s\n" %
+                      (job_name, shellfile))
+        # module list outputs to stderr, so merge stderr and stdout
+        tmpfile.write("module list 2>&1 | sed 's/^/%s: /' &>> %s\n" %
+                      (job_name, shellfile))
+        tmpfile.write("hostname | sed 's/^/%s: /' &>> %s\n" %
+                      (job_name, shellfile))
+        tmpfile.write("cat /proc/meminfo | sed 's/^/%s: /' &>> %s\n" %
+                      (job_name, shellfile))
         tmpfile.write(
-            'echo "END----------------------------------" >> %s\n' % shellfile)
+            'echo "%s : END -> %s" >> %s\n' %
+            (job_name, tmpfile.name, shellfile))
+
+        # restrict virtual memory
+        # Note that there are resources in SGE which could do this directly
+        # such as v_hmem.
+        # Note that limiting resident set sizes (RSS) with ulimit is not
+        # possible in newer kernels.
+        tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
+
         tmpfile.write(
             expandStatement(
                 statement,
@@ -1416,12 +1545,15 @@ def run(**kwargs):
             if options.get("dryrun", False):
                 return
 
-            jt = setupJob(session, options)
+            jt = setupJob(session, options, job_memory, job_name)
 
             job_ids, filenames = [], []
             for statement in statement_list:
+                L.debug("running statement:\n%s" % statement)
 
-                job_path, stdout_path, stderr_path = buildJobScript(statement)
+                job_path, stdout_path, stderr_path = buildJobScript(statement,
+                                                                    job_memory,
+                                                                    job_name)
 
                 jt.remoteCommand = job_path
                 jt.outputPath = ":" + stdout_path
@@ -1456,13 +1588,16 @@ def run(**kwargs):
         else:
 
             statement = buildStatement(**options)
+            L.debug("running statement:\n%s" % statement)
 
             if options.get("dryrun", False):
                 return
 
-            job_path, stdout_path, stderr_path = buildJobScript(statement)
+            job_path, stdout_path, stderr_path = buildJobScript(statement,
+                                                                job_memory,
+                                                                job_name)
 
-            jt = setupJob(session, options)
+            jt = setupJob(session, options, job_memory, job_name)
 
             jt.remoteCommand = job_path
             # later: allow redirection of stdout and stderr to files;
@@ -1511,6 +1646,8 @@ def run(**kwargs):
             return
 
         for statement in statement_list:
+            L.debug("running statement:\n%s" % statement)
+
             # process substitution <() and >() does not
             # work through subprocess directly. Thus,
             # the statement needs to be wrapped in
@@ -1564,7 +1701,9 @@ def submit(module, function, params=None,
            infiles=None, outfiles=None,
            to_cluster=True,
            logfile=None,
-           job_options=""):
+           job_options="",
+           job_threads=1,
+           job_memory=False):
     '''submit a python *function* as a job to the cluster.
 
     The function should reside in *module*. If *module* is
@@ -1574,6 +1713,9 @@ def submit(module, function, params=None,
     input/output filenames. Neither options supports yet nested lists.
 
     '''
+
+    if not job_memory:
+        job_memory = PARAMS.get("cluster_memory_default", "2G")
 
     if type(infiles) in (list, tuple):
         infiles = " ".join(["--input=%s" % x for x in infiles])
@@ -1716,7 +1858,8 @@ def peekParameters(workingdir,
                    pipeline,
                    on_error_raise=None,
                    prefix=None,
-                   update_interface=False):
+                   update_interface=False,
+                   restrict_interface=False):
     '''peek configuration parameters from a *pipeline*
     in *workingdir*.
 
@@ -1731,7 +1874,9 @@ def peekParameters(workingdir,
     If *prefix* is set, all parameters will be prefixed by *prefix*.
 
     If *update_interface* is True, this method will also prefix any
-    options in the ``[interface]`` section with *wordinkdir*.
+    options in the ``[interface]`` section with *wordingdir*. If
+    *restrict_interface* is set, only interface parameters will be
+    output.
 
     If *on_error_raise* is set to a boolean, an error will be raised
     (or not) if there is an error during parameter peeking, for
@@ -1827,6 +1972,11 @@ def peekParameters(workingdir,
             if key.startswith("interface"):
                 dump[key] = os.path.join(workingdir, value)
 
+    # keep only interface if so required
+    if restrict_interface:
+        dump = dict([(k, v) for k, v in dump.iteritems()
+                     if k.startswith("interface")])
+
     # prefix all parameters
     if prefix is not None:
         dump = dict([("%s%s" % (prefix, x), y) for x, y in dump.items()])
@@ -1914,10 +2064,10 @@ def run_report(clean=True,
                pipeline_status_format="svg"):
     '''run CGATreport.
 
-    This will also run ruffus to create an svg image
-    of the pipeline status unless *with_pipeline_status* is
-    set to False. The image will be saved into the export 
-    directory.
+    This will also run ruffus to create an svg image of the pipeline
+    status unless *with_pipeline_status* is set to False. The image
+    will be saved into the export directory.
+
     '''
 
     if with_pipeline_status:
@@ -1972,7 +2122,7 @@ def run_report(clean=True,
     else:
         erase_return = ""
 
-    # in the latest, xvfb always returns with an error, thus
+    # in the current version, xvfb always returns with an error, thus
     # ignore these.
     erase_return = "|| true"
 
@@ -1981,10 +2131,16 @@ def run_report(clean=True,
     else:
         clean = ""
 
+    # with sphinx >1.3.1 the PYTHONPATH needs to be set explicitely as
+    # the virtual environment seems to be stripped. It is thus set to
+    # the contents of the current sys.path
+    syspath = ":".join(sys.path)
+
     statement = '''
     %(clean)s
     (export SPHINX_DOCSDIR=%(docdir)s;
     export SPHINX_THEMEDIR=%(themedir)s;
+    export PYTHONPATH=%(syspath)s;
     %(xvfb_command)s
     %(report_engine)s-build
            --num-jobs=%(report_threads)s
@@ -2067,7 +2223,9 @@ class RuffusLoggingFilter(logging.Filter):
             # ignore first entry which is the docstring
             for line in text.split(" Job  = ")[1:]:
                 try:
-                    job_name = re.match(
+                    # long file names cause additional wrapping and
+                    # additional white-space characters
+                    job_name = re.search(
                         "\[.*-> ([^\]]+)\]", line).groups()
                 except AttributeError:
                     raise AttributeError("could not parse '%s'" % line)
@@ -2085,7 +2243,7 @@ class RuffusLoggingFilter(logging.Filter):
                     task_status = "update"
                 elif line.startswith("Tasks which are up-to-date"):
                     task_status = "ignore"
-                
+
                 if line.startswith("Task = "):
                     if task_name:
                         yield task_name, task_status, list(split_by_job(block))
@@ -2115,7 +2273,7 @@ class RuffusLoggingFilter(logging.Filter):
         for task_name, task_status, jobs in split_by_task(ruffus_text):
             if task_name.startswith("(mkdir"):
                 continue
-            
+
             to_run = 0
             for job_name, job_status, job_message in jobs:
                 self.jobs[job_name] = (task_name, job_name)
@@ -2345,7 +2503,7 @@ def main(args=sys.argv):
         pipeline_action=None,
         pipeline_format="svg",
         pipeline_targets=[],
-        multiprocess=2,
+        multiprocess=40,
         logfile="pipeline.log",
         dry_run=False,
         force=False,
@@ -2589,10 +2747,8 @@ def main(args=sys.argv):
 
     elif options.pipeline_action == "dump":
         # convert to normal dictionary (not defaultdict) for parsing purposes
-	#print "dump = %s" % str(dict(PARAMS))
-	print "Printing out pipeline parameters: "
-	for k in sorted(PARAMS):
-            print k, "=", PARAMS[k]
+        # do not change this format below as it is exec'd in peekParameters()
+        print "dump = %s" % str(dict(PARAMS))
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
@@ -2619,7 +2775,9 @@ def _pickle_args(args, kwargs):
         use_args = ["to_cluster",
                     "logfile",
                     "job_options",
-                    "job_queue"]
+                    "job_queue",
+                    "job_threads",
+                    "job_memory"]
 
         submit_args = {}
 

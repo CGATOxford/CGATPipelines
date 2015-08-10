@@ -60,10 +60,12 @@ import pandas.rpy.common as com
 from rpy2.robjects import r
 import rpy2.robjects as robj
 from rpy2.robjects.packages import importr
-from rpy2.robjects.packages import importr
 from rpy2.robjects.vectors import FloatVector
 import CGATPipelines.PipelineTracks as PipelineTracks
-stats = importr('stats')
+# AH: this causes an import error:
+# AssertionError: PipelineRrbs scripts/modules - ImportError: Conflict when converting R symbol in the package "stats" to a Python symbol (format.perc -> format_perc while there is already format_perc)
+# best only to import when needed in individual methods
+# stats = importr('stats')
 
 
 def hjoin(items):

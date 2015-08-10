@@ -1,10 +1,9 @@
 import os
-import re
 import glob
 import collections
 from collections import OrderedDict as odict
 
-from CGATReport.Tracker import *
+from CGATReport.Tracker import TrackerSQL
 from CGATReport.Utils import PARAMS as P
 
 ###################################################################
@@ -24,13 +23,16 @@ class TestingTracker(TrackerSQL):
         TrackerSQL.__init__(self, *args, backend=DATABASE, **kwargs)
 
 LogFileSummary = collections.namedtuple(
-    "LogFileSummary", "info debug warning error")
+    "LogFileSummary",
+    "report_warning report_error info debug warning error")
 
 
 def summarizeLogFile(filename):
     '''summarize a CGATReport logfile.'''
 
     info, debug, warning, error = 0, 0, 0, 0
+    report_error, report_warning = 0, 0
+
     with open(filename) as f:
         for line in f:
             words = line.split()
@@ -42,66 +44,19 @@ def summarizeLogFile(filename):
             elif w == "DEBUG":
                 debug += 1
             elif w == "WARNING":
-                warning += 1
+                if words[3].startswith("CGATReport-Warning"):
+                    report_warning += 1
+                else:
+                    warning += 1
             elif w == "ERROR":
-                error += 1
+                if words[3].startswith("CGATReport-Error"):
+                    report_error += 1
+                else:
+                    error += 1
 
-    return LogFileSummary._make((info, debug, warning, error))
-
-
-class PipelineStatus(Status):
-
-    tracks = [x[:-4] for x in glob.glob("*.dir")]
-
-    def testCompletion(self, track):
-        '''check if pipeline completed successfully.
-        '''
-
-        try:
-            lines = open(track + ".log").readlines()
-        except IOError:
-            return 'NA', 'no log file'
-
-        started = "not started"
-
-        if len(lines) < 1:
-            return 'FAIL', started
-
-        x = re.search("# job started at ([^-]*) on", lines[1])
-        if x:
-            started = x.groups()[1]
-
-        x = re.search(
-            "# job finished in (\d+) seconds at ([^-]*) -- ", lines[-1])
-        if not x:
-            return 'FAIL', started
-        else:
-            return 'PASS', x.groups()[1]
-
-    def testReport(self, track):
-        '''check if report completed successfully.
-        '''
-
-        try:
-            lines = open(track + ".report").readlines()
-        except IOError:
-            return 'NA', 'no report'
-
-        lines = open(track + ".report").readlines()
-        started = [x for x in lines if x.startswith("# job started")]
-        finished = [x for x in lines if x.startswith("# job finished")]
-        error = [x for x in lines if "ERROR" in lines]
-
-        if len(started) == 0:
-            return 'WARN', 'never started'
-
-        if len(finished) == 0:
-            return 'FAIL', 'started, but never finished'
-
-        if error:
-            return 'FAIL', 'report caused errors'
-        else:
-            return 'PASS', 'report completed'
+    return LogFileSummary._make((report_warning, report_error,
+                                 info, debug,
+                                 warning, error))
 
 
 class ReportTable(TestingTracker):
@@ -122,10 +77,10 @@ class ReportTable(TestingTracker):
 
         r = odict()
         r["link"] = "`%(track)s <%(fn)s>`_" % locals()
+        r["report_error"] = logfileresult.report_error
+        r["report_warning"] = logfileresult.report_warning
         r["error"] = logfileresult.error
         r["warning"] = logfileresult.warning
-        r["info"] = logfileresult.info
-        r["debug"] = logfileresult.debug
         return r
 
 
@@ -162,13 +117,14 @@ class FilesWithProblems(TestingTracker):
 
     tracks = [x[:-4] for x in glob.glob("*.dir")]
 
-    slices = ("files_different_lines",
-              "files_different_md5",
-              "files_extra", "files_missing")
+    slices = ("different_lines",
+              "different_md5",
+              "extra",
+              "missing")
 
     def __call__(self, track, slice):
 
-        statement = """SELECT %(slice)s FROM md5_compare
+        statement = """SELECT files_%(slice)s FROM md5_compare
         WHERE track = '%(track)s'""" % locals()
 
         data = self.getValue(statement)

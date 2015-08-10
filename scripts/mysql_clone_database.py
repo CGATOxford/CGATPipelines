@@ -110,7 +110,7 @@ def main(argv=None):
         dry_run=False,
     )
 
-    (options, args) = E.Start(parser, add_mysql_options=True)
+    (options, args) = E.Start(parser, add_database_options=True)
 
     if len(args) != 2:
         print USAGE

@@ -175,7 +175,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' %\
                 (PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -229,7 +229,7 @@ def buildBackgroundWindows(infile, outfile):
     '''compute regions with high background count in input
     '''
 
-    job_options = "-l mem_free=16G"
+    job_memory = "16G"
 
     statement = '''
     python %(scriptsdir)s/wig2bed.py
@@ -335,8 +335,8 @@ def buildCpGComposition(infile, outfile):
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/bed2table.py
-          --counter=composition-cpg
-          --genome-file=%(genome_dir)s/%(genome)s
+    --counter=composition-cpg
+    --genome-file=%(genome_dir)s/%(genome)s
     | gzip
     > %(outfile)s
     '''
@@ -427,13 +427,12 @@ def buildCpGCoverage(infiles, outfile):
     # could be done in very little memory.
 
     infile, cpg_file = infiles
-    to_cluster = True
 
-    job_options = "-l mem_free=16G"
+    job_memory = "32G"
 
     statement = '''
     zcat %(infile)s
-    | coverageBed -a stdin -b %(cpg_file)s -counts
+    | bedtools coverage -a stdin -b %(cpg_file)s -counts
     | cut -f 6
     | python %(scriptsdir)s/data2histogram.py
     | gzip
@@ -621,6 +620,7 @@ def countReadsWithinWindows(infiles, outfile):
 def aggregateWindowsReadCounts(infiles, outfile):
     '''aggregate tag counts into a single file.
     '''
+
     PipelineWindows.aggregateWindowsReadCounts(infiles,
                                                outfile,
                                                regex="(.*).counts.bed.gz")
@@ -836,7 +836,8 @@ def summarizeAllWindowsReadCounts(infile, outfile):
     '''perform summarization of read counts'''
 
     prefix = P.snip(outfile, ".tsv")
-    job_options = "-l mem_free=32G"
+    job_memory = "32G"
+
     statement = '''python %(scriptsdir)s/runExpression.py
     --method=summary
     --tags-tsv-file=%(infile)s
@@ -1266,7 +1267,7 @@ def mergeDMRWindows(infile, outfile):
 
     prefix = P.snip(outfile, ".tsv.gz")
 
-    job_options = "-l mem_free=3G"
+    job_memory = "3G"
 
     statement = '''
     zcat %(infile)s
@@ -1530,18 +1531,9 @@ def buildOverlapWithinMethod(infiles, outfile):
 def loadOverlap(infile, outfile):
     '''load overlap results.
     '''
-
-    tablename = "overlap"
-
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --index=set1
-    --index=set2
-    --table=%(tablename)s
-    < %(infile)s > %(outfile)s
-    '''
-
-    P.run()
+    P.load(infile, outfile,
+           tablename="overlap",
+           options="--add-index=set1 --add-index=set2")
 
 
 @follows(loadDMRStats, loadSpikeResults,
@@ -1593,7 +1585,7 @@ def buildContextStats(infiles, outfile):
     infile, reffile = infiles
 
     min_overlap = 0.5
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
 
     statement = '''
        python %(scriptsdir)s/bam_vs_bed.py
@@ -1637,6 +1629,8 @@ def buildTranscriptProfiles(infiles, outfile):
     except ValueError, msg:
         print msg
         return
+
+    job_memory = "8G"
 
     # no input normalization, this is done later.
     options = ''

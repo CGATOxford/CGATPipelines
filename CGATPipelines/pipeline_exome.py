@@ -197,7 +197,7 @@ REGEX_FORMATS = regex(r"(\S+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 
 
 def getGATKOptions():
-    return "-l mem_free=1.4G -l picard=1"
+    return "-l mem_free=1.4G"
 
 ###############################################################################
 ###############################################################################
@@ -911,7 +911,7 @@ def confirmParentage(infiles, outfile):
         'family', 'sample', 'father', 'mother', 'sex', 'status'])
     trio = P.snip(os.path.basename(pedfile), ".ped")
     trio = trio.replace(".", "_").replace("-", "_")
-    database = PARAMS["database"]
+    database = PARAMS["database_name"]
     proband = None
     mother = None
     father = None

@@ -8,6 +8,7 @@
 #############################################################
 
 import sys
+import os
 import itertools
 import math
 import numpy as np
@@ -262,8 +263,10 @@ def clusterPCA(infile,
     R('''sink(file='sink_file.txt')''')
     R('''suppressMessages(library("reshape2"))''')
     R('''suppressMessages(library("WGCNA"))''')
-    R('''source("/ifs/devel/michaelm/Time-series/summarySE.R")''')
-    R('''source("/ifs/devel/projects/proj036/r_scripts/clusterEigengenes.R")''')
+    R('''source("%s")''' % os.path.join(Timeseries.get_r_path,
+                                        "summarySE.R"))
+    R('''source("%s")''' % os.path.join(Timeseries.get_r_path,
+                                        "clusterEigengenes.R"))
     R('''cluster_match <- read.table('%(cluster_file)s', h=T, '''
       '''row.names=1)''' % locals())
     R('''express_data <- read.table('%(infile)s', '''

@@ -395,6 +395,12 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
     else:
         filter_cmd = "cat"
 
+    load_statement = P.build_load_statement(
+        table,
+        options="--add-index=gene_id "
+        "--add-index=gene_name"
+        "--map=gene_name:str")
+
     statement = '''
     zcat %(infile)s
     | %(filter_cmd)s
@@ -405,12 +411,9 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
     --attributes-as-columns --output-only-attributes -v 0
     | python %(toolsdir)s/csv_cut.py
     --remove exon_id transcript_id transcript_name protein_id exon_number
-    | %(pipeline_scriptsdir)s/hsort 1 | uniq
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=gene_id
-              --add-index=gene_name
-              --map=gene_name:str
-              --table=%(table)s
+    | %(pipeline_scriptsdir)s/hsort 1
+    | uniq
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
@@ -431,6 +434,14 @@ def loadTranscriptInformation(infile, outfile,
     else:
         filter_cmd = "cat"
 
+    load_statement = P.build_load_statement(
+        table,
+        options="--add-index=gene_id "
+        "--add-index=gene_name"
+        "--add-index=protein_id"
+        "--add-index=transcript_id"
+        "--map=gene_name:str")
+
     statement = '''zcat < %(infile)s
     | awk '$3 == "CDS"'
     | grep "transcript_id"
@@ -440,14 +451,7 @@ def loadTranscriptInformation(infile, outfile,
     --attributes-as-columns --output-only-attributes -v 0
     | python %(toolsdir)s/csv_cut.py --remove exon_id exon_number
     | %(pipeline_scriptsdir)s/hsort 1 | uniq
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=transcript_id
-              --add-index=gene_id
-              --add-index=protein_id
-              --add-index=gene_name
-              --map=transcript_name:str
-              --map=gene_name:str
-              --table=%(table)s
+    | %(load_statement)s
     > %(outfile)s'''
     P.run()
 
@@ -502,17 +506,21 @@ def loadPeptideSequences(infile, outfile):
 
     *infile* is an ENSEMBL .pep.all.fa.gz file.
     '''
-    table = P.toTable(outfile)
+
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-protein_id"
+        "--map=protein_id:str")
 
     statement = '''gunzip
     < %(infile)s
     | perl -p -e 'if ("^>") { s/ .*//};'
-    | python %(scriptsdir)s/fasta2fasta.py --method=filter --filter-method=min-length=1
-    | python %(scriptsdir)s/fasta2table.py --section=length --section=sequence
+    | python %(scriptsdir)s/fasta2fasta.py --method=filter
+    --filter-method=min-length=1
+    | python %(scriptsdir)s/fasta2table.py --section=length
+    --section=sequence
     | perl -p -e 's/id/protein_id/'
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=protein_id
-              --table=%(table)s
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
@@ -540,7 +548,7 @@ def buildCDSFasta(infile, outfile):
 
     tmpfile = P.getTempFile(".")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
     tmpfile.write("protein_id\ttranscript_id\n")
     tmpfile.write("\n".join(
@@ -576,7 +584,10 @@ def loadGeneStats(infile, outfile):
     The *infile* is the *outfile* from :meth:`buildGenes`
     '''
 
-    table = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=gene_id "
+        "--map=gene_name:str")
 
     statement = '''
     gunzip < %(infile)s
@@ -586,10 +597,7 @@ def loadGeneStats(infile, outfile):
           --counter=position
           --counter=length
           --counter=composition-na
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=gene_id
-              --map=gene_id:str
-              --table=%(table)s
+    | %(load_statement)s
     > %(outfile)s'''
     P.run()
 
@@ -699,17 +707,17 @@ def buildCDS(infile, outfile):
 def loadTranscripts(infile, outfile):
     '''load the transcript set into the database.
     '''
-    table = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=gene_id "
+        "--add-index=transcript_id "
+        "--allow-empty-file ")
 
     # Jethro - some ensembl annotations contain no lincRNAs
     statement = '''
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2tsv.py
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=transcript_id
-              --add-index=gene_id
-              --allow-empty-file
-              --table=%(table)s
+    | %(load_statement)s
     > %(outfile)s'''
     P.run()
 
@@ -717,15 +725,15 @@ def loadTranscripts(infile, outfile):
 def loadTranscript2Gene(infile, outfile):
     '''build and load a map of transcript to gene from gtf file
     '''
-    table = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=gene_id "
+        "--add-index=transcript_id ")
 
     statement = '''
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2tsv.py --output-map=transcript2gene -v 0
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=transcript_id
-              --add-index=gene_id
-              --table=%(table)s
+    | %(load_statement)s
     > %(outfile)s'''
     P.run()
 
@@ -735,8 +743,11 @@ def loadTranscriptStats(infile, outfile):
 
     The *infile* is the *outfile* from :meth:`buildTranscripts`
     '''
-
-    table = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=gene_id "
+        "--add-index=transcript_id "
+        "--map=gene_id:str")
 
     statement = '''
     gunzip < %(infile)s |\
@@ -746,18 +757,11 @@ def loadTranscriptStats(infile, outfile):
           --reporter=transcripts \
           --counter=position \
           --counter=length \
-          --counter=composition-na |\
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
-              --add-index=gene_id \
-              --map=gene_id:str \
-              --table=%(table)s \
+          --counter=composition-na 
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
-
-############################################################
-############################################################
-############################################################
 
 
 def loadProteinStats(infile, outfile):
@@ -769,8 +773,10 @@ def loadProteinStats(infile, outfile):
     transcript:ENSMUST00000151316, ENSMUSP00000118372)
 
     '''
-
-    table = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=protein_id "
+        "--map=protein_id:str")
 
     statement = '''
     gunzip < %(infile)s
@@ -784,11 +790,8 @@ def loadProteinStats(infile, outfile):
     --section=hid
     --section=aa
     --regex-identifier="(\S+)"
-    |sed "s/^id/protein_id/"
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=protein_id
-    --map=protein_id:str
-    --table=%(table)s
+    | sed "s/^id/protein_id/"
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
@@ -1130,6 +1133,8 @@ def sortGTF(infile, outfile, order="contig+gene"):
     else:
         compress = "cat"
 
+    job_memory = "4G"
+
     statement = '''%(uncompress)s %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=%(order)s --log=%(outfile)s.log
@@ -1225,7 +1230,7 @@ def buildGenomicContext(infiles, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=merge-exons --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2bed.py
-    --set-name=source --is-gtf
+    --set-name=gene_biotype --is-gtf
     --log=%(outfile)s.log
     | sort -k 1,1 -k2,2n
     | python %(scriptsdir)s/bed2bed.py --method=merge --merge-by-name

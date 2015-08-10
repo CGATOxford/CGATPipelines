@@ -237,41 +237,54 @@ default, it is configured to use an sqlite3 database in the
 Tab-separated output files can be loaded into a table using the
 :meth:`Pipeline.load` function. For example::
 
-   @transform( 'data_*.tsv.gz', suffix('.tsv.gz'), '.load' )
-   def loadTables( infile, outfile ):
-      P.load( infile, outfile )
+   @transform('data_*.tsv.gz', suffix('.tsv.gz'), '.load')
+   def loadTables(infile, outfile):
+      P.load(infile, outfile)
 
 The task above will load all tables ending with ``tsv.gz`` into the
 database Table names are given by the filenames, i.e, the data in
 :file:`data_1.tsv.gz` will be loaded into the table :file:`data_1`.
 
 The load mechanism uses the script :file:`csv2db.py` and can be
-configured using the configuration options ``database`` and
-``csv2db_options``. Additional options can be given via the optional
-*options* argument::
+configured using the configuration options in the ``database`` section
+of :file:`pipeline.ini`. Additional options can be given via the
+optional *options* argument::
 
-   @transform( 'data_*.tsv.gz', suffix('.tsv.gz'), '.load' )
+   @transform('data_*.tsv.gz', suffix('.tsv.gz'), '.load')
    def loadTables( infile, outfile ):
-      P.load( infile, outfile, "--add-index=gene_id" )
+      P.load(infile, outfile, "--add-index=gene_id")
+
+In order for the load mechanism to be transparent, it is best avoided
+to call the :file:`csv2db.py` script directly. Instead, use the
+:meth:`Pipeline.load` function. If the :file:`csv2db.py` needs to
+called at the end of a succession of statements, use the
+:meth:`Pipeline.build_load_statement` method, for example::
+
+   def loadTranscript2Gene(infile, outfile):
+       '''build and load a map of transcript to gene from gtf file
+       '''
+       load_statement = P.build_load_statement(
+	   P.toTable(outfile),
+	   options="--add-index=gene_id "
+	   "--add-index=transcript_id ")
+
+       statement = '''
+       gunzip < %(infile)s
+       | python %(scriptsdir)s/gtf2tsv.py --output-map=transcript2gene -v 0
+       | %(load_statement)s
+       > %(outfile)s'''
+       P.run()
+
+See also the variants :meth:`Pipeline.mergeAndLoad` and
+`:meth:`Pipeline.concatenateAndLoad` to combine multiple tables and
+upload to the database in one go.
 
 Connecting to a database
 ------------------------
 
 To use data in the database in your tasks, you need to first connect
-to the database. It helps to encapsulate the connection in a separate
-function. For example::
-
-    def connect():
-	dbh = sqlite3.connect( PARAMS["database"] )
-	statement = '''ATTACH DATABASE '%s' as annotations''' % (PARAMS["annotations_database"])
-	cc = dbh.cursor()
-	cc.execute( statement )
-	cc.close()
-
-	return dbh
-
-The above function will connect to the database. It will also attach a
-secondary database ``annotations``.
+to the database. The best way to do this is via the connect() method
+in Pipeline.py.
 
 The following example illustrates how to use the connection::
 

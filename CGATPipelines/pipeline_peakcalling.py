@@ -152,6 +152,9 @@ with, use the files supplied with the Example_ data.
 Input
 -----
 
+
+TS re-write this to described input file format:
+cell-factor-replicate
 Mapped reads
 ++++++++++++
 
@@ -334,9 +337,13 @@ P.getParameters(
 
 PARAMS = P.PARAMS
 
-PARAMS_ANNOTATIONS = P.peekParameters(
+PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py")
+    "pipeline_annotations.py",
+    prefix="annotations_",
+    update_interface=True))
+
+print "annotations_interface_contigs", PARAMS["annotations_interface_contigs"]
 
 PipelinePeakcalling.PARAMS = PARAMS
 
@@ -462,7 +469,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -521,7 +528,8 @@ def makeMask(infile, outfile):
 
         if PARAMS["calling_filter_exons"]:
             regions_to_filter += PipelinePeakcalling.getExonLocations(
-                PARAMS["calling_filter_exons"])
+                PARAMS["calling_filter_exons"],
+                PARAMS["annotations_database"])
 
         if PARAMS["calling_filter_regions"]:
             regions_to_filter += Bed.iterator(
@@ -666,6 +674,9 @@ else:
 def buildBAMStats(infile, outfile):
     '''count number of reads mapped, duplicates, etc.
     '''
+
+    job_memory = "4G"
+
     statement = '''python
     %(scriptsdir)s/bam2stats.py
          --force-output
@@ -725,7 +736,7 @@ def mergeBackgroundWindows(infiles, outfile):
 
     infiles = " ".join(infiles)
     genomefile = os.path.join(
-        PARAMS["annotations_dir"], PARAMS_ANNOTATIONS['interface_contigs'])
+        PARAMS["annotations_dir"], PARAMS['annotations_interface_contigs'])
     statement = '''
     zcat %(infiles)s
     | bedtools slop -i stdin
@@ -920,7 +931,7 @@ def loadMACS(infile, outfile):
            regex(r"(.*)/(.*).macs"),
            add_inputs(os.path.join(
                PARAMS["annotations_dir"],
-               PARAMS_ANNOTATIONS["interface_contigs"])),
+               PARAMS["annotations_interface_contigs"])),
            (os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.treat.bw"),
             os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.control.bw")))
 def cleanMACS(infiles, outfiles):
@@ -993,10 +1004,18 @@ def callPeaksWithMACS2(infile, outfile):
     track = P.snip(infile, ".call.bam")
     controls = getControl(Sample(track), suffix=".call.bam")
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
+    contigsfile = os.path.join(PARAMS["annotations_dir"],
+                               PARAMS["annotations_interface_contigs"])
+
+    print "annoatations.dir", PARAMS["annotations_dir"]
+    print "interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"]
+    print "contigsfile: ", contigsfile
+
     PipelinePeakcalling.runMACS2(
         infile,
         outfile,
         controlfile,
+        contigsfile,
         P.isTrue('macs2_force_single_end',
                  **locals()),
         tagsize=getTagSize(track)
@@ -1159,9 +1178,23 @@ def callBroaderPeaksWithSICER(infile, outfile):
            r"\1\2\3\4_\5Sicer.load")
 def loadSICER(infile, outfile):
     '''load sicer results.'''
+
+    # TS. identify original bam file name from infile name
+    # to identify fragment size
+    track = os.path.basename(infile)
+    if "broad" in track:
+        track = P.snip(track, ".broad.sicer")
+    elif "narrow" in track:
+        track = P.snip(track, ".narrow.sicer")
+    else:
+        E.Warn("can't identify bam file for fragment size analysis")
+
     mode = infile.split(".")[1]
     bamfile, controlfile = getBamFiles(infile, "." + mode + ".sicer")
-    PipelinePeakcalling.loadSICER(infile, outfile, bamfile, controlfile, mode)
+
+    PipelinePeakcalling.loadSICER(infile, outfile, bamfile,
+                                  controlfile, mode,
+                                  fragment_size=getFragmentSize(track))
 
 ############################################################
 
@@ -1398,29 +1431,14 @@ def loadSPPSummary(infile, outfile):
 def estimateSPPQualityMetrics(infile, outfile):
     '''estimate ChIP-Seq quality metrics using SPP'''
 
-    job_options = "-l mem_free=4G"
     track = P.snip(infile, ".call.bam")
     controls = getControl(Sample(track))
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
     if controlfile is None:
         raise ValueError("idr analysis requires a control")
 
-    executable = P.which("run_spp.R")
-    if executable is None:
-        raise ValueError("could not find run_spp.R")
-
-    statement = '''
-    Rscript %(executable)s -c=%(infile)s -i=%(controlfile)s -rf \
-           -savp -out=%(outfile)s
-    >& %(outfile)s.log'''
-
-    P.run()
-
-    if os.path.exists(track + ".pdf"):
-        dest = os.path.join(PARAMS["exportdir"], "quality", track + ".pdf")
-        if os.path.exists(dest):
-            os.unlink(dest)
-        shutil.move(track + ".pdf", dest)
+    PipelinePeakcalling.estimateSPPQualityMetrics(
+        infile, track, controlfile, outfile)
 
 
 @merge(estimateSPPQualityMetrics, "spp_quality.load")
@@ -1482,7 +1500,7 @@ def applyIDR(infiles, outfile):
     job_options = "-l mem_free=4G"
 
     chromosome_table = os.path.join(
-        PARAMS["annotations_dir"], PARAMS_ANNOTATIONS["interface_contigs"])
+        PARAMS["annotations_dir"], PARAMS["annotations_interface_contigs"])
 
     for infile1, infile2 in itertools.combinations(infiles, 2):
         E.info("applyIDR: processing %s and %s" % (infile1, infile2))
@@ -1544,7 +1562,7 @@ def callPeaksWithScripture(infile, outfile):
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
 
     contig_sizes = os.path.join(PARAMS["annotations_dir"],
-                                PARAMS_ANNOTATIONS["interface_contigs"])
+                                PARAMS["annotations_interface_contigs"])
 
     PipelinePeakcalling.runScripture(infile,
                                      outfile,
@@ -1857,9 +1875,10 @@ def reproducibility():
     pass
 
 
+# TS. removed loadSPPQualityMetrics as run_spp.R cannot be found
+# ValueError("could not find run_spp.R")
 @follows(loadBAMStats,
-         loadDuplicationStats,
-         loadSPPQualityMetrics)
+         loadDuplicationStats)
 def qc():
     pass
 
@@ -1869,17 +1888,6 @@ def qc():
          exportIntervalsAsBed,
          loadFilteredExportSummary)
 def full():
-    pass
-
-
-# avoid running estimateSPPQualityMetrics which throws an error:
-# ValueError("could not find run_spp.R")
-@follows(calling,
-         loadBAMStats,
-         loadDuplicationStats,
-         exportIntervalsAsBed,
-         loadFilteredExportSummary)
-def test():
     pass
 
 

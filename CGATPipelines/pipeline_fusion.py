@@ -170,7 +170,7 @@ def connect():
     Returns a database connection.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -336,16 +336,13 @@ def edgeR_analysis(infile, outfile):
     for design in glob.iglob(PARAMS['edgeR_design']):
 
         statement = ''' %(R_path)s CMD BATCH %(R_args)s
-                                  \"--args count_file='%(infile)s'
-                                           conditions_file='%(design)s'
-                                           out_file='%(baseName)s'
-                                           %(edgeR_args)s \"
-                                  %(R_scriptdir)/edgeR-GLM.R
-                                  edgeR_output/%(infile)s.edgeR.log ''' % locals()
+        \"--args count_file='%(infile)s'
+        conditions_file='%(design)s'
+        out_file='%(baseName)s'
+        %(edgeR_args)s \"
+        %(R_scriptdir)/edgeR-GLM.R
+        edgeR_output/%(infile)s.edgeR.log ''' % locals()
         P.run()
-
-###############################################################
-###############################################################
 
 
 @transform(edgeR_analysis,
@@ -353,12 +350,7 @@ def edgeR_analysis(infile, outfile):
            ".edgeR.GLM.diff.load")
 def loadEdgeRResults(infile, outfile):
 
-    tableName = P.toTable(outfile)
-    statement = ''' python %(scriptsdir)s/csv2db.py
-                            --table=%(tableName)s
-                            --add-index=id < infile
-                    >outfile '''
-    P.run()
+    P.load(infile, outfile, options="--add-index=id")
 
 ###################################################################
 ###################################################################
