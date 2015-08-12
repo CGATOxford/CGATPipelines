@@ -1140,7 +1140,7 @@ def execute(statement, **kwargs):
     L.debug("running %s" % (statement % kwargs))
 
     if "cwd" not in kwargs:
-        cwd = WOKRING_DIRECTORY
+        cwd = WORKING_DIRECTORY
     else:
         cwd = kwargs["cwd"]
 
@@ -1668,7 +1668,7 @@ def run(**kwargs):
                 expandStatement(
                     statement,
                     ignore_pipe_errors=ignore_pipe_errors),
-                cwd=WOKRING_DIRECTORY,
+                cwd=WORKING_DIRECTORY,
                 shell=True,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
