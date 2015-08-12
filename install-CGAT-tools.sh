@@ -248,7 +248,7 @@ if [ "$CONDA_INSTALL_TYPE" == "cgat-scripts" ] ; then
 
 else
 
-   conda create -q -n $CONDA_INSTALL_TYPE $CONDA_INSTALL_TYPE gcc=4.8.3 --override-channels --channel https://conda.binstar.org/cgat --channel defaults --channel https://conda.binstar.org/r --yes
+   conda create -q -n $CONDA_INSTALL_TYPE $CONDA_INSTALL_TYPE=0.2 gcc=4.8.3 --override-channels --channel https://conda.binstar.org/cgat --channel defaults --channel https://conda.binstar.org/r --yes
 
 fi
 
@@ -350,6 +350,11 @@ if [ $TRAVIS_INSTALL ] ; then
 
    # enable Conda env
    source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
+
+   # need to install the CGAT Code Collection as well
+   git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
+   cd $CGAT_HOME/cgat-code-at-travis
+   python setup.py develop
 
    # python preparation
    cd $CGAT_HOME
