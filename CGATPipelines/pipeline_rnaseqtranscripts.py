@@ -2186,7 +2186,7 @@ def buildReproducibility(infile, outfile):
 
     R('''library(RSQLite)''')
     R('''drv = dbDriver( "SQLite" )''')
-    R('''con <- dbConnect(drv, dbname = '%s')''' % PARAMS["database"])
+    R('''con <- dbConnect(drv, dbname = '%s')''' % PARAMS["database_name"])
     columns = ",".join([x.asTable() for x in replicates])
     data = R(
         '''data = dbGetQuery(con, "SELECT %(columns)s
