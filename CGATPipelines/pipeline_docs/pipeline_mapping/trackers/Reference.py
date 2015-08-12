@@ -1,6 +1,7 @@
 import os
 import itertools
 import math
+from collections import OrderedDict as odict
 
 from MappingReport import MappingTracker, TRACKS
 from CGATReport.ResultBlock import ResultBlock, ResultBlocks

@@ -242,7 +242,6 @@ def loadPicardMetrics(infiles, outfile, suffix,
     filenames = ["%s.%s" % (x, suffix) for x in infiles]
 
     first = True
-
     for filename in filenames:
         track = P.snip(os.path.basename(filename), "%s.%s" %
                        (pipeline_suffix, suffix))
@@ -268,6 +267,7 @@ def loadPicardMetrics(infiles, outfile, suffix,
         if len(lines) == 0:
             E.warn("no lines in %s: %s" % (track, filename))
             continue
+
         if first:
             outf.write("%s\t%s" % ("track", lines[0]))
             fields = lines[0][:-1].split("\t")
@@ -286,6 +286,7 @@ def loadPicardMetrics(infiles, outfile, suffix,
 
     P.load(outf.name,
            outfile,
+           tablename=tablename,
            options="--add-index=track --allow-empty-file")
 
     os.unlink(outf.name)
@@ -435,7 +436,6 @@ def loadBAMStats(infiles, outfile):
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
-
     tablename = P.toTable(outfile)
 
     load_statement = P.build_load_statement(
@@ -458,8 +458,6 @@ def loadBAMStats(infiles, outfile):
     for suffix in ("nm", "nh"):
         E.info("loading bam stats - %s" % suffix)
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
-        
-        tablename = "%s_%s" % (P.toTable(outfile), suffix)
 
         load_statement = P.build_load_statement(
             "%s_%s" % (tablename, suffix),
