@@ -148,7 +148,7 @@ dictionary access::
 
    >>> print EXPERIMENTS['heart-stimulated-agg']
    [heart-stimulated-R2, heart-stimulated-R1]
-   
+
 The returned objects are tracks. To use a :term:`track` as a tablename
 or as a file, use data access functions :meth:`Sample.asTable` or
 :meth:`Sample.asFile`, respectively::

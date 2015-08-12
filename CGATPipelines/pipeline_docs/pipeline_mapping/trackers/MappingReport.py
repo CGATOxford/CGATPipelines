@@ -1,7 +1,7 @@
 import re
 import glob
 
-from CGATReport.Tracker import *
+from CGATReport.Tracker import TrackerSQL
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
@@ -46,8 +46,6 @@ GENESET_TRACKS = PipelineTracks.Tracks(GenesetTrack).loadFromDirectory(
 
 CUFFDIFF_LEVELS = ("gene", "isoform", "cds", "tss")
 
-###########################################################################
-
 
 def splitLocus(locus):
     if ".." in locus:
@@ -57,8 +55,6 @@ def splitLocus(locus):
 
     return contig, int(start), int(end)
 
-###########################################################################
-
 
 def linkToUCSC(contig, start, end):
     '''build URL for UCSC.'''
@@ -67,8 +63,6 @@ def linkToUCSC(contig, start, end):
     link = "`%(contig)s:%(start)i-%(end)i <http://genome.ucsc.edu/cgi-bin/hgTracks?db=%(ucsc_database)s&position=%(contig)s:%(start)i..%(end)i>`_" \
         % locals()
     return link
-
-###########################################################################
 
 
 def linkToEnsembl(id):
@@ -82,8 +76,6 @@ def linkToEnsembl(id):
     else:
         link = id
     return link
-
-###########################################################################
 
 
 class MappingTracker(TrackerSQL):

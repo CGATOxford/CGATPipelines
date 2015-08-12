@@ -1,14 +1,9 @@
 import os
-import sys
-import re
-import types
 import itertools
 import math
 
-from MappingReport import *
+from MappingReport import MappingTracker, TRACKS
 from CGATReport.ResultBlock import ResultBlock, ResultBlocks
-
-import CGAT.Stats
 
 ##########################################################################
 ##########################################################################
@@ -144,10 +139,7 @@ class IntronicExonicReadDepth(MappingTracker):
         return data
 
 
-##############################################################
-##############################################################
-##############################################################
-class UTRReadDensityInPlace(Tracker):
+class UTRReadDensityInPlace(MappingTracker):
     tracks = [x.asFile() for x in TRACKS]
     slices = ("raw", "scaled", "fit")
 
@@ -182,7 +174,7 @@ class UTRReadDensityInPlace(Tracker):
         return odict((("rst", "\n".join(Utils.layoutBlocks(blocks, layout="columns-3"))),))
 
 
-class UTRReadDensityTable(Tracker):
+class UTRReadDensityTable(MappingTracker):
     tracks = [x.asFile() for x in TRACKS]
     slices = ("raw", "scaled", "fit")
 
