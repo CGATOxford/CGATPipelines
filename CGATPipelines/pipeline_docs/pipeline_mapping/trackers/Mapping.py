@@ -1,5 +1,6 @@
-from CGATReport.Tracker import *
-from MappingReport import *
+from CGATReport.Tracker import SingleTableTrackerRows
+from CGATReport.Tracker import SingleTableTrackerHistogram
+from MappingReport import MappingTracker
 
 
 class MappingSummary(MappingTracker, SingleTableTrackerRows):
@@ -49,17 +50,20 @@ class PicardInsertSizeHistogram(MappingTracker, SingleTableTrackerHistogram):
     column = "insert_size"
 
 
-class PicardDuplicatesHistogram(MappingTracker, SingleTableTrackerHistogram):
+class PicardDuplicatesHistogram(MappingTracker,
+                                SingleTableTrackerHistogram):
     table = "picard_duplicates_duplicate_histogram"
     column = "duplicates"
 
 
-class PicardQualityByCycleHistogram(MappingTracker, SingleTableTrackerHistogram):
+class PicardQualityByCycleHistogram(MappingTracker,
+                                    SingleTableTrackerHistogram):
     table = "picard_stats_quality_by_cycle_histogram"
     column = "cycle"
 
 
-class PicardQualityDistributionHistogram(MappingTracker, SingleTableTrackerHistogram):
+class PicardQualityDistributionHistogram(MappingTracker,
+                                         SingleTableTrackerHistogram):
     table = "picard_stats_quality_distribution_histogram"
     column = "quality"
 
@@ -104,7 +108,8 @@ class DuplicationMetrics(MappingTracker, SingleTableTrackerHistogram):
     column = "coverage_multiple"
 
 
-class AlignmentQualityDistribution(MappingTracker, SingleTableTrackerHistogram):
+class AlignmentQualityDistribution(MappingTracker,
+                                   SingleTableTrackerHistogram):
     table = "picard_stats_quality_distribution_histogram"
     column = "quality"
 
