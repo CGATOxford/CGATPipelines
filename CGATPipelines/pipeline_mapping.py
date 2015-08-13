@@ -1134,9 +1134,7 @@ for x in P.asList(PARAMS["mappers"]):
 def mapping():
     pass
 
-###################################################################
-###################################################################
-###################################################################
+
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
     if "merge_pattern_output" not in PARAMS or \
        not PARAMS["merge_pattern_output"]:
@@ -1337,7 +1335,6 @@ def buildBAMStats(infiles, outfile):
 @merge(buildBAMStats, "bam_stats.load")
 def loadBAMStats(infiles, outfile):
     '''import bam statisticis.'''
-
     PipelineMappingQC.loadBAMStats(infiles, outfile)
 
 
@@ -1758,12 +1755,6 @@ def duplication():
 @follows(buildBigWig, loadBigWigStats)
 def wig():
     pass
-
-###################################################################
-###################################################################
-###################################################################
-# export targets
-###################################################################
 
 
 @merge((loadBAMStats, loadPicardStats, loadContextStats), "view_mapping.load")
