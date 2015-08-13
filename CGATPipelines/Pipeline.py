@@ -2096,12 +2096,8 @@ def run_report(clean=True,
     themedir = os.path.join(dirname, "pipeline_docs", "themes")
     relpath = os.path.relpath(docdir)
     trackerdir = os.path.join(docdir, "trackers")
-
-    # Requires an X11 connection to cluster nodes
-    # A solution is to run xvfb on the nodes.
-    to_cluster = False
-
-    job_options = "-pe dedicated %i -R y" % PARAMS["report_threads"]
+    job_memory = "4G"
+    job_threads = PARAMS["report_threads"]
 
     # use a fake X display in order to avoid windows popping up
     # from R plots.
