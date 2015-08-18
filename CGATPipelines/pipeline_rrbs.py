@@ -503,7 +503,7 @@ def addCpGIs(infiles, outfile):
     # TS:
     # still memory intensive even after supplying data types for all columns!
     # why is this?
-    job_memory  = "40G"
+    job_memory = "40G"
     job_threads = 1
 
     RRBS.pandasMerge(infile, CpGI, outfile, merge_type="left",
@@ -609,6 +609,7 @@ def summariseCpGOverlap(infiles, outfile):
                 >> %(outfile)s; done''' % locals()
     print infile_list
     P.run()
+
 
 @transform(summariseCpGOverlap,
            suffix(".tsv"),
