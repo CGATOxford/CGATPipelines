@@ -787,7 +787,7 @@ def load(infile,
     '''
 
     if job_memory is None:
-        job_memory = PARAMS["cluster_memory_defaul"]
+        job_memory = PARAMS["cluster_memory_default"]
 
     if not tablename:
         tablename = toTable(outfile)
