@@ -663,9 +663,14 @@ def annotateBinding(infile, outfile):
 def annotateTSS(infile, outfile):
     '''compute distance to TSS'''
 
-    annotation_file = os.path.join(
-        PARAMS["annotations_dir"],
-        PARAMS["annotations_interface_geneset_coding_gene_tss_bed"])
+    try:
+        annotation_file = os.path.join(
+            PARAMS["annotations_dir"],
+            PARAMS["annotations_interface_geneset_coding_gene_tss_bed"])
+    except KeyError:
+        annotation_file = os.path.join(
+            PARAMS["annotations_dir"],
+            PARAMS["annotations_interface_tss_bed"])
 
     statement = """
     zcat < %(infile)s
@@ -1360,15 +1365,17 @@ def runMemeChIP(infiles, outfile):
 ############################################################
 @transform(runMemeChIP,
            regex("memechip.dir/(.+).memechip"),
-           add_inputs(os.path.join(PARAMS["exportdir"],
-                                   "memechip.dir",
-                                   r"\1.memechip",
-                                   "motif_alignment.txt")),
            r"memechip.dir/\1.memechip.seeds")
-def getMemeChipSeedMotifs(infiles, outfile):
+def getMemeChipSeedMotifs(infile, outfile):
     ''' extract the seed motifs from the MEME-ChIP output'''
 
-    motifs, alignments = infiles
+    motifs = infile
+    track = os.path.basename(motifs)
+    alignments = os.path.join(PARAMS["exportdir"],
+                              "memechip.dir",
+                              track,
+                              "motif_alignment.txt")
+                              
     PipelineMotifs.getSeedMotifs(motifs, alignments, outfile)
 
 
