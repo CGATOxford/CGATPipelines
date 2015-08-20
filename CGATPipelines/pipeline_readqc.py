@@ -250,7 +250,7 @@ if PARAMS.get("preprocessors", None):
                 outfile=outfile,
                 track=re.match(REGEX_TRACK, infile).groups()[0],
                 dbh=connect(),
-                contaminants_file=PARAMS['contaminants']) 
+                contaminants_file=PARAMS['contaminants'])
 
         @merge(makeAdaptorFasta, "contaminants.fasta")
         def aggregateAdaptors(infiles, outfile):
@@ -374,8 +374,8 @@ if PARAMS.get("preprocessors", None):
     def loadFastqcProcessed(infile, outfile):
         '''load FASTQC stats into database.'''
         track = P.snip(infile, ".fastqc")
-        filename = os.path.join(
-            PARAMS["exportdir"], "fastqc", track + "*_fastqc", "fastqc_data.txt")
+        filename = os.path.join(PARAMS["exportdir"], "fastqc",
+                                track + "*_fastqc", "fastqc_data.txt")
 
         PipelineReadqc.loadFastqc(filename,
                                   backend=PARAMS["database_backend"],
@@ -401,7 +401,6 @@ else:
     def loadFastqcProcessed():
         """dummy task - no processing of reads."""
         pass
-
 
 
 @follows(mkdir(PARAMS["exportdir"]),

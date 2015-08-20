@@ -978,7 +978,7 @@ class Kallisto(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            
+
             infiles = "--single " + " ".join([x[0] for x in infiles])
 
         elif nfiles == 2:
@@ -999,7 +999,7 @@ class Kallisto(Mapper):
 
     def postprocess(self, infiles, outfile):
         '''move outfiles from tmpdir to final location'''
-        
+
         tmpdir = self.tmpdir
 
         statement = ('''
