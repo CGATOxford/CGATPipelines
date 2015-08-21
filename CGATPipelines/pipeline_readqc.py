@@ -181,7 +181,6 @@ REGEX_TRACK_BOTH = \
 SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)"
 
 
-
 def connect():
     '''
     Setup a connection to an sqlite database
