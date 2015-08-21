@@ -371,7 +371,7 @@ def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
         statement.append(
             '''intersectBed -abam @IN@ -b %(mask)s -wa -v > @OUT@''')
 
-    statement.append('''mv @IN@ %(outfile)s''')
+    statement.append('''ln -s -f @IN@ %(outfile)s''')
     statement.append('''samtools index %(outfile)s''')
 
     statement = P.joinStatements(statement, infiles)
