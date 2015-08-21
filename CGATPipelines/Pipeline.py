@@ -204,6 +204,7 @@ Local.CONFIG = CONFIG
 
 WORKING_DIRECTORY = os.getcwd()
 
+
 class PipelineError(Exception):
     pass
 
