@@ -1031,7 +1031,7 @@ def runMACS2(infile, outfile,
     statement = '''grep -v "^$"
                    < %(outfile)s_%(suffix)s
                    | bgzip > %(outfile)s_%(suffix)s.gz;
-                   tabix -f -p bed %(outfile)s_%(suffix)s.gz;
+                   tabix -f -b 2 -e 3 -S 26 %(outfile)s_%(suffix)s.gz;
                    checkpoint;
                    rm -f %(outfile)s_%(suffix)s
                 '''
