@@ -765,7 +765,8 @@ def load(infile,
          tablename=None,
          retry=True,
          limit=0,
-         shuffle=False):
+         shuffle=False,
+         job_memory=None):
     '''straight import from tab separated table.
 
     The table name is given by outfile without the
@@ -786,6 +787,9 @@ def load(infile,
     with *limit* this permits loading a sample of rows.
 
     '''
+
+    if job_memory is None:
+        job_memory = PARAMS["cluster_memory_default"]
 
     if not tablename:
         tablename = toTable(outfile)
@@ -832,7 +836,8 @@ def concatenateAndLoad(infiles,
                        has_titles=True,
                        missing_value="na",
                        retry=True,
-                       options=""):
+                       options="",
+                       job_memory=None):
     '''concatenate categorical tables and load into a database.
 
     If *has_titles* is False, the tables are assumed to have no titles.
@@ -845,8 +850,11 @@ def concatenateAndLoad(infiles,
 
     '''
 
-    infiles = " ".join(infiles)
+    if job_memory is None:
+        job_memory = PARAMS["cluster_memory_default"]
 
+    infiles = " ".join(infiles)
+    
     passed_options = options
     load_options, cat_options = ["--add-index=track"], []
 
