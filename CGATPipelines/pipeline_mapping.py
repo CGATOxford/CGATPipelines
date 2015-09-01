@@ -1452,10 +1452,10 @@ def splitCodingGeneSetByChr(infile, outfiles):
 
 
 @active_if(SPLICED_MAPPING)
-@split(MAPPINGTARGETS,
-       regex("(.+).bam"),
-       add_inputs(splitCodingGeneSetByChr),
-       r"\1.*.transcript_counts.tsv.gz")
+@transform(MAPPINGTARGETS,
+           regex("(.+).bam"),
+           add_inputs(splitCodingGeneSetByChr),
+           r"\1.*.transcript_counts.tsv.gz")
 def buildTranscriptLevelReadCounts(infiles, outfile):
     '''count reads falling into transcripts of protein coding
        gene models.
