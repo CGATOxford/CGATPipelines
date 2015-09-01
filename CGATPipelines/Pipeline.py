@@ -202,6 +202,8 @@ INTERPOLATE_PARAMS = ('cmd-farm', 'cmd-run')
 Local.PARAMS = PARAMS
 Local.CONFIG = CONFIG
 
+# set working directory at process launch to prevent repeated calls to
+# os.getcwd failing if network is busy
 WORKING_DIRECTORY = os.getcwd()
 
 
