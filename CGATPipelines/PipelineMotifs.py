@@ -1137,6 +1137,12 @@ def runTomTom(infile, outfile):
     '''compare ab-initio motifs against tomtom.'''
 
     tmpdir = P.getTempDir(".")
+
+    if PARAMS["tomtom_databases"] == "":
+	E.warn("no tomtom databases specified, skipping")
+	P.touch(outfile)
+	return
+
     databases = " ".join(P.asList(PARAMS["tomtom_databases"]))
 
     target_path = os.path.join(
