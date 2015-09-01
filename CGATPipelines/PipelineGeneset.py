@@ -311,6 +311,7 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
 
     '''
 
+    job_memory="4G"
     table = P.toTable(outfile)
 
     if only_proteincoding:

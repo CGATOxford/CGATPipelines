@@ -780,21 +780,26 @@ def runMACS(infile, outfile,
     Output bed files are compressed and indexed.
     '''
     job_options = "-l mem_free=8G"
-
+    infile = os.path.abspath(infile)
     options = []
     if controlfile:
+        controlfile = os.path.abspath(controlfile)
         options.append("--control=%s" % controlfile)
     if tagsize is not None:
         options.append("--tsize %i" % tagsize)
 
     options = " ".join(options)
-
+    outfile = os.path.abspath(outfile)
+    name = os.path.basename(outfile)
+    dir = os.path.dirname(outfile)
     statement = '''
+    cd %(dir)s;
+    checkpoint;
     macs14
     -t %(infile)s
     --diag
     --verbose=10
-    --name=%(outfile)s
+    --name=%(name)s
     --format=BAM
     %(options)s
     %(macs_options)s

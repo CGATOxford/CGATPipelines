@@ -814,6 +814,7 @@ def buildGenomeGCProfile(infile, outfile):
 def buildCpGBed(infile, outfile):
     '''build bed file with CpG locations.'''
 
+    job_memory="5G"
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
         --method=cpg
