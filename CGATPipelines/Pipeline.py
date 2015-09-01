@@ -202,6 +202,8 @@ INTERPOLATE_PARAMS = ('cmd-farm', 'cmd-run')
 Local.PARAMS = PARAMS
 Local.CONFIG = CONFIG
 
+WORKING_DIRECTORY = os.getcwd()
+
 
 class PipelineError(Exception):
     pass
@@ -763,7 +765,8 @@ def load(infile,
          tablename=None,
          retry=True,
          limit=0,
-         shuffle=False):
+         shuffle=False,
+         job_memory=None):
     '''straight import from tab separated table.
 
     The table name is given by outfile without the
@@ -784,6 +787,9 @@ def load(infile,
     with *limit* this permits loading a sample of rows.
 
     '''
+
+    if job_memory is None:
+        job_memory = PARAMS["cluster_memory_default"]
 
     if not tablename:
         tablename = toTable(outfile)
@@ -830,7 +836,8 @@ def concatenateAndLoad(infiles,
                        has_titles=True,
                        missing_value="na",
                        retry=True,
-                       options=""):
+                       options="",
+                       job_memory=None):
     '''concatenate categorical tables and load into a database.
 
     If *has_titles* is False, the tables are assumed to have no titles.
@@ -843,8 +850,11 @@ def concatenateAndLoad(infiles,
 
     '''
 
-    infiles = " ".join(infiles)
+    if job_memory is None:
+        job_memory = PARAMS["cluster_memory_default"]
 
+    infiles = " ".join(infiles)
+    
     passed_options = options
     load_options, cat_options = ["--add-index=track"], []
 
@@ -1139,7 +1149,7 @@ def execute(statement, **kwargs):
     L.debug("running %s" % (statement % kwargs))
 
     if "cwd" not in kwargs:
-        cwd = os.getcwd()
+        cwd = WORKING_DIRECTORY
     else:
         cwd = kwargs["cwd"]
 
@@ -1430,7 +1440,7 @@ def run(**kwargs):
     def setupJob(session, options, job_memory, job_name):
 
         jt = session.createJobTemplate()
-        jt.workingDirectory = os.getcwd()
+        jt.workingDirectory = WORKING_DIRECTORY
         jt.jobEnvironment = {'BASH_ENV': '~/.bashrc'}
         jt.args = []
         if not re.match("[a-zA-Z]", job_name[0]):
@@ -1458,7 +1468,7 @@ def run(**kwargs):
 
         return jt
 
-    shellfile = os.path.join(os.getcwd(), "shell.log")
+    shellfile = os.path.join(WORKING_DIRECTORY, "shell.log")
 
     pid = os.getpid()
     L.debug('task: pid = %i' % pid)
@@ -1490,7 +1500,7 @@ def run(**kwargs):
         returns (name_of_script, stdout_path, stderr_path)
         '''
 
-        tmpfile = getTempFile(dir=os.getcwd())
+        tmpfile = getTempFile(dir=WORKING_DIRECTORY)
         # disabled: -l -O expand_aliases\n" )
         tmpfile.write("#!/bin/bash\n")
         tmpfile.write(
@@ -1667,7 +1677,7 @@ def run(**kwargs):
                 expandStatement(
                     statement,
                     ignore_pipe_errors=ignore_pipe_errors),
-                cwd=os.getcwd(),
+                cwd=WORKING_DIRECTORY,
                 shell=True,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -2516,7 +2526,7 @@ def main(args=sys.argv):
                               add_cluster_options=True)
 
     GLOBAL_OPTIONS, GLOBAL_ARGS = options, args
-
+    E.info("Started in: %s" % WORKING_DIRECTORY)
     # At this point, the PARAMS dictionary has already been
     # built. It now needs to be updated with selected command
     # line options as these should always take precedence over
@@ -2644,6 +2654,8 @@ def main(args=sys.argv):
                 L.info(E.GetHeader())
                 L.info("code location: %s" % PARAMS["pipeline_scriptsdir"])
                 L.info("code version: %s" % version)
+                L.info("Working directory is: %s" % WORKING_DIRECTORY)
+
                 pipeline_run(
                     options.pipeline_targets,
                     multiprocess=options.multiprocess,

@@ -235,20 +235,18 @@ if PARAMS.get("preprocessors", None):
 
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["trimmomatic_adapter"]:
-            trimmomatic_options = trimmomatic_options + \
-                " ILLUMINACLIP:%s:%s:%s:%s " % (
-                    PARAMS["trimmomatic_adapter"],
-                    PARAMS["trimmomatic_mismatches"],
-                    PARAMS["trimmomatic_p_thresh"],
-                    PARAMS["trimmomatic_c_thresh"])
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+                PARAMS["trimmomatic_adapter"],
+                PARAMS["trimmomatic_mismatches"],
+                PARAMS["trimmomatic_p_thresh"],
+                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
 
         if PARAMS["auto_remove"]:
-            trimmomatic_options = trimmomatic_options + \
-                " ILLUMINACLIP:%s:%s:%s:%s " % (
-                    "contaminants.fasta",
-                    PARAMS["trimmomatic_mismatches"],
-                    PARAMS["trimmomatic_p_thresh"],
-                    PARAMS["trimmomatic_c_thresh"])
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+                "contaminants.fasta",
+                PARAMS["trimmomatic_mismatches"],
+                PARAMS["trimmomatic_p_thresh"],
+                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
 
         job_threads = PARAMS["threads"]
         job_memory = "7G"
@@ -271,22 +269,22 @@ if PARAMS.get("preprocessors", None):
                     trimmomatic_options,
                     threads=PARAMS["threads"]))
             elif tool == "sickle":
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Sickle(
                     PARAMS["sickle_options"],
                     threads=PARAMS["threads"]))
             elif tool == "trimgalore":
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Trimgalore(
                     PARAMS["trimgalore_options"],
                     threads=PARAMS["threads"]))
             elif tool == "flash":
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Flash(
                     PARAMS["flash_options"],
                     threads=PARAMS["threads"]))
             elif tool == "cutadapt":
                 cutadapt_options = PARAMS["cutadapt_options"]
                 if PARAMS["auto_remove"]:
                     cutadapt_options += " -a file:contaminants.fasta "
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
                     threads=PARAMS["threads"]))
 
