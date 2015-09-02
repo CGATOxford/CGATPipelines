@@ -931,14 +931,15 @@ def aggregateFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''python %(scriptsdir)s/combine_tables.py
-                                            --columns=1
-                                            --take=7
-                                            --use-file-prefix
-                                            --regex-filename='(.+)_vs.+.tsv.gz'
-                                            --log=%(outfile)s.log
-                                             %(infiles)s
-                  | sed 's/geneid/gene_id/'
-                  | gzip > %(outfile)s '''
+    --columns=1
+    --take=7
+    --use-file-prefix
+    --regex-filename='(.+)_vs.+.tsv.gz'
+    --log=%(outfile)s.log
+    %(infiles)s
+    | sed 's/geneid/gene_id/'
+    | gzip
+    > %(outfile)s '''
 
     P.run()
 
@@ -962,18 +963,19 @@ def loadFeatureCountsSummary(infiles, outfile):
 @transform((aggregateGeneLevelReadCounts,
             aggregateFeatureCounts),
            suffix(".tsv.gz"),
-           "_stats.tsv")
+           "_stats.tsv.gz")
 def summarizeCounts(infile, outfile):
     '''perform summarization of read counts'''
 
-    prefix = P.snip(outfile, ".tsv")
+    prefix = P.snip(outfile, ".tsv.gz")
     job_memory = "32G"
     statement = '''python %(scriptsdir)s/runExpression.py
-              --method=summary
-              --tags-tsv-file=%(infile)s
-              --output-filename-pattern=%(prefix)s_
-              --log=%(outfile)s.log
-              > %(outfile)s'''
+    --method=summary
+    --tags-tsv-file=%(infile)s
+    --output-filename-pattern=%(prefix)s_
+    --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s'''
     P.run()
 
 
