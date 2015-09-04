@@ -164,7 +164,6 @@ Glossary
 ========
 
 .. glossary::
-    
 
 
 Code
@@ -402,7 +401,7 @@ def runKallisto(infiles, outfile):
     index = infiles[0][1]
 
     # multithreading not supported until > v0.42.1
-    #job_threads = PARAMS["kallisto_threads"]
+    # job_threads = PARAMS["kallisto_threads"]
     job_threads = 1
     job_memory = "8G"
 
@@ -479,6 +478,7 @@ def expressionTables():
 ###############################################################################
 # Differential isoform expression analysis
 ###############################################################################
+
 
 @follows(runKallisto)
 @mkdir("DEresults.dir")
@@ -571,8 +571,6 @@ def differentialExpression():
 # Expression summary plots
 ###############################################################################
 
-# jobs_limit stops R error "Concurrent access to R is not allowed" 
-#@jobs_limit(1)
 @mkdir("summary_plots")
 @transform(makeSleuthtables,
            regex("DEresults.dir/(\S+)_tpm.tsv"),
