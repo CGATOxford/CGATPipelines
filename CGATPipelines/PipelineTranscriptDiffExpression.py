@@ -79,10 +79,8 @@ def makeSleuthTables(design, base_dir, model, tpm, counts):
       getCounts = function(so, count_type){
         # count_type is choice ("est_counts", "tpm")
 
-        df <- sleuth:::spread_abundance_by(so$obs_norm, count_type)
-        df <- sleuth:::as_df(df)
-
-        df['transcript_id'] = rownames(df)
+        df = cast(so$obs_raw, target_id~sample, value = 'tpm')
+        colnames(df)[1] <- "transcript_id"
 
         return(df)}
 
@@ -121,18 +119,13 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
         heatmap_outfile = plot_prefix + "_heatmap.png"
 
         counts_log10 = counts.log(base=10, pseudocount=0.1, inplace=False)
-        
+
         counts_highExp = counts_log10.clone()
         counts_highExp.table['order'] = counts_highExp.table.apply(
             np.mean, axis=1)
         counts_highExp.table.sort(["order"], ascending=0, inplace=True)
-        log.write("%s\n" % counts_highExp.table.head())
         counts_highExp.table = counts_highExp.table.iloc[0:500, :]
-        log.write("%s\n" % counts_highExp.table.head())
         counts_highExp.table.drop("order", axis=1, inplace=True)
-
-        #log.write("%s\n" % counts_log10.table.head())
-        log.write("%s\n" % counts_highExp.table.head())
 
         log.write("plot correlations: %s\n" % cor_outfile)
         counts_log10.plotPairwiseCorrelations(cor_outfile, subset=1000)
