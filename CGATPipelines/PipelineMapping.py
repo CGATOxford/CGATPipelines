@@ -1000,9 +1000,11 @@ class Kallisto(Mapper):
     def postprocess(self, infiles, outfile):
         '''move outfiles from tmpdir to final location'''
 
+        directory = os.path.dirname(os.path.abspath(outfile))
         tmpdir = self.tmpdir
 
         statement = ('''
+        mkdir %(directory)s;
         mv %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
 
