@@ -332,9 +332,9 @@ class sppIDRPeaks(callerIDRPeaks):
         """
         # select location of the spp script to run
         if self.PARAMS_PEAKCALLER["spp_options_idr_script"] == "default":
-            executable = P.which("run_spp.R")
+            executable = IOTools.which("run_spp.R")
         elif self.PARAMS_PEAKCALLER["spp_options_idr_script"] == "nodups":
-            executable = P.which("run_spp_nodups.R")
+            executable = IOTools.which("run_spp_nodups.R")
         else:
             executable = self.PARAMS_PEAKCALLER["spp_options_idr_script"]
             try:

@@ -1473,7 +1473,7 @@ def callPeaksWithSPPForIDR(infile, outfile):
     if controlfile is None:
         raise ValueError("idr analysis requires a control")
 
-    executable = P.which("run_spp.R")
+    executable = IOTools.which("run_spp.R")
     if executable is None:
         raise ValueError("could not find run_spp.R")
 

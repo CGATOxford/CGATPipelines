@@ -1532,7 +1532,7 @@ def buildBAMReports(infile, outfile):
 
     # use a fake X display in order to avoid problems with
     # no X connection on the cluster
-    xvfb_command = P.which("xvfb-run")
+    xvfb_command = IOTools.which("xvfb-run")
 
     # permit multiple servers using -a option
     if xvfb_command:
