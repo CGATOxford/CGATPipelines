@@ -22,18 +22,66 @@
 #   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 ##########################################################################
 '''Pipeline.py - Tools for ruffus pipelines
-========================================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
+===========================================
 
 The :mod:`Pipeline` module contains various utility functions for
-interfacing CGAT ruffus pipelines with databases and the cluster.
+interfacing CGAT ruffus pipelines with an HPC cluster, uploading data
+to databases and providing parameterization for pipelines.
 
-API
-----
+It is a collection of utility functions covering the topics:
+
+* `Pipeline control`_
+* `Parameterisation`_
+* `Running tasks`_
+* `Database upload`_
+* `Report building`_
+
+Pipeline control
+----------------
+
+:mod:`Pipeline` provides a :func:`main` function that provides command
+line control to a pipeline. To use it, add::
+
+    import CGAT.Pipeline as P
+    # ...
+
+    if __name__ == "__main__":
+        sys.exit(P.main(sys.argv))
+
+to your pipeline script. Typing::
+
+    python my_pipeline.py --help
+
+will provide the following output::
+
+.. program-output:: python ../CGATPipelines/pipeline_template.py --help
+
+Running tasks
+-------------
+
+:mod:`Pipeline` provides a :func:`run` method to control running external
+tools. The :func:`run` method takes care of distributing these tasks to
+the cluster. It takes into consideration command line options configuring
+this behaviour, such as ``--cluster-queue``, or running jobs locally
+(``--local``) for testing purposes.
+
+Parameterisation
+----------------
+
+:mod:`Pipeline` provides hooks for reading pipeline configuration
+values from :file:`.ini` files and making them available inside ruffus_
+tasks.
+
+Database upload
+---------------
+
+Report building
+---------------
+
+
+
+Reference
+---------
 
 '''
 import os
@@ -217,7 +265,7 @@ def configToDictionary(config):
     for section in config.sections():
         for key, value in config.items(section):
             try:
-                v = IOTools.convertValue(value)
+                v = IOTools.str2val(value)
             except TypeError:
                 E.error("error converting key %s, value %s" % (key, value))
                 E.error("Possible multiple concurrent attempts to "
@@ -229,7 +277,7 @@ def configToDictionary(config):
                 p["%s" % (key)] = v
 
     for key, value in config.defaults().iteritems():
-        p["%s" % (key)] = IOTools.convertValue(value)
+        p["%s" % (key)] = IOTools.str2val(value)
 
     return p
 
@@ -2428,6 +2476,16 @@ clone <source>
 
 
 def main(args=sys.argv):
+    """command line control function for a pipeline.
+
+    This method defines command line options for the pipeline and
+    updates the global configuration dictionary correspondingly.
+
+    It then provides a command parser to execute particular tasks
+    using the ruffus pipeline control functions.
+
+    See the generated command line help for usage.
+    """
 
     global GLOBAL_OPTIONS
     global GLOBAL_ARGS
@@ -2549,7 +2607,7 @@ def main(args=sys.argv):
 
     for variables in options.variables_to_set:
         variable, value = variables.split("=")
-        PARAMS[variable.strip()] = IOTools.convertValue(value.strip())
+        PARAMS[variable.strip()] = IOTools.str2val(value.strip())
 
     version = None
 
