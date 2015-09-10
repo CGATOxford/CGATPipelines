@@ -1134,9 +1134,7 @@ for x in P.asList(PARAMS["mappers"]):
 def mapping():
     pass
 
-###################################################################
-###################################################################
-###################################################################
+
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
     if "merge_pattern_output" not in PARAMS or \
        not PARAMS["merge_pattern_output"]:
@@ -1337,7 +1335,6 @@ def buildBAMStats(infiles, outfile):
 @merge(buildBAMStats, "bam_stats.load")
 def loadBAMStats(infiles, outfile):
     '''import bam statisticis.'''
-
     PipelineMappingQC.loadBAMStats(infiles, outfile)
 
 
@@ -1445,20 +1442,11 @@ def loadExonValidation(infiles, outfile):
 
 
 @active_if(SPLICED_MAPPING)
-@split(buildCodingGeneSet,
-       "geneset.dir/refcoding.*.gtf.gz")
-def splitCodingGeneSetByChr(infile, outfiles):
-    '''split coding geneset by chromosome to allow parallel
-    read counting '''
-
-    PipelineMapping.splitGeneSet(infile)
-
-
-@active_if(SPLICED_MAPPING)
-@subdivide(MAPPINGTARGETS,
-       regex("(.+).bam"),
-       add_inputs(splitCodingGeneSetByChr),
-       r"\1.*.transcript_counts.tsv.gz")
+@transform(MAPPINGTARGETS,
+           regex("(.+).bam"),
+           add_inputs(buildCodingGeneSet),
+           r"\1.transcript_counts.tsv.gz")
+>>>>>>> master
 def buildTranscriptLevelReadCounts(infiles, outfile):
     '''count reads falling into transcripts of protein coding
        gene models.
@@ -1469,57 +1457,32 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
        counts.
 
     '''
-    infile, genesets = infiles[0], infiles[1:]
+    infile, geneset = infiles
 
-    statements = []
     job_memory = "8G"
-    for geneset in genesets:
-        chrom = re.match(
-            "geneset.dir/refcoding\.(.+)\.gtf.gz", geneset).groups()[0]
-        bam = P.snip(infile, ".bam")
-        outfile = "%s.%s.transcript_counts.tsv.gz" % (bam, chrom)
 
-        statement = '''
-               zcat %(geneset)s
-             | python %%(scriptsdir)s/gtf2table.py
-               --reporter=transcripts
-               --bam-file=%(infile)s
-               --counter=length
-               --column-prefix="exons_"
-               --counter=read-counts
-               --column-prefix=""
-               --counter=read-coverage
-               --column-prefix=coverage_
-               -v 0
-            | gzip
-        > %(outfile)s
-        ''' % locals()
-        statements.append(statement)
+    statement = '''
+    zcat %(geneset)s
+    | python %%(scriptsdir)s/gtf2table.py
+    --reporter=transcripts
+    --bam-file=%(infile)s
+    --counter=length
+    --column-prefix="exons_"
+    --counter=read-counts
+    --column-prefix=""
+    --counter=read-coverage
+    --column-prefix=coverage_
+    -v 0
+    | gzip
+    > %(outfile)s
+    ''' % locals()
 
-    P.run()
-
-
-@active_if(SPLICED_MAPPING)
-@collate(buildTranscriptLevelReadCounts,
-         regex("(.+)\..+\.transcript_counts.tsv.gz"),
-         r"\1.transcript_counts.tsv.gz")
-def collateTranscriptCounts(infiles, outfile):
-    ''' pull together the transcript counts over each chromosome '''
-
-    infiles = " ".join(infiles)
-    statement = '''python %(scriptsdir)s/combine_tables.py
-                                      --cat
-                                      --log=%(outfile)s.log
-                                      %(infiles)s
-                  | cut -f1 --complement
-                  | gzip
-                  > %(outfile)s '''
     P.run()
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
-@transform(collateTranscriptCounts,
+@transform(buildTranscriptLevelReadCounts,
            suffix(".tsv.gz"),
            ".load")
 def loadTranscriptLevelReadCounts(infile, outfile):
@@ -1758,12 +1721,6 @@ def duplication():
 @follows(buildBigWig, loadBigWigStats)
 def wig():
     pass
-
-###################################################################
-###################################################################
-###################################################################
-# export targets
-###################################################################
 
 
 @merge((loadBAMStats, loadPicardStats, loadContextStats), "view_mapping.load")
