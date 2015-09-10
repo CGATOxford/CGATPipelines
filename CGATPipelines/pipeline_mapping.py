@@ -1455,7 +1455,7 @@ def splitCodingGeneSetByChr(infile, outfiles):
 
 
 @active_if(SPLICED_MAPPING)
-@split(MAPPINGTARGETS,
+@subdivide(MAPPINGTARGETS,
        regex("(.+).bam"),
        add_inputs(splitCodingGeneSetByChr),
        r"\1.*.transcript_counts.tsv.gz")

@@ -89,6 +89,9 @@ EFF = annotations against all possible transcripts
 dbNSFP_1000Gp1_AF = frequency in 1000 genomes
 dbNSFP_ESP6500_AA_AF = frequency in ESP6500 African Americans
 dbNSFP_ESP6500_EA_AF = frequency in ESP6500 European Americans
+AC_Adj = number of alternate alleles in ExAC
+AN_Adj = total number of alleles in ExAC
+ExAC = minor allele frequency in ExAC
 dbNSFP_29way_logOdds = SiPhy score based on 29 mammals genomes. The
 		     larger the score, the more conserved the site
 dbNSFP_GERP___NR = GERP++ neutral rate
@@ -108,6 +111,9 @@ dbNSFP_Polyphen2_HVAR_pred = Polyphen2 prediction based on HumVar, 'D'
 dbNSFP_SIFT_score = SIFT score - if a score is smaller than 0.05 the
 		  corresponding NS is predicted as 'D(amaging)';
 		  otherwise it is predicted as 'T(olerated)'
+CLNDBN = name of the disease (if any) to which the variant is relevant
+CLNORIGIN = type of variant eg. germine, somatic
+CLNSIG = clinical significance score according to ClinVar
 FILTER = 'PASS' if the variant passes GATK's variant quality score
        recalibration filter
 BaseQRankSum = u-based z-approximation from the Mann-Whitney Rank Sum 

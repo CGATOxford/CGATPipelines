@@ -1687,8 +1687,7 @@ def buildLincRNAGeneSet(infiles, outfile):
 
     '''
 
-    infile_abinitio, reference_gtf, repeats_gff,
-    pseudogenes_gtf, numts_gtf = infiles
+    infile_abinitio, reference_gtf, repeats_gff, pseudogenes_gtf, numts_gtf = infiles
 
     E.info("indexing geneset for filtering")
 

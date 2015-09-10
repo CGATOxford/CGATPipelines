@@ -1247,10 +1247,10 @@ def phasing(infiles, outfile):
            r"variants/all_samples.rbp.vcf")
 def readbackedphasing(infiles, outfile):
     '''phase variants with ReadBackedPhasing'''
-    job_options = getGATKOptions()
+    job_memory = "32G"
     infile, bamlist = infiles
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
-    statement = '''GenomeAnalysisTK -T ReadBackedPhasing
+    statement = '''GenomeAnalysisTK -T ReadBackedPhasing -nt 4
                    -R %(genome)s
                    -I %(bamlist)s
                    -V %(infile)s
