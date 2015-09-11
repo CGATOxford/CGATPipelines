@@ -222,7 +222,7 @@ def getGODescriptions(infile):
     '''
 
     with IOTools.openFile(infile) as inf:
-        fields, table = CSV.ReadTable(inf, as_rows=False)
+        fields, table = CSV.readTable(inf, as_rows=False)
 
     return dict([(y, (x, z)) for x, y, z in zip(
         table[fields.index("go_type")],
