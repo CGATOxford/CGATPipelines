@@ -1634,6 +1634,8 @@ def prepareTags(infile, outfile):
 
 
 from ruffus.task import task_decorator
+
+
 class product(task_decorator):
     pass
 
