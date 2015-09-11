@@ -1165,8 +1165,7 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
         '''
         P.run()
 
-    # add to bam files produced
-    MAPPINGTARGETS = mergeBAMFiles
+    MAPPINGTARGETS = MAPPINGTARGETS + [mergeBAMFiles]
 
     @collate(countReads,
              regex("%s.nreads" % PARAMS["merge_pattern_input"]),
