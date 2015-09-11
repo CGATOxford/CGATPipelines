@@ -1446,7 +1446,6 @@ def loadExonValidation(infiles, outfile):
            regex("(.+).bam"),
            add_inputs(buildCodingGeneSet),
            r"\1.transcript_counts.tsv.gz")
->>>>>>> master
 def buildTranscriptLevelReadCounts(infiles, outfile):
     '''count reads falling into transcripts of protein coding
        gene models.
