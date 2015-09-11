@@ -789,7 +789,7 @@ def intersectBedFiles(infiles, outfile):
 
     elif len(infiles) == 2:
 
-        if P.isEmpty(infiles[0]) or P.isEmpty(infiles[1]):
+        if IOTools.isEmpty(infiles[0]) or IOTools.isEmpty(infiles[1]):
             P.touch(outfile)
         else:
             statement = '''
@@ -806,7 +806,7 @@ def intersectBedFiles(infiles, outfile):
 
         # need to merge incrementally
         fn = infiles[0]
-        if P.isEmpty(infiles[0]):
+        if IOTools.isEmpty(infiles[0]):
             P.touch(outfile)
             return
 
@@ -814,7 +814,7 @@ def intersectBedFiles(infiles, outfile):
         P.run()
 
         for fn in infiles[1:]:
-            if P.isEmpty(infiles[0]):
+            if IOTools.isEmpty(infiles[0]):
                 P.touch(outfile)
                 os.unlink(tmpfile)
                 return
@@ -837,10 +837,10 @@ def subtractBedFiles(infile, subtractfile, outfile):
     and store in *outfile*.
     '''
 
-    if P.isEmpty(subtractfile):
+    if IOTools.isEmpty(subtractfile):
         shutil.copyfile(infile, outfile)
         return
-    elif P.isEmpty(infile):
+    elif IOTools.isEmpty(infile):
         P.touch(outfile)
         return
 
@@ -1203,7 +1203,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile, remove=True):
     '''
     P.run()
 
-    if os.path.exists(outfile) and not P.isEmpty(outfile):
+    if os.path.exists(outfile) and not IOTools.isEmpty(outfile):
         os.remove(infile)
 
 
@@ -1789,7 +1789,7 @@ def loadZinba(infile, outfile, bamfile,
     #######################################################################
     if not os.path.exists(infilename):
         E.warn("could not find %s" % infilename)
-    elif P.isEmpty(infile):
+    elif IOTools.isEmpty(infile):
         E.warn("no data in %s" % infilename)
     else:
 
@@ -2477,9 +2477,9 @@ def normalizeFileSize(sample_file, input_file, sample_outfile, input_outfile):
         input_nreads += 1
 
     if input_nreads > sample_nreads:
-        P.info("INPUT bam has %s reads, SAMPLE bam has %s reads"
+        E.info("INPUT bam has %s reads, SAMPLE bam has %s reads"
                % (input_nreads, sample_nreads))
-        P.info("INPUT being downsampled to match SAMPLE")
+        E.info("INPUT being downsampled to match SAMPLE")
         input_outfile = normalize(input_file,
                                   input_nreads,
                                   input_outfile,
@@ -2490,9 +2490,9 @@ def normalizeFileSize(sample_file, input_file, sample_outfile, input_outfile):
         return sample_outfile, input_outfile
 
     elif sample_nreads > input_nreads:
-        P.info("SAMPLE bam has %s reads, INPUT bam has %s reads"
+        E.info("SAMPLE bam has %s reads, INPUT bam has %s reads"
                % (sample_nreads, input_nreads))
-        P.info("SAMPLE being downsampled to match INPUT")
+        E.info("SAMPLE being downsampled to match INPUT")
         sample_outfile = normalize(sample_file,
                                    sample_nreads,
                                    sample_outfile,
@@ -2567,7 +2567,7 @@ def removeEmptyBins(infile, outfile):
 
 def createBroadPeakBedgraphFile(infiles, outfile, params):
     tmpdir = P.getTempDir("/scratch")
-    P.info("Creating tempdir: %s" % tmpdir)
+    E.info("Creating tempdir: %s" % tmpdir)
     sample_bed = P.getTempFilename(tmpdir)
     sample_bedgraph = P.getTempFilename(tmpdir)
     input_bed = P.getTempFilename(tmpdir)
@@ -2578,7 +2578,7 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
 
     if remove_background == "true":
         sample_file, windows_file, input_file = infiles
-        P.info("Background removal:"
+        E.info("Background removal:"
                " Input reads will be deducted from sample reads\n"
                "Normalizing size of bamfiles by down-sampling larger file")
 
@@ -2588,14 +2588,14 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                                     input_file,
                                                     sample_norm,
                                                     input_norm)
-        P.info("Created normalized SAMPLE bam:\t %s "
+        E.info("Created normalized SAMPLE bam:\t %s "
                "\nCreated normalized INPUT bam:\t %s"
                % (sample_norm, input_norm))
 
-        P.info("Creating bed file from SAMPLE bam file")
+        E.info("Creating bed file from SAMPLE bam file")
         sample_bed = buildBedFile(sample_norm, sample_bed)
 
-        P.info("Created SAMPLE bed file:\t %s \nCreating SAMPLE bedgraph file.\n"
+        E.info("Created SAMPLE bed file:\t %s \nCreating SAMPLE bedgraph file.\n"
                "Reads must have coverage >= %s*bin width in order to be binned"
                % (sample_bed, overlap))
         sample_bedgraph = createBedgraphFile(sample_bed,
@@ -2603,11 +2603,11 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                              windows_file,
                                              overlap)
 
-        P.info("Created SAMPLE bedgraph file:\t %s\nCreating INPUT bed file"
+        E.info("Created SAMPLE bedgraph file:\t %s\nCreating INPUT bed file"
                % sample_bedgraph)
         input_bed = buildBedFile(input_norm, input_bed)
 
-        P.info("Created INPUT bed file:\t %s \nCreating INPUT bedgraph file\n"
+        E.info("Created INPUT bed file:\t %s \nCreating INPUT bedgraph file\n"
                "Reads must have coverage >= %s*bin width in order to be binned"
                % (input_bed, overlap))
         input_bedgraph = createBedgraphFile(input_bed,
@@ -2615,7 +2615,7 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                             windows_file,
                                             overlap)
 
-        P.info("Created INPUT bedgraph file:\t %s "
+        E.info("Created INPUT bedgraph file:\t %s "
                "\nSubtracting INPUT bedgraph from SAMPLE bedgraph"
                % input_bedgraph)
         bgremoved_bedgraph = removeBackground(sample_bedgraph,
@@ -2623,23 +2623,23 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                               bgremoved_bedgraph)
         removeEmptyBins(bgremoved_bedgraph, outfile)
 
-        P.info("Created SAMPLE bedgraph with INPUT removed:\t %s" % outfile)
+        E.info("Created SAMPLE bedgraph with INPUT removed:\t %s" % outfile)
         shutil.rmtree(os.path.abspath(tmpdir))
 
     else:
         sample_file, windowsfile = infiles
-        P.info("Background ignored: bedgraph file does not account for INPUT")
-        P.info("Creating bed file from SAMPLE bam file")
+        E.info("Background ignored: bedgraph file does not account for INPUT")
+        E.info("Creating bed file from SAMPLE bam file")
         sample_bed = buildBedFile(sample_file, sample_bed)
 
-        P.info("Created SAMPLE bed file:\n %s \nCreating SAMPLE bedgraph file"
+        E.info("Created SAMPLE bed file:\n %s \nCreating SAMPLE bedgraph file"
                % sample_bed)
         sample_bedgraph = createBedgraphFile(sample_bed,
                                              sample_bedgraph,
                                              windows_file,
                                              overlap)
         removeEmptyBins(sample_bedgraph, outfile)
-        P.info("Created SAMPLE bedgraph (without accounting for INPUT):\n"
+        E.info("Created SAMPLE bedgraph (without accounting for INPUT):\n"
                "%s" % outfile)
 
         shutil.rmtree(os.path.abspath(tmpdir))
@@ -2710,7 +2710,7 @@ def makeIntervalCorrelation(infiles, outfile, field, reference):
     tracks, idx = [], []
     for infile in infiles:
         track = P.snip(infile, ".bed.gz")
-        tablename = "%s_intervals" % P.quote(track)
+        tablename = "%s_intervals" % P.tablequote(track)
         cc = dbhandle.cursor()
         statement = "SELECT contig, start, end, "
         "%(field)s FROM %(tablename)s" % locals()

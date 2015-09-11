@@ -2183,7 +2183,7 @@ def loadTranscriptComparison(infile, outfile):
         for contig, v in vv.iteritems():
             if v.is_empty:
                 continue
-            outf.write("%s\t%s\t%s\n" % (P.quote(track), contig, str(v)))
+            outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
     outf.close()
 
     tablename = P.toTable(outfile) + "_benchmark"
@@ -2224,7 +2224,7 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -2392,7 +2392,7 @@ def buildFullGeneSet(infiles, outfile):
     keep_gtf = outfile
     remove_gtf = "removed.gtf.gz"
 
-    tablename = P.quote(
+    tablename = P.tablequote(
         P.snip(abinitio_gtf, ".gtf.gz") + "_cuffcompare_tracking")
 
     dbhandle = sqlite3.connect(PARAMS["database_name"])
@@ -3438,7 +3438,7 @@ def buildFPKMGeneLevelTagCounts(infiles, outfile):
     dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     for track in tracks:
-        table = "%s_ref_gene_expression" % P.quote(track)
+        table = "%s_ref_gene_expression" % P.tablequote(track)
         statement = "SELECT gene_id, FPKM / %(scale)f FROM %(table)s" % locals()
         results.append(
             dict(Database.executewait(dbhandle, statement).fetchall()))

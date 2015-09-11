@@ -1648,11 +1648,11 @@ def exportFilteredIntervalsAsBed(infiles, outfiles):
         "category\tinput\toutput\tremoved_background\tremoved_merged\n")
 
     for category, tablename, outfile in (
-            ('peaks', "%s_peaks" % P.quote(track),
+            ('peaks', "%s_peaks" % P.tablequote(track),
              outfile_peaks),
-            ('regions', "%s_regions" % P.quote(track),
+            ('regions', "%s_regions" % P.tablequote(track),
              outfile_regions),
-            ('summits', "%s_summits" % P.quote(track),
+            ('summits', "%s_summits" % P.tablequote(track),
              outfile_summits)):
         dbh = connect()
         if tablename in Database.getTables(dbh):
@@ -1703,9 +1703,9 @@ def exportIntervalsAsBed(infile, outfiles):
     track = P.snip(os.path.basename(infile), ".load")
 
     for tablename, outfile in (
-            ("%s_peaks" % P.quote(track), outfile_peaks),
-            ("%s_regions" % P.quote(track), outfile_regions),
-            ("%s_summits" % P.quote(track), outfile_summits)):
+            ("%s_peaks" % P.tablequote(track), outfile_peaks),
+            ("%s_regions" % P.tablequote(track), outfile_regions),
+            ("%s_summits" % P.tablequote(track), outfile_summits)):
         dbh = connect()
         if tablename in Database.getTables(dbh):
             PipelinePeakcalling.exportIntervalsAsBed(

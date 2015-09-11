@@ -217,7 +217,7 @@ def writeSequencesForIntervals(track,
         raise ValueError(
             "Unknown value passed as order parameter, check your ini file")
 
-    tablename = "%s_intervals" % P.quote(track)
+    tablename = "%s_intervals" % P.tablequote(track)
     statement = '''SELECT contig, start, end, interval_id, peakcenter 
                        FROM %(tablename)s 
                        ''' % locals() + orderby

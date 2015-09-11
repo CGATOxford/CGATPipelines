@@ -934,7 +934,7 @@ def buildPseudogenes(infiles, outfile, dbhandle):
 
     P.run()
 
-    if P.isEmpty(tmpfile1):
+    if IOTools.isEmpty(tmpfile1):
         E.warn("no pseudogenes found")
         os.unlink(tmpfile1)
         P.touch(outfile)
@@ -1039,7 +1039,7 @@ def buildNUMTs(infile, outfile):
 
     P.run()
 
-    if P.isEmpty(tmpfile_mito):
+    if IOTools.isEmpty(tmpfile_mito):
         E.warn("mitochondrial genome empty.")
         os.unlink(tmpfile_mito)
         P.touch(outfile)

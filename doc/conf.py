@@ -36,13 +36,10 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.pngmath',
               'sphinx.ext.ifconfig',
 	      'sphinx.ext.inheritance_diagram',
-              'CGATReport.only_directives',
-              'CGATReport.report_directive',
-              'CGATReport.errors_directive',
-              'CGATReport.warnings_directive',
-              'CGATReport.roles',
               'sphinxcontrib.programoutput',
-              'sphinx.ext.intersphinx']
+              'sphinx.ext.intersphinx',
+	      'sphinx.ext.napoleon',
+	      'CGATReport.report_directive']
 
 intersphinx_mapping = {'python': ('http://docs.python.org/2.7', None)}
 

@@ -1120,7 +1120,7 @@ def loadTranscriptComparison(infile, outfile):
             for contig, v in vv.iteritems():
                 if v.is_empty:
                     continue
-                outf.write("%s\t%s\t%s\n" % (P.quote(track), contig, str(v)))
+                outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
 
         outf.close()
 
@@ -1192,7 +1192,7 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1399,7 +1399,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1548,7 +1548,7 @@ def buildPrunedGeneSet(infiles, outfile):
     keep_gtf = outfile
     remove_gtf = "removed.gtf.gz"
 
-    tablename = P.quote(P.snip(tracking, ".load") + "_tracking")
+    tablename = P.tablequote(P.snip(tracking, ".load") + "_tracking")
 
     dbhandle = sqlite3.connect(PARAMS["database_name"])
     tables = Database.getTables(dbhandle)

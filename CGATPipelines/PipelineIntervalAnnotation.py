@@ -93,7 +93,7 @@ def BedFileVenn(infiles, outfile):
 
     elif len(infiles) == 2:
 
-        if P.isEmpty(infiles[0]) or P.isEmpty(infiles[1]):
+        if IOTools.isEmpty(infiles[0]) or IOTools.isEmpty(infiles[1]):
             P.touch(outfile)
         else:
             statement = '''
@@ -110,7 +110,7 @@ def BedFileVenn(infiles, outfile):
 
         # need to merge incrementally
         fn = infiles[0]
-        if P.isEmpty(infiles[0]):
+        if IOTools.isEmpty(infiles[0]):
             P.touch(outfile)
             return
 
@@ -118,7 +118,7 @@ def BedFileVenn(infiles, outfile):
         P.run()
 
         for fn in infiles[1:]:
-            if P.isEmpty(infiles[0]):
+            if IOTools.isEmpty(infiles[0]):
                 P.touch(outfile)
                 os.unlink(tmpfile)
                 return
@@ -147,7 +147,7 @@ def makeIntervalCorrelation(infiles, outfile, field, reference):
     tracks, idx = [], []
     for infile in infiles:
         track = P.snip(infile, ".bed")
-        tablename = "%s_intervals" % P.quote(track)
+        tablename = "%s_intervals" % P.tablequote(track)
         cc = dbhandle.cursor()
         statement = "SELECT contig, start, end, %(field)s FROM %(tablename)s" % locals(
         )

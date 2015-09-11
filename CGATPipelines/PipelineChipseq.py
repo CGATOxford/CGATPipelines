@@ -460,7 +460,7 @@ def exportIntervalsAsBed(infile, outfile):
         compress = False
         track = P.snip(outfile, ".bed")
 
-    tablename = "%s_intervals" % P.quote(track)
+    tablename = "%s_intervals" % P.tablequote(track)
 
     cc = dbhandle.cursor()
     statement = "SELECT contig, start, end, interval_id, peakval FROM %s ORDER by contig, start" % tablename
@@ -647,7 +647,7 @@ def intersectBedFiles(infiles, outfile):
 
     elif len(infiles) == 2:
 
-        if P.isEmpty(infiles[0]) or P.isEmpty(infiles[1]):
+        if IOTools.isEmpty(infiles[0]) or IOTools.isEmpty(infiles[1]):
             P.touch(outfile)
         else:
             statement = '''
@@ -664,7 +664,7 @@ def intersectBedFiles(infiles, outfile):
 
         # need to merge incrementally
         fn = infiles[0]
-        if P.isEmpty(infiles[0]):
+        if IOTools.isEmpty(infiles[0]):
             P.touch(outfile)
             return
 
@@ -672,7 +672,7 @@ def intersectBedFiles(infiles, outfile):
         P.run()
 
         for fn in infiles[1:]:
-            if P.isEmpty(infiles[0]):
+            if IOTools.isEmpty(infiles[0]):
                 P.touch(outfile)
                 os.unlink(tmpfile)
                 return
@@ -699,10 +699,10 @@ def subtractBedFiles(infile, subtractfile, outfile):
     and store in *outfile*.
     '''
 
-    if P.isEmpty(subtractfile):
+    if IOTools.isEmpty(subtractfile):
         shutil.copyfile(infile, outfile)
         return
-    elif P.isEmpty(infile):
+    elif IOTools.isEmpty(infile):
         P.touch(outfile)
         return
 
@@ -1203,12 +1203,13 @@ def loadZinba(infile, outfile, bamfile,
 
     if not os.path.exists(infilename):
         E.warn("could not find %s" % infilename)
-    elif P.isEmpty(infile):
-        E.warn("no data in %s" % filename)
+    elif IOTools.isEmpty(infilename):
+        E.warn("no data in %s" % infilename)
     else:
         # filter peaks
         shift = getPeakShiftFromZinba(infile)
-        assert shift is not None, "could not determine peak shift from Zinba file %s" % infile
+        assert shift is not None, \
+            "could not determine peak shift from Zinba file %s" % infile
 
         E.info("%s: found peak shift of %i" % (track, shift))
 
@@ -1313,7 +1314,7 @@ def makeIntervalCorrelation(infiles, outfile, field, reference):
     tracks, idx = [], []
     for infile in infiles:
         track = P.snip(infile, ".bed.gz")
-        tablename = "%s_intervals" % P.quote(track)
+        tablename = "%s_intervals" % P.tablequote(track)
         cc = dbhandle.cursor()
         statement = "SELECT contig, start, end, %(field)s FROM %(tablename)s" % locals(
         )
