@@ -372,7 +372,7 @@ def buildProcessingSummary(infiles, outfile):
 def indexIntervals(infile, outfile):
     '''index intervals.
     '''
-    statement = '''zcat %(infile)s 
+    statement = '''zcat %(infile)s
     | sort -k1,1 -k2,2n
     | bgzip > %(outfile)s;
     tabix -p bed %(outfile)s'''
@@ -641,7 +641,7 @@ def annotateIntervals(infile, outfile):
            regex("(.*/)*(.*).bed.gz"),
            r"annotations.dir/\2.binding.tsv.gz")
 def annotateBinding(infile, outfile):
-    '''classify chipseq intervals according to their location 
+    '''classify chipseq intervals according to their location
     with respect to the gene set.
 
     Binding is counted for the full intervals.
@@ -1634,6 +1634,8 @@ def prepareTags(infile, outfile):
 
 
 from ruffus.task import task_decorator
+
+
 class product(task_decorator):
     pass
 
