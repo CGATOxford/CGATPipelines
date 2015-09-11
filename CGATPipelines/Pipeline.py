@@ -864,7 +864,7 @@ def toTable(outfile):
     '''
     assert outfile.endswith(".load")
     name = os.path.basename(outfile[:-len(".load")])
-    return quoteForTable(name)
+    return tablequote(name)
 
 
 def build_load_statement(tablename, retry=True, options=""):
