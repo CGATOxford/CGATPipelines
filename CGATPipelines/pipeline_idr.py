@@ -888,10 +888,10 @@ def callPeaksOnPooledReplicates(infile, outfile):
          loadNPeaksForPooledPseudoreplicates,
          mkdir("peakfiles_final_conservative"),
          mkdir("peakfiles_final_optimum"))
-@split("./peakfiles_final/*.narrowPeak.gz",
-       regex("(.+)/(.+)-R0_VS_(.+)-R0_peaks.narrowPeak.gz"),
-       [r"peakfiles_final_conservative/\2.narrowPeak.gz",
-        r"peakfiles_final_optimum/\2.narrowPeak.gz"])
+@transform("./peakfiles_final/*.narrowPeak.gz",
+           regex("(.+)/(.+)-R0_VS_(.+)-R0_peaks.narrowPeak.gz"),
+           [r"peakfiles_final_conservative/\2.narrowPeak.gz",
+            r"peakfiles_final_optimum/\2.narrowPeak.gz"])
 def generatePeakSets(infile, outfiles):
     outf_con, outf_opt = outfiles
 

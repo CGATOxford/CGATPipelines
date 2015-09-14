@@ -170,7 +170,6 @@ import shutil
 import re
 import glob
 import os
-import itertools
 import sqlite3
 import pysam
 import numpy
@@ -239,21 +238,6 @@ def BedFiles(infile, outfile):
 
 
 BAMFILES = glob.glob(os.path.join(DATADIR, "*.bam"))
-
-
-###################################################################
-###################################################################
-###################################################################
-# if conf.py exists: execute to change the above assignmentsn
-if os.path.exists("pipeline_conf.py"):
-    E.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
-
-###################################################################
-###################################################################
-###################################################################
-#
-###################################################################
 
 
 def getAssociatedBAMFiles(track):
@@ -388,7 +372,7 @@ def buildProcessingSummary(infiles, outfile):
 def indexIntervals(infile, outfile):
     '''index intervals.
     '''
-    statement = '''zcat %(infile)s 
+    statement = '''zcat %(infile)s
     | sort -k1,1 -k2,2n
     | bgzip > %(outfile)s;
     tabix -p bed %(outfile)s'''
@@ -528,17 +512,16 @@ def exportPeakLocations(infile, outfile):
 
 
 @follows(mkdir("transcriptprofiles.dir"))
-@split(BEDFILES,
-       regex("(.*/)*(.*).bed.gz"),
-       [r"transcriptprofiles.dir/\2.withoverlap.gtf.gz",
-        r"transcriptprofiles.dir/\2.woutoverlap.gtf.gz",
-        r"transcriptprofiles.dir/\2.tss.withoverlap.gtf.gz",
-        r"transcriptprofiles.dir/\2.tss.woutoverlap.gtf.gz"])
+@transform(BEDFILES,
+           regex("(.*/)*(.*).bed.gz"),
+           [r"transcriptprofiles.dir/\2.withoverlap.gtf.gz",
+            r"transcriptprofiles.dir/\2.woutoverlap.gtf.gz",
+            r"transcriptprofiles.dir/\2.tss.withoverlap.gtf.gz",
+            r"transcriptprofiles.dir/\2.tss.woutoverlap.gtf.gz"])
 def prepareGTFsByOverlapWithIntervals(infile, outfiles):
     '''Prepare GTF file of overlapping and non-overlapping genes for
     profile plots.
 
-    
     '''
     out1, out2, out3, out4 = outfiles
 
@@ -586,7 +569,7 @@ def buildContextStats(infiles, outfile):
     infile, reffile = infiles
 
     min_overlap = 0.5
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
 
     statement = '''
     python %(scriptsdir)s/bam_vs_bed.py
@@ -658,7 +641,7 @@ def annotateIntervals(infile, outfile):
            regex("(.*/)*(.*).bed.gz"),
            r"annotations.dir/\2.binding.tsv.gz")
 def annotateBinding(infile, outfile):
-    '''classify chipseq intervals according to their location 
+    '''classify chipseq intervals according to their location
     with respect to the gene set.
 
     Binding is counted for the full intervals.
@@ -847,7 +830,7 @@ def buildTranscriptsByIntervalsProfiles(infile, outfile):
             "peakshape with multiple bamfiles not implement")
 
     bamfile = bamfiles[0]
-    job_options = "-l mem_free=2G"
+    job_memory = "2G"
     outpat = outfile[:-len(".tsv.gz")]
 
     statement = '''
@@ -919,8 +902,8 @@ def buildPeakShapeTable(infile, outfile):
                       --output-filename-pattern="%(outfile)s.%%s"
                       --force-output
                       --shift-size=%(shift)i
-                      --method=sort --sort-order=peak-height
-                      --method=sort --sort-order=peak-width
+                      --sort-order=peak-height
+                      --sort-order=peak-width
                       --log=%(outfile)s.log
                       %(bamfile)s %(infile)s
                    | gzip
@@ -969,8 +952,6 @@ def loadOverlap(infile, outfile):
     P.load(infile, outfile,
            tablename="overlap",
            options="--add-index=set1 --add-index=set2")
-
-    P.run()
 
 
 @transform(loadIntervals,
@@ -1274,10 +1255,13 @@ def exportMotifLocations(infiles, outfile):
 
 def getGATWorkspace():
     workspace = PARAMS.get(
-        "gat_workspace",
-        os.path.join(
+        "gat_workspace", "")
+
+    if workspace.strip() == "":
+        workspace = os.path.join(
             PARAMS["annotations_dir"],
-            PARAMS["annotations_interface_contigs_ungapped_bed"]))
+            PARAMS["annotations_interface_contigs_ungapped_bed"])
+
     return workspace
 
 
@@ -1304,7 +1288,7 @@ def runGATOnGenomicContext(infiles, outfile):
     '''
 
     workspacefile = getGATWorkspace()
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
 
     bedfile, annofile, isochorefile = infiles
 
@@ -1351,7 +1335,7 @@ def runGATOnGenomicAnnotations(infiles, outfile):
     bedfile, annofile, isochorefile = infiles
 
     workspacefile = getGATWorkspace()
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
 
     statement = '''gat-run.py
     --segments=%(bedfile)s
@@ -1406,7 +1390,7 @@ def runGATOnGeneStructure(infiles, outfile):
     bedfile, annofile, isochorefile = infiles
 
     workspacefile = getGATWorkspace()
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
 
     statement = '''gat-run.py
     --segments=%(bedfile)s
@@ -1458,9 +1442,10 @@ def runGATOnGeneAnnotations(infiles, outfile):
     '''
 
     # requires a large amount of memory
-    job_options = "-l mem_free=20G"
+    job_memory = "20G"
 
-    (bedfile, annofile, descriptionfile, territoriesfile, isochorefile) = infiles
+    (bedfile, annofile, descriptionfile,
+     territoriesfile, isochorefile) = infiles
 
     workspacefile = getGATWorkspace()
     statement = '''gat-run.py
@@ -1492,7 +1477,7 @@ def runGATOnSets(infiles, outfile, isochorefile):
     '''run gat on intervals against each other.'''
 
     job_threads = 4
-    job_options = "-l mem_free=4G"
+    job_memory = "4G"
 
     segments = os.path.join("gat_sets.dir", "segments.bed")
     annotations = os.path.join("gat_sets.dir", "annotations.bed")
@@ -1524,10 +1509,6 @@ def runGATOnSets(infiles, outfile, isochorefile):
 
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @transform((runGATOnGenomicContext,
             runGATOnGenomicAnnotations,
@@ -1535,7 +1516,7 @@ def runGATOnSets(infiles, outfile, isochorefile):
             runGATOnGeneStructure),
            regex("gat_(.*).dir/(.*).gat.tsv.gz"),
            r"gat_\1.dir/gat_\1_\2.load")
-def loadGat(infile, outfile):
+def loadGAT(infile, outfile):
     '''load individual gat results.'''
     P.load(infile, outfile, "--allow-empty-file")
 
@@ -1627,7 +1608,7 @@ def summarizeGAT(infiles, outfile):
     P.touch(outfile)
 
 
-@follows(loadGat)
+@follows(loadGAT, summarizeGAT)
 def gat():
     pass
 
@@ -1652,14 +1633,16 @@ def prepareTags(infile, outfile):
                                           'picard'))
 
 
-@follows(prepareTags)
-@files([((x, y),
-         ('tags.dir/%s_vs_%s.tsv.gz' %
-          (P.snip(x, ".bed.gz", strip_path=True),
-           P.snip(y, ".bed.gz", strip_path=True))))
-        for x, y in itertools.product(
-            BEDFILES,
-            prepareTags.pipeline_task.get_output_files(False, None))])
+from ruffus.task import task_decorator
+
+
+class product(task_decorator):
+    pass
+
+
+@product(BEDFILES, formatter("(.bed.gz)$"),
+         prepareTags, formatter("(.bed.gz)$"),
+         'tags.dir/{basename[0][0]}_vs_{basename[1][0]}.tsv.gz')
 def computeReadCountsInIntervals(infiles, outfile):
     '''compute a table of read counts of each BAM-file
     with respect to all interval sets.'''
@@ -1693,7 +1676,7 @@ def summarizeReadCounts(infile, outfile):
     '''perform summarization of read counts'''
 
     prefix = P.snip(outfile, ".tsv")
-    job_options = "-l mem_free=32G"
+    job_memory = "32G"
     statement = '''python %(scriptsdir)s/runExpression.py
               --method=summary
               --tags-tsv-file=%(infile)s

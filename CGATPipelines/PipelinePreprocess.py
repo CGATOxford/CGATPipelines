@@ -126,7 +126,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
         if self.save:
             self.outdir = "processed.dir"
         else:
-            self.outdir = P.getTempDir("/ifs/scratch")
+            self.outdir = P.getTempDir(shared=True)
 
         self.processors = []
 
