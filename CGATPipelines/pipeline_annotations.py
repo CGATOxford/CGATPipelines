@@ -1366,7 +1366,9 @@ def importRNAAnnotationFromUCSC(infile, outfile):
 
     repclasses = P.asList(PARAMS["ucsc_rnatypes"])
     dbhandle = connectToUCSC()
-    PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
+    PipelineUCSC.getRepeatsFromUCSC(
+        dbhandle, repclasses, outfile,
+        remove_contigs_regex=PARAMS["ensembl_remove_contigs"])
 
 
 @follows(mkdir('ucsc.dir'))

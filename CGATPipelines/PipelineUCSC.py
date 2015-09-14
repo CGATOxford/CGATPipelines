@@ -6,31 +6,27 @@
 :Date: |today|
 :Tags: Python
 
-Purpose
--------
+This module provides methods for accessing ucsc_ data via the public
+UCSC relational database server and building UCSC track hubs.
 
-This module provides methods for accessing ucsc data.
+The function :func:`connectToUCSC` establishes a connection.
 
-Usage
------
+Data import
+-----------
 
-This module reads the ``[ucsc]`` section of a configuration file
-requiring the following variables to be set:
+The functions :func:`getRepeatsFromUCSC`, :func:`getRefseqFromUCSC` and
+:func:`getCpGIslandsFromUCSC` import various data sets and save them
+in standard genomic file formats.
 
-host
-    host to connect to
+UCSC track hubs
+---------------
 
-user
-    username to connect with
+The functions :func:`readUCSCFile`, :func:`writeUCSCFile`,
+:func:`readTrackFile` and :func:`writeTrackFile` support building a
+UCSC track hub.
 
-database
-    database to use
-
-Documentation
--------------
-
-Code
-----
+Reference
+---------
 
 '''
 
@@ -43,19 +39,26 @@ import CGATPipelines.Pipeline as P
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 
-# set from calling module
-PARAMS = {}
-
-############################################################
-############################################################
-############################################################
-# UCSC tracks
-############################################################
-
 
 def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
                   user="genome",
                   database="hg19"):
+    """connect to UCSC database.
+
+    Arguments
+    ---------
+    host : string
+        Host to connect to
+    user : string
+        Username to connect with
+    Database : string
+        database to use
+
+    Returns
+    -------
+    Database handle
+
+    """
     dbhandle = MySQLdb.Connect(host=host,
                                user=user)
 
@@ -65,10 +68,26 @@ def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
     return dbhandle
 
 
-def getRepeatsFromUCSC(dbhandle, repclasses, outfile):
-    '''select repeats from UCSC and write to *outfile* in gff format.
+def getRepeatsFromUCSC(dbhandle,
+                       repclasses,
+                       outfile,
+                       remove_contigs_regex=None):
+    '''select repeats from UCSC database and write to `outfile` in
+    :term:`gff` format.
 
-    If *repclasses* is None or an empty list, all repeats will be collected.
+    Arguments
+    ---------
+    dbhandle : object
+       Database handle to UCSC mysql database
+    repclasses : list
+       List of repeat classes to select. If empty, all repeat classes
+       will be collected.
+    outfile : string
+       Filename of output file
+    remove_contigs_regex : string
+       If given, remove repeats on contigs matching the regular
+       expression given.
+
     '''
 
     # Repeats are either stored in a single ``rmsk`` table (hg19) or in
@@ -119,9 +138,9 @@ def getRepeatsFromUCSC(dbhandle, repclasses, outfile):
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log ''']
 
-    if PARAMS["ensembl_remove_contigs"]:
+    if remove_contigs_regex:
         statement.append(
-            ''' --contig-pattern="%(ensembl_remove_contigs)s" ''')
+            ''' --contig-pattern="%(remove_contigs_regexs)s" ''')
 
     statement.append('''| gzip > %(outfile)s ''')
 
@@ -132,33 +151,32 @@ def getRepeatsFromUCSC(dbhandle, repclasses, outfile):
     os.unlink(tmpfilename)
 
 
-def importRefSeqFromUCSC(infile, outfile, remove_duplicates=True):
-    '''import gene set from UCSC database
-    based on refseq mappings.
+def getRefSeqFromUCSC(dbhandle, outfile, remove_duplicates=False):
+    '''get refseq gene set from UCSC database and save as :term:`gtf`
+    formatted file.
 
-    Outputs a gtf-formatted file a la ENSEMBL.
-
-    Depending on *remove_duplicates*, duplicate mappings are either
-    removed or kept.
-
-    Matches to chr_random are ignored (as does ENSEMBL).
+    Matches to ``chr_random`` are ignored (as does ENSEMBL).
 
     Note that this approach does not work as a gene set, as refseq
     maps are not real gene builds and unalignable parts cause
     differences that are not reconcilable.
 
+    Arguments
+    ---------
+    dbhandle : object
+       Database handle to UCSC mysql database
+    outfile : string
+       Filename of output file in :term:`gtf` format. The filename
+       aims to be close to the ENSEMBL gtf format.
+    remove_duplicate : bool
+       If True, duplicate mappings are removed.
+
     '''
-
-    import MySQLdb
-    dbhandle = MySQLdb.Connect(host=PARAMS["ucsc_host"],
-                               user=PARAMS["ucsc_user"])
-
-    cc = dbhandle.cursor()
-    cc.execute("USE %s " % PARAMS["ucsc_database"])
 
     duplicates = set()
 
     if remove_duplicates:
+        cc = dbhandle.cursor()
         cc.execute("""SELECT name, COUNT(*) AS c FROM refGene
         WHERE chrom NOT LIKE '%_random'
         GROUP BY name HAVING c > 1""")
@@ -243,15 +261,18 @@ def importRefSeqFromUCSC(infile, outfile, remove_duplicates=True):
     E.info("%s" % str(counts))
 
 
-#############################################################
-#############################################################
-#############################################################
-##
-#############################################################
 def getCpGIslandsFromUCSC(dbhandle, outfile):
-    '''get CpG islands from UCSC and save as a bed file.
+    '''get CpG islands from UCSC database and save as a :term:`bed`
+    formatted file.
 
-    The name will be set to the UCSC name.
+    The name column in the bed file will be set to the UCSC name.
+
+    Arguments
+    ---------
+    dbhandle : object
+       Database handle to UCSC mysql database
+    outfile : string
+       Filename of output file in :term:`bed` format.
     '''
 
     cc = dbhandle.cursor()
@@ -271,16 +292,29 @@ def getCpGIslandsFromUCSC(dbhandle, outfile):
         E.warn("Failed to connect to table %s. %s is empty" % (table, outfile))
         P.touch(outfile)
 
-#############################################################
-#############################################################
-#############################################################
-# Methods for setting up a UCSC Track Hub
-#############################################################
-
 
 def readUCSCFile(infile):
     '''read data within a UCSC formatted file.
-    returns a list of key,value items
+
+    An example for a UCSC formatted file is :file:`hub.txt` with
+    the following contents::
+
+       hub hub_name
+       shortLabel hub_short_label
+       longLabel hub_long_label
+       genomesFile genomes_filelist
+       email email_address
+       descriptionUrl descriptionUrl
+
+    Arguments
+    ---------
+    infile : File
+        Iterator over the contents of the file.
+
+    Returns
+    -------
+    data : list
+        List of tuples of key/value pairs in the file.
     '''
     result = []
     for line in infile:
@@ -294,7 +328,17 @@ def readUCSCFile(infile):
 
 
 def writeUCSCFile(outfile, data):
-    '''write a hubfile to outfile from data.'''
+    '''write a UCSC formatted text file.
+
+    See :func:`readUCSCFile`.
+
+    Arguments
+    ---------
+    outfile : File
+        Output file
+    data : list
+        List of tuples of key/value pairs to write.
+    '''
     for key, value in data:
         outfile.write(" ".join((key, value)) + "\n")
 
@@ -302,7 +346,29 @@ def writeUCSCFile(outfile, data):
 def readTrackFile(infile):
     '''read a track file.
 
-    Returns a list of tracks, each being a dictionary of keywords.
+    An example of an UCSC track file is::
+
+      track dnaseSignal
+      bigDataUrl dnaseSignal.bigWig
+      shortLabel DNAse Signal
+      longLabel Depth of alignments of DNAse reads
+      type bigWig
+
+      track dnaseReads
+      bigDataUrl dnaseReads.bam
+      shortLabel DNAse Reads
+      longLabel DNAse reads mapped with MAQ
+      type bam
+
+    Arguments
+    ---------
+    infile : File
+        Iterator over the contents of the file.
+
+    Returns
+    -------
+    tracks : list
+        List of tracks, each being a dictionary of keywords.
     '''
 
     data = readUCSCFile(infile)
@@ -321,9 +387,16 @@ def readTrackFile(infile):
 
 
 def writeTrackFile(outfile, tracks):
-    '''write list of *tracks* to track file *outfile*.
+    '''write list of tracks to file.
 
-    Returns a list of tracks, each being a dictionary of keywords.
+    See :func:`readTrackFile`.
+
+    Arguments
+    ---------
+    outfile : File
+        Output file
+    data : list
+        List of tracks, each being a dictionary of key/value pairs.
     '''
 
     for track, trackdata in tracks:
