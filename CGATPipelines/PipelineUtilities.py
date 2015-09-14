@@ -1,11 +1,6 @@
-"""=============================================================
+"""
 PipelineUtilities.py - helper functions for CGAT pipelines
 =============================================================
-
-:Author: Steve Sansom
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------
@@ -21,37 +16,28 @@ and then deprecate.
    some functionality found elsewhere such as the
    Database commands and text IO commands.
 
-Code
-----
+Reference
+---------
 
 
 """
 import sqlite3
-try:
-    import CGATPipelines.Pipeline as P
-except AttributeError, OSError:
-    pass
 import CGAT.IOTools as IOTools
 import pickle
 from pandas import DataFrame
 
-try:
-    PARAMS = P.getParameters()
-except:
-    PARAMS = {}
 
-
-def getDatabase():
+def getDatabase(params):
     '''Looks for the location of the database in a list
     of different places in the ini file. If it is not found,
     return "". This allows new database ini style, while
-    maintaining backwards compatability. In thoery data_name is
+    maintaining backwards compatability. In theory data_name is
     always present as it is set by Pipeline.py'''
 
     locations = ["database", "database_name"]
 
     for location in locations:
-        database = PARAMS.get(location, None)
+        database = params.get(location, None)
         if database is not None:
             return database
 

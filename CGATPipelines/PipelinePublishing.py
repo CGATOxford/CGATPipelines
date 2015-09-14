@@ -34,8 +34,41 @@ def publish_tracks(export_files,
                    project_name=None):
     '''publish a UCSC Track Hub.
 
-    *export_files* is a dictionary of filetypes and files.
-    *prefix* will be added to each track.
+    This method takes a dictionary of file types associated
+    with files. For each file, a link will be created in
+    the upload directory. The track will be stored under
+    a project name, which will be derived from the location
+    of the working directory.
+
+    Information about the genome, the upload directory, etc. will be
+    taken from the global configuration dictionary.
+
+    For example, calling the following code in a pipeline executed
+    in .../proj013/mapping::
+        export_files = {
+            "bamfiles": glob.glob("*/*.bam") + \
+                         glob.glob("*/*.bam.bai"),
+            "bigwigfiles": glob.glob("*/*.bw"),
+        }
+        publish_tracks(export_files)
+
+    Will create a hub file at
+    :file:`<uploaddir>/OBFUSID/mapping/ucsc.hub`, where
+    OBFUSID is the obfuscated directory entry in the CGAT
+    download directory for a particular project.
+
+    Arguments
+    =========
+    export_files : dict
+        Dictionary mapping filetypes to files.
+    prefix : string
+        will be added to each track.
+    project_id : string
+        The project identifier. If not given, it will be taken from
+        the path of the project directory.
+    project_name : string
+        The project name, typically the project number. If not given,
+        it will be taken from the current directory.
 
     '''
 

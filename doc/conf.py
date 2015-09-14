@@ -35,13 +35,16 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.coverage',
               'sphinx.ext.pngmath',
               'sphinx.ext.ifconfig',
-	      'sphinx.ext.inheritance_diagram',
+              'sphinx.ext.inheritance_diagram',
               'sphinxcontrib.programoutput',
               'sphinx.ext.intersphinx',
-	      'sphinx.ext.napoleon',
-	      'CGATReport.report_directive']
+              'sphinx.ext.napoleon',
+              'CGATReport.report_directive']
 
-intersphinx_mapping = {'python': ('http://docs.python.org/2.7', None)}
+intersphinx_mapping = {
+    'python': ('http://docs.python.org/2.7', None),
+    'cgat': ('https://www.cgat.org/downloads/public/cgat/documentation/',
+             None)}
 
 # order of autodocumented functions
 autodoc_member_order = "bysource"
@@ -66,13 +69,15 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'CGAT'
+project = u'CGATPipelines'
 copyright = u'2011, 2012, 2013, 2014, 2015 Andreas Heger'
 
 
 # Included at the end of each rst file
 rst_epilog = '''
 .. _CGAT Training Programme: http://www.cgat.org
+.. _CGAT Pipelines Collection: https://www.cgat.org/downloads/public/CGATPipelines/documentation/
+.. _CGAT Code Collection: https://www.cgat.org/downloads/public/cgat/documentation/
 .. _pysam: https://github.com/pysam-developers/pysam
 .. _samtools: http://samtools.sourceforge.net/
 .. _htslib: http://www.htslib.org/
@@ -80,6 +85,7 @@ rst_epilog = '''
 .. _Galaxy: https://main.g2.bx.psu.edu/
 .. _cython: http://cython.org/
 .. _python: http://python.org/
+.. _ipython: http://ipython.org/
 .. _pyximport: http://www.prescod.net/pyximport/
 .. _sphinx: http://sphinx-doc.org/
 .. _ruffus: http://www.ruffus.org.uk/

@@ -2,13 +2,16 @@
 PipelineDatabase.py - utility functions for working with a database
 ===================================================================
 
+This module contains utility functions for working with a database.
+
+.. note::
+
+   Some functionality of :mod:`Pipeline` could go in here.
+
 '''
 
 import os
 import CGATPipelines.Pipeline as P
-
-# set from calling module
-PARAMS = {}
 
 
 def importFromIterator(
@@ -17,8 +20,24 @@ def importFromIterator(
         iterator,
         columns=None,
         indices=None):
-    '''import data in *iterator* into *tablename* via temporary file.
+    '''import data from an iterator into a database.
 
+    Arguments
+    ---------
+    outfile : string
+        Output file name
+    tablename : string
+        Table name
+    iterator : iterator
+        Iterator to import data from. The iterator should
+        yield either list/tuples or dictionaries for each
+        row in the table.
+    columns : list
+        Column names. If not given, the assumption is that
+        iterator will dictionaries and column names are derived
+        from that.
+    indices : list
+        List of column names to add indices on.
     '''
 
     tmpfile = P.getTempFile(".")
