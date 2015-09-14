@@ -420,76 +420,23 @@ def quantify():
 
 
 ###############################################################################
-# Generate isoform expression tables
-###############################################################################
-
-# TS: there's some repition of code here and next section
-# should count transcripts when generating fasta and save out as flatfile
-@follows(runKallisto)
-@mkdir("DEresults.dir")
-@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
-           regex("(\S+).design.tsv"),
-           add_inputs(buildReferenceTranscriptome),
-           [r"DEresults.dir/\1_counts.tsv", r"DEresults.dir/\1_tpm.tsv"])
-def makeSleuthtables(infiles, outfiles):
-    ''' run Sleuth to generate counts and tpm tables'''
-
-    design, transcripts = infiles
-    counts, tpm = outfiles
-    base_dir = "quant.dir"
-
-    design_id = P.snip(design, ".design.tsv")
-    model = PARAMS["sleuth_model_%s" % design_id]
-
-    Design = Expression.ExperimentalDesign(design)
-    number_samples = sum(Design.table['include'])
-
-    number_transcripts = 0
-    with IOTools.openFile(transcripts, "r") as inf:
-        for line in inf:
-            if line.startswith(">"):
-                number_transcripts += 1
-
-    # TS: rough estimate is 24 bytes * bootstraps * samples * transcripts
-    # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
-    # I've found this to be an underestimate so this is a more
-    # conservative estimate
-    memory_estimate = (48 * PARAMS["kallisto_bootstrap"] * number_samples *
-                       number_transcripts)
-    job_memory = "%fG" % ((memory_estimate / 1073741824))
-
-    TranscriptDiffExpression.makeSleuthTables(
-        design, base_dir, model, tpm, counts,
-        submit=True, job_memory=job_memory)
-
-
-@transform(makeSleuthtables,
-           suffix(".tsv"),
-           ".load")
-def loadSleuthTables(infile, outfile):
-    ''' load tables from Sleuth '''
-    P.load(infile, outfile)
-
-
-@follows(loadSleuthTables)
-def expressionTables():
-    pass
-
-###############################################################################
 # Differential isoform expression analysis
 ###############################################################################
 
 
 @follows(runKallisto)
 @mkdir("DEresults.dir")
-@transform(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
+@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
            add_inputs(buildReferenceTranscriptome),
-           r"DEresults.dir/\1.tsv")
-def runSleuth(infiles, outfile):
+           [r"DEresults.dir/\1_results.tsv",
+            r"DEresults.dir/\1_counts.tsv",
+            r"DEresults.dir/\1_tpm.tsv"])
+def runSleuth(infiles, outfiles):
     ''' run Sleuth to perform differential testing '''
 
     design, transcripts = infiles
+    outfile, counts, tpm = outfiles
 
     Design = Expression.ExperimentalDesign(design)
     number_samples = sum(Design.table['include'])
@@ -502,31 +449,40 @@ def runSleuth(infiles, outfile):
 
     # TS: rough estimate is 24 bytes * bootstraps * samples * transcripts
     # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
-    # I've found this to be an underestimate so this is a more
+    # I've found this to be a serious underestimate so this is a more
     # conservative estimate
     memory_estimate = (48 * PARAMS["kallisto_bootstrap"] * number_samples *
                        number_transcripts)
     job_memory = "%fG" % ((memory_estimate / 1073741824))
 
     design_id = P.snip(design, ".design.tsv")
+    model = PARAMS["sleuth_model_%s" % design_id]
+
     contrasts = PARAMS["sleuth_contrasts_%s" % design_id].split(",")
 
     for contrast in contrasts:
 
-        model = PARAMS["sleuth_model_%s" % design_id]
-
         TranscriptDiffExpression.runSleuth(
             design, "quant.dir", model, contrast,
-            outfile, PARAMS["sleuth_fdr"], submit=True, job_memory=job_memory)
+            outfile, counts, tpm, PARAMS["sleuth_fdr"],
+            submit=True, job_memory=job_memory)
 
 
 @transform(runSleuth,
-           suffix(".tsv"),
+           regex("(\S+)_(counts|tpm).tsv"),
+           r"\1_\2.load")
+def loadSleuthTables(infile, outfile):
+    ''' load tables from Sleuth '''
+    P.load(infile, outfile)
+
+
+@transform(runSleuth,
+           suffix("_results.tsv"),
            "_withBiotypes.tsv")
 def addTranscriptBiotypes(infile, outfile):
     ''' add the transcript biotypes to the results outfile'''
     # TS: This could be done when report is built but saves time just
-    # to do it once here
+    # to just do it once here
 
     df = pd.read_table(infile, sep="\t", index_col=0)
     df.set_index('test_id', inplace=True)
@@ -557,12 +513,13 @@ def addTranscriptBiotypes(infile, outfile):
 @transform(addTranscriptBiotypes,
            suffix("_withBiotypes.tsv"),
            "_DEresults.load")
-def loadSleuth(infile, outfile):
+def loadSleuthResults(infile, outfile):
     ''' load Sleuth results '''
     P.load(infile, outfile)
 
 
-@follows(loadSleuth)
+@follows(loadSleuthTables,
+         loadSleuthResults)
 def differentialExpression():
     pass
 
@@ -572,7 +529,7 @@ def differentialExpression():
 ###############################################################################
 
 @mkdir("summary_plots")
-@transform(makeSleuthtables,
+@transform(runSleuth,
            regex("DEresults.dir/(\S+)_tpm.tsv"),
            add_inputs(r"\1.design.tsv"),
            r"summary_plots/\1_plots.log")
@@ -594,7 +551,6 @@ def expressionSummaryPlots(infiles, logfile):
 
 @follows(index,
          quantify,
-         expressionTables,
          differentialExpression,
          expressionSummaryPlots)
 def full():

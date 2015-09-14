@@ -19,18 +19,21 @@ import CGAT.Counts as Counts
 import CGAT.IOTools as IOTools
 
 import CGATPipelines.Pipeline as P
+import CGAT.Experiment as E
+import CGAT.IOTools as IOTools
 
 from CGATPipelines.Pipeline import cluster_runnable
 
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import r as R
+import rpy2.robjects as ro
 
 import pandas as pd
 import numpy as np
 
 
 @cluster_runnable
-def runSleuth(design, base_dir, model, contrast, outfile, fdr):
+def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
     ''' run sleuth. Note: all samples in the design table must also
     have a directory with the same name in `base_dir` with kallisto
     results in a file called abundance.h5'''
@@ -39,7 +42,8 @@ def runSleuth(design, base_dir, model, contrast, outfile, fdr):
 
     Design = Expression.ExperimentalDesign(design)
     exp = Expression.DEExperiment_Sleuth()
-    res = exp.run(base_dir, Design, model, contrast, outfile_prefix, fdr)
+    res = exp.run(base_dir, Design, model, contrast, outfile_prefix,
+                  counts, tpm, fdr)
 
     res.getResults(fdr)
 
@@ -47,52 +51,6 @@ def runSleuth(design, base_dir, model, contrast, outfile, fdr):
     res.plotVolcano(contrast, outfile_prefix)
 
     res.table.to_csv(outfile, sep="\t")
-
-
-@cluster_runnable
-def makeSleuthTables(design, base_dir, model, tpm, counts):
-    ''' run sleuth to generate tpm and counts tables '''
-
-    # Design table needs a "sample" column
-    Design = Expression.ExperimentalDesign(design)
-    Design.table['sample'] = Design.table.index
-    r_design_df = pandas2ri.py2ri(Design.table)
-
-    # load sleuth
-    R('''suppressMessages(library('sleuth'))''')
-
-    createSleuthObject = R('''
-    function(design_df){
-    sample_id = design_df$sample
-    kal_dirs <- sapply(sample_id,
-                       function(id) file.path('%(base_dir)s', id))
-    so <- sleuth_prep(kal_dirs, design_df, %(model)s)
-    so <- sleuth_fit(so)
-    return(so)
-    }''' % locals())
-
-    so = createSleuthObject(r_design_df)
-
-    makeTables = R('''
-    function(so){
-
-      getCounts = function(so, count_type){
-        # count_type is choice ("est_counts", "tpm")
-
-        df = cast(so$obs_raw, target_id~sample, value = 'tpm')
-        colnames(df)[1] <- "transcript_id"
-
-        return(df)}
-
-    abund_counts <- getCounts(so, "est_counts")
-    write.table(abund_counts, "%(counts)s", sep="\t", row.names=F, quote=F)
-
-    abund_tpm <- getCounts(so, "tpm")
-    write.table(abund_tpm, "%(tpm)s", sep="\t", row.names=F, quote=F)
-
-    }''' % locals())
-
-    makeTables(so)
 
 
 @cluster_runnable
