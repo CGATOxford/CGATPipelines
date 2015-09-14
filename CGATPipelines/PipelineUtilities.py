@@ -55,28 +55,22 @@ def db_execute(cc, statements):
         cc.execute(statement)
 
 
-def execute(queries, database=getDatabase(), attach=False):
+def execute(queries, dbhandle=None, attach=False):
     '''Execute a statement or a  list of statements (sequentially)'''
 
-    dbhandle = sqlite3.connect(database)
     cc = dbhandle.cursor()
 
     if attach:
         db_execute(cc, attach)
 
-    db_execute(cc, statement)
+    db_execute(cc, queries)
     cc.close()
 
 
-def fetch(query, database=getDatabase(), attach=False):
+def fetch(query, dbhandle=None, attach=False):
     '''Fetch all query results and return'''
 
-    try:
-        cc = database.cursor()
-    except AttributeError:
-
-        dbhandle = sqlite3.connect(database)
-        cc = dbhandle.cursor()
+    cc = dbhandle.cursor()
 
     if attach:
         db_execute(cc, attach)
@@ -87,19 +81,14 @@ def fetch(query, database=getDatabase(), attach=False):
 
 
 def fetch_with_names(query,
-                     database=getDatabase(),
+                     dbhandle=None,
                      attach=False):
     '''Fetch query results and returns them as an array of row arrays, in
        which the first entry is an array of the field names
 
     '''
 
-    try:
-        cc = database.cursor()
-    except AttributeError:
-        dbhandle = sqlite3.connect(database)
-        cc = dbhandle.cursor()
-
+    cc = dbhandle.cursor()
     if attach:
         db_execute(cc, attach)
 
@@ -118,15 +107,11 @@ def fetch_with_names(query,
 
 
 def fetch_DataFrame(query,
-                    database=getDatabase(),
+                    dbhandle=None,
                     attach=False):
     '''Fetch query results and returns them as a pandas dataframe'''
 
-    try:
-        cc = database.cursor()
-    except AttributeError:
-        dbhandle = sqlite3.connect(database)
-        cc = dbhandle.cursor()
+    cc = dbhandle.cursor()
 
     if attach:
         if type(attach) is str:
@@ -152,7 +137,7 @@ def fetch_DataFrame(query,
 
 def write_DataFrame(dataframe,
                     tablename,
-                    database=getDatabase(),
+                    dbhandle=None,
                     index=False,
                     if_exists='replace'):
     '''write a pandas dataframe to an sqlite db, index on given columns
@@ -160,8 +145,6 @@ def write_DataFrame(dataframe,
        ["gene_id", "start"]
 
     '''
-
-    dbhandle = sqlite3.connect(database)
 
     dataframe.to_sql(tablename,
                      con=dbhandle,
