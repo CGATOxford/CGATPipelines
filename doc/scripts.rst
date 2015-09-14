@@ -24,7 +24,6 @@ Cluster and job management
    :maxdepth: 1
 
    scripts/cgat_cluster_distribute.rst
-   scripts/clean.rst
    scripts/farm.rst
    scripts/nofarm.rst
    scripts/qkill.rst
