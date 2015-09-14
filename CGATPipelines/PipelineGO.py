@@ -1,28 +1,13 @@
-"""
+"""PipelineGO - Components for a GO analysis
+============================================
 
 :Author: Andreas Heger
 :Release: $Id: PipelineGO.py 2877 2010-03-27 17:42:26Z andreas $
 :Date: |today|
 :Tags: Python
 
-Purpose
--------
-
-Pipeline components - GO analysis
-
-Tasks related to gene set GO analysis.
-
-Usage
------
-
-Type::
-
-   python <script_name>.py --help
-
-for command line help.
-
-Code
-----
+Reference
+---------
 
 
 """

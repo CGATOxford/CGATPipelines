@@ -35,9 +35,11 @@ import os
 import collections
 import MySQLdb
 import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
+
+
+import CGATPipelines.Pipeline as P
 
 
 def connectToUCSC(host="genome-mysql.cse.ucsc.edu",

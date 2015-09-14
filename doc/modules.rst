@@ -31,7 +31,6 @@ parameterization and more to pipeline scripts.
    pipelinemodules/Pipeline.rst
    pipelinemodules/PipelineTracks.rst
    pipelinemodules/PipelineDatabase.rst
-   pipelinemodules/PipelinePublishing.rst
    pipelinemodules/PipelineUCSC.rst
    pipelinemodules/PipelineUtilities.rst
 

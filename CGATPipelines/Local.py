@@ -39,14 +39,17 @@ CGAT systems. The functions :func:`getProjectDirectories`,
 :func:`getPipelineName`, :func:`getProjectId`, :func:`getProjectName`
 provide information about the pipeline executed and the project context.
 
-Report publishing
+Publishing
 -----------------
 
 Once built, a report can be published by copying it to the publicly
 visible directories on the CGAT systems. At the same time, references
 to files on CGAT systems need to be replaced with links through the
-public interfacet. The functions :func:`getPublishDestinations` and
+public web interface. The functions :func:`getPublishDestinations` and
 :func:`publish_report` implement this functionality.
+
+The function :meth:`publish_tracks` builds a UCSC track hub and
+moves it into the appropriate CGAT download directories.
 
 Reference
 ---------
@@ -56,8 +59,10 @@ import os
 import re
 import shutil
 import inspect
+import collections
 
 from CGAT import Experiment as E
+import CGAT.IOTools as IOTools
 
 PROJECT_ROOT = '/ifs/projects'
 
@@ -211,7 +216,22 @@ def getProjectName():
 
 
 def getPublishDestinations(prefix="", suffix=None):
+    """cgat specific method : return path names of directories
+    for publishing.
 
+    Arguments
+    ---------
+    prefix : string
+        Prefix to add to output directories.
+    suffix : suffix to add to output directories
+
+    Returns
+    -------
+    dest_report : string
+         Path for report to export
+    dest_export : string
+         Path for files to export
+    """
     if not prefix:
         prefix = PARAMS.get("report_prefix", "default")
 
@@ -416,4 +436,154 @@ def publish_report(prefix="",
     E.info(
         "report has been published at http://www.cgat.org/downloads/%(project_id)s/%(dest_report)s" % locals())
 
+
+def publish_tracks(export_files,
+                   prefix="",
+                   project_id=None,
+                   project_name=None):
+    '''publish a UCSC Track Hub.
+
+    This method takes a dictionary of file types associated
+    with files. For each file, a link will be created in
+    the upload directory. The track will be stored under
+    a project name, which will be derived from the location
+    of the working directory.
+
+    Information about the genome, the upload directory, etc. will be
+    taken from the global configuration dictionary.
+
+    For example, calling the following code in a pipeline executed
+    in .../proj013/mapping::
+        export_files = {
+            "bamfiles": glob.glob("*/*.bam") + glob.glob("*/*.bam.bai"),
+            "bigwigfiles": glob.glob("*/*.bw"),
+        }
+        publish_tracks(export_files)
+
+    will create a hub file at
+    :file:`<uploaddir>/OBFUSID/mapping/ucsc.hub`, where
+    OBFUSID is the obfuscated directory entry in the CGAT
+    download directory for a particular project.
+
+    Arguments
+    ---------
+    export_files : dict
+        Dictionary mapping filetypes to files.
+    prefix : string
+        will be added to each track.
+    project_id : string
+        The project identifier. If not given, it will be taken from
+        the path of the project directory.
+    project_name : string
+        The project name, typically the project number. If not given,
+        it will be taken from the current directory.
+
+    '''
+
+    # the import is located here to avoid cyclical dependencies
+    # between Local.py, Pipeline.py and PipelineUCSC.py
+    import CGATPipelines.PipelineUCSC as PipelineUCSC
+
+    if not prefix:
+        prefix = PARAMS.get("report_prefix", "")
+
+    web_dir = PARAMS["web_dir"]
+    if project_id is None:
+        project_id = getProjectId()
+    if project_name is None:
+        project_name = getProjectName()
+
+    src_export = os.path.abspath("export")
+    dest_report = prefix + "report"
+    dest_export = prefix + "export"
+
+    hubdir = os.path.join(PARAMS["web_dir"], "ucsc")
+
+    if not os.path.exists(hubdir):
+        E.info("creating %s" % hubdir)
+        os.mkdir(hubdir)
+
+    # write the UCSC hub file
+    hubfile = os.path.join(hubdir, "hub.txt")
+    genomesfile = os.path.join(hubdir, "genomes.txt")
+    trackdir = os.path.join(hubdir, PARAMS["genome"])
+    trackfile = os.path.join(hubdir, PARAMS["genome"], "trackDb.txt")
+    trackrelpath = os.path.join(PARAMS["genome"], "trackDb.txt")
+
+    if os.path.exists(hubfile):
+        with IOTools.openFile(hubfile) as infile:
+            hubdata = PipelineUCSC.readUCSCFile(infile)
+    else:
+        hubdata = [('hub', "CGAT-" + project_name),
+                   ('shortLabel', "CGAT-" + project_name),
+                   ('longLabel', "Data for CGAT project %s" % project_name),
+                   ('genomesFile', "genomes.txt"),
+                   ('email', 'andreas.heger@gmail.com')]
+
+    E.info("writing to %s" % hubfile)
+    with IOTools.openFile(hubfile, "w") as outfile:
+        PipelineUCSC.writeUCSCFile(outfile, hubdata)
+
+    # create the genomes.txt file - append to it if necessary.
+    if os.path.exists(genomesfile):
+        with IOTools.openFile(genomesfile) as infile:
+            genomes = PipelineUCSC.readUCSCFile(infile)
+    else:
+        genomes = []
+
+    if ("genome", PARAMS["genome"]) not in genomes:
+        genomes.append(("genome", PARAMS["genome"]))
+        genomes.append(("trackDb", trackrelpath))
+
+    E.info("writing to %s" % genomesfile)
+    with IOTools.openFile(genomesfile, "w") as outfile:
+        PipelineUCSC.writeUCSCFile(outfile, genomes)
+
+    # create the track data
+    if not os.path.exists(trackdir):
+        os.mkdir(trackdir)
+
+    if os.path.exists(trackfile):
+        E.debug('reading existing tracks from %s' % trackfile)
+        with IOTools.openFile(trackfile) as infile:
+            tracks = PipelineUCSC.readTrackFile(infile)
+    else:
+        tracks = []
+
+    tracks = collections.OrderedDict(tracks)
+
+    def getName(name):
+        if name.endswith(".bam"):
+            return "bam", name
+        elif name.endswith(".bw") or name.endswith(".bigwig"):
+            return "bigWig", name
+        else:
+            return None, None
+
+    for targetdir, filenames in export_files.items():
+        for src in filenames:
+            dest = os.path.join(trackdir, prefix + os.path.basename(src))
+            dest = os.path.abspath(dest)
+            # create a symlink
+            if not os.path.exists(dest):
+                try:
+                    os.symlink(os.path.abspath(src), dest)
+                except OSError, msg:
+                    E.warn("could not create symlink from %s to %s: %s" %
+                           (os.path.abspath(src), dest, msg))
+            ucsctype, trackname = getName(os.path.basename(dest))
+            # ignore invalid types and other files (.bai files, ...)
+            if ucsctype is None:
+                continue
+            tracks[trackname] = (("bigDataUrl", os.path.basename(dest)),
+                                 ("shortLabel", trackname),
+                                 ("longLabel", trackname),
+                                 ("type", ucsctype))
+
+    E.info("writing to %s" % trackfile)
+    with IOTools.openFile(trackfile, "w") as outfile:
+        PipelineUCSC.writeTrackFile(outfile, list(tracks.iteritems()))
+
+    E.info(
+        "data hub has been created at http://www.cgat.org/downloads/%(project_id)s/ucsc/hub.txt" % locals())
 

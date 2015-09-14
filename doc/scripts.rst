@@ -53,9 +53,6 @@ Other
    scripts/cgat_build_report_page.rst
    scripts/cgat_build_report_page.rst
    scripts/cgat_cwd2list.rst
-   scripts/cgat_html_add_toc.rst
-   scripts/cgat_log2wiki.rst
-   scripts/cgat_make2help.rst
    scripts/cgat_tsv2links.rst
    scripts/version.rst
 

@@ -7,17 +7,20 @@ pipeline collection. It describes the layout of the code repository
 and contains a description of the scripts and modules.
 collection.
 
+.. _CodeOrganization:
+
 Code organization
 =================
 
 The code in the `CGAT Pipeline Collection`_ and the `CGAT Code
 Collection`_ is organized on four levels. :term:`pipeline scripts`
-and :term: `pipeline modules` are located in the :term:`CGATPipelines`
+and :term:`pipeline modules` are located in the :term:`CGATPipelines`
 repository, while :term:`standalone scripts` and :term:`standalone
 modules` or located in the `CGAT Code Collection`_.
 
 .. glossary::
 
+   pipeline scripts
    pipeline script
 
       The :term:`pipeline script`, for example, ``pipeline_mapping.py``
@@ -30,6 +33,7 @@ modules` or located in the `CGAT Code Collection`_.
       script`. Anything that is more complex should go into
       the :term:`pipeline module`.
 
+   pipeline modules
    pipeline module
 
       The :term:`pipeline module`, for example,
@@ -41,6 +45,7 @@ modules` or located in the `CGAT Code Collection`_.
       should go into a :term:`standalone script` or :term:`standalone
       module` in the CGAT code collection.
 
+   standalane scripts
    standalone script
 
       A :term:`standalone script` provides a frontend towards running
@@ -59,7 +64,7 @@ modules` or located in the `CGAT Code Collection`_.
       place, however, is to add the functionality to a :term:`standalone
       script` as it permits access to the functionality from the command
       line and is thus accessible in many different contexts. Also, a
-      :term:`standalone` script can be executed on the cluster. Even
+      :term:`standalone script` can be executed on the cluster. Even
       better, it can be grouped with other functionalities to build
       powerful tools. For example, the above functionality could go into
       a script ``bam2stats.py`` that collects multiple summary statistics
@@ -74,6 +79,7 @@ modules` or located in the `CGAT Code Collection`_.
       functionality should reside as much as possible in a
       :term:`standalone module`.
 
+   standalone modules
    standalone module
 
       A :term:`standalone module` contains functionality that is shared

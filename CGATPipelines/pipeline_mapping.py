@@ -215,7 +215,6 @@ import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGATPipelines.PipelinePublishing as PipelinePublishing
 
 # Pipeline configuration
 P.getParameters(
@@ -237,7 +236,6 @@ PARAMS.update(P.peekParameters(
 
 PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
-PipelinePublishing.PARAMS = PARAMS
 
 # Helper functions mapping tracks to conditions, etc
 # determine the location of the input files (reads).
@@ -1798,7 +1796,7 @@ def publish():
     P.publish_report(export_files=export_files)
 
     E.info("publishing UCSC data hub")
-    PipelinePublishing.publish_tracks(export_files)
+    P.publish_tracks(export_files)
 
 
 if __name__ == "__main__":
