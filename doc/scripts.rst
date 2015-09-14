@@ -51,7 +51,6 @@ Other
    :maxdepth: 1
 
    scripts/cgat_build_report_page.rst
-   scripts/cgat_build_report_page.rst
    scripts/cgat_cwd2list.rst
    scripts/cgat_tsv2links.rst
    scripts/version.rst

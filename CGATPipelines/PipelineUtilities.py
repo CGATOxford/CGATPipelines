@@ -21,7 +21,6 @@ Reference
 
 
 """
-import sqlite3
 import CGAT.IOTools as IOTools
 import pickle
 from pandas import DataFrame

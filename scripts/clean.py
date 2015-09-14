@@ -22,7 +22,7 @@ Usage
 
 Example::
 
-   python clean.py --help
+   python clean.py
 
 Type::
 
@@ -37,10 +37,7 @@ Command line options
 import os
 import sys
 import re
-import string
-import optparse
 import glob
-import subprocess
 import os.path
 import CGAT.Experiment as E
 
@@ -97,17 +94,20 @@ def main(argv=None):
     if argv is None:
         argv = sys.argv
 
-    parser = E.OptionParser(version="%prog version: $Id: clean.py 2782 2009-09-10 11:40:29Z andreas $",
+    parser = E.OptionParser(version="%prog version: $Id$",
                             usage=globals()["__doc__"])
 
-    parser.add_option("-g", "--glob", dest="glob_pattern", type="string",
-                      help="glob pattern to use for collecting files [%default].")
+    parser.add_option(
+        "-g", "--glob", dest="glob_pattern", type="string",
+        help="glob pattern to use for collecting files [%default].")
 
-    parser.add_option("-n", "--dry-run", dest="dry_run", action="store_true",
-                      help="only print out actions, do not execute them [%default].")
+    parser.add_option(
+        "-n", "--dry-run", dest="dry_run", action="store_true",
+        help="only print out actions, do not execute them [%default].")
 
-    parser.add_option("-f", "--file-pattern", dest="file_pattern", type="string",
-                      help="only check files matching this pattern [%default].")
+    parser.add_option(
+        "-f", "--file-pattern", dest="file_pattern", type="string",
+        help="only check files matching this pattern [%default].")
 
     parser.set_defaults(glob_pattern="data.dir",
                         file_pattern=".out",

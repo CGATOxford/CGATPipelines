@@ -1,6 +1,5 @@
 
-'''
-cgat_ruffus_profile.py - analyze ruffus logfile
+'''cgat_ruffus_profile.py - analyze ruffus logfile
 ==================================================
 
 :Author: Andreas Heger
@@ -11,12 +10,96 @@ cgat_ruffus_profile.py - analyze ruffus logfile
 Purpose
 -------
 
-This script examines the ruffus logfile and collates
-summary information.
+This script collects information about tasks that have completed or
+are still running in a pipeline. It works by examining the logfile
+:file:`pipeline.log` looking for the last active run. It will collect
+a list of all tasks that have been executed or have just started and
+display runtime information.
 
-.. note::
+Usage
+-----
 
-   All times are wall clock times.
+To use the script, simply execute in a working directory of a pipeline::
+
+  python cgat_ruffus_profile.py
+
+Example output looks like this::
+
+  section object  ncalls  duration        percall running
+  task    runMedipsDMR    1       0        0.000  1
+  task    buildWindowsFoldChangesPerMedian        1       4        4.000  0
+  task    summarizeAllWindowsReadCounts   1       0        0.000  1
+  task    loadPicardDuplicateStats        1       31      31.000  0
+  task    (mkdir2)beforerunDESeq  2       11       5.500  0
+  task    summarizeWindowsReadCounts      1       60274   60274.000       0
+  task    runFilterAnalysis       1       0        0.000  1
+  task    (mkdir1)beforerunEdgeR  2       7        3.500  0
+  task    loadWindowsFoldChanges  1       126     126.000 0
+  ...
+  #//
+
+  # running tasks
+  runMedipsDMR
+  summarizeAllWindowsReadCounts
+  ...
+  #//
+
+  section object  ncalls  duration        percall running
+  job     overlaps.dir/method_designJuvenilemCNoOutlier_mC-juvenile-stressed.overlap      1       37      37.000  0
+  job     overlaps.dir/edger.overlap      1       0        0.000  1
+  job     roi.dir/designJuvenileHippocampusmC.pvalue      2       209     104.500 0
+  job     medips.dir/designJuvenileCortexmC.qvalue        1       256     256.000 0
+  job     overlaps.dir/by_method_designFoetalCortexmC.overlap     1       35      35.000  0
+  job     dmr_pvalues.load        1       12      12.000  0
+  ...
+  #//
+
+  # running jobs
+  overlaps.dir/edger.overlap
+  overlaps.dir/deseq_mC-foetal-sal.overlap
+  overlaps.dir/method_designJuvenileCortexmC_indows.all.overlap
+  medips.dir/designFoetalCortexmC.mergedwindows.all.bed.gz
+  ...
+  #//
+
+The output is divided in four sections displaying information for
+tasks and jobs. A task is a collection of jobs.  For each of the task
+or job summary, there are two sections. The first section lists all
+the tasks and indicates:
+
+ncalls
+    The number of time this task was executed. This corresponds to the
+    number of jobs started in this particular task
+duration
+    The execution time total for this task in wall clock time (seconds).
+    This is the time from when the task started to when it was complete.
+percall
+    The average execution time per job for this task.
+running
+    Flag to indicate if the task is still running.
+
+This section is followed by a list of all tasks that are still
+running.
+
+Next follow two sections describing equivalent information for jobs.
+
+This script relies on the :file:`pipeline.log` being in a consistent
+state. This might not be case if a pipeline has been executed several
+times simultaneously. Use the option ``--ignore-errors`` to get
+around this.
+
+By default, the script will only look at the last execution of a
+pipeline, use ``--no-reset`` to gather information over the full
+logfile.
+
+Type::
+
+  python cgat_ruffus_profile.py --help
+
+to get command line help.
+
+Command line options
+--------------------
 
 '''
 
