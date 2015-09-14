@@ -25,7 +25,7 @@ class TranscriptBiotypeSummary(IsoformTracker):
 
     def __call__(self, track, slice=None):
 
-        statement = '''SELECT test_id, transcript_biotype, significant
+        statement = '''SELECT transcript_id, transcript_biotype, significant
                        FROM %(track)s_DEresults
                        WHERE l2fold %(direction)s 0;'''
 
@@ -37,7 +37,7 @@ class TranscriptBiotypeSummary(IsoformTracker):
         df = df[[x in keep_biotypes for x in df['transcript_biotype']]]
 
         grouped = df.groupby(['significant', 'transcript_biotype'])
-        df_agg = grouped.aggregate({"test_id": 'count'})
+        df_agg = grouped.aggregate({"transcript_id": 'count'})
         df_agg.columns = ["Count"]
 
         # TS: must be able to do this more succinctly!

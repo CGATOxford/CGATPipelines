@@ -3,7 +3,7 @@ Diagnostic plots for Sleuth differential expression analysis
 ============================================================
 
 This section includes various diagnostic plots which are produced
-during the differential transcript expression analysis.
+during the differential transcript expression analysis with Sleuth.
 
 Techincal and Biological variance
 =================================
@@ -25,7 +25,7 @@ Mean-Variance plots
 Sleuth expects a relationship to be present between the mean
 expression of a gene and the variance in expression across the
 dataset. These plots present the relationship. Each dot is a
-transcripts.
+transcript.
 
 To more accurately estimate the true per-transcript variance, information is
 shared between genes expressed at a similar level. The blue dots

@@ -6,19 +6,6 @@ This section presents some basic data exploration plots from the
 transcript expression tables. 
 
 
-Correlations
-============
-Replicate samples are expected to show similar transcript expression
-profiles. The following plot presents all pairwise correlations
-between all samples.
-
-.. report:: Isoform.imagesTracker
-   :render: gallery-plot
-   :glob: summary_plots/*pairwise_correlations.png
-
-   correlation plots
-
-
 Heatmaps and hierachical clustering
 ===================================
 Samples are expected to cluster by treatment group. The following
@@ -28,7 +15,7 @@ shown in the heatmap below the dendogram
 
 .. report:: Isoform.imagesTracker
    :render: gallery-plot
-   :glob: summary_plots/*pairwise_correlations.png
+   :glob: summary_plots/*heatmap.png
 
    clustering plots
 
@@ -45,3 +32,4 @@ group. Only the first 4 PCs are shown here.
    :glob: summary_plots/*pc*_pc*.png
 
    PCA plots
+
