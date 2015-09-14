@@ -623,6 +623,13 @@ def connect():
     return dbh
 
 
+def connectToUCSC():
+    return PipelineUCSC.connectToUCSC(
+        host=PARAMS["ucsc_host"],
+        user=PARAMS["ucsc_user"],
+        database=PARAMS["ucsc_database"])
+
+
 ############################################################
 # Assembly
 @follows(mkdir('assembly.dir'))
@@ -1358,7 +1365,7 @@ def importRNAAnnotationFromUCSC(infile, outfile):
     '''
 
     repclasses = P.asList(PARAMS["ucsc_rnatypes"])
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
 
 
@@ -1371,7 +1378,7 @@ def importRepeatsFromUCSC(infile, outfile):
     '''
 
     repclasses = P.asList(PARAMS["ucsc_repeattypes"])
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
 
 
@@ -1383,7 +1390,7 @@ def importCpGIslandsFromUCSC(infile, outfile):
     The repeats are stored as a :term:`bed` formatted file.
     '''
 
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getCpGIslandsFromUCSC(dbhandle, outfile)
 
 
@@ -1430,7 +1437,7 @@ def importAllRepeatsFromUCSC(infile, outfile):
     '''
 
     repclasses = None
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
 
 

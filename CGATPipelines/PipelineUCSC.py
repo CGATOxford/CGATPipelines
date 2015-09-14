@@ -53,12 +53,14 @@ PARAMS = {}
 ############################################################
 
 
-def connectToUCSC():
-    dbhandle = MySQLdb.Connect(host=PARAMS["ucsc_host"],
-                               user=PARAMS["ucsc_user"])
+def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
+                  user="genome",
+                  database="hg19"):
+    dbhandle = MySQLdb.Connect(host=host,
+                               user=user)
 
     cc = dbhandle.cursor()
-    cc.execute("USE %s " % PARAMS["ucsc_database"])
+    cc.execute("USE %s " % database)
 
     return dbhandle
 

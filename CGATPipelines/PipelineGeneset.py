@@ -24,9 +24,7 @@ import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.GTF as GTF
 import CGAT.IndexedFasta as IndexedFasta
-
-# for UCSC import
-import MySQLdb
+import CGATPipelines.PipelineUCSC as PipelineUCSC
 
 # When importing this module, set PARAMS to your parameter
 # dictionary
@@ -56,18 +54,11 @@ def mapUCSCToEnsembl(genome):
     return MAP_UCSC2ENSEMBL[prefix]
 
 
-def connectToUCSC():
-    '''connect to UCSC mysql database.'''
-    dbhandle = MySQLdb.Connect(host=PARAMS["ucsc_host"],
-                               user=PARAMS["ucsc_user"])
-
-    cc = dbhandle.cursor()
-    cc.execute("USE %s " % PARAMS["ucsc_database"])
-
-    return dbhandle
-
-
-def importRefSeqFromUCSC(infile, outfile, remove_duplicates=True):
+def importRefSeqFromUCSC(infile, outfile,
+                         remove_duplicates=True,
+                         host="genome-mysql.cse.ucsc.edu",
+                         user="genome",
+                         database="hg19"):
     '''import gene set from UCSC database
     based on refseq mappings.
 
@@ -84,13 +75,9 @@ def importRefSeqFromUCSC(infile, outfile, remove_duplicates=True):
 
     '''
 
-    import MySQLdb
-    dbhandle = MySQLdb.Connect(host=PARAMS["ucsc_host"],
-                               user=PARAMS["ucsc_user"])
-
-    cc = dbhandle.cursor()
-    cc.execute("USE %s " % PARAMS["ucsc_database"])
-
+    dbh = PipelineUCSC.connectToUCSC(host=host,
+                                     user=user,
+                                     database=database)
     duplicates = set()
 
     if remove_duplicates:
