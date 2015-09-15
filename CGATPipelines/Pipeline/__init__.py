@@ -424,6 +424,7 @@ __all__ = [
     "mergeAndLoad",
     "connect",
     "createView",
+    "getDatabaseName",
     # Utils.py
     "isTest",
     "getCallerLocals",

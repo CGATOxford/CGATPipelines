@@ -473,7 +473,7 @@ def connect():
     # db.py handle.
 
     if PARAMS["database_backend"] == "sqlite":
-        dbh = sqlite3.connect(PARAMS["database"])
+        dbh = sqlite3.connect(getDatabaseName())
 
         if "annotations_database" in PARAMS:
             statement = '''ATTACH DATABASE '%s' as annotations''' % \
@@ -586,3 +586,33 @@ def createView(dbhandle, tables, tablename, outfile,
 
     E.info("created view_mapping with %i rows" % nrows)
     touchFile(outfile)
+
+
+def getDatabaseName():
+    '''Return the database name associated with the pipeline.
+
+    This method lookis in different sections in the ini file to permit
+    both old style ``database`` and new style ``database_name``.
+
+    This method has been implemented for backwards compatibility.
+
+    Returns
+    -------
+    databasename : string
+        Database name. Returns empty string if not found.
+
+    Raises
+    ------
+    KeyError
+       If no database name is found
+
+    '''
+
+    locations = ["database_name", "database"]
+
+    for location in locations:
+        database = PARAMS.get(location, None)
+        if database is not None:
+            return database
+
+    raise KeyError("database name not found")
