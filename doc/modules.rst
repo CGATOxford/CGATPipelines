@@ -20,19 +20,17 @@ Generic modules
 
 Modules in this section contain generic functionality for pipelines
 such as for report building, sample handling, etc., and tasks that
-occur in multiple pipelines. The most prominent module in this section
-is :mod:`Pipeline` that provides command line control,
-parameterization and more to pipeline scripts.
+occur in multiple pipelines. The most prominent package in this
+section is :mod:`Pipeline` that provides command line control,
+parameterization and more to pipeline scripts and is organized
+into several sub-packages.
 
 .. toctree::
    :maxdepth: 2
 
    pipelinemodules/Pipeline.rst
    pipelinemodules/PipelineTracks.rst
-   pipelinemodules/PipelineDatabase.rst
    pipelinemodules/PipelineUCSC.rst
-   pipelinemodules/PipelineUtilities.rst
-
 
 Pipeline specific modules
 =========================

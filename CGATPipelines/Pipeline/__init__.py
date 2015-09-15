@@ -150,9 +150,10 @@ method uploads data in a tab-separated file::
 The methods :func:`mergeAndLoad` and :func:`concatenateAndLoad` upload
 multiple files into same database by combining them first. The method
 :func:`createView` creates a table or view derived from other tables
-in the database.
+in the database. The function :func:`importFromIterator` uploads
+data from a python list or other iterable directly.
 
-The functions :func:`tablequote` and :func:`toTable` translates track
+The functions :func:`tablequote` and :func:`toTable` translate track
 names derived from filenames into names that are suitable for tables.
 
 The method :func:`build_load_statement` can be used to create an
@@ -425,6 +426,7 @@ __all__ = [
     "connect",
     "createView",
     "getDatabaseName",
+    "importFromIterator",
     # Utils.py
     "isTest",
     "getCallerLocals",
