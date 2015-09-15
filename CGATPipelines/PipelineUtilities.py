@@ -37,24 +37,6 @@ def write(outfile, lines, header=False):
 
     handle.close()
 
-# ########################## Biomart Access
-
-
-def biomart_iterator(attributes,
-                     host,
-                     biomart,
-                     dataset,
-                     filters=None,
-                     values=None
-                     ):
-    ''' Modified from pipeline biomart... '''
-
-    # Use PipelineBiomant.biomart_iterator
-    raise NotImplementedError(
-        "deprecated, use Biomart.biomart_iterator")
-
-# ########################## File Utitilies
-
 
 def txtToDict(filename, key=None, sep="\t"):
     '''make a dictionary from a text file keyed
