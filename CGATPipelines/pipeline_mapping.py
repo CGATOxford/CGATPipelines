@@ -225,6 +225,7 @@ P.getParameters(
         'paired_end': False})
 
 PARAMS = P.PARAMS
+
 # Add parameters from the annotation pipeline, but
 # only the interface
 PARAMS.update(P.peekParameters(

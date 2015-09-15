@@ -966,7 +966,7 @@ def runCuffCompare(infiles, outfile, reffile):
             try:
                 P.run()
                 break
-            except P.PipelineError, msg:
+            except:
                 E.warn("caught exception - trying again")
     else:
         inf = " ".join(["%s/%s" % (tmpdir, x) for x in infiles])

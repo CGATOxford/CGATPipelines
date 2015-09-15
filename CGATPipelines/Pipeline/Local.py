@@ -454,6 +454,7 @@ def publish_tracks(export_files,
 
     For example, calling the following code in a pipeline executed
     in .../proj013/mapping::
+
         export_files = {
             "bamfiles": glob.glob("*/*.bam") + glob.glob("*/*.bam.bai"),
             "bigwigfiles": glob.glob("*/*.bw"),

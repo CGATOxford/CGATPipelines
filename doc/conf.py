@@ -104,7 +104,6 @@ rst_epilog = '''
 .. _git: http://git-scm.com/
 .. _sge: http://wikis.sun.com/display/GridEngine/Home
 .. _alignlib: https://github.com/AndreasHeger/alignlib
-.. _ipython: http://ipython.org
 '''
 
 sys.path.insert(0, "../scripts")

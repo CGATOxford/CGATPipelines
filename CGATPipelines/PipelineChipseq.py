@@ -107,7 +107,7 @@ def getMinimumMappedReads(infiles):
         if x:
             v.append(x)
     if len(v) == 0:
-        raise P.PipelineError(
+        raise ValueError(
             "could not find mapped reads in files %s" % (str(infiles)))
     return min(v)
 

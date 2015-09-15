@@ -251,7 +251,7 @@ def buildWorkSpace(outfile, workspace):
         > %(outfile)s
         '''
     else:
-        raise P.PipelineError("unknown workspace '%s'" % workspace)
+        raise ValueError("unknown workspace '%s'" % workspace)
 
     P.run()
 
@@ -298,7 +298,7 @@ def buildAnnotatorAnnotations(tmpdir, outfile,
         > %(tmpannotations)s
         '''
     else:
-        raise P.PipelineError("unknown annotations '%s'" % annotations)
+        raise ValueError("unknown annotations '%s'" % annotations)
 
     P.run()
 

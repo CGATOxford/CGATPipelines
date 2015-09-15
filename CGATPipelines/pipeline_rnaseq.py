@@ -2089,7 +2089,7 @@ def runCuffCompare(infiles, outfile, reffile):
         try:
             P.run()
             break
-        except P.PipelineError, msg:
+        except:
             E.warn("caught exception - trying again")
 
     shutil.rmtree(tmpdir)

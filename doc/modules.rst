@@ -27,7 +27,6 @@ parameterization and more to pipeline scripts.
 .. toctree::
    :maxdepth: 2
 
-   pipelinemodules/Local.rst
    pipelinemodules/Pipeline.rst
    pipelinemodules/PipelineTracks.rst
    pipelinemodules/PipelineDatabase.rst

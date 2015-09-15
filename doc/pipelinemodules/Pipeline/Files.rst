@@ -1,4 +1,4 @@
 
-.. automodule:: Local
+.. automodule:: Pipeline.Files
    :members:
    :show-inheritance:
