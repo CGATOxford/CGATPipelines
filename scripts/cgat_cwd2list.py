@@ -1,29 +1,42 @@
-'''
-cwd2list.py
-====================================================
+'''cgat_cwd2list.py - list directory contents
+========================================
 
-:Author: 
-:Release: $Id$
 :Date: |today|
 :Tags: Python
 
 Purpose
 -------
 
-create a flat file that represents the current state of the current working directory.
-Useful for when data is deleted due to space contraints. If files need to be recreated
-then the difference between the current present and previous states can be assessed.
+create a flat file that lists the current contents of the current
+directory and its subfolders.  Useful for when data is deleted due to
+space contraints. If files need to be recreated then the difference
+between the current state and previous states can be assessed.
 
 Usage
 -----
 
-Example::
+The command::
 
-   python cwd2list.py 
+   python cgat_cwd2list.py
+
+This will create a file such as :file:`CWD_2015-09-15_12:45:29`
+listing all the files in the current directory and its subdirectories::
+
+  ##contents of cwd on 2015-09-15_12:45:29
+
+  ./scripts/cgat_cluster_distribute.rst
+  ./scripts/cgat_tsv2links.rst
+  ./scripts/qkill.rst
+  ./scripts/farm.rst
+  ./scripts/cgat_ruffus_profile.rst
+  ./scripts/__init__.rst
+  ./scripts/submit.rst
+  ./scripts/cgat_clean.rst
+  ...
 
 Type::
 
-   python cwd2list.py --help
+   python cgat_cwd2list.py --help
 
 for command line help.
 
@@ -34,13 +47,11 @@ Command line options
 
 import os
 import sys
-import re
-import optparse
-import collections
 import time
 import datetime
 
 import CGAT.Experiment as E
+import CGAT.IOTools as IOTools
 
 
 def main(argv=None):
@@ -65,12 +76,14 @@ def main(argv=None):
 
     ts = time.time()
     st = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H:%M:%S')
-    outf = open("CWD_%s" % st, "w")
-    outf.write("##state of cwd on %s\n\n" % st)
-    for directory, files in dir2files.iteritems():
-        for file in files:
-            path = os.path.join(directory, file)
-            outf.write(path + "\n")
+    filename = "CWD_%s" % st
+    E.info("outputting directory state to %s" % filename)
+    with IOTools.openFile(filename, "w") as outf:
+        outf.write("##contents of cwd on %s\n\n" % st)
+        for directory, files in dir2files.iteritems():
+            for file in files:
+                path = os.path.join(directory, file)
+                outf.write(path + "\n")
 
     # write footer and output benchmark information.
     E.Stop()
