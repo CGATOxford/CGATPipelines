@@ -84,25 +84,26 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     with IOTools.openFile(contaminants_file, "r") as inf:
         known_contaminants = [l.split() for l in inf
                               if not l.startswith("#") and l.strip()]
-        known_contaminants = [(" ".join(x[:-1]), x[-1])
-                              for x in known_contaminants]
+        known_contaminants = {" ".join(x[:-1]): x[-1]
+                              for x in known_contaminants}
 
     # output the full sequence of the contaminant if found
-    # in the list of known contaminants, otherwise output
-    # the sequence reported by Fastqc.
-    with IOTools.openFile(outfile, "w") as outf:
+    # in the list of known contaminants, otherwise don't report!
 
+    matched_contaminants = set()
+    with IOTools.openFile(outfile, "w") as outf:
         for found_source, found_seq in found_contaminants:
-            found = False
-            for known_source, known_seq in known_contaminants:
-                # output complete contaminant sequence if known
-                # (partial or complete subsequence)
-                if found_seq in known_seq:
-                    found = True
-                    outf.write(">%s\n%s\n" % (known_source, known_seq))
-            if not found:
-                # output found sequence if not known
-                outf.write(">%s\n%s\n" % (found_source, found_seq))
+            possible_source = found_source.split(" (")[0]
+
+            if possible_source in known_contaminants:
+                matched_contaminants.update((possible_source,))
+            else:
+                pass
+
+        if len(matched_contaminants) > 0:
+            for match in matched_contaminants:
+                outf.write(">%s\n%s\n" % (match.replace(" ,", ""),
+                                          known_contaminants[match]))
 
 
 class MasterProcessor(Mapping.SequenceCollectionProcessor):

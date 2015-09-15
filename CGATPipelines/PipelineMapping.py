@@ -960,6 +960,64 @@ class Sailfish(Mapper):
         return statement
 
 
+class Kallisto(Mapper):
+
+    '''run Kallisto to quantify transcript abundance from fastq files'''
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement on infiles'''
+
+        tmpdir = os.path.join(self.tmpdir_fastq + "kallisto")
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+
+            infiles = "--single " + " ".join([x[0] for x in infiles])
+
+        elif nfiles == 2:
+            infiles = " ".join([" ".join(x) for x in infiles])
+
+        else:
+            raise ValueError("incorrect number of input files")
+
+        # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
+        statement = '''
+        kallisto quant %%(kallisto_options)s
+        --bootstrap-samples=%%(bootstrap)s
+        -i %%(index)s -o %(tmpdir)s %(infiles)s;''' % locals()
+
+        self.tmpdir = tmpdir
+
+        return statement
+
+    def postprocess(self, infiles, outfile):
+        '''move outfiles from tmpdir to final location'''
+
+        directory = os.path.dirname(os.path.abspath(outfile))
+        tmpdir = self.tmpdir
+
+        statement = ('''
+        mkdir %(directory)s;
+        mv %(tmpdir)s/abundance.h5 %(outfile)s;
+        ''' % locals())
+
+        return statement
+
+    def cleanup(self, outfile):
+        '''clean up.'''
+        statement = '''rm -rf %s; rm -rf %s;''' % (
+            self.tmpdir_fastq, self.tmpdir)
+
+        return statement
+
+
 class Counter(Mapper):
 
     '''count number of reads in fastq files.'''
