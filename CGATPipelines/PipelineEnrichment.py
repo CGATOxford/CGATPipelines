@@ -1,14 +1,9 @@
 '''
-PipelineEnrichment.py - 
-======================================================
+PipelineEnrichment.py - Tasks for computing genomic enrichment
+==============================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-Code
-----
+Reference
+---------
 
 '''
 import re
@@ -89,20 +84,14 @@ def buildAnnotatorGC(infile, outfile):
     '''compute G+C regions.'''
 
     statement = '''
-    python %(scriptsdir)s/bed2bed.py 
+    python %(scriptsdir)s/bed2bed.py
         --method=bins
         --num-bins=%(enrichment_gc_bins)s
         --binning-method=%(enrichment_gc_method)s 
-        --log=%(outfile)s.log 
+        --log=%(outfile)s.log
     < %(infile)s > %(outfile)s'''
 
     P.run()
-
-############################################################
-############################################################
-############################################################
-##
-############################################################
 
 
 def buildIsochoresGC(infile, outfile):
