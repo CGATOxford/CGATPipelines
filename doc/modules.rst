@@ -31,6 +31,7 @@ into several sub-packages.
    pipelinemodules/Pipeline.rst
    pipelinemodules/PipelineTracks.rst
    pipelinemodules/PipelineUCSC.rst
+   pipelinemodules/PipelineGO.rst
 
 Pipeline specific modules
 =========================
@@ -41,12 +42,9 @@ contain the implementation of tasks, tool wrappers and
 parsers.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   pipelinemodules/PipelineChipseq.rst
-   pipelinemodules/PipelineEnrichment.rst
    pipelinemodules/PipelineExome.rst
-   pipelinemodules/PipelineGO.rst
    pipelinemodules/PipelineGeneset.rst
    pipelinemodules/PipelineIDR.rst
    pipelinemodules/PipelineIntervalAnnotation.rst
@@ -66,3 +64,15 @@ parsers.
    pipelinemodules/PipelineTimeseries.rst
    pipelinemodules/PipelineTransfacMatch.rst
    pipelinemodules/PipelineWindows.rst
+
+Historic modules
+================
+
+The modules below contain tasks that are not in active use,
+but might be source of new material.
+
+.. toctree::
+   :maxdepth: 2
+
+   pipelinemodules/PipelineChipseq.rst
+   pipelinemodules/PipelineEnrichment.rst
