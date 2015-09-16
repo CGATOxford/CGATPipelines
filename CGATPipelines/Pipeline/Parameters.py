@@ -73,15 +73,27 @@ if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
 # Global variable for configuration file data
 CONFIG = ConfigParser.ConfigParser()
 
-# Global variable for parameter interpolation in
-# commands
+
+
+class TriggeredDefaultFactory:
+    with_default = False
+
+    def __call__(self):
+        if TriggeredDefaultFactory.with_default:
+            return str
+        else:
+            raise KeyError()
+
+# Global variable for parameter interpolation in commands
+# This is a dictionary that can be switched between defaultdict
+# and normal dict behaviour.
+PARAMS = collections.defaultdict(TriggeredDefaultFactory())
+
 # patch - if --help or -h in command line arguments,
-# use a default dict as PARAMS to avaid missing paramater
+# switch to a default dict to avoid missing paramater
 # failures
 if isTest() or "--help" in sys.argv or "-h" in sys.argv:
-    PARAMS = collections.defaultdict(str)
-else:
-    PARAMS = {}
+    TriggeredDefaultFactory.with_default = True
 
 # A list of hard-coded parameters within the CGAT environment
 # These can be overwritten by command line options and
@@ -288,7 +300,8 @@ def getParameters(filenames=["pipeline.ini", ],
     # Note: Parameter sharing in the Pipeline module needs
     # to be reorganized.
     if only_import:
-        assert isinstance(PARAMS, collections.defaultdict)
+        # turn on default dictionary
+        TriggeredDefaultFactory.with_default = True
 
     if user_ini:
         # read configuration from a users home directory
