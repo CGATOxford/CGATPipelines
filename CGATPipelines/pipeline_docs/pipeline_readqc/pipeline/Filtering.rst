@@ -15,7 +15,7 @@ Number of sequences
    Number of sequences before and after processing.
 
 Sequence lengths
-===================
+================
 
 .. report:: ReadqcReport.ProcessingComparison
    :render: table
