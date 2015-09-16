@@ -84,6 +84,11 @@ from CGATPipelines.Pipeline.Local import getProjectName, getPipelineName
 # Set from Pipeline.py
 PARAMS = {}
 
+# global options and arguments - set but currently not
+# used as relevant sections are entered into the PARAMS
+# dictionary. Could be deprecated and removed.
+GLOBAL_OPTIONS, GLOBAL_ARGS = None, None
+
 
 def writeConfigFiles(path):
     '''create default configuration files in `path`.
@@ -722,7 +727,7 @@ def main(args=sys.argv):
                       help="explicitely set paramater values "
                       "[default=%default].")
 
-    parser.add_option("-c", "--checksums", dest="checksums",
+    parser.add_option("-c", "--checksums", dest="ruffus_checksums_level",
                       type="int",
                       help="set the level of ruffus checksums"
                       "[default=%default].")
@@ -755,7 +760,7 @@ def main(args=sys.argv):
         debug=False,
         variables_to_set=[],
         is_test=False,
-        checksums=0,
+        ruffus_checksums_level=0,
         rabbitmq_host="saruman",
         rabbitmq_exchange="ruffus_pipelines")
 
@@ -781,6 +786,8 @@ def main(args=sys.argv):
     if options.cluster_parallel_environment is not None:
         PARAMS["cluster_parallel_environment"] =\
             options.cluster_parallel_environment
+
+    PARAMS["ruffus_checksums_level"] = options.ruffus_checksums_level
 
     for variables in options.variables_to_set:
         variable, value = variables.split("=")

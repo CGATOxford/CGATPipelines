@@ -43,7 +43,9 @@ from CGATPipelines.Pipeline.Utils import getCallerLocals, isTest
 # sort out script paths
 
 # root directory of CGAT Code collection
-CGATSCRIPTS_ROOT_DIR = os.path.dirname(E.__file__)
+CGATSCRIPTS_ROOT_DIR = os.path.dirname(
+    os.path.dirname(E.__file__))
+
 # CGAT Code collection scripts
 CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
 

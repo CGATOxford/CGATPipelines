@@ -237,11 +237,6 @@ import Files as Files
 import Utils as Utils
 import Parameters as Parameters
 
-# global options and arguments - set but currently not
-# used as relevant sections are entered into the PARAMS
-# dictionary. Could be deprecated and removed.
-GLOBAL_OPTIONS, GLOBAL_ARGS = None, None
-
 # broadcast parameters and config object, take from
 # Parameters.py
 PARAMS = Parameters.PARAMS
@@ -276,16 +271,13 @@ def run_report(clean=True,
         if not os.path.exists(targetdir):
             os.mkdir(targetdir)
 
-        # get checksum level from command line options
-        checksum_level = GLOBAL_OPTIONS.checksums
-
         pipeline_printout_graph(
             os.path.join(
                 targetdir,
                 "pipeline.%s" % pipeline_status_format),
             pipeline_status_format,
             ["full"],
-            checksum_level=checksum_level
+            checksum_level=PARAMS["ruffus_checksums_level"]
         )
 
     dirname, basename = os.path.split(getCaller().__file__)

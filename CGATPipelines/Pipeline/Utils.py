@@ -32,11 +32,11 @@ import sys
 
 
 def isTest():
-    '''return True if the pipeline is run in a "testing" mode
-    (command line options --is-test has been given).'''
+    """return True if the pipeline is run in a "testing" mode.
 
-    # note: do not test GLOBAL_OPTIONS as this method might have
-    # been called before main()
+    This method checks if ``-is-test`` has been given as a
+    command line option.
+    """
     return "--is-test" in sys.argv
 
 
