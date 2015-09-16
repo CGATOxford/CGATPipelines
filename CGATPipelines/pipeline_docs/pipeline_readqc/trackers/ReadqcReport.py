@@ -10,7 +10,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 EXPORTDIR = P.get('readqc_exportdir', P.get('exportdir', 'export'))
 DATADIR = P.get('readqc_datadir', P.get('datadir', '.'))
 DATABASE = P.get('readqc_backend', P.get('sql_backend', 'sqlite:///./csvdb'))
-PROCESSEDDIR = "processed.dir" 
+PROCESSEDDIR = "processed.dir"
 
 TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
     glob.glob("%s/*.sra" % DATADIR), "(\S+).sra") +\
