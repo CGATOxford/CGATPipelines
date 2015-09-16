@@ -292,16 +292,12 @@ def peekParameters(workingdir,
     # Attempt to locate directory with pipeline source code. This is a
     # patch as pipelines might be called within the repository
     # directory or from an installed location
-    dirname = os.path.dirname(__file__)
+    dirname = PARAMS["pipelinedir"]
 
     # called without a directory, use current directory
     if dirname == "":
         dirname = os.path.abspath(".")
     else:
-        # else: use location of Pipeline.py
-        # remove CGAT part, add CGATPipelines
-        dirname = os.path.join(os.path.dirname(dirname),
-                               "CGATPipelines")
         # if not exists, assume we want version located
         # in directory of calling script.
         if not os.path.exists(dirname):
@@ -312,7 +308,7 @@ def peekParameters(workingdir,
     if not os.path.exists(pipeline):
         if on_error_raise:
             raise ValueError(
-                "can't find pipeline source %s" % (dirname, pipeline))
+                "can't find pipeline at %s" % (pipeline))
         else:
             return {}
 
