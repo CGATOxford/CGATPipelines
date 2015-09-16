@@ -865,7 +865,7 @@ def main(args=sys.argv):
                     stream,
                     options.pipeline_targets,
                     verbose=5,
-                    checksum_level=options.checksums)
+                    checksum_level=options.ruffus_checksums_level)
 
                 messenger = LoggingFilterRabbitMQ(
                     stream.getvalue(),
@@ -905,7 +905,7 @@ def main(args=sys.argv):
                     verbose=options.loglevel,
                     log_exceptions=options.log_exceptions,
                     exceptions_terminate_immediately=options.exceptions_terminate_immediately,
-                    checksum_level=options.checksums,
+                    checksum_level=options.ruffus_checksums_level,
                 )
 
                 E.info(E.GetFooter())
@@ -917,19 +917,19 @@ def main(args=sys.argv):
                     options.stdout,
                     options.pipeline_targets,
                     verbose=options.loglevel,
-                    checksum_level=options.checksums)
+                    checksum_level=options.ruffus_checksums_level)
 
             elif options.pipeline_action == "touch":
                 pipeline_run(
                     options.pipeline_targets,
                     touch_files_only=True,
                     verbose=options.loglevel,
-                    checksum_level=options.checksums)
+                    checksum_level=options.ruffus_checksums_level)
 
             elif options.pipeline_action == "regenerate":
                 pipeline_run(
                     options.pipeline_targets,
-                    touch_files_only=options.checksums,
+                    touch_files_only=options.ruffus_checksums_level,
                     verbose=options.loglevel)
 
             elif options.pipeline_action == "svg":
@@ -937,7 +937,7 @@ def main(args=sys.argv):
                     options.stdout,
                     options.pipeline_format,
                     options.pipeline_targets,
-                    checksum_level=options.checksums)
+                    checksum_level=options.ruffus_checksums_level)
 
             elif options.pipeline_action == "plot":
                 outf, filename = tempfile.mkstemp()
@@ -945,7 +945,7 @@ def main(args=sys.argv):
                     os.fdopen(outf, "w"),
                     options.pipeline_format,
                     options.pipeline_targets,
-                    checksum_level=options.checksums)
+                    checksum_level=options.ruffus_checksums_level)
                 execute("inkscape %s" % filename)
                 os.unlink(filename)
 
