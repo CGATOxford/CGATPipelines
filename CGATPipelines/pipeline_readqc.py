@@ -335,7 +335,8 @@ def runFastqc(infiles, outfile):
 @transform(runFastqc, suffix(".fastqc"), "_fastqc.load")
 def loadFastqc(infile, outfile):
     '''load FASTQC stats into database.'''
-    track = P.snip(infile, ".fastqc")
+    # ignore path information
+    track = P.snip(os.path.basename(infile), ".fastqc")
     filename = os.path.join(
         PARAMS["exportdir"], "fastqc", track + "*_fastqc", "fastqc_data.txt")
 
