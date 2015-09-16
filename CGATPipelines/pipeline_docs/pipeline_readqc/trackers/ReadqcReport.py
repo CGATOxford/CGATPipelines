@@ -26,6 +26,9 @@ TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
         glob.glob("%s/*.fastq.1.gz" % PROCESSEDDIR), "(\S+).fastq.1.gz")
 
 
+UNPROCESSED_TRACKS = [x for x in TRACKS if not str(x).startswith("trimmed")]
+
+
 class ReadqcTracker(TrackerSQL):
 
     '''Define convenience tracks for plots'''
@@ -130,6 +133,25 @@ class FastqcSummary(ReadqcTracker, SingleTableTrackerRows):
     table = "basic_statistics_summary"
 
 
+class ProcessingComparison(ReadqcTracker):
+    """compare before after for read-processing."""
+    table = "basic_statistics_summary"
+    tracks = sorted([x.asFile() for x in UNPROCESSED_TRACKS])
+    slices = ("Total_Sequences", "Sequence_length")
+
+    def __call__(self, track, slice):
+
+        untrimmed = self.getValue(
+            "SELECT %(slice)s FROM %(table)s WHERE track = '%(track)s'")
+
+        trimmed = self.getValue(
+            "SELECT %(slice)s FROM %(table)s "
+            "WHERE track = 'trimmed-%(track)s'")
+
+        return odict((("untrimmed", untrimmed),
+                      ("trimmed", trimmed)))
+
+
 class ProcessingDetails(ReadqcTracker):
 
     '''return summary of the read processing steps.'''
@@ -144,3 +166,5 @@ class ProcessingDetails(ReadqcTracker):
 
 class ProcessingSummary(ReadqcTracker, SingleTableTrackerRows):
     table = "processing_summary"
+
+

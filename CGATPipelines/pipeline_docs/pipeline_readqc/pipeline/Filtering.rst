@@ -3,41 +3,24 @@ Processing summary
 ==================
 
 The following plot shows the reads input and output after read
-processing.
+processing such as trimming.
 
-.. report:: ReadqcReport.ProcessingSummary
-   :render: interleaved-bar-plot
-   :slices: ninput,noutput
-   
-   Summary of processing
+Number of sequences
+===================
 
-.. report:: ReadqcReport.ProcessingSummary
-   :render: interleaved-bar-plot
-   :slices: percent_output
-   
-   Percent of reads output after processing
-
-.. report:: ReadqcReport.ProcessingSummary
+.. report:: ReadqcReport.ProcessingComparison
    :render: table
-   :force:
+   :slices: Total_Sequences
+   
+   Number of sequences before and after processing.
 
-   Summary of processing   
+Sequence lengths
+===================
 
-.. report:: ReadqcReport.ProcessingDetails
+.. report:: ReadqcReport.ProcessingComparison
    :render: table
-   :force:
-
-   Summary of processing   
-
-.. .. report:: ReadqcReport.FilteringSummary
-..    :render: interleaved-bar-plot
-..    :slices: processed_reads,unchanged_reads
-
-..    Summary of filtering	
-
-.. .. report:: ReadqcReport.FilteringSummary
-..    :render: table
-
-..    Summary of filtering	
+   :slices: Sequence_length
+   
+   Sequence length before and after processing.
 
 
