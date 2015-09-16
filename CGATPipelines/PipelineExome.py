@@ -3,27 +3,8 @@
 PipelineExome.py - common tasks for Variant Calling
 ======================================================
 
-:Author: David Sims & Tom Smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-Purpose
--------
-
-
-Usage
------
-
-Type::
-
-   python <script_name>.py --help
-
-for command line help.
-
-Code
-----
-
+Reference
+---------
 
 """
 # Import modules
