@@ -256,6 +256,10 @@ def main(argv=sys.argv):
         elif re.search("Job=\[(\S+)->(\S+)\]Missingfile[s]*", msg):
             started_infiles, started_job = re.search(
                 "Job=\[(\S+)->(\S+)\]Missingfile[s]*", msg).groups()
+        elif re.search("Job=\[(\S+)->(\S+)\]\s*\.\.\.", msg):
+            # multi-line log messages
+            started_infiles, started_job = re.search(
+                "Job=\[(\S+)->(\S+)\]\s*\.\.\.", msg).groups()
         elif re.search("Taskentersqueue=(\S+)", msg):
             started_task = re.search("Taskentersqueue=(\S+)", msg).groups()[0]
         elif re.search("Job=\[(\S+)->(\S+)\]completed", msg):
@@ -281,7 +285,7 @@ def main(argv=sys.argv):
                 raise ValueError("unknown action")
         except ValueError, msg:
             if not options.ignore_errors:
-                raise
+                raise ValueError(str(msg) + "\nat line %s" % line)
 
     if options.time == "milliseconds":
         f = lambda d: d.seconds + d.microseconds / 1000
