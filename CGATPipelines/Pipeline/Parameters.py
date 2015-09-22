@@ -79,7 +79,7 @@ class TriggeredDefaultFactory:
 
     def __call__(self):
         if TriggeredDefaultFactory.with_default:
-            return str
+            return str()
         else:
             raise KeyError("missing parameter accessed")
 
