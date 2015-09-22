@@ -61,6 +61,12 @@ is as follows:
    processed data. Note that all the processed data will be found in
    the :file:`processed.dir` directory.
 
+
+.. note::
+
+   If you set the option auto_remove, you will ned to run the
+   pipeline at least once without any pre-processors.
+
 Configuration
 -------------
 
@@ -181,11 +187,19 @@ def connect():
     dbh = sqlite3.connect(PARAMS['database'])
     return dbh
 
+
+@transform(INPUT_FORMATS, regex("(.*)"), r"\1")
+def unprocessReads(infiles, outfiles):
+    """dummy task - no processing of reads."""
+    pass
+
+
 # if preprocess tools are specified, preprocessing is done on output that has
 # already been generated in the first run
 if PARAMS.get("preprocessors", None):
     if PARAMS["auto_remove"]:
         @follows(mkdir("fasta.dir"))
+        @follows(loadFastqc)
         @transform(INPUT_FORMATS,
                    regex(SEQUENCEFILES_REGEX),
                    r"fasta.dir/\1.fasta")
@@ -299,12 +313,6 @@ else:
         pass
 
 
-@transform(INPUT_FORMATS, regex("(.*)"), r"\1")
-def unprocessReads(infiles, outfiles):
-    """dummy task - no processing of reads."""
-    pass
-
-
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
 @transform((unprocessReads, processReads),
@@ -320,10 +328,12 @@ def runFastqc(infiles, outfile):
     # MM: only pass the contaminants file list if requested by user,
     # do not make this the default behaviour
     if PARAMS['add_contaminants']:
-        m = PipelineMapping.FastQc(outdir=PARAMS["exportdir"] + "/fastqc",
+        m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
+                                   outdir=PARAMS["exportdir"] + "/fastqc",
                                    contaminants=PARAMS['contaminants'])
     else:
-        m = PipelineMapping.FastQc(outdir=PARAMS["exportdir"] + "/fastqc")
+        m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
+                                   outdir=PARAMS["exportdir"] + "/fastqc")
 
     statement = m.build((infiles,), outfile)
     P.run()
@@ -333,8 +343,7 @@ def runFastqc(infiles, outfile):
 @transform(runFastqc, suffix(".fastqc"), "_fastqc.load")
 def loadFastqc(infile, outfile):
     '''load FASTQC stats into database.'''
-    # ignore path information
-    track = P.snip(os.path.basename(infile), ".fastqc")
+    track = P.snip(infile, ".fastqc")
     filename = os.path.join(
         PARAMS["exportdir"], "fastqc", track + "*_fastqc", "fastqc_data.txt")
 

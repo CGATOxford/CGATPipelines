@@ -837,7 +837,7 @@ def buildTophatStats(infiles, outfile):
             if len(lines) > 0:
                 segment_juncs_version = _select(lines, "segment_juncs (.*)$")
                 possible_splices = int(
-                    _select(lines, "Reported (\d+) total possible splices"))
+                    _select(lines, "Reported (\d+) total potential splices"))
             else:
                 segment_juncs_version = "na"
                 possible_splices = ""
@@ -1165,8 +1165,7 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
         '''
         P.run()
 
-    # add to bam files produced
-    MAPPINGTARGETS.append(mergeBAMFiles)
+    MAPPINGTARGETS = MAPPINGTARGETS + [mergeBAMFiles]
 
     @collate(countReads,
              regex("%s.nreads" % PARAMS["merge_pattern_input"]),
@@ -1734,7 +1733,7 @@ def test():
 
 
 @follows(mapping)
-def map():
+def map_only():
     pass
 
 

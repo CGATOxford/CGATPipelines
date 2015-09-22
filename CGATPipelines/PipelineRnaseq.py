@@ -715,7 +715,7 @@ def loadCufflinks(infile, outfile):
     P.touch(outfile)
 
 
-def mergeCufflinksFPKM(infiles, outfile,
+def mergeCufflinksFPKM(infiles, outfile, genesets,
                        tracking="genes_tracking",
                        identifier="gene_id"):
     '''build aggregate table with cufflinks FPKM values.
@@ -725,8 +725,9 @@ def mergeCufflinksFPKM(infiles, outfile,
     fpkm_tracking: isoforms
     '''
 
-    prefix = os.path.basename(infiles[0])
-    prefix = prefix[:prefix.rfind("_")]
+    for x in genesets:
+        if str(x) in os.path.basename(outfile):
+            prefix = str(x)
     print prefix
 
     headers = ",".join(

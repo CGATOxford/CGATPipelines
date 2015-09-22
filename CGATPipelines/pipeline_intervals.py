@@ -188,6 +188,11 @@ import PipelineMotifs as PipelineMotifs
 import PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
 
+
+# product available in ruffus 2.3.6, but not exported
+class product(task_decorator):
+    pass
+
 ###################################################
 ###################################################
 ###################################################
@@ -1601,10 +1606,6 @@ def prepareTags(infile, outfile):
         filtering_dedup='filtering_dedup' in PARAMS,
         filtering_dedup_method=PARAMS.get('filtering_dedup_method',
                                           'picard'))
-
-
-class product(task_decorator):
-    pass
 
 
 @product(BEDFILES, formatter("(.bed.gz)$"),

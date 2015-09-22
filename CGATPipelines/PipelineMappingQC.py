@@ -14,7 +14,19 @@ import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
 
-PICARD_MEMORY = "1.4G"
+PICARD_MEMORY = "2.1G"
+
+
+def getNumReadsFromReadsFile(infile):
+    '''get number of reads from a .nreads file.'''
+    with IOTools.openFile(infile) as inf:
+        line = inf.readline()
+        if not line.startswith("nreads"):
+            raise ValueError(
+                "parsing error in file '%s': "
+                "expected first line to start with 'nreads'")
+        nreads = int(line[:-1].split("\t")[1])
+    return nreads
 
 
 def buildPicardInsertSizeStats(infile, outfile, genome_file):

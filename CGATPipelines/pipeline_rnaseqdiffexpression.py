@@ -434,6 +434,7 @@ def mergeCufflinksGeneFPKM(infiles, outfile):
     PipelineRnaseq.mergeCufflinksFPKM(
         infiles,
         outfile,
+        GENESETS,
         identifier="gene_id",
         tracking="genes_tracking")
 
@@ -446,6 +447,7 @@ def mergeCufflinksIsoformFPKM(infiles, outfile):
     PipelineRnaseq.mergeCufflinksFPKM(
         infiles,
         outfile,
+        GENESETS,
         identifier="transcript_id",
         tracking="fpkm_tracking")
 
