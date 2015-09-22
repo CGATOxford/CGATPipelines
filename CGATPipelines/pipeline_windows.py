@@ -1672,7 +1672,7 @@ def normalizeSummarizedContextStats(infile, outfile):
                    PARAMS["annotations_interface_contigs_ungapped_bed"])),
            r"gat_context.dir/\1.tsv.gz")
 def testTagContextOverlap(infiles, outfile):
-    """test for genomic Overlap."""
+    """test for genomic overlap using gat."""
 
     tagfile, contextfile, workspacefile = infiles
     PipelineWindows.testTagContextOverlap(

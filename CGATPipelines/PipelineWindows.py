@@ -1252,7 +1252,7 @@ def testTagContextOverlap(tagfile,
     workspace : string
          Genomic workspace for gat simulations in :term:`bed` format.
     outfile : string
-         Output filename.
+         Output filename in :term:`tsv` format.
     threads : int
          Number of threads to use.
     samples : int
