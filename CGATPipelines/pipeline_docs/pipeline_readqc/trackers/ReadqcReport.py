@@ -70,14 +70,15 @@ class FilteringSummary(SingleTableTrackerRows):
 
 class FastQCDetails(ReadqcTracker):
     tracks = ["all"]
-    slices = ("duplication_levels",
+    slices = ("adapter_content",
+              "duplication_levels",
               "kmer_profiles",
-              "per_base_gc_content",
               "per_base_n_content",
               "per_base_quality",
               "per_base_sequence_content",
               "per_sequence_gc_content",
               "per_sequence_quality",
+              "per_tile_quality",
               "sequence_length_distribution")
 
     def __call__(self, track, slice=None):
@@ -131,6 +132,14 @@ class FastqcSummaryFull(ReadqcTracker):
 
 class FastqcSummary(ReadqcTracker, SingleTableTrackerRows):
     table = "basic_statistics_summary"
+
+
+class OverRepresentedSequences(ReadqcTracker):
+    pattern = "(.*)_Overrepresented_sequences"
+    
+    def __call__(self, track):
+        return self.getAll(
+            "SELECT * FROM %(track)s_Overrepresented_sequences")
 
 
 class ProcessingComparison(ReadqcTracker):
