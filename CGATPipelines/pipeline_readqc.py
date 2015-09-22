@@ -61,6 +61,12 @@ is as follows:
    processed data. Note that all the processed data will be found in
    the :file:`processed.dir` directory.
 
+
+.. note::
+
+   If you set the option auto_remove, you will ned to run the
+   pipeline at least once without any pre-processors.
+
 Configuration
 -------------
 
@@ -188,50 +194,6 @@ def unprocessReads(infiles, outfiles):
     pass
 
 
-@follows(mkdir(PARAMS["exportdir"]),
-         mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
-@transform(unprocessReads,
-           regex(REGEX_TRACK),
-           r"\1.fastqc")
-def runFastqc(infiles, outfile):
-    '''run Fastqc on each input file.
-
-    convert sra files to fastq and check mapping qualities are in
-    solexa format.  Perform quality control checks on reads from
-    .fastq files.
-    '''
-    # MM: only pass the contaminants file list if requested by user,
-    # do not make this the default behaviour
-    if PARAMS['add_contaminants']:
-        m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                   outdir=PARAMS["exportdir"] + "/fastqc",
-                                   contaminants=PARAMS['contaminants'])
-    else:
-        m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                   outdir=PARAMS["exportdir"] + "/fastqc")
-
-    statement = m.build((infiles,), outfile)
-    P.run()
-
-
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
-@transform(runFastqc, suffix(".fastqc"), "_fastqc.load")
-def loadFastqc(infile, outfile):
-    '''load FASTQC stats into database.'''
-    track = P.snip(infile, ".fastqc")
-    filename = os.path.join(
-        PARAMS["exportdir"], "fastqc", track + "*_fastqc", "fastqc_data.txt")
-
-    PipelineReadqc.loadFastqc(filename,
-                              backend=PARAMS["database_backend"],
-                              database=PARAMS["database_name"],
-                              host=PARAMS["database_host"],
-                              username=PARAMS["database_username"],
-                              password=PARAMS["database_password"],
-                              port=PARAMS["database_port"])
-    P.touch(outfile)
-
-
 # if preprocess tools are specified, preprocessing is done on output that has
 # already been generated in the first run
 if PARAMS.get("preprocessors", None):
@@ -344,63 +306,55 @@ if PARAMS.get("preprocessors", None):
 
         P.run()
 
-    @follows(mkdir(PARAMS["exportdir"]),
-             mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
-    @transform(processReads,
-               regex(REGEX_TRACK),
-               r"\1.fastqc")
-    def runFastqcProcessed(infiles, outfile):
-        '''run Fastqc on each input file.
-
-        convert sra files to fastq and check mapping qualities are in
-        solexa format.  Perform quality control checks on reads from
-        .fastq files.
-        '''
-        # MM: only pass the contaminants file list if requested by user,
-        # do not make this the default behaviour
-        if PARAMS['add_contaminants']:
-            m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                       outdir=PARAMS["exportdir"] + "/fastqc",
-                                       contaminants=PARAMS['contaminants'])
-        else:
-            m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                       outdir=PARAMS["exportdir"] + "/fastqc")
-
-        statement = m.build((infiles,), outfile)
-        P.run()
-
-    @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
-    @transform(runFastqcProcessed, suffix(".fastqc"), "_fastqc.load")
-    def loadFastqcProcessed(infile, outfile):
-        '''load FASTQC stats into database.'''
-        track = P.snip(infile, ".fastqc")
-        filename = os.path.join(PARAMS["exportdir"], "fastqc",
-                                track + "*_fastqc", "fastqc_data.txt")
-
-        PipelineReadqc.loadFastqc(filename,
-                                  backend=PARAMS["database_backend"],
-                                  database=PARAMS["database_name"],
-                                  host=PARAMS["database_host"],
-                                  username=PARAMS["database_username"],
-                                  password=PARAMS["database_password"],
-                                  port=PARAMS["database_port"])
-        P.touch(outfile)
-
 else:
     @follows(mkdir("processed.dir"))
     def processReads():
         """dummy task - no processing of reads."""
         pass
 
-    @follows(processReads)
-    def runFastqcProcessed():
-        """dummy task - no processing of reads."""
-        pass
 
-    @follows(processReads)
-    def loadFastqcProcessed():
-        """dummy task - no processing of reads."""
-        pass
+@follows(mkdir(PARAMS["exportdir"]),
+         mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
+@transform((unprocessReads, processReads),
+           regex(REGEX_TRACK),
+           r"\1.fastqc")
+def runFastqc(infiles, outfile):
+    '''run Fastqc on each input file.
+
+    convert sra files to fastq and check mapping qualities are in
+    solexa format.  Perform quality control checks on reads from
+    .fastq files.
+    '''
+    # MM: only pass the contaminants file list if requested by user,
+    # do not make this the default behaviour
+    if PARAMS['add_contaminants']:
+        m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
+                                   outdir=PARAMS["exportdir"] + "/fastqc",
+                                   contaminants=PARAMS['contaminants'])
+    else:
+        m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
+                                   outdir=PARAMS["exportdir"] + "/fastqc")
+
+    statement = m.build((infiles,), outfile)
+    P.run()
+
+
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@transform(runFastqc, suffix(".fastqc"), "_fastqc.load")
+def loadFastqc(infile, outfile):
+    '''load FASTQC stats into database.'''
+    track = P.snip(infile, ".fastqc")
+    filename = os.path.join(
+        PARAMS["exportdir"], "fastqc", track + "*_fastqc", "fastqc_data.txt")
+
+    PipelineReadqc.loadFastqc(filename,
+                              backend=PARAMS["database_backend"],
+                              database=PARAMS["database_name"],
+                              host=PARAMS["database_host"],
+                              username=PARAMS["database_username"],
+                              password=PARAMS["database_password"],
+                              port=PARAMS["database_port"])
+    P.touch(outfile)
 
 
 @follows(mkdir(PARAMS["exportdir"]),
@@ -430,15 +384,15 @@ def runFastqScreen(infiles, outfile):
     P.touch(outfile)
 
 
-@merge((runFastqc, runFastqcProcessed), "status_summary.tsv.gz")
+@merge(runFastqc, "status_summary.tsv.gz")
 def buildFastQCSummaryStatus(infiles, outfile):
     '''load fastqc status summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
     PipelineReadqc.buildFastQCSummaryStatus(infiles, outfile, exportdir)
 
 
-@follows(loadFastqc, loadFastqcProcessed)
-@merge((runFastqc, runFastqcProcessed), "basic_statistics_summary.tsv.gz")
+@follows(loadFastqc)
+@merge(runFastqc, "basic_statistics_summary.tsv.gz")
 def buildFastQCSummaryBasicStatistics(infiles, outfile):
     '''load fastqc summaries into a single table.'''
     exportdir = os.path.join(PARAMS["exportdir"], "fastqc")
@@ -446,8 +400,8 @@ def buildFastQCSummaryBasicStatistics(infiles, outfile):
                                                      exportdir)
 
 
-@follows(mkdir("experiment.dir"), loadFastqc, loadFastqcProcessed)
-@collate((runFastqc, runFastqcProcessed),
+@follows(mkdir("experiment.dir"), loadFastqc)
+@collate(runFastqc,
          regex("(processed.dir/)*(.*)-([^-]*).fastqc"),
          r"experiment.dir/\2_per_sequence_quality.tsv")
 def buildExperimentLevelReadQuality(infiles, outfile):
@@ -489,10 +443,10 @@ def loadFastqcSummary(infile, outfile):
     P.load(infile, outfile, options="--add-index=track")
 
 
-@follows(loadFastqc, loadFastqcProcessed,
+@follows(loadFastqc,
          loadFastqcSummary,
          loadExperimentLevelReadQualities,
-         runFastqScreen, runFastqcProcessed)
+         runFastqScreen)
 def full():
     pass
 

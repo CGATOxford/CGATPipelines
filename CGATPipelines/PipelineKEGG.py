@@ -1,11 +1,13 @@
 '''
-PipelineKegg.py - Pipeline components related to KEGG analysis
-==============================================================
+PipelineKegg.py - Tasks related to KEGG analysis
+================================================
+
+Reference
+---------
 '''
 
 import CGAT.Experiment as E
 from rpy2.robjects import r as R
-import rpy2.robjects as ro
 import CGAT.IOTools as IOTools
 import CGAT.Biomart as Biomart
 import re
@@ -13,9 +15,28 @@ import re
 
 def importKEGGAssignments(outfile, mart, host, biomart_dataset):
     '''import the KEGG annotations from the R KEGG.db annotations
-    package. Note that since KEGG is no longer publically availible,
-    this is not up-to-date and maybe removed from bioconductor in
-    future releases
+    package.
+
+    .. note::
+
+        Since KEGG is no longer publically available, this is not
+        up-to-date and maybe removed from bioconductor in future
+        releases
+
+    The table written to outfile has the following columns:
+    ``ontology``, ``gene_id``, ``kegg_ID``, ``kegg_name``,
+    ``evidence``.
+
+    Arguments
+    ---------
+    outfile : string
+        Output filename in :term:`tsv` format.
+    mart : string
+        Name of the biomart
+    host : string
+        Host name of the biomart server
+    biomart_dataset : string
+        Biomart dataset
 
     '''
 

@@ -1021,7 +1021,8 @@ def buildDMRStats(infiles, outfile):
     '''compute differential methylation stats.'''
     tablenames = [P.toTable(x) for x in infiles]
     method = P.snip(outfile, "_stats.tsv")
-    PipelineMedip.buildDMRStats(tablenames, method, outfile)
+    PipelineMedip.buildDMRStats(tablenames, method, outfile,
+                                dbhandle=connect())
 
 
 @transform(buildDMRStats, suffix(".tsv"), ".load")

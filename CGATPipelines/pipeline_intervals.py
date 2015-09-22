@@ -176,6 +176,7 @@ import numpy
 import xml.etree.ElementTree
 
 from ruffus import *
+from ruffus.task import task_decorator
 
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -186,6 +187,11 @@ import PipelinePeakcalling as PipelinePeakcalling
 import PipelineMotifs as PipelineMotifs
 import PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
+
+
+# product available in ruffus 2.3.6, but not exported
+class product(task_decorator):
+    pass
 
 ###################################################
 ###################################################
@@ -370,12 +376,13 @@ def buildProcessingSummary(infiles, outfile):
            regex(r".*/(.*).bed.gz"),
            os.path.join(PARAMS["exportdir"], "bed", r"\1.bed.gz"))
 def indexIntervals(infile, outfile):
-    '''index intervals.
+    '''index intervals with tabix.
     '''
     statement = '''zcat %(infile)s
     | sort -k1,1 -k2,2n
     | bgzip > %(outfile)s;
     tabix -p bed %(outfile)s'''
+
     P.run()
 
 
@@ -565,47 +572,14 @@ def buildContextStats(infiles, outfile):
     overlaps by at least 50%. Thus some reads mapping
     several contexts might be dropped.
     '''
-
-    infile, reffile = infiles
-
-    min_overlap = 0.5
-    job_memory = "4G"
-
-    statement = '''
-    python %(scriptsdir)s/bam_vs_bed.py
-    --min-overlap=%(min_overlap)f
-    --log=%(outfile)s.log
-    %(infile)s %(reffile)s
-    | gzip
-    > %(outfile)s
-    '''
-
-    P.run()
+    PipelineWindows.summarizeTagsWithinContext(
+        infiles[0], infiles[1], outfile)
 
 
 @merge(buildContextStats, "context_stats.load")
 def loadContextStats(infiles, outfile):
     """load context mapping statistics."""
-
-    header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
-                      for x in infiles])
-    filenames = " ".join(infiles)
-
-    load_statement = P.build_load_statement(
-        P.toTable(outfile),
-        options="--add-index=track")
-
-    statement = """python %(scriptsdir)s/combine_tables.py
-    --header-names=%(header)s
-    --missing-value=0
-    --skip-titles
-    %(filenames)s
-    | perl -p -e "s/bin/track/; s/\?/Q/g"
-    | python %(scriptsdir)s/table2table.py --transpose
-    | %(load_statement)s
-    > %(outfile)s
-    """
-    P.run()
+    PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 
 @follows(mkdir("annotations.dir"))
@@ -776,7 +750,7 @@ def loadAnnotations(infile, outfile):
         "--allow-empty-file --map=pattern:str")
 
 
-@follows(mkdir("transcriptprofiles.dir"))
+@follows(mkdir("transcriptprofiles.dir"), indexIntervals)
 @transform(indexIntervals,
            regex(r".*/([^/].*)\.bed.gz"),
            add_inputs(os.path.join(
@@ -813,7 +787,8 @@ def buildTranscriptsByIntervalsProfiles(infile, outfile):
     '''
 
     track = TRACKS.factory(
-        filename=infile[len("transcriptprofiles/"):-len(".withoverlap.tsv.gz")])
+        filename=infile[len("transcriptprofiles/"):
+                        -len(".withoverlap.tsv.gz")])
 
     bamfiles, offsets = getAssociatedBAMFiles(track)
 
@@ -1631,13 +1606,6 @@ def prepareTags(infile, outfile):
         filtering_dedup='filtering_dedup' in PARAMS,
         filtering_dedup_method=PARAMS.get('filtering_dedup_method',
                                           'picard'))
-
-
-from ruffus.task import task_decorator
-
-
-class product(task_decorator):
-    pass
 
 
 @product(BEDFILES, formatter("(.bed.gz)$"),

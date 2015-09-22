@@ -1,6 +1,4 @@
-
-'''
-pipeline_quickstart.py - setup a new pipeline
+'''pipeline_quickstart.py - setup a new pipeline
 =============================================
 
 :Author: Andreas Heger
@@ -11,12 +9,66 @@ pipeline_quickstart.py - setup a new pipeline
 Purpose
 -------
 
+This script creates a new pipeline according to the CGAT
+pipeline layout. This is useful when starting a new pipeline
+from scratch.
+
 Usage
 -----
 
-Example::
+To start a new project, use  :file:`pipeline_quickstart.py`::
 
-   python pipeline_quickstart.py --set-name=chipseq
+   python <srcdir>pipeline_quickstart.py --set-name=chipseq
+
+This will create a new directory called ``chipseq`` in the current directory
+with the following layout::
+
+  |-- [         55]  report
+  |   |-- [         49]  conf.py -> ../src/pipeline_chipseq/conf.py
+  |   `-- [         54]  pipeline.ini -> ../src/pipeline_chipseq/pipeline.ini
+  `-- [        102]  src
+      |-- [         55]  pipeline_chipseq
+      |   |-- [      13142]  conf.py
+      |   `-- [       1232]  pipeline.ini
+      |-- [       6003]  pipeline_chipseq.py
+      `-- [         58]  pipeline_docs
+          |-- [        169]  pipeline_chipseq
+          |   |-- [         24]  __init__.py
+          |   |-- [         31]  _templates
+          |   |   `-- [      21703]  cgat_logo.png
+          |   |-- [       1052]  contents.rst
+          |   |-- [         56]  pipeline
+          |   |   |-- [        405]  Dummy.rst
+          |   |   `-- [         45]  Methods.rst
+          |   |-- [         79]  pipeline.rst
+          |   `-- [         35]  trackers
+          |       `-- [        301]  TemplateReport.py
+          `-- [         22]  themes
+              `-- [         81]  cgat
+                  |-- [        319]  layout.html
+                  |-- [         58]  static
+                  |   |-- [       4362]  cgat.css_t
+                  |   `-- [      16973]  sorttable.js
+                  `-- [         69]  theme.conf
+
+
+The layout has the following components::
+
+report
+   Directory for running the pipeline. Links to configuration files in
+   the :file:`src` directory. This directory exists to separate code
+   from data and results.
+src
+   Directory for pipeline code. This directory should be put under
+   version control and backed-up.
+src/pipeline_chipseq.py
+   The main pipeline script
+src/pipeline_chipseq
+   Directory for the pipeline configuration files
+src/pipeline_docs/pipeline_chipseq
+   Directory for the pipeline report
+src/pipeline_docs/themes
+   The CGAT report theme.
 
 Type::
 
