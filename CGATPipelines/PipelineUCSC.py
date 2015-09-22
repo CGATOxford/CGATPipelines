@@ -1,10 +1,5 @@
-'''PipelineUCSC.py - utility functions for accessing UCSC data
-===========================================================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
+'''PipelineUCSC.py - Tasks for accessing UCSC data
+==================================================
 
 This module provides methods for accessing ucsc_ data via the public
 UCSC relational database server and building UCSC track hubs.

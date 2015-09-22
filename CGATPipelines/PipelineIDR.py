@@ -1,5 +1,8 @@
-'''PipelineIDR.py
-========================
+'''PipelineIDR.py - Tasks for IDR analysis
+=============================================
+
+Reference
+---------
 '''
 
 import os

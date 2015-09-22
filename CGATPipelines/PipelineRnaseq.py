@@ -1,29 +1,6 @@
 """
-=====================================
-Rnaseq.py - Tools for RNAseq analysis
-=====================================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-Purpose
--------
-
-Pipeline components - GO analysis
-
-Tasks related to gene set GO analysis.
-
-Usage
------
-
-Type::
-
-   python <script_name>.py --help
-
-for command line help.
-
+PipelineRnaseq.py - Tasks for RNAseq analysis
+==============================================
 
 Requirements:
 
@@ -34,30 +11,34 @@ Requirements:
 * featureCounts >= 1.4.3
 * samtools >= 1.1
 
+Reference
+----------
+
 """
 
 import CGAT.Experiment as E
 import CGAT.CSV as CSV
 
-import os
-import shutil
-import itertools
-import glob
 import collections
-import re
+import glob
+import itertools
 import math
 import numpy
-import sqlite3
+import os
 import pandas
+import re
+import shutil
+import sqlite3
 
-import CGAT.GTF as GTF
-import CGAT.BamTools as BamTools
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
-import CGAT.Expression as Expression
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
 import rpy2.rinterface as ri
+
+import CGAT.BamTools as BamTools
+import CGAT.Database as Database
+import CGAT.Expression as Expression
+import CGAT.GTF as GTF
+import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 
 # AH: commented as I thought we wanted to avoid to

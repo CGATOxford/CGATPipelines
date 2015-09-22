@@ -215,6 +215,7 @@ import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
+import CGATPipelines.PipelineWindows as PipelineWindows
 
 # Pipeline configuration
 P.getParameters(
@@ -1352,21 +1353,8 @@ def buildContextStats(infiles, outfile):
     contexts might be dropped.
 
     '''
-
-    infile, reffile = infiles
-
-    min_overlap = 0.5
-    job_memory = "4G"
-
-    statement = '''
-       python %(scriptsdir)s/bam_vs_bed.py
-              --min-overlap=%(min_overlap)f
-              --log=%(outfile)s.log
-              %(infile)s %(reffile)s
-       > %(outfile)s
-       '''
-
-    P.run()
+    PipelineWindows.summarizeTagsWithinContext(
+        infiles[0], infiles[1], outfile)
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
@@ -1375,25 +1363,7 @@ def buildContextStats(infiles, outfile):
 def loadContextStats(infiles, outfile):
     """
     load context mapping statistics."""
-
-    header = ",".join([os.path.basename(P.snip(x, ".contextstats"))
-                      for x in infiles])
-    filenames = " ".join(infiles)
-    load_statement = P.build_load_statement(
-        P.toTable(outfile),
-        options="--add-index=track")
-
-    statement = """python %(scriptsdir)s/combine_tables.py
-    --header-names=%(header)s
-    --missing-value=0
-    --skip-titles
-    %(filenames)s
-    | perl -p -e "s/(bin|category)/track/; s/\?/Q/g"
-    | python %(scriptsdir)s/table2table.py --transpose
-    | %(load_statement)s
-    > %(outfile)s
-    """
-    P.run()
+    PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 ###################################################################
 ###################################################################

@@ -103,7 +103,10 @@ a list of configuration files, typically::
          "pipeline.ini"])
 
 The :mod:`Pipeline` module defines a global variable :data:`PARAMS`
-that provides access the configuration values.
+that provides access the configuration values. To get a handle to
+this variable outside a pipeline script, call :func:`getParams`::
+
+    my_cmd = "%(scripts_dir)s/bam2bam.py" % P.getParams()
 
 Functions such as :func:`configToDictionary`, :func:`loadParameters`
 :func:`matchParameter`, :func:`substituteParameters` support this

@@ -3,33 +3,12 @@ PipelineIntervalAnnotation.py - Tasks associated with annotation of genomic inte
 =====================================================================================
 '''
 
-import sys
-import tempfile
-import optparse
 import shutil
-import itertools
-import csv
-import math
-import random
-import re
-import glob
 import os
-import shutil
-import collections
-import gzip
 import sqlite3
-import cStringIO
-import fileinput
 import CGAT.IOTools as IOTools
-import CGAT.IndexedFasta as IndexedFasta
 import CGAT.IndexedGenome as IndexedGenome
-import CGAT.FastaIterator as FastaIterator
-import CGAT.Genomics as Genomics
-import CGAT.GTF as GTF
 import CGAT.Bed as Bed
-import pysam
-import numpy
-import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 
 ############################################################

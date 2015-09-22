@@ -74,7 +74,6 @@ if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
 CONFIG = ConfigParser.ConfigParser()
 
 
-
 class TriggeredDefaultFactory:
     with_default = False
 
@@ -82,7 +81,7 @@ class TriggeredDefaultFactory:
         if TriggeredDefaultFactory.with_default:
             return str
         else:
-            raise KeyError()
+            raise KeyError("missing parameter accessed")
 
 # Global variable for parameter interpolation in commands
 # This is a dictionary that can be switched between defaultdict
@@ -527,4 +526,8 @@ def checkParameter(param):
     if param not in PARAMS:
         raise ValueError("need `%s` to be set" % param)
 
+
+def getParams():
+    """return handle to global parameter dictionary"""
+    return PARAMS
 

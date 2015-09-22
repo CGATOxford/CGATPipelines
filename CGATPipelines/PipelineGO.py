@@ -1,4 +1,4 @@
-"""PipelineGO - Components for a GO analysis
+"""PipelineGO - Tasks for a GO analysis
 ============================================
 
 Reference

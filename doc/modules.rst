@@ -32,6 +32,7 @@ into several sub-packages.
    pipelinemodules/PipelineTracks.rst
    pipelinemodules/PipelineUCSC.rst
    pipelinemodules/PipelineGO.rst
+   pipelinemodules/PipelineGeneset.rst
 
 Pipeline specific modules
 =========================
@@ -45,34 +46,34 @@ parsers.
    :maxdepth: 1
 
    pipelinemodules/PipelineExome.rst
-   pipelinemodules/PipelineGeneset.rst
    pipelinemodules/PipelineIDR.rst
-   pipelinemodules/PipelineIntervalAnnotation.rst
    pipelinemodules/PipelineKEGG.rst
    pipelinemodules/PipelineLncRNA.rst
    pipelinemodules/PipelineMapping.rst
    pipelinemodules/PipelineMappingQC.rst
-   pipelinemodules/PipelineMedip.rst
-   pipelinemodules/PipelineMetagenomeBenchmark.rst
-   pipelinemodules/PipelineMetagenomeCommunities.rst
-   pipelinemodules/PipelineMotifs.rst
    pipelinemodules/PipelinePeakcalling.rst
    pipelinemodules/PipelinePreprocess.rst
    pipelinemodules/PipelineReadqc.rst
    pipelinemodules/PipelineRnaseq.rst
    pipelinemodules/PipelineRrbs.rst
    pipelinemodules/PipelineTimeseries.rst
-   pipelinemodules/PipelineTransfacMatch.rst
    pipelinemodules/PipelineWindows.rst
 
-Historic modules
-================
+Unused modules
+==============
 
-The modules below contain tasks that are not in active use,
-but might be source of new material.
+The modules below contain tasks that are not in active use, are not
+fully developed or are used in very specialized pipelines. They are
+a good place to look for existing functionality.
 
 .. toctree::
    :maxdepth: 2
 
    pipelinemodules/PipelineChipseq.rst
    pipelinemodules/PipelineEnrichment.rst
+   pipelinemodules/PipelineIntervalAnnotation.rst
+   pipelinemodules/PipelineMedip.rst
+   pipelinemodules/PipelineMotifs.rst
+   pipelinemodules/PipelineTransfacMatch.rst
+   pipelinemodules/PipelineMetagenomeBenchmark.rst
+   pipelinemodules/PipelineMetagenomeCommunities.rst

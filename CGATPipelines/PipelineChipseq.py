@@ -22,10 +22,9 @@ import CGATPipelines.Pipeline as P
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
+import CGAT.BamTools as BamTools
 import CGAT.WrapperMACS as WrapperMACS
 import CGAT.WrapperZinba as WrapperZinba
-
-import CGATPipelines.PipelineMapping as PipelineMapping
 
 
 def getPeakShiftFromMacs(infile):
@@ -1218,7 +1217,7 @@ def loadZinba(infile, outfile, bamfile,
 
         if controlfile:
             controlfiles = [pysam.Samfile(controlfile, "rb")]
-            readlength = PipelineMapping.getReadLengthFromBamfile(controlfile)
+            readlength = BamTools.estimateTagSize(controlfile)
             control_max_peakval = readlength // 2
             E.info("removing intervals in which control has peak higher than %i reads" %
                    control_max_peakval)

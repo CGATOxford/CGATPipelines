@@ -1,22 +1,20 @@
-'''
-PipelineGeneset.py - utility tasks for dealing with ENSEMBL gene sets
-=====================================================================
+'''PipelineGeneset.py - Tasks for processing gene sets
+======================================================
 
-Most of this tasks take a geneset (.gtf.gz) from ENSEMBL
-as input.
+Most of this tasks take a geneset (.gtf.gz) from ENSEMBL as input.
 
-As of ENSEMBL release 75 the gtf file contains both transcripts but also
-untranscribed features such as pseudo genes, for example::
+As of ENSEMBL release 75 the gtf file contains both transcripts but
+also untranscribed features such as pseudo genes, for example::
 
    1       pseudogene      gene    11869   14412   .       +       .       gene_id "ENSG00000223972"; gene_name "DDX11L1"; gene_source "ensembl_havana"; gene_biotype "pseudogene";
 
-For all tasks in this module, only transcript generating features are included.
+Reference
+---------
 
 '''
 
 import os
 import collections
-import gzip
 import sqlite3
 
 import CGAT.IOTools as IOTools
@@ -24,7 +22,6 @@ import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.GTF as GTF
 import CGAT.IndexedFasta as IndexedFasta
-import CGATPipelines.PipelineUCSC as PipelineUCSC
 
 # When importing this module, set PARAMS to your parameter
 # dictionary
@@ -58,22 +55,31 @@ def annotateGenome(infile, outfile,
                    only_proteincoding=False):
     '''annotate genomic regions with reference gene set.
 
-    *infile* is an ENSEMBL gtf file.
-    Only considers protein coding genes, if *only_proteincoding* is set.
+    The method applies the following filters to an ENSEMBL gene set:
 
-    The method applies the following filters:
+    * Select transcribed features, i.e., those entries that contain a
+      ``transcript_id``.
 
-    * Exons from different transcripts in each gene are merged by overlap.
+    * Merge overlapping exons from different transcripts within a
+      gene.
 
-    * In case of overlapping genes, only take the longest (in genomic
-      coordinates) is kept.
+    * In case of overlapping genes, take the longest gene in genomic
+      coordinates.
 
-    The task outputs a :term:`gff` formatted file in *outfile*. For
-    more information, see documentation for the script
-    :mod:`gtf2gff.py` under the option ``--method=genome``.
+    The resultant gene set is then converted to genomic annotations
+    such as exonic, intronic, intergenic. For more information, see
+    documentation for the script :mod:`gtf2gff.py` under the option
+    ``--method=genome``.
 
-    This method only uses transcribed features.
+    Arguments
+    ---------
 
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    only_proteincoding : bool
+       If True, only consider protein coding genes.
     '''
 
     method = "genome"
@@ -110,24 +116,34 @@ def annotateGenome(infile, outfile,
 
 def annotateGeneStructure(infile, outfile,
                           only_proteincoding=False):
-    '''annotate genomic regions with reference gene set.
+    '''annotate genomic regions with gene structure.
 
-    *infile* is an ENSEMBL gtf file.
-    Only considers protein coding genes, if *only_proteincoding* is set.
+    The method applies the following filters to an ENSEMBL gene set:
 
-    The method applies the following filters:
+    * Select transcribed features, i.e., those entries that contain a
+      ``transcript_id``.
 
-    * If there are multiple transcripts in a gene, a representative
-      transcript is kept.
+    * If there are multiple transcripts per gene, take a
+      representative transcript. See :mod:`gtf2gtf` for the definition
+      of the representative transcript.
 
-    * In case of overlapping genes, only take the longest (in genomic
-      coordinates) is kept.
+    * In case of overlapping genes, take the longest gene in genomic
+      coordinates.
 
-    The task outputs a :term:`gff` formatted file in *outfile*. For
-    more information, see documentation for the script
-    :mod:`gtf2gff.py` under the option ``--method=genes``.
+    The resultant gene set is then converted to genomic annotations
+    such as first_exon, first_intron, .... For more information, see
+    documentation for the script :mod:`gtf2gff.py` under the option
+    ``--method=genes``.
 
-    This method only uses transcribed features.
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    only_proteincoding : bool
+       If True, only consider protein coding genes.
+
     '''
 
     if only_proteincoding:
@@ -169,9 +185,16 @@ def annotateGeneStructure(infile, outfile,
 def buildFlatGeneSet(infile, outfile):
     '''build a flattened gene set.
 
-    All transcripts in a gene are merged into a single transcript.
+    All transcripts in a gene are merged into a single transcript by
+    combining overlapping exons.
 
-    *infile* is an ENSEMBL gtf file.
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gtf` format.
+
     '''
     # sort by contig+gene, as in refseq gene sets, genes on
     # chr_random might contain the same identifier as on chr
@@ -204,20 +227,31 @@ def buildFlatGeneSet(infile, outfile):
     P.run()
 
 
-############################################################
-# Doesn't filter miscellaneous contigs from mm10
-# Function called from pipeline_kamilah, pipeline_snps
-# pipeline_polyphen
 def buildProteinCodingGenes(infile, outfile):
-    '''build a collection of exons from the proteincoding
-    section of the ENSEMBL gene set.
+    '''build a proctein coding gene set from an ENSEMBL gene set.
 
-    The exons include both CDS and UTR.
+    The method applies the following filters to an ENSEMBL gene set:
 
-    *infile* is an ENSEMBL gtf file.
+    * Select protein coding features.
 
-    The set is filtered in the same way as in
-    :meth:`buildGeneRegions`.
+    * Remove features not on the reference genome that has been chosen.
+
+    * Merge overlapping exons from different transcripts within a
+      gene.
+
+    * In case of overlapping genes, take the longest gene in genomic
+      coordinates.
+
+    * Keep only features called ``exon`` in the GTF file.
+
+    * Set the ``transcript_id`` to the ``gene_id``
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gtf` format.
 
     '''
 
@@ -227,7 +261,9 @@ def buildProteinCodingGenes(infile, outfile):
     # --permit-duplicates is set so that these cases will be
     # assigned new merged gene ids.
     statement = """zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=filter --filter-method=proteincoding
+    | python %(scriptsdir)s/gtf2gtf.py
+        --method=filter
+        --filter-method=proteincoding
     | grep "transcript_id"
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=contig+gene
@@ -256,10 +292,23 @@ def buildProteinCodingGenes(infile, outfile):
 
 
 def loadGeneInformation(infile, outfile, only_proteincoding=False):
-    '''load gene information gleaned from the attributes
-    in the gene set gtf file.
+    '''load gene-related attributes from :term:`gtf` file into database.
 
-    *infile* is an ENSEMBL gtf file.
+    This method takes transcript-associated features from an
+    :term:`gtf` file and collects the gene-related attributes in the
+    9th column of the gtf file, ignoring exon_id, transcript_id,
+    transcript_name, protein_id and exon_number.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename, contains logging information. The
+       table name is derived from the filename of outfile.
+    only_proteincoding : bool
+       If True, only consider protein coding genes.
+
     '''
 
     table = P.toTable(outfile)
@@ -294,12 +343,24 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
     P.run()
 
 
-# Note that this method is currently not used
 def loadTranscriptInformation(infile, outfile,
                               only_proteincoding=False):
-    '''load transcript information from a gtf file.
+    '''load transcript-related attributes from :term:`gtf` file into database.
 
-    *infile* is an ENSEMBL gtf file.
+    This method takes transcript-associated features from an
+    :term:`gtf` file and collects the gene-related attributes in the
+    9th column of the gtf file, ignoring exon_id and exon_number.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename, contains logging information. The
+       table name is derived from the filename of outfile.
+    only_proteincoding : bool
+       If True, only consider protein coding genes.
+
     '''
     table = P.toTable(outfile)
 
@@ -332,9 +393,14 @@ def loadTranscriptInformation(infile, outfile,
 
 
 def buildCDNAFasta(infile, outfile):
-    '''load ENSEMBL cdna FASTA file
+    '''index an ENSEMBL cdna FASTA file
 
-    *infile* is an ENSEMBL cdna file.
+    Arguments
+    ---------
+    infile : string
+        ENSEMBL ``.cdna.fa.gz`` file in :term:`fasta` format
+    outfile : string
+        indexed file in :term:`fasta` format
     '''
     dbname = outfile[:-len(".fasta")]
 
@@ -349,15 +415,16 @@ def buildCDNAFasta(infile, outfile):
 
     P.run()
 
-############################################################
-############################################################
-############################################################
-
 
 def buildPeptideFasta(infile, outfile):
-    '''create ENSEMBL peptide file
+    '''index an ENSEMBL peptide FASTA file
 
-    *infile* is an ENSEMBL .pep.all.fa.gz file.
+    Arguments
+    ---------
+    infile : string
+        ENSEMBL ``.pep.all.fa.gz`` file in :term:`fasta` format
+    outfile : string
+        indexed file in :term:`fasta` format
     '''
     dbname = outfile[:-len(".fasta")]
 
@@ -376,10 +443,20 @@ def buildPeptideFasta(infile, outfile):
 def loadPeptideSequences(infile, outfile):
     '''load ENSEMBL peptide file into database
 
-    Remove empty sequences (see for example
+    This method removes empty sequences (see for example
     transcript:ENSMUST00000151316, ENSMUSP00000118372)
 
-    *infile* is an ENSEMBL .pep.all.fa.gz file.
+    The created table contains the columns ``protein_id``, ``length``
+    and ``sequence``.
+
+    Arguments
+    ---------
+    infile : string
+        ENSEMBL ``.pep.all.fa.gz`` file in :term:`fasta` format
+    outfile : string
+        filename with logging information. The tablename is
+        derived from ``outfile``.
+
     '''
 
     load_statement = P.build_load_statement(
@@ -402,13 +479,24 @@ def loadPeptideSequences(infile, outfile):
 
 
 def buildCDSFasta(infile, outfile):
-    '''load ENSEMBL cdna FASTA file
+    '''output CDS sequences
 
-    *infile* is an ENSEMBL cdna file.
+    It works by taking the CDNA and peptide sequence
+    of a particular transcript and aligning them in
+    order to remove any frameshifts.
+
+    .. note::
+       This method is untested.
+
+    Arguments
+    ---------
+    infile : string
+        ENSEMBL :term:`gtf` formatted file
+    outfile : string
+        indexed file in :term:`fasta` format
     '''
 
     dbname = outfile[:-len(".fasta")]
-    # infile_peptides, infile_cdnas = infiles
 
     statement = '''gunzip < %(infile)s
     | python %(scriptsdir)s/gff2fasta.py
@@ -419,7 +507,6 @@ def buildCDSFasta(infile, outfile):
     > %(dbname)s.log
     '''
     P.run()
-    return
 
     tmpfile = P.getTempFile(".")
 
@@ -456,7 +543,10 @@ def buildCDSFasta(infile, outfile):
 def loadGeneStats(infile, outfile):
     '''load gene statistics to database.
 
-    The *infile* is the *outfile* from :meth:`buildGenes`
+    infile : string
+        Output from :meth:`buildGenes`
+    outfile : string
+        Logfile. The table name is derived from `outfile`.
     '''
 
     load_statement = P.build_load_statement(
@@ -478,9 +568,17 @@ def loadGeneStats(infile, outfile):
 
 
 def buildExons(infile, outfile):
-    '''build a collection of transcripts from the ENSEMBL gene set.
+    '''take exons from ENSEMBL gene set.
 
-    Only the exon portion is kept.
+    Remove all features from a :term:`gtf` file that are not ``exon``.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gtf` format.
+
     '''
     statement = '''
     gunzip < %(infile)s
@@ -494,10 +592,17 @@ def buildExons(infile, outfile):
 
 
 def buildCodingExons(infile, outfile):
-    '''build a collection of transcripts from the proteincoding portion
-    of the ENSEMBL gene set.
+    '''take protein coding exons from ENSEMBL gene set.
 
-    All exons are kept
+    Remove all features from a :term:`gtf` file that are not ``exon``
+    and are not protein-coding.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gtf` format.
 
     '''
 
@@ -516,13 +621,18 @@ def buildCodingExons(infile, outfile):
 
 
 def buildNonCodingExons(infile, outfile):
-    '''build a collection of transcripts from the non-coding portion of
-    the ENSEMBL gene set.
+    '''take non-conding exons from ENSEMBL gene set.
 
-    Transcripts not marked as protein_coding are removed, all
-    others are kept.
+    Remove all features from a :term:`gtf` file that are not ``exon``
+    and that are protein-coding.
 
-    All exons are kept
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gtf` format.
+
     '''
 
     statement = '''
@@ -540,9 +650,20 @@ def buildNonCodingExons(infile, outfile):
 
 
 def buildLincRNAExons(infile, outfile):
-    '''build a collection of transcripts from the LincRNA portion of the
-    ENSEMBL gene set. All exons are kept
-    '''
+    """take LincRNA portion of ENSEMBL geneset.
+
+    Take all features from a :term:`gtf` file that are of feature type
+    ``exon`` and that are annotated as a lincrna biotype.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gtf` format.
+
+    """
+
     statement = '''
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
@@ -558,12 +679,18 @@ def buildLincRNAExons(infile, outfile):
 
 
 def buildCDS(infile, outfile):
-    '''build a collection of transcripts from the proteincoding
-    section of the ENSEMBL gene set.
+    '''output CDS features from an ENSEMBL gene set.
 
-    Only CDS exons are parts of exons are output - UTR's are removed.
+    Take all features from a :term:`gtf` file that are of feature type
+    ``CDS`` and that are annotated as protein-coding.
 
-    Removes any transcripts with very long (> 3Mb) introns.
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gtf` format.
+
     '''
     statement = '''
     gunzip < %(infile)s
@@ -580,7 +707,17 @@ def buildCDS(infile, outfile):
 
 
 def loadTranscripts(infile, outfile):
-    '''load the transcript set into the database.
+    '''load a GTF file into the database.
+
+    The table will be indexed on ``gene_id`` and ``transcript_id``
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Logfile. The table name is derived from `outfile`.
+
     '''
     load_statement = P.build_load_statement(
         P.toTable(outfile),
@@ -598,7 +735,14 @@ def loadTranscripts(infile, outfile):
 
 
 def loadTranscript2Gene(infile, outfile):
-    '''build and load a map of transcript to gene from gtf file
+    '''build a map of transcript to gene from gtf file and load into database.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Logfile. The table name is derived from `outfile`.
     '''
     load_statement = P.build_load_statement(
         P.toTable(outfile),
@@ -614,10 +758,20 @@ def loadTranscript2Gene(infile, outfile):
 
 
 def loadTranscriptStats(infile, outfile):
-    '''load gene statistics to database.
+    '''compute and load transcript properties into database.
 
-    The *infile* is the *outfile* from :meth:`buildTranscripts`
+    The method computes chromosomal coordinates, length and nucleotide
+    composition for each transcript.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Logfile. The table name is derived from `outfile`.
+
     '''
+
     load_statement = P.build_load_statement(
         P.toTable(outfile),
         options="--add-index=gene_id "
@@ -640,14 +794,20 @@ def loadTranscriptStats(infile, outfile):
 
 
 def loadProteinStats(infile, outfile):
-    '''load protein statistics to database.
+    '''compute and load protein sequence properties into database.
 
-    The *infile* is an ENSEMBL peptide file.
+    The method computes amino acid composition, length, and hash
+    for each peptide sequence.
 
-    Remove empty sequences (see for example
-    transcript:ENSMUST00000151316, ENSMUSP00000118372)
+    Arguments
+    ---------
+    infile : string
+       Fiename of ENSEMBL peptide file in :term:`fasta` format.
+    outfile : string
+       Logfile. The table name is derived from `outfile`.
 
     '''
+
     load_statement = P.build_load_statement(
         P.toTable(outfile),
         options="--add-index=protein_id "
@@ -671,16 +831,24 @@ def loadProteinStats(infile, outfile):
 
     P.run()
 
-############################################################
-############################################################
-############################################################
-# Function does not appear to be called from any script in
-# the existing src directory
-# Doesn't filter miscellaneous contigs from mm10
 
+def buildPromotorRegions(infile, outfile, promotor_size=1000):
+    '''annotate promotor regions from reference gene set.
 
-def buildPromotorRegions(infile, outfile):
-    '''annotate promotor regions from reference gene set.'''
+    This method builds promotor regions for transcripts
+    in an ENSEMBL gene set.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Filename in :term:`gff` format.
+    promotor_size : int
+       Size of the promotor region (nucleotides upstream
+       of TSS).
+    '''
+
     statement = """
     gunzip < %(infile)s
     | python %(scriptsdir)s/gff2gff.py --method=sanitize
@@ -696,40 +864,40 @@ def buildPromotorRegions(infile, outfile):
     """
     P.run()
 
-############################################################
-############################################################
-############################################################
-# Function does not appear to be called from any script in
-# the existing src directory
-# Doesn't filter miscellaneous contigs from mm10
-
 
 def buildTSSRegions(infile, outfile):
-    '''annotate transcription start sites from reference gene set.
+    '''annotate promotor regions from reference gene set.
 
-    Similar to promotors, except that the witdth is set to 1.
+    This method builds promotor regions for transcripts
+    in an ENSEMBL gene set.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Filename in :term:`gff` format.
     '''
-    statement = """
-    gunzip < %(infile)s
-    | python %(scriptsdir)s/gff2gff.py --method=sanitize
-    --sanitize-method=genome
-    --skip-missing
-    --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py --method=promotors
-    --promotor-size=1 --genome-file=%(genome_dir)s/%(genome)s
-    --log=%(outfile)s.log > %(outfile)s
-    """
-    P.run()
+    buildPromotorRegions(infile, outfile, promotor_size=1)
 
 
 def buildOverlapWithEnsembl(infile, outfile, filename_bed):
-    '''compute overlap of genes in ``infile`` with intervals
-    in ``filename_bed`` and load into database.
+    '''compute overlap of genes with intervals.
 
-    If ``filename_bed`` has multiple tracks the overlap will
+    If `filename_bed` has multiple tracks the overlap will
     be computed for each track separately.
 
-    ``infile`` is the output from :meth:`buildGenes`.
+    The output is a tab-separated table with pairs of
+    overlapping features between `infile` and `filename_bed`.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output file in :term:`tsv` format.
+    filename_bed : string
+       Filename in :term:`bed` format.
     '''
 
     statement = '''gunzip
@@ -746,9 +914,18 @@ def buildOverlapWithEnsembl(infile, outfile, filename_bed):
 
 
 def compareGeneSets(infiles, outfile):
-    '''compute overlap of genes, exons and transcripts in ``infiles``
+    '''compute overlap of genes, exons and transcripts between two
+    genesets.
 
-    ``infiles`` are protein coding gene sets.
+    This method uses :mod:`scripts/diff_gtf`.
+
+    Arguments
+    ---------
+    infiles : list
+       Filenames of ENSEMBL genesets in :term:`gtf` format.
+    outfile : string
+       Output file in :term:`tsv` format.
+
     '''
 
     infiles = " ".join(infiles)
@@ -763,22 +940,29 @@ def compareGeneSets(infiles, outfile):
 def buildPseudogenes(infiles, outfile, dbhandle):
     '''build a set of pseudogenes.
 
-    *infiles* is an ENSEMBL gtf file and a list of associated
-    peptide sequences.
-
-    Transcripts are extracted from the GTF file and designated
-    as pseudogenes if:
+    Transcripts are extracted from the GTF file and designated as
+    pseudogenes if:
 
     * the gene_type or transcript_type contains the phrase
       "pseudo". This taken is from the database.
 
     * the feature is 'processed_transcript' and has similarity to
-      protein coding genes. Similarity is assessed by aligning the transcript
-      and peptide set against each other with exonerate.
+      protein coding genes. Similarity is assessed by aligning the
+      transcript and peptide set against each other with exonerate_.
 
     Pseudogenic transcripts can overlap with protein coding
     transcripts.
 
+    Arguments
+    ---------
+    infiles : list
+       Filenames of ENSEMBL geneset in :term:`gtf` format
+       and associated peptide sequences in :term:`fasta` format.
+    outfile : filename
+       Output in :term:`gtf` format with inferred or annotated
+       pseudogenes.
+    dbandle : object
+       Database handle for extracting transcript biotypes.
     '''
 
     infile_gtf, infile_peptides_fasta = infiles
@@ -884,10 +1068,18 @@ def buildPseudogenes(infiles, outfile, dbhandle):
 
 
 def buildNUMTs(infile, outfile):
-    '''build annotation with nuclear mitochondrial sequences.
+    '''output set of potential nuclear mitochondrial genes (NUMTs).
 
-    map mitochondrial chromosome against genome using
-    exonerate
+    This function works by aligning the mitochondrial chromosome
+    against genome using exonerate_. This can take a while.
+
+    Arguments
+    ---------
+    infile : string
+       Ignored.
+    outfile : filename
+       Output in :term:`gtf` format with potential NUMTs.
+
     '''
     if not PARAMS["numts_mitochrom"]:
         E.info("skipping numts creation")
@@ -993,9 +1185,20 @@ def buildNUMTs(infile, outfile):
 
 
 def sortGTF(infile, outfile, order="contig+gene"):
-    '''sort a gtf file - the sorting is performed on the cluster.
+    '''sort a gtf file.
 
-    Ssee gtf2gtf.py for valid options for order.
+    The sorting is performed on the cluster.
+
+    Arguments
+    ---------
+    infile : string
+       Geneset in :term:`gtf` format.
+    outfile : string
+       Geneset in :term:`gtf` format.
+    order : string
+       Sort order. See :mod:`scripts/gtf2gtf` for valid options for
+       `order`.
+
     '''
     if infile.endswith(".gz"):
         uncompress = "zcat"
@@ -1019,21 +1222,33 @@ def sortGTF(infile, outfile, order="contig+gene"):
 
 
 def buildGenomicFunctionalAnnotation(gtffile, dbh, outfiles):
-    '''output a bed file with genomic regions with functional annotations.
+    '''output a bed file with functional annotations.
 
-    The regions for each gene are given in the gtf file.
+    The genomic region a gene covers is taken from the `gtffile`.
+    There should only be one entry per gene, i.e. exons should
+    have been combined into a gene territory.
 
-    Each bed entry is a gene territory. Bed entries are labeled
-    by functional annotations associated with a gene.
+    Each entry in the output bed file is a gene territory. Bed entries
+    are labeled by functional annotations associated by that gene.
 
-    Ambiguities in territories are resolved by outputting
-    annotations for all genes within a territory.
+    Ambiguities in territories are resolved by outputting annotations
+    for all genes within a territory.
 
     The output file contains annotations for both GO and GOSlim. These
     are prefixed by ``go:`` and ``goslim:``.
-    '''
-    territories_file = gtffile
 
+    Arguments
+    ---------
+    gtffile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    dbh : object
+       Database handle to retrieve GO assignments for each gene
+    outfiles : list
+       Output filenames. The first is a :term:`bed` formatted file
+       of gene territories. The second is a :term:`tsv` formatted
+       table mapping GO terms to their description.
+
+    '''
     outfile_bed, outfile_tsv = outfiles
 
     gene2region = {}
@@ -1076,17 +1291,34 @@ def buildGenomicFunctionalAnnotation(gtffile, dbh, outfiles):
     os.unlink(tmpfname)
 
 
-def buildGenomicContext(infiles, outfile):
-    '''build a file with genomic context.
+def buildGenomicContext(infiles, outfile, distance=10):
+    '''build a :term:`bed` formatted file with genomic context.
 
     The output is a bed formatted file, annotating genomic segments
     according to whether they are any of the ENSEMBL annotations.
 
-    It also adds the RNA and repeats annotations from the UCSC.
-
+    The function also adds the RNA and repeats annotations from the UCSC.
     The annotations can be partially or fully overlapping.
 
-    Adjacent features (less than 10 bp apart) of the same type are merged.
+    Arguments
+    ---------
+    infiles : list
+       A list of input files to generate annotations from. The contents are
+       1. ``repeats``, a :term:`gff` formatted file with repeat annotations
+
+       2. ``rna``, a :term:`gff` formatted file with small, repetetive
+          RNA annotations
+
+       3. ``annotations``, a :term:`gtf` formatted file with genomic
+            annotations, see :func:`annotateGenome`.
+
+       4. ``geneset_flat``, a flattened gene set in :term:`gtf` format, see
+            :func:`buildFlatGeneSet`.
+
+    outfile : string
+       Output filename in :term:`bed` format.
+    distance : int
+       Merge adajcent features of the same type within this distance.
     '''
 
     repeats_gff, rna_gff, annotations_gtf, geneset_flat_gff, \
@@ -1094,8 +1326,6 @@ def buildGenomicContext(infiles, outfile):
 
     tmpfile = P.getTempFilename(shared=True)
     tmpfiles = ["%s_%i" % (tmpfile, x) for x in range(6)]
-
-    distance = 10
 
     # add ENSEMBL annotations
     statement = """
