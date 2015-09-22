@@ -21,7 +21,7 @@ def buildPicardInsertSizeStats(infile, outfile, genome_file):
     '''run Picard:CollectInsertSizeMetrics
 
     Collect insert size statistics.
-    
+
     Arguments
     ---------
     infile : string
@@ -31,7 +31,6 @@ def buildPicardInsertSizeStats(infile, outfile, genome_file):
     genome_file : string
         Filename with genomic sequence.
     '''
-
 
     job_memory = PICARD_MEMORY
     job_threads = 3
@@ -54,7 +53,7 @@ def buildPicardInsertSizeStats(infile, outfile, genome_file):
 
 def buildPicardAlignmentStats(infile, outfile, genome_file):
     '''run picard:CollectMultipleMetrics
-    
+
     Arguments
     ---------
     infile : string
@@ -223,8 +222,6 @@ def buildPicardGCStats(infile, outfile, genome_file):
         Filename with genomic sequence.
 
     """
-
-
 
     job_memory = PICARD_MEMORY
     job_threads = 3
@@ -497,7 +494,6 @@ def loadPicardCoverageStats(infiles, outfile):
         corresponds to a different track.
     outfile : string
         Logfile. The table name will be derived from `outfile`.
-    
     '''
 
     outf = P.getTempFile(".")
@@ -520,7 +516,7 @@ def loadPicardCoverageStats(infiles, outfile):
 def buildBAMStats(infile, outfile):
     '''Count number of reads mapped, duplicates, etc. using
     bam2stats.py
-    
+
     Arguments
     ---------
     infile : string

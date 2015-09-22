@@ -530,7 +530,6 @@ class Reconcile(ProcessTool):
 
     """
 
-
     prefix = "reconcile"
 
     def process(self, infiles, outfiles, output_prefix):
