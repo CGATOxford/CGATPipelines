@@ -139,7 +139,8 @@ Requirements:
 """
 
 # import ruffus
-from ruffus import *
+from ruffus import transform, merge, follows, mkdir, regex, suffix, jobs_limit, \
+    subdivide, collate
 
 # import useful standard python modules
 import sys
@@ -147,6 +148,7 @@ import os
 import re
 import shutil
 import sqlite3
+import glob
 
 # import modules from the CGAT code collection
 import CGAT.Experiment as E
@@ -198,9 +200,17 @@ def unprocessReads(infiles, outfiles):
 # already been generated in the first run
 if PARAMS.get("preprocessors", None):
     if PARAMS["auto_remove"]:
+        # check if fastqc has been run
+        for x in IOTools.flatten([glob.glob(y) for y in INPUT_FORMATS]):
+            f = re.match(REGEX_TRACK, x).group(1) + ".fastqc"
+            if not os.path.exists(f):
+                raise ValueError(
+                    "file %s missing, "
+                    "you need to run the pipeline once before "
+                    "specifying 'auto_remove'" % f)
+
         @follows(mkdir("fasta.dir"))
-        @follows(loadFastqc)
-        @transform(INPUT_FORMATS,
+        @transform(unprocessReads,
                    regex(SEQUENCEFILES_REGEX),
                    r"fasta.dir/\1.fasta")
         def makeAdaptorFasta(infile, outfile):
