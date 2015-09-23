@@ -1200,7 +1200,8 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
     ###############################################################
     # load peaks
     shift = getPeakShiftFromMacs(infile)
-    assert shift is not None, "could not determine peak shift from MACS file %s" % infile
+    assert shift is not None, \
+        "could not determine peak shift from MACS file %s" % infile
 
     E.info("%s: found peak shift of %i" % (track, shift))
 
@@ -1213,7 +1214,8 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
         "macs_summit", "macs_nprobes"))
 
     if controlfile:
-        control = "--control-bam-file=%(controlfile)s --control-offset=%(shift)i" % locals()
+        control = "--control-bam-file=%(controlfile)s "
+        "--control-offset=%(shift)i" % locals()
     else:
         control = ""
 
