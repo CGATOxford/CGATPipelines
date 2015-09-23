@@ -331,7 +331,6 @@ PARAMS.update(P.peekParameters(
     restrict_interface=True))
 
 PipelineGeneset.PARAMS = PARAMS
-PipelineRnaseq.PARAMS = PARAMS
 
 Sample = PipelineTracks.AutoSample
 
@@ -415,7 +414,9 @@ def loadGeneSetGeneInformation(infile, outfile):
 @files([(x, os.path.join("fpkm.dir", y)) for x, y in TARGETS_FPKM])
 def runCufflinks(infiles, outfile):
     '''estimate expression levels in each set using cufflinks.'''
-    PipelineRnaseq.runCufflinks(infiles, outfile)
+    PipelineRnaseq.runCufflinks(
+        infiles[0], infiles[1], outfile,
+        job_threads=PARAMS["cufflinks_threads"])
 
 
 @transform(runCufflinks,
@@ -497,15 +498,11 @@ def runCuffdiff(infiles, outfile):
                                design_file,
                                geneset_file,
                                outfile,
-                               threads=PARAMS.get("cuffdiff_threads", 4),
-                               memory=PARAMS.get("cuffdiff_memory", "4G"),
+                               job_threads=PARAMS.get("cuffdiff_threads", 4),
+                               job_memory=PARAMS.get("cuffdiff_memory", "4G"),
                                cuffdiff_options=options,
                                fdr=PARAMS["cuffdiff_fdr"],
                                mask_file=mask_file)
-
-#########################################################################
-#########################################################################
-#########################################################################
 
 
 @transform(runCuffdiff,
@@ -524,8 +521,7 @@ def loadCuffdiff(infile, outfile):
     nevertheless be significant.
 
     '''
-
-    PipelineRnaseq.loadCuffdiff(infile, outfile)
+    PipelineRnaseq.loadCuffdiff(connect(), infile, outfile)
 
 
 @follows(mkdir(os.path.join(PARAMS["exportdir"], "cuffdiff")))
@@ -613,15 +609,11 @@ def buildCuffdiffPlots(infile, outfile):
 @merge(loadCuffdiff,
        "cuffdiff_stats.tsv")
 def buildCuffdiffStats(infiles, outfile):
-    tablenames = [P.toTable(x) for x in infiles]
-    outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, GENESETS, "cuffdiff", outfile, outdir)
-
-#########################################################################
-#########################################################################
-#########################################################################
+        outfile,
+        tablenames=[P.toTable(x) for x in infiles],
+        outdir=os.path.dirname(infiles[0]))
 
 
 @transform(buildCuffdiffStats,
@@ -630,10 +622,6 @@ def buildCuffdiffStats(infiles, outfile):
 def loadCuffdiffStats(infile, outfile):
     '''import cuffdiff results.'''
     P.load(infile, outfile)
-
-#########################################################################
-#########################################################################
-#########################################################################
 
 
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
@@ -916,7 +904,7 @@ def buildFeatureCounts(infiles, outfile):
         annotations,
         bamfile,
         outfile,
-        nthreads=PARAMS['featurecounts_threads'],
+        job_threads=PARAMS['featurecounts_threads'],
         strand=PARAMS['featurecounts_strand'],
         options=PARAMS['featurecounts_options'])
 
@@ -1073,11 +1061,11 @@ def loadDESeq(infile, outfile):
 @follows(loadGeneSetGeneInformation)
 @merge(loadDESeq, "deseq_stats.tsv")
 def buildDESeqStats(infiles, outfile):
-    tablenames = [P.toTable(x) for x in infiles]
-    outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, GENESETS, "deseq", outfile, outdir)
+        outfile,
+        tablenames=[P.toTable(x) + "_diff" for x in infiles],
+        outdir=os.path.dirname(infiles[0]))
 
 
 @transform(buildDESeqStats,
@@ -1129,12 +1117,11 @@ def loadEdgeR(infile, outfile):
 @follows(loadGeneSetGeneInformation)
 @merge(loadEdgeR, "edger_stats.tsv")
 def buildEdgeRStats(infiles, outfile):
-    tablenames = [P.toTable(x) for x in infiles]
-    print tablenames
-    outdir = os.path.dirname(infiles[0])
     PipelineRnaseq.buildExpressionStats(
         connect(),
-        tablenames, GENESETS, "edger", outfile, outdir)
+        outfile,
+        tables=[P.toTable(x) + "_diff" for x in infiles],
+        outdir=os.path.dirname(infiles[0]))
 
 
 @transform(buildEdgeRStats,
