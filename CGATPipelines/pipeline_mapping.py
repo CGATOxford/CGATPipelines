@@ -1341,7 +1341,7 @@ def loadBAMStats(infiles, outfile):
            suffix(".bam"),
            add_inputs(
                PARAMS["annotations_interface_genomic_context_bed"]),
-           ".contextstats")
+           ".contextstats.tsv.gz")
 def buildContextStats(infiles, outfile):
     '''build mapping context stats.
 
