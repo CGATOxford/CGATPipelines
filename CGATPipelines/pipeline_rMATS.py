@@ -89,6 +89,10 @@ For paired end data, the pipeline also requires picard data on
 insert size length and standard deviation which are obtained from
 the csvdb of :doc:`pipeline_mapping`
 
+Please remember to load samtools version 0.1.19 in your (virtual)
+environment when running this pipeline. Newer versions of samtools
+will fail.
+
 Requirements:
 
 * samtools = 1.1.19
@@ -120,6 +124,7 @@ import sys
 import os
 import glob
 import sqlite3
+import pandas
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -143,15 +148,6 @@ PARAMS.update(P.peekParameters(
     update_interface=True))
 
 
-# if necessary, update the PARAMS dictionary in any modules file.
-# e.g.:
-#
-# import CGATPipelines.PipelineGeneset as PipelineGeneset
-# PipelineGeneset.PARAMS = PARAMS
-#
-# Note that this is a hack and deprecated, better pass all
-# parameters that are needed by a function explicitely.
-
 # -----------------------------------------------
 # Utility functions
 def connect():
@@ -172,6 +168,8 @@ def connect():
 
     return dbh
 
+
+
 set_attributes = PARAMS["attributes"].split(",")
 set_attributes.remove("replicate")
 
@@ -186,6 +184,10 @@ EXPERIMENTS = PipelineTracks.Aggregate(
     TRACKS,
     labels=set_attributes)
 
+# ---------------------------------------------------
+# This pipeline uses a generator to yield the various
+# experimental setups for the downstream ruffus pipeline
+# see ruffus chapter 21 for an explanation.
 
 def generate_comparisons():
     input_list = []
@@ -210,8 +212,13 @@ def runMATS(infiles, outfile):
     out = P.snip(os.path.basename(outfile), ".done")
     conditions = out.split("_vs_")
 
-    b1 = ",".join([directory+"/"+s for s in infiles if conditions[0] in s])
-    b2 = ",".join([directory+"/"+s for s in infiles if conditions[1] in s])
+    list1 = [directory+"/"+s for s in infiles if conditions[0] in s]
+    list1.sort()
+    list2 = [directory+"/"+s for s in infiles if conditions[1] in s]
+    list2.sort()
+    b1 = ",".join(list1)
+    b2 = ",".join(list2)
+
     outdir = directory+"/"+out
 
     statement = '''python %(MATS_executable)s/RNASeq-MATS.py
@@ -221,7 +228,29 @@ def runMATS(infiles, outfile):
     -o %(outdir)s
     -t %(MATS_readtype)s
     -len %(MATS_readlength)s
+    -c %(MATS_cutoff)s
+    -analysis %(MATS_analysistype)s
     '''
+
+    # When paired data is used, insert sizes are specified from mapping db
+    if "paired" in PARAMS["MATS_readtype"]:
+        dbh = sqlite3.connect(PARAMS["MATS_mappingdb"])
+        df = pandas.read_sql("""SELECT track, MEAN_INSERT_SIZE,
+        STANDARD_DEVIATION FROM picard_stats_insert_size_metrics
+        WHERE track LIKE '%%%s'""" % PARAMS["MATS_mapper"],
+                             dbh, index_col="track")
+        dbh.close()
+        df.sort_index(inplace=True)
+
+        df_insert = df.ix[[x for x in df.index if conditions[0] in x], :]
+        r1 = ",".join(map(str, df_insert['MEAN_INSERT_SIZE'].tolist()))
+        sd1 = ",".join(map(str, df_insert['STANDARD_DEVIATION'].tolist()))
+
+        df_insert = df.ix[[x for x in df.index if conditions[0] in x], :]
+        r2 = ",".join(map(str, df_insert['MEAN_INSERT_SIZE'].tolist()))
+        sd2 = ",".join(map(str, df_insert['STANDARD_DEVIATION'].tolist()))
+
+        statement += "-r1 %s -r2 %s -sd1 %s -sd2 %s" % (r1, r2, sd1, sd2)
 
     P.run()
 
