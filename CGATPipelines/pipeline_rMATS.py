@@ -122,9 +122,11 @@ Code
 from ruffus import *
 import sys
 import os
+import re
 import glob
 import sqlite3
 import pandas
+import CGAT.IOTools as IOTools
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -191,7 +193,7 @@ EXPERIMENTS = PipelineTracks.Aggregate(
 
 def generate_comparisons():
     input_list = []
-    with open("design.tsv") as design:
+    with IOTools.openFile("design.tsv", "r") as design:
         comparisons = [(tuple(line.strip().split('\t'))) for line in design]
     for comparison in comparisons:
         output_string = comparison[0] + "_vs_" + comparison[1] + ".done"
@@ -242,11 +244,11 @@ def runMATS(infiles, outfile):
         dbh.close()
         df.sort_index(inplace=True)
 
-        df_insert = df.ix[[x for x in df.index if conditions[0] in x], :]
+        df_insert = df.ix[[x for x in df.index if re.match("%s-[R]*[\d]+\." % conditions[0], x)], :]
         r1 = ",".join(map(str, df_insert['MEAN_INSERT_SIZE'].tolist()))
         sd1 = ",".join(map(str, df_insert['STANDARD_DEVIATION'].tolist()))
 
-        df_insert = df.ix[[x for x in df.index if conditions[0] in x], :]
+        df_insert = df.ix[[x for x in df.index if re.match("%s-[R]*[\d]+\." % conditions[1], x)], :]
         r2 = ",".join(map(str, df_insert['MEAN_INSERT_SIZE'].tolist()))
         sd2 = ",".join(map(str, df_insert['STANDARD_DEVIATION'].tolist()))
 
