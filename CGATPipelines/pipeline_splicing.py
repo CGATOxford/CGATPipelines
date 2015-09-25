@@ -127,7 +127,9 @@ import glob
 import sqlite3
 import pandas
 import CGAT.IOTools as IOTools
+import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
+import CGAT.Expression as Expression
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
@@ -186,73 +188,72 @@ EXPERIMENTS = PipelineTracks.Aggregate(
     TRACKS,
     labels=set_attributes)
 
-# ---------------------------------------------------
-# This pipeline uses a generator to yield the various
-# experimental setups for the downstream ruffus pipeline
-# see ruffus chapter 21 for an explanation.
-
-def generate_comparisons():
-    input_list = []
-    with IOTools.openFile("design.tsv", "r") as design:
-        comparisons = [(tuple(line.strip().split('\t'))) for line in design]
-    for comparison in comparisons:
-        output_string = comparison[0] + "_vs_" + comparison[1] + ".done"
-        for x in comparison:
-            input_list += [str(y) + ".bam" for y in EXPERIMENTS[x + "-agg"]]
-    yield tuple(input_list), output_string
-
+Sample = PipelineTracks.AutoSample
+DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
+    glob.glob("*.design.tsv"), "(\S+).design.tsv")
 
 # ---------------------------------------------------
 # Specific pipeline tasks
-@files(generate_comparisons)
-def runMATS(infiles, outfile):
+
+
+@mkdir("results.dir")
+@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
+           regex("(\S+).design.tsv"),
+           r"results.dir/\1_results.dir")
+def runMATS(infile, outfile):
     '''run rMATS.'''
 
-    # the command line statement we want to execute
-
     directory = os.path.dirname(os.path.abspath(outfile))
-    out = P.snip(os.path.basename(outfile), ".done")
-    conditions = out.split("_vs_")
 
-    list1 = [directory+"/"+s for s in infiles if conditions[0] in s]
-    list1.sort()
-    list2 = [directory+"/"+s for s in infiles if conditions[1] in s]
-    list2.sort()
-    b1 = ",".join(list1)
-    b2 = ",".join(list2)
+    design = infile
+    Design = Expression.ExperimentalDesign(design)
+    if len(Design.groups) != 2:
+        raise ValueError("Please specify exactly two groups per experiment.")
 
-    outdir = directory+"/"+out
+    group1 = ",".join(
+        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[0])])
+    group2 = ",".join(
+        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[1])])
 
     statement = '''python %(MATS_executable)s/RNASeq-MATS.py
-    -b1 %(b1)s
-    -b2 %(b2)s
+    -b1 %(group1)s
+    -b2 %(group2)s
     -gtf <(gunzip < %(gtf)s)
-    -o %(outdir)s
+    -o %(directory)s
     -t %(MATS_readtype)s
     -len %(MATS_readlength)s
     -c %(MATS_cutoff)s
     -analysis %(MATS_analysistype)s
     '''
 
-    # When paired data is used, insert sizes are specified from mapping db
-    if "paired" in PARAMS["MATS_readtype"]:
+    # When paired data is used, insert sizes are pulled from picard stats
+    # obtained during mapping
+    if BamTools.isPaired(Design.samples[0]+".bam"):
         dbh = sqlite3.connect(PARAMS["MATS_mappingdb"])
         df = pandas.read_sql("""SELECT track, MEAN_INSERT_SIZE,
         STANDARD_DEVIATION FROM picard_stats_insert_size_metrics
+
         WHERE track LIKE '%%%s'""" % PARAMS["MATS_mapper"],
                              dbh, index_col="track")
         dbh.close()
         df.sort_index(inplace=True)
 
-        df_insert = df.ix[[x for x in df.index if re.match("%s-[R]*[\d]+\." % conditions[0], x)], :]
-        r1 = ",".join(map(str, df_insert['MEAN_INSERT_SIZE'].tolist()))
-        sd1 = ",".join(map(str, df_insert['STANDARD_DEVIATION'].tolist()))
+        r = ["", ""]
+        sd = ["", ""]
+        for x in range(0, 2):
+            r_list = []
+            sd_list = []
+            for sample in Design.getSamplesInGroup(Design.groups[x]):
+                # index matching avoids pulling merged sub-samples from
+                # the mapping database
+                r_list += df.ix[df.index.str.match("%s\..*" % sample),
+                                "MEAN_INSERT_SIZE"].tolist()
+                sd_list += df.ix[df.index.str.match("%s\..*" % sample),
+                                 "STANDARD_DEVIATION"].tolist()
+            r[x] = ",".join(map(str, r_list))
+            sd[x] = ",".join(map(str, sd_list))
 
-        df_insert = df.ix[[x for x in df.index if re.match("%s-[R]*[\d]+\." % conditions[1], x)], :]
-        r2 = ",".join(map(str, df_insert['MEAN_INSERT_SIZE'].tolist()))
-        sd2 = ",".join(map(str, df_insert['STANDARD_DEVIATION'].tolist()))
-
-        statement += "-r1 %s -r2 %s -sd1 %s -sd2 %s" % (r1, r2, sd1, sd2)
+        statement += "-r1 %s -r2 %s -sd1 %s -sd2 %s" % (r[0], r[1], sd[0], sd[1])
 
     P.run()
 
