@@ -63,20 +63,24 @@ Input files
 ".bam" files generated using Tophat or Tophat2. Other mappers
 may also work.
 
-A design_file ("design.tsv") are used to specify  variates. The
-minimal design file is shown below, where each line is a comparison
-between the two tab-separated values.
+Design_files ("*.design.tsv") are used to specify sample variates. The
+minimal design file is shown below, where include specifies if the
+sample should be included in the analysis, group specifies the sample
+group and pair specifies whether the sample is paired. Note, multiple
+design files may be included, for example so that multiple models can
+be fitted to different subsets of the data
 
-The naming convention of the bam files is set within :file:`pipeline.ini`.
-For example "heart-treated-R1" would require 'attributes' to be set to
-'tissue,condition,replicate'. The tracks are then extracted using
-:doc:`PipelineTracks` and sorted into experiments.
+(tab-seperated values)
 
-For the above example the "design.tsv" file may look like this:
+sample    include    group    pair
+WT-1-1    1    WT    0
+WT-1-2    1    WT    0
+Mutant-1-1    1    Mutant    0
+Mutant-1-2    1    Mutant    0
 
-heart-treated    heart-untreated
-kidney-treated   kidney-untreated
-
+The pipeline can only handle comparisons between two conditions with
+replicates. If further comparisons are needed, further design files
+should be used.
 
 Requirements
 ------------
@@ -122,11 +126,9 @@ Code
 from ruffus import *
 import sys
 import os
-import re
 import glob
 import sqlite3
 import pandas
-import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
 import CGAT.Expression as Expression
@@ -173,20 +175,11 @@ def connect():
     return dbh
 
 
-
-set_attributes = PARAMS["attributes"].split(",")
-set_attributes.remove("replicate")
-
-
 class MySample(PipelineTracks.Sample):
     attributes = tuple(PARAMS["attributes"].split(","))
 
-
 TRACKS = PipelineTracks.Tracks(MySample).loadFromDirectory(
     glob.glob("*.bam"), "(\S+).bam")
-EXPERIMENTS = PipelineTracks.Aggregate(
-    TRACKS,
-    labels=set_attributes)
 
 Sample = PipelineTracks.AutoSample
 DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
@@ -199,11 +192,9 @@ DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 @mkdir("results.dir")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/\1_results.dir")
+           r"results.dir/\1.dir")
 def runMATS(infile, outfile):
     '''run rMATS.'''
-
-    directory = os.path.dirname(os.path.abspath(outfile))
 
     design = infile
     Design = Expression.ExperimentalDesign(design)
@@ -219,12 +210,14 @@ def runMATS(infile, outfile):
     -b1 %(group1)s
     -b2 %(group2)s
     -gtf <(gunzip < %(gtf)s)
-    -o %(directory)s
+    -o %(outfile)s
     -t %(MATS_readtype)s
     -len %(MATS_readlength)s
     -c %(MATS_cutoff)s
-    -analysis %(MATS_analysistype)s
     '''
+
+    if Design.has_pairs:
+        statement += "-analysis P "
 
     # When paired data is used, insert sizes are pulled from picard stats
     # obtained during mapping
@@ -253,7 +246,8 @@ def runMATS(infile, outfile):
             r[x] = ",".join(map(str, r_list))
             sd[x] = ",".join(map(str, sd_list))
 
-        statement += "-r1 %s -r2 %s -sd1 %s -sd2 %s" % (r[0], r[1], sd[0], sd[1])
+        statement += "-r1 %s -r2 %s -sd1 %s -sd2 %s" % (r[0], r[1],
+                                                        sd[0], sd[1])
 
     P.run()
 
