@@ -514,42 +514,10 @@ def checkInput(infiles, outfile):
             c.found += 1
     E.info(c)
 
-############################################################
-############################################################
-############################################################
 
-
-@files(input is None, "regions.mask")
-def makeMask(infile, outfile):
-    '''Make a mask for filtering reads if required.
-    '''
-    if PARAMS["calling_filter_exons"] or PARAMS["calling_filter_regions"]:
-        regions_to_filter = []
-
-        if PARAMS["calling_filter_exons"]:
-            regions_to_filter += PipelinePeakcalling.getExonLocations(
-                PARAMS["calling_filter_exons"],
-                PARAMS["annotations_database"])
-
-        if PARAMS["calling_filter_regions"]:
-            regions_to_filter += Bed.iterator(
-                IOTools.openFile(PARAMS["calling_filter_regions"]))
-
-        fh = IOTools.openFile(outfile, "w")
-
-        for bed in itertools.chain(regions_to_filter):
-            fh.write("%s\n" %
-                     "\t".join(map(str, (bed.contig, bed.start, bed.end))))
-
-        fh.close()
-    else:
-        P.touch(outfile)
-
-
-############################################################
-############################################################
-@transform("*.genome.bam", suffix(".genome.bam"),
-           add_inputs(makeMask), ".prep.bam")
+@transform("*.genome.bam",
+           suffix(".genome.bam"),
+           ".prep.bam")
 def prepareBAMForPeakCalling(infiles, outfile):
     '''Prepare BAM files for peak calling.
 
@@ -558,14 +526,8 @@ def prepareBAMForPeakCalling(infiles, outfile):
         - if the option "calling_deduplicate" is Picard.MarkDuplicates
             is run to remove duplicate reads
 
-        - reads may be filtered by exon or location
-
-           - to remove reads by exon, the option
-             "calling_filter_exons" should specify a file containing a
-             list of ensembl gene identifiers (one per line)
-
-           - to remove reads by location, the option
-             "calling_filter_regions" should specify a bed file''
+        - reads may be filtered with a black-list of genomic regions.
+             "calling_filter_regions" should specify a bed file.
 
         The resulting bam file has a .prep.bam extension. Merging
         infiles is currently untested and the methods only consider
@@ -574,17 +536,15 @@ def prepareBAMForPeakCalling(infiles, outfile):
     '''
     bam_file, mask_file = infiles
 
-    if PARAMS["calling_filter_exons"] or PARAMS["calling_filter_regions"]:
-        mask = mask_file
+    if PARAMS["calling_filter_regions"]:
+        if not os.path.exists(mask):
+            raise IOError("filter file '%s' does not exist")
+        mask = PARAMS["calling_filter_regions"]
     else:
         mask = None
 
     PipelinePeakcalling.buildBAMforPeakCalling(
         bam_file, outfile, PARAMS["calling_deduplicate"], mask)
-
-############################################################
-############################################################
-############################################################
 
 
 @merge(prepareBAMForPeakCalling, "preparation_stats.load")
@@ -640,9 +600,8 @@ if PARAMS["calling_normalize"] is True:
     @follows(minReads)
     @transform(prepareBAMForPeakCalling,
                regex(r"(.*).prep.bam"),
-               inputs((r"\1.prep.bam", r"\1.prep.count")),
                r"\1.call.bam")
-    def normalizeBAM(infiles, outfile):
+    def normalizeBAM(infile, outfile):
         '''build a normalized BAM file such that all files
         have approximately
         the same number of reads.
@@ -650,9 +609,10 @@ if PARAMS["calling_normalize"] is True:
         fh = IOTools.openFile("minreads")
         minreads = int(fh.read())
         fh.close
-        PipelinePeakcalling.buildSimpleNormalizedBAM(infiles,
-                                                     outfile,
-                                                     minreads)
+        PipelinePeakcalling.buildSimpleNormalizedBAM(
+            infile,
+            outfile,
+            minreads)
 else:
     @transform(prepareBAMForPeakCalling,
                suffix(".prep.bam"),
@@ -1473,7 +1433,7 @@ def callPeaksWithSPPForIDR(infile, outfile):
     if controlfile is None:
         raise ValueError("idr analysis requires a control")
 
-    executable = P.which("run_spp.R")
+    executable = IOTools.which("run_spp.R")
     if executable is None:
         raise ValueError("could not find run_spp.R")
 
@@ -1648,16 +1608,17 @@ def exportFilteredIntervalsAsBed(infiles, outfiles):
         "category\tinput\toutput\tremoved_background\tremoved_merged\n")
 
     for category, tablename, outfile in (
-            ('peaks', "%s_peaks" % P.quote(track),
+            ('peaks', "%s_peaks" % P.tablequote(track),
              outfile_peaks),
-            ('regions', "%s_regions" % P.quote(track),
+            ('regions', "%s_regions" % P.tablequote(track),
              outfile_regions),
-            ('summits', "%s_summits" % P.quote(track),
+            ('summits', "%s_summits" % P.tablequote(track),
              outfile_summits)):
         dbh = connect()
         if tablename in Database.getTables(dbh):
             c = PipelinePeakcalling.exportIntervalsAsBed(
                 infile, outfile, tablename,
+                dbh,
                 bedfilter=background_bed,
                 merge=True)
             logfile.write("\t".join(map(str, (
@@ -1703,13 +1664,13 @@ def exportIntervalsAsBed(infile, outfiles):
     track = P.snip(os.path.basename(infile), ".load")
 
     for tablename, outfile in (
-            ("%s_peaks" % P.quote(track), outfile_peaks),
-            ("%s_regions" % P.quote(track), outfile_regions),
-            ("%s_summits" % P.quote(track), outfile_summits)):
+            ("%s_peaks" % P.tablequote(track), outfile_peaks),
+            ("%s_regions" % P.tablequote(track), outfile_regions),
+            ("%s_summits" % P.tablequote(track), outfile_summits)):
         dbh = connect()
         if tablename in Database.getTables(dbh):
             PipelinePeakcalling.exportIntervalsAsBed(
-                infile, outfile, tablename)
+                infile, outfile, tablename, dbh)
         else:
             E.warn("no table %s - empty bed file output" % tablename)
             P.touch(outfile)

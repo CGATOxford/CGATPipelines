@@ -1,10 +1,5 @@
-'''PipelineTracks.py - Definition of tracks in pipelines
-=====================================================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
+'''PipelineTracks.py - Working with sample names in pipelines
+=============================================================
 
 Motivation
 ----------
@@ -14,25 +9,25 @@ experimental data sources. These data streams are usually processed
 separately (processing, quality control) and as aggregates. For
 example, consider the following experimental layout:
 
-+------------------------------+--------------------------------------------------+
-|*Filename*                    |*Content*                                         |
-+------------------------------+--------------------------------------------------+
-|liver-stimulated-R1           |liver, stimulated, replicate 1                    |
-+------------------------------+--------------------------------------------------+
-|liver-stimulated-R2           |liver, stimulated, replicate 2                    |
-+------------------------------+--------------------------------------------------+
-|liver-unstimulated-R1         |liver, unstimulated, replicate 1                  |
-+------------------------------+--------------------------------------------------+
-|liver-unstimulated-R2         |liver, unstimulated, replicate 2                  |
-+------------------------------+--------------------------------------------------+
-|heart-stimulated-R1           |heart, stimulated, replicate 1                    |
-+------------------------------+--------------------------------------------------+
-|heart-stimulated-R2           |heart, stimulated, replicate 2                    |
-+------------------------------+--------------------------------------------------+
-|heart-unstimulated-R1         |heart, unstimulated, replicate 1                  |
-+------------------------------+--------------------------------------------------+
-|heart-unstimulated-R2         |heart, unstimulated, replicate 2                  |
-+------------------------------+--------------------------------------------------+
++------------------------------+------------------------------------+
+|*Filename*                    |*Content*                           |
++------------------------------+------------------------------------+
+|liver-stimulated-R1           |liver, stimulated, replicate 1      |
++------------------------------+------------------------------------+
+|liver-stimulated-R2           |liver, stimulated, replicate 2      |
++------------------------------+------------------------------------+
+|liver-unstimulated-R1         |liver, unstimulated, replicate 1    |
++------------------------------+------------------------------------+
+|liver-unstimulated-R2         |liver, unstimulated, replicate 2    |
++------------------------------+------------------------------------+
+|heart-stimulated-R1           |heart, stimulated, replicate 1      |
++------------------------------+------------------------------------+
+|heart-stimulated-R2           |heart, stimulated, replicate 2      |
++------------------------------+------------------------------------+
+|heart-unstimulated-R1         |heart, unstimulated, replicate 1    |
++------------------------------+------------------------------------+
+|heart-unstimulated-R2         |heart, unstimulated, replicate 2    |
++------------------------------+------------------------------------+
 
 The experiment measured in two tissues with two conditions with two
 replicates each giving eight data streams. During the analysis, the
@@ -102,13 +97,12 @@ example above with the attributes tissue, condition and replicate, the
 :class:`Sample` could be::
 
    import PipelineTracks
-   
    class MySample( PipelineTracks.Sample ):
-        attributes = ( "tissue", "condition", "replicate" )
+        attributes = ("tissue", "condition", "replicate")
 
 Once defined, you can add tracks to a :class:`tracks` container. For example::
 
-   TRACKS = PipelineTracks.Tracks( MySample ).loadFromDirectory(
+   TRACKS = PipelineTracks.Tracks(MySample).loadFromDirectory(
             glob.glob("*.fastq.gz"),
             pattern = "(\S+).fastq.gz")
 
@@ -136,12 +130,14 @@ list of experiments, type::
              TRACKS,
              labels=("condition", "tissue"))
    >>> print list(EXPERIMENT)
-   [heart-stimulated-agg, heart-unstimulated-agg, liver-stimulated-agg, liver-unstimulated-agg]
+   [heart-stimulated-agg, heart-unstimulated-agg,
+     liver-stimulated-agg, liver-unstimulated-agg]
 
 or::
 
    >>> print EXPERIMENT.keys()
-   [heart-stimulated-agg, heart-unstimulated-agg, liver-stimulated-agg, liver-unstimulated-agg]
+   [heart-stimulated-agg, heart-unstimulated-agg,
+     liver-stimulated-agg, liver-unstimulated-agg]
 
 To obtain all replicates in the experiment ``heart-stimulated``, use
 dictionary access::
@@ -167,15 +163,15 @@ SQL table names.
 
 The default representation is file-based. By using the class method::
 
-   MySample.setDefault( "asTable" )
+   MySample.setDefault("asTable")
 
 the default representation can be changed for all tracks simultaneously.
 
 You can have multiple aggregates. For example, some tasks might
 require all conditions or all tissues::
 
-   CONDITIONS = PipelineTracks.Aggregate( TRACKS, labels = ("condition", ) )
-   TISSUES = PipelineTracks.Aggregate( TRACKS, labels = ("tissue", ) )
+   CONDITIONS = PipelineTracks.Aggregate(TRACKS, labels=("condition",))
+   TISSUES = PipelineTracks.Aggregate(TRACKS, labels=("tissue",))
 
 You can have several :class:`Tracks` within a
 directory. :class:`Tracks` are simply containers and as such do not
@@ -190,35 +186,39 @@ explicitely using list comprehensions.
 
 If you wanted to process all tracks separately, use::
 
-   @files( [ ("%s.fastq.gz" % x.asFile(),
-               "%s.qc" % x.asFile()) for x in TRACKS ] )
-   def performQC( infile, outfile ):
+   @files([("%s.fastq.gz" % x.asFile(),
+               "%s.qc" % x.asFile()) for x in TRACKS])
+   def performQC(infile, outfile):
       ....
 
 The above statement will create the following list of input/output
 files for the ``performQC`` task::
 
-   [ ( "liver-stimulated-R1.fastq.gz", "liver-stimulated-R1.qc" )
-     ( "liver-stimulated-R2.fastq.gz" , "liver-stimulated-R2.qc" ),
+   [("liver-stimulated-R1.fastq.gz", "liver-stimulated-R1.qc")
+    ("liver-stimulated-R2.fastq.gz" , "liver-stimulated-R2.qc"),
      ...
    ]
 
 Using aggregates works similarly, though you will need to create the file
 lists yourself using nested list comprehensions. The following creates
-an analysis per experimemnt::
+an analysis per experiment::
 
-   @files( [( ([ "%s.fastq.gz" % y.asFile() for y in EXPERIMENTS[x]]), 
-                     "%s.out" % x.asFile()) 
-                     for x in EXPERIMENTS ] )
-   def checkReproducibility( infiles, outfile ):
+   @files([((["%s.fastq.gz" % y.asFile() for y in EXPERIMENTS[x]]),
+              "%s.out" % x.asFile())
+                for x in EXPERIMENTS])
+   def checkReproducibility(infiles, outfile):
       ....
 
 The above statement will create the following list of input/output files::
 
-   [ ( ( "liver-stimulated-R1.fastq.gz", "liver-stimulated-R2.fastq.gz" ), "liver-stimulated-agg.out" ),
-     ( ( "liver-unstimulated-R1.fastq.gz", "liver-unstimulated-R2.fastq.gz" ), "liver-unstimulated-agg.out" ),
-     ( ( "heart-stimulated-R1.fastq.gz", "heart-stimulated-R2.fastq.gz" ), "heart-stimulated-agg.out" ),
-     ( ( "heart-unstimulated-R1.fastq.gz", "heart-unstimulated-R2.fastq.gz" ), "heart-unstimulated-agg.out" ),
+   [(("liver-stimulated-R1.fastq.gz", "liver-stimulated-R2.fastq.gz"),
+      "liver-stimulated-agg.out"),
+     (("liver-unstimulated-R1.fastq.gz", "liver-unstimulated-R2.fastq.gz"),
+      "liver-unstimulated-agg.out"),
+     (("heart-stimulated-R1.fastq.gz", "heart-stimulated-R2.fastq.gz"),
+      "heart-stimulated-agg.out"),
+     (("heart-unstimulated-R1.fastq.gz", "heart-unstimulated-R2.fastq.gz"),
+      "heart-unstimulated-agg.out"),
    ]
 
 The above code makes sure that the file dependencies are
@@ -234,10 +234,8 @@ will collect all replicates for the experiment
     >>> print replicates
     [liver-stimulated-R2, liver-stimulated-R1]
 
-API
-----
-
-.. _ruffus: http://www.ruffus.org.uk/
+Reference
+---------
 
 '''
 

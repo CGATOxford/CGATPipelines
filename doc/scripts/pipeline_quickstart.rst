@@ -1,5 +1,5 @@
 
 .. automodule:: pipeline_quickstart
-   :members:
-   :inherited-members:
-   :show-inheritance:
+
+.. program-output:: python ../scripts/pipeline_quickstart.py --help
+

@@ -1,6 +1,5 @@
-'''
-cgat_tsv2links.py - create softlinks to a series files
-========================================================
+'''cgat_tsv2links.py - create a series of file links with renaming
+==================================================================
 
 :Author: Mike Morgan
 :Release: $Id$
@@ -17,18 +16,20 @@ columns, for example::
    abc.fq.gz  sample1-R1.fq.gz
    def.fq.gz  sample1-R2.fq.gz
 
-If the options ``--source`` is given, filenams will be matched
-by walking through ``--source``. Otherwise, filenames in the source column 
-need to contain the paths relative to the current working directory.
+If the options ``--source`` is given, filenams will be matched by
+walking through ``--source``. Otherwise, filenames in the source
+column need to contain the paths relative to the current working
+directory.
 
 To create such a table, use the unix ``find`` command, for example::
 
    find /ifs/projects/proj013/backup/ -name "*.sanfastq.gz" > input_file.tsv
-   
-and then manually add table headers and a second column with the sample name.
+
+and then manually add table headers and a second column with the
+sample name.
 
 Further ways to develop the script:
- 
+
    * paired files - files might be grouped (read pairs), make sure
             they are all there. Use pattern matching to identify a
             group and create all appropriate links.
@@ -38,7 +39,7 @@ Further ways to develop the script:
 Usage
 -----
 
-Example::
+For example::
 
    python cgat_tsv2links.py --source=../backup/dataset1 < input_file.tsv
 
@@ -51,13 +52,10 @@ for command line help.
 Command line options
 --------------------
 
-
 '''
 
 import os
 import sys
-import re
-import optparse
 import CGAT.Experiment as E
 
 
@@ -86,7 +84,7 @@ def main(argv=None):
 
     parser.set_defaults(source_directory=None,
                         dest_directory=".")
-    
+
     # add common options (-h/--help, ...) and parse command line
     (options, args) = E.Start(parser, argv=argv)
 
@@ -113,7 +111,6 @@ def main(argv=None):
     counter.input = len(map_filename2link)
 
     def _createLink(src, dest, counter):
-        
         src = os.path.abspath(src)
         dest = os.path.abspath(os.path.join(options.dest_directory, dest))
         if os.path.exists(dest):
@@ -144,7 +141,7 @@ def main(argv=None):
                         E.warn("found multiple files with "
                                "the same name %s" % f)
                     else:
-                        _createLink(os.path.join(dirName, f), 
+                        _createLink(os.path.join(dirName, f),
                                     map_filename2link[f], counter)
                         found.add(f)
                 else:

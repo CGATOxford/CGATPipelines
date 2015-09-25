@@ -1,6 +1,6 @@
-"""================
-Windows pipeline
-================
+"""
+pipeline_windows.py - Window based genomic analysis
+===================================================
 
 :Author: Andreas Heger
 :Release: $Id$
@@ -22,13 +22,20 @@ Window based analysis
     in window read counts between different experimental
     conditions
 
+Genomic context analysis
+    The genome is divided into annotations such
+    as repeat, exon, ..... It then detects if there
+    are any differences in these regions.
+
 Meta-gene profiling
     Compute read distributions across genes.
 
-Genomic context analysis
-    The genome is divided into annotations such
-    as repeat, exon, .... Reads are aggregated
-    across annotations.
+Enrichment analysis
+    For genomic context, the pipeline detects
+    if tags lie more frequently then expected inside
+    particular genomic contexts.
+
+
 
 Methods
 =======
@@ -117,19 +124,17 @@ Code
 """
 
 # load modules
-from ruffus import *
+from ruffus import transform, merge, mkdir, follows, \
+    regex, suffix, add_inputs, collate
 
-import logging as L
 import sys
 import os
 import re
-import itertools
 import glob
 import csv
 import numpy
 import sqlite3
 import pandas
-import math
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
@@ -197,7 +202,8 @@ def prepareTags(infile, outfile):
         outfile,
         filtering_quality=PARAMS.get('filtering_quality', None),
         filtering_dedup='filtering_dedup' in PARAMS,
-        filtering_dedup_method=PARAMS['filtering_dedup_method'])
+        filtering_dedup_method=PARAMS['filtering_dedup_method'],
+        filtering_nonunique=PARAMS.get('filtering_nonunique', False))
 
 
 @transform(prepareTags, suffix(".bed.gz"), ".tsv")
@@ -604,48 +610,78 @@ def buildBigBed(infile, outfile):
            regex(".*/(.*).bed.gz"),
            add_inputs(buildWindows),
            r"counts.dir/\1.counts.bed.gz")
-def countReadsWithinWindows(infiles, outfile):
+def countTagsWithinWindows(infiles, outfile):
     '''build read counds for windows.'''
     bedfile, windowfile = infiles
-    PipelineWindows.countReadsWithinWindows(
+    PipelineWindows.countTagsWithinWindows(
         bedfile,
         windowfile,
         outfile,
         counting_method=PARAMS['tiling_counting_method'],
-        memory_allocation=PARAMS['tiling_counting_memory'])
+        job_memory=PARAMS['tiling_counting_memory'])
 
 
-@merge(countReadsWithinWindows,
+@merge(countTagsWithinWindows,
        r"counts.dir/counts.tsv.gz")
-def aggregateWindowsReadCounts(infiles, outfile):
+def aggregateWindowsTagCounts(infiles, outfile):
     '''aggregate tag counts into a single file.
     '''
 
-    PipelineWindows.aggregateWindowsReadCounts(infiles,
-                                               outfile,
-                                               regex="(.*).counts.bed.gz")
+    PipelineWindows.aggregateWindowsTagCounts(infiles,
+                                              outfile,
+                                              regex="(.*).counts.bed.gz")
 
 
-@transform(aggregateWindowsReadCounts,
+@follows(mkdir('contextstats.dir'))
+@transform(prepareTags,
+           regex(".*/(.*).bed.gz"),
+           add_inputs(os.path.join(
+               PARAMS["annotations_dir"],
+               PARAMS["annotations_interface_genomic_context_bed"])),
+           r"contextstats.dir/\1.counts.bed.gz")
+def countTagsWithinContext(infiles, outfile):
+    '''collect context stats of BED files.
+
+    Examines the genomic context to where tags are located.
+
+    A tag is assigned to the genomic context that it overlaps by at
+    least 50%. Long tags that map across several non-overlapping
+    contexts might be dropped.
+
+    '''
+    tagfile, windowfile = infiles
+    PipelineWindows.countTagsWithinWindows(tagfile,
+                                           windowfile,
+                                           outfile,
+                                           counting_method="midpoint",
+                                           job_memory="4G")
+
+
+@merge(countTagsWithinContext,
+       r"contextstats.dir/counts.tsv.gz")
+def aggregateContextTagCounts(infiles, outfile):
+    '''aggregate tag counts into a single file.
+    '''
+    PipelineWindows.aggregateWindowsTagCounts(infiles,
+                                              outfile,
+                                              regex="(.*).counts.bed.gz")
+
+
+@transform((aggregateWindowsTagCounts, aggregateContextTagCounts),
            suffix(".tsv.gz"),
            "_normed.tsv.gz")
-def normalizeWindowsReadCounts(infile, outfile):
+def normalizeTagCounts(infile, outfile):
     '''output a file with normalized counts.
     '''
-    statement = '''
-    zcat %(infile)s
-    | python %(scriptsdir)s/counts2counts.py
-    --method=normalize
-    --normalization-method=%(tags_normalization_method)s
-    --log=%(outfile)s.olg
-    | gzip
-    > %(outfile)s
-    '''
-    P.run()
+    PipelineWindows.normalizeTagCounts(
+        infile,
+        outfile,
+        method=PARAMS["tags_normalization_method"])
 
 
-@transform(aggregateWindowsReadCounts, suffix(".tsv.gz"), ".load")
-def loadWindowsReadCounts(infile, outfile):
+@transform((aggregateWindowsTagCounts, aggregateContextTagCounts),
+           suffix(".tsv.gz"), ".load")
+def loadWindowsTagCounts(infile, outfile):
     '''load a sample of window composition data for QC purposes.'''
     P.load(infile, outfile, limit=10000, shuffle=True)
 
@@ -720,7 +756,7 @@ def mapTrack2Input(tracks):
     return map_track2input
 
 
-@transform(loadWindowsReadCounts, suffix(".load"),
+@transform(loadWindowsTagCounts, suffix(".load"),
            "_l2foldchange_input.tsv.gz")
 def buildWindowsFoldChangesPerInput(infile, outfile):
     '''Compute fold changes for each sample compared to appropriate input.
@@ -784,7 +820,7 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
                      sep="\t", index=False)
 
 
-@transform(loadWindowsReadCounts, suffix(".load"),
+@transform(loadWindowsTagCounts, suffix(".load"),
            "_l2foldchange_median.tsv.gz")
 def buildWindowsFoldChangesPerMedian(infile, outfile):
     '''Compute l2fold changes for each sample compared to the median count
@@ -829,10 +865,10 @@ def loadWindowsFoldChanges(infile, outfile):
     P.load(infile, outfile)
 
 
-@transform(aggregateWindowsReadCounts,
+@transform((aggregateWindowsTagCounts, aggregateContextTagCounts),
            suffix(".tsv.gz"),
            "_stats.tsv")
-def summarizeAllWindowsReadCounts(infile, outfile):
+def summarizeAllWindowsTagCounts(infile, outfile):
     '''perform summarization of read counts'''
 
     prefix = P.snip(outfile, ".tsv")
@@ -849,9 +885,9 @@ def summarizeAllWindowsReadCounts(infile, outfile):
 
 @transform("design*.tsv",
            regex("(.*).tsv"),
-           add_inputs(aggregateWindowsReadCounts),
+           add_inputs(aggregateWindowsTagCounts),
            r"counts.dir/\1_stats.tsv")
-def summarizeWindowsReadCounts(infiles, outfile):
+def summarizeWindowsTagCounts(infiles, outfile):
     '''perform summarization of read counts within experiments.
     '''
 
@@ -870,9 +906,9 @@ def summarizeWindowsReadCounts(infiles, outfile):
 @follows(mkdir("dump.dir"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
-           add_inputs(aggregateWindowsReadCounts),
+           add_inputs(aggregateWindowsTagCounts),
            r"dump.dir/\1.tsv.gz")
-def dumpWindowsReadCounts(infiles, outfile):
+def dumpWindowsTagCounts(infiles, outfile):
     '''output tag tables used for analysis.
 
     This is for debugging purposes. The tables
@@ -890,7 +926,7 @@ def dumpWindowsReadCounts(infiles, outfile):
     P.run()
 
 
-@transform((summarizeWindowsReadCounts, summarizeAllWindowsReadCounts),
+@transform((summarizeWindowsTagCounts, summarizeAllWindowsTagCounts),
            suffix("_stats.tsv"), "_stats.load")
 def loadTagCountSummary(infile, outfile):
     '''load windows summary.'''
@@ -900,8 +936,9 @@ def loadTagCountSummary(infile, outfile):
            options="--first-column=track")
 
 
-@follows(buildWindows, countReadsWithinWindows)
-@transform(aggregateWindowsReadCounts,
+@follows(buildWindows, countTagsWithinWindows)
+@transform((aggregateWindowsTagCounts,
+            aggregateContextTagCounts),
            suffix(".tsv.gz"),
            ".norm.tsv.gz")
 def normalizeBed(infile, outfile):
@@ -1039,7 +1076,7 @@ def loadMethylationData(infile, design_file):
 @follows(mkdir("deseq.dir"), mkdir("deseq.dir/plots"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
-           add_inputs(aggregateWindowsReadCounts),
+           add_inputs(aggregateWindowsTagCounts),
            r"deseq.dir/\1.tsv.gz")
 def runDESeq(infiles, outfile):
     '''estimate differential expression using DESeq.
@@ -1052,13 +1089,15 @@ def runDESeq(infiles, outfile):
     if os.path.exists(spike_file):
         outfile_spike = P.snip(outfile, '.tsv.gz') + '.spike.gz'
 
-        PipelineWindows.runDE(infiles,
+        PipelineWindows.runDE(infiles[0],
+                              infiles[1],
                               outfile_spike,
                               "deseq.dir",
                               method="deseq",
                               spike_file=spike_file)
 
-    PipelineWindows.runDE(infiles,
+    PipelineWindows.runDE(infiles[0],
+                          infiles[1],
                           outfile,
                           "deseq.dir",
                           method="deseq")
@@ -1090,7 +1129,7 @@ def loadDESeq(infile, outfile):
 @follows(mkdir("spike.dir"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
-           add_inputs(aggregateWindowsReadCounts),
+           add_inputs(aggregateWindowsTagCounts),
            r"spike.dir/\1.tsv.gz")
 def buildSpikeIns(infiles, outfile):
     '''build a table with counts to spike into the original count
@@ -1116,7 +1155,7 @@ def buildSpikeIns(infiles, outfile):
 @follows(mkdir("edger.dir"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
-           add_inputs(aggregateWindowsReadCounts),
+           add_inputs(aggregateWindowsTagCounts),
            r"edger.dir/\1.tsv.gz")
 def runEdgeR(infiles, outfile):
     '''estimate differential methylation using EdgeR
@@ -1129,13 +1168,15 @@ def runEdgeR(infiles, outfile):
     if os.path.exists(spike_file):
         outfile_spike = P.snip(outfile, '.tsv.gz') + '.spike.gz'
 
-        PipelineWindows.runDE(infiles,
+        PipelineWindows.runDE(infiles[0],
+                              infiles[1],
                               outfile_spike,
                               "edger.dir",
                               method="edger",
                               spike_file=spike_file)
 
-    PipelineWindows.runDE(infiles,
+    PipelineWindows.runDE(infiles[0],
+                          infiles[1],
                           outfile,
                           "edger.dir",
                           method="edger")
@@ -1161,14 +1202,17 @@ def loadEdgeR(infile, outfile):
 @follows(mkdir("roi.dir"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
-           add_inputs(aggregateWindowsReadCounts),
+           add_inputs(aggregateWindowsTagCounts),
            r"roi.dir/\1.tsv.gz")
 def runFilterAnalysis(infiles, outfile):
     '''output windows applying a filtering criterion.
 
     Does not apply a threshold.
     '''
-    PipelineWindows.outputRegionsOfInterest(infiles, outfile)
+    PipelineWindows.outputRegionsOfInterest(
+        infiles[0],
+        infiles[1],
+        outfile)
 
 
 @follows(mkdir("medips.dir"))
@@ -1193,7 +1237,7 @@ for x in METHODS:
 
 @follows(loadTagCountSummary,
          loadWindowStats,
-         loadWindowsReadCounts,
+         loadWindowsTagCounts,
          loadWindowsFoldChanges,
          *DIFFTARGETS)
 def diff_windows():
@@ -1316,7 +1360,7 @@ def plotDETagStats(infiles, outfile):
     '''plot differential expression stats'''
 
     PipelineWindows.plotDETagStats(
-        infiles, outfile,
+        infiles[0], infiles[1], outfile,
         submit=True,
         job_options="-l mem_free=16")
 
@@ -1398,7 +1442,8 @@ def buildMedipsStats(infile, outfile):
     method = os.path.dirname(infile)
     method = P.snip(method, ".dir")
     infiles = glob.glob(infile + "*_data.tsv.gz")
-    PipelineWindows.buildDMRStats(infiles, outfile,
+    PipelineWindows.buildDMRStats(infiles,
+                                  outfile,
                                   method=method,
                                   fdr_threshold=PARAMS["medips_fdr"])
 
@@ -1566,37 +1611,78 @@ def combineWindows(infiles, outfile):
 
 
 @follows(mkdir('contextstats.dir'))
-@transform('*.bam',
-           regex("(.*).bam"),
+@transform(prepareTags,
+           regex(".*/(.*).bed.gz"),
            add_inputs(os.path.join(
                PARAMS["annotations_dir"],
                PARAMS["annotations_interface_genomic_context_bed"])),
            r"contextstats.dir/\1.contextstats.tsv.gz")
-def buildContextStats(infiles, outfile):
-    '''build mapping context stats.
+def summarizeTagsWithinContext(infiles, outfile):
+    """count number of tags overlapping various genomic contexts.
 
-    Examines the genomic context to where reads align.
+    Counts are summarized for each category.
+    """
+    PipelineWindows.summarizeTagsWithinContext(
+        infiles[0],
+        infiles[1],
+        outfile)
 
-    A read is assigned to the genomic context that it overlaps by at
-    least 50%. Thus some reads that map across several non-overlapping
-    contexts might be dropped.
-    '''
 
-    infile, reffile = infiles
+@merge(summarizeTagsWithinContext, "contextstats.dir/contextstats.tsv.gz")
+def mergeSummarizedContextStats(infiles, outfile):
+    """load context mapping statistics."""
+    PipelineWindows.mergeSummarizedContextStats(infiles, outfile)
 
-    min_overlap = 0.5
-    job_memory = "4G"
 
-    statement = '''
-       python %(scriptsdir)s/bam_vs_bed.py
-              --min-overlap=%(min_overlap)f
-              --log=%(outfile)s.log
-              %(infile)s %(reffile)s
-       | gzip
-       > %(outfile)s
-       '''
+@transform(mergeSummarizedContextStats, suffix(".tsv.gz"), ".load")
+def loadSummarizedContextStats(infile, outfile):
+    """load context mapping statistics."""
+    P.load(infile, outfile)
 
-    P.run()
+
+@merge(summarizeTagsWithinContext,
+       "contextstats.dir/contextstats_counts.tsv.gz")
+def mergeSummarizedContextStatsAsCounts(infiles, outfile):
+    """load context mapping statistics."""
+    PipelineWindows.mergeSummarizedContextStats(infiles, outfile,
+                                                samples_in_columns=True)
+
+
+@transform(mergeSummarizedContextStatsAsCounts,
+           suffix(".tsv.gz"),
+           "_normed.tsv.gz")
+def normalizeSummarizedContextStats(infile, outfile):
+    """load context mapping statistics."""
+
+    PipelineWindows.normalizeTagCounts(
+        infile,
+        outfile,
+        method="total-row")
+
+
+@follows(mkdir("gat_context.dir"))
+@transform(prepareTags,
+           regex(".*/(.*).bed.gz"),
+           add_inputs(
+               os.path.join(
+                   PARAMS["annotations_dir"],
+                   PARAMS["annotations_interface_genomic_context_bed"]),
+               os.path.join(
+                   PARAMS["annotations_dir"],
+                   PARAMS["annotations_interface_contigs_ungapped_bed"])),
+           r"gat_context.dir/\1.tsv.gz")
+def testTagContextOverlap(infiles, outfile):
+    """test for genomic overlap using gat."""
+
+    tagfile, contextfile, workspacefile = infiles
+    PipelineWindows.testTagContextOverlap(
+        tagfile,
+        contextfile,
+        workspacefile,
+        outfile,
+        job_threads=PARAMS["gat_threads"],
+        samples=PARAMS["gat_samples"],
+        options=PARAMS["gat_options"])
 
 
 @follows(mkdir("medips.dir"))

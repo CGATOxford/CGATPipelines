@@ -8,6 +8,7 @@ from CGATReport.Utils import PARAMS as P
 
 from IsoformReport import *
 
+
 class imagesTracker(TrackerImages):
 
     '''Convience Tracker for globbing images for gallery plot'''
@@ -30,10 +31,10 @@ class TranscriptBiotypeSummary(IsoformTracker):
                        WHERE l2fold %(direction)s 0;'''
 
         df = pd.DataFrame(self.getAll(statement))
-        
+
         keep_biotypes = ["protein_coding", "retained_intron",
                          "processed_transcript", "nonsense_mediated_decay"]
-        
+
         df = df[[x in keep_biotypes for x in df['transcript_biotype']]]
 
         grouped = df.groupby(['significant', 'transcript_biotype'])

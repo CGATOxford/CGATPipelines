@@ -1,5 +1,5 @@
-'''PipelineWindows
-=========================
+'''PipelineWindows - Tasks for window based read distribution analysis
+======================================================================
 
 Requirements:
 
@@ -7,6 +7,9 @@ Requirements:
 * picardtools >= 1.106
 * samtools >= 1.1
 * MEDIPS >= 1.15.0
+
+Reference
+---------
 
 '''
 
@@ -30,20 +33,35 @@ def convertReadsToIntervals(bamfile,
                             bedfile,
                             filtering_quality=None,
                             filtering_dedup=None,
-                            filtering_dedup_method='picard'):
+                            filtering_dedup_method='picard',
+                            filtering_nonunique=False):
     '''convert reads in *bamfile* to *intervals*.
 
     This method converts read data into intervals for
     counting based methods.
 
-    This method is not appropriated for RNA-Seq.
+    This method is not appropriate for RNA-Seq.
 
     Optional steps include:
 
-    * deduplication - remove duplicate reads
-    * quality score filtering - remove reads below a certain quality score.
-    * paired ended data - merge pairs
-    * paired ended data - filter by insert size
+    For paired end data, pairs are merged and optionally
+    filtered by insert size.
+
+    Arguments
+    ---------
+    bamfile : string
+        Filename of input file in :term:`bam` format.
+    bedfile : string
+        Filename of output file in :term:`bed` format.
+    filtering_quality : int
+        If set, remove reads with a quality score below given threshold.
+    filtering_dedup : bool
+        If True, deduplicate data.
+    filtering_dedup_method : string
+        Deduplication method. Possible options are ``picard`` and
+        ``samtools``.
+    filtering_nonunique : bool
+        If True, remove non-uniquely matching reads.
 
     '''
     track = P.snip(bedfile, ".bed.gz")
@@ -60,6 +78,19 @@ def convertReadsToIntervals(bamfile,
         -q %(filtering_quality)i -b
         %(current_file)s
         2>> %%(bedfile)s.log
+        > %(next_file)s ''' % locals())
+
+        nfiles += 1
+        current_file = next_file
+
+    if filtering_nonunique:
+
+        next_file = "%(tmpdir)s/bam_%(nfiles)i.bam" % locals()
+        statement.append('''cat %(current_file)s
+        | python %%(scriptsdir)s/bam2bam.py
+        --method=filter
+        --filter-method=unique,mapped
+        --log=%%(bedfile)s.log
         > %(next_file)s ''' % locals())
 
         nfiles += 1
@@ -122,7 +153,19 @@ def convertReadsToIntervals(bamfile,
 
 
 def countTags(infile, outfile):
-    '''count number of pairs in bed-file.'''
+    '''count number of tags in bed-file.
+
+    `outfile` will contain the number of tags in `infile`
+    counted per chromosome.
+
+    Arguments
+    =========
+    infile : string
+        Input filename in :term:`bed` format
+    outfile : string
+        Output filename in :term:`tsv` format.
+
+    '''
 
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/bed2stats.py
@@ -132,21 +175,29 @@ def countTags(infile, outfile):
     P.run()
 
 
-def countReadsWithinWindows(bedfile,
-                            windowfile,
-                            outfile,
-                            counting_method="midpoint",
-                            memory_allocation="4G"):
-    '''count reads given in *tagfile* within intervals in
-    *windowfile*.
+def countTagsWithinWindows(tagfile,
+                           windowfile,
+                           outfile,
+                           counting_method="midpoint",
+                           job_memory="4G"):
+    '''count tags within windows.
 
-    Both files need to be :term:`bed` formatted.
+    Counting is done using bedtools.
 
-    Counting is done using bedtools. The counting method
-    can be 'midpoint' or 'nucleotide'.
+    Arguments
+    ---------
+    tagfile : string
+        Filename with tags to be counted in :term:`bed` format.
+    windowfile : string
+        Filename with windows in :term:`bed` format.
+    outfile : outfile
+        Output filename in :term:`bed` format.
+    counting_method : string
+        Counting method to use. Possible values are ``nucleotide``
+        and ``midpoint``.
+    job_memory : string
+        Amount of memory to allocate.
     '''
-
-    job_options = "-l mem_free=%s" % memory_allocation
 
     if counting_method == "midpoint":
         f = '''| awk '{a = $2+($3-$2)/2;
@@ -157,7 +208,7 @@ def countReadsWithinWindows(bedfile,
         raise ValueError("unknown counting method: %s" % counting_method)
 
     statement = '''
-    zcat %(bedfile)s
+    zcat %(tagfile)s
     %(f)s
     | coverageBed -a stdin -b %(windowfile)s -split
     | sort -k1,1 -k2,2n
@@ -168,16 +219,13 @@ def countReadsWithinWindows(bedfile,
     P.run()
 
 
-def aggregateWindowsReadCounts(infiles,
-                               outfile,
-                               regex="(.*)\..*"):
-    '''aggregate several results from coverageBed results into a single
-    file.
+def aggregateWindowsTagCounts(infiles,
+                              outfile,
+                              regex="(.*)\..*"):
+    '''aggregate output from several ``bedtools coverage`` results.
 
-    *regex* is used to extract the track name from the filename.
-    The default removes any suffix.
-
-    coverageBed outputs the following columns:
+    ``bedtools coverage`` outputs the following columns for a bed4
+    file::
 
     1 Contig
     2 Start
@@ -190,9 +238,22 @@ def aggregateWindowsReadCounts(infiles,
     8 The fraction of bases in B that had non-zero coverage from
       features in A.
 
-    For bed: use column 5
-    For bed6: use column 7
-    For bed12: use column 13
+    This method autodetects the number of columns in the :term:`infiles`
+    and selects:
+
+    * bed4: use column 5
+    * bed6: use column 7
+    * bed12: use column 13
+
+    Arguments
+    ---------
+    infiles : list
+        Input filenames with the output from ``bedtools coverage``
+    outfile : string
+        Output filename in :term:`tsv` format.
+    regex : string
+        Regular expression used to extract the track name from the
+        filename.  The default removes any suffix.
 
     '''
 
@@ -215,18 +276,53 @@ def aggregateWindowsReadCounts(infiles,
     outf = IOTools.openFile(outfile, "w")
     outf.write("interval_id\t%s\n" % "\t".join(tracks))
 
+    # filter for uniqueness - keys with the same value as the
+    # previous line will be ignored.
+    last_gene = None
+    c = E.Counter()
     for line in open(tmpfile, "r"):
+        c.input += 1
         data = line[:-1].split("\t")
         genes = list(set([data[x] for x in range(0, len(data), 2)]))
         values = [int(data[x]) for x in range(1, len(data), 2)]
 
         assert len(genes) == 1, \
             "paste command failed, wrong number of genes per line: '%s'" % line
+        if genes[0] == last_gene:
+            c.duplicates += 1
+            continue
+        c.output += 1
         outf.write("%s\t%s\n" % (genes[0], "\t".join(map(str, values))))
+        last_gene = genes[0]
 
     outf.close()
 
     os.unlink(tmpfile)
+
+    E.info("aggregateWindowsTagCounts: %s" % c)
+
+
+def normalizeTagCounts(infile, outfile, method):
+    '''normalize Tag counts
+
+    infile : string
+        Input filename of file with counts.
+    outfile : string
+        Output filename with normalized counts.
+    method : string
+        Method to use for normalization.
+
+    '''
+    statement = '''
+    zcat %(infile)s
+    | python %(scriptsdir)s/counts2counts.py
+    --method=normalize
+    --normalization-method=%(method)s
+    --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s
+    '''
+    P.run()
 
 
 def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
@@ -234,6 +330,23 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
 
     This method works from output files created by Expression.py
     (method="deseq" or method="edger") or runMEDIPS (method="medips")
+
+    This method counts the number of up/down, 2fold up/down, etc.
+    genes in output from (:mod:`scripts/runExpression`).
+
+    This method also creates diagnostic plots in the
+    <exportdir>/<method> directory.
+
+    Arguments
+    ---------
+    infiles ; list
+        List of tables with DMR output
+    outfile : string
+        Output filename. Tab separated file summarizing
+    method : string
+        Method name
+    fdr_threshold : float
+        FDR threshold to apply. Currently unused.
     '''
     results = collections.defaultdict(lambda: collections.defaultdict(int))
     status = collections.defaultdict(lambda: collections.defaultdict(int))
@@ -334,8 +447,23 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
 
 def buildFDRStats(infile, outfile, method):
     '''compute number of windows called at different FDR.
+
+    .. note::
+        This method is incomplete
+
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`tsv` format. Typically the output
+        from :mod:`scripts/runExpression`.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    method : string
+        Method name.
     '''
 
+    raise NotImplementedError("function is incomplete")
     data = pandas.read_csv(IOTools.openFile(infile), sep="\t", index_col=0)
 
     assert data['treatment_name'][0] == data['treatment_name'][-1]
@@ -356,8 +484,16 @@ def buildFDRStats(infile, outfile, method):
 
 
 def outputAllWindows(infile, outfile):
-    '''output all Windows as a bed file with the l2fold change
+    '''output all windows as a bed file with the l2fold change
     as a score.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`tsv` format. Typically the output
+        from :mod:`scripts/runExpression`.
+    outfile : string
+        Output filename in :term:`bed` format.
     '''
     outf = IOTools.openFile(outfile, "w")
     for line in IOTools.iterate(IOTools.openFile(infile)):
@@ -368,17 +504,28 @@ def outputAllWindows(infile, outfile):
     outf.close()
 
 
-def outputRegionsOfInterest(infiles, outfile,
+def outputRegionsOfInterest(design_file, counts_file, outfile,
                             max_per_sample=10, sum_per_group=40):
     '''output windows according to various filters.
 
     The output is a mock analysis similar to a differential expression
     result.
 
-    '''
-    job_options = "-l mem_free=64G"
+    Arguments
+    ---------
+    design_file : string
+        Filename with experimental design
+    counts_file : string
+        :term:`tsv` formatted file with counts per windows
+    outfile : string
+       Output filename in :term:`tsv` format
+    max_per_sample : int
+       Remove samples with more than threshold counts
+    sum_per_group : int
+       Minimum counts per group.
 
-    design_file, counts_file = infiles
+    '''
+    job_memory = "64G"
 
     design = Expression.readDesignFile(design_file)
 
@@ -440,20 +587,35 @@ def outputRegionsOfInterest(infiles, outfile,
     P.run()
 
 
-def runDE(infiles, outfile, outdir,
+def runDE(design_file,
+          counts_file,
+          outfile,
+          outdir,
           method="deseq",
           spike_file=None):
-    '''run DESeq or EdgeR.
+    '''run DESeq or EdgeR through :mod:`scripts/runExpression.py`
 
     The job is split into smaller sections. The order of the input
     data is randomized in order to avoid any biases due to chromosomes
     and break up local correlations.
 
-    At the end, a new q-value is computed from all results.
+    At the end, a q-value is computed from all results.
 
+    Arguments
+    ---------
+    design_file : string
+        Filename with experimental design
+    counts_file : string
+        :term:`tsv` formatted file with counts per windows
+    outfile : string
+       Output filename in :term:`tsv` format.
+    outdir : string
+       Directory for additional output files.
+    method : string
+       Method to use. See :mod:`scripts/runExpression.py`.
+    spike_file : string
+       Filename with spike-in data to add before processing.
     '''
-
-    design_file, counts_file = infiles
 
     if spike_file is None:
         statement = "zcat %(counts_file)s"
@@ -512,14 +674,21 @@ def runDE(infiles, outfile, outdir,
     P.run()
 
 
-def normalizeBed(infile, outfile):
-    '''
-    Normalize counts in a bed file to total library size.
-    Return as a bedGraph format.  Written as a function
-    to use P.submit to send to cluster.
+def normalizeBed(countsfile, outfile):
+    '''normalize counts in a bed file to total library size.
+
+    Use :func:`Pipeline.submit` to send to cluster.
+
+    Arguments
+    ---------
+    countsfile : string
+        Filename with count data in :term:`tsv` format
+    outfile : string
+        Output filename in :term:`bedGraph` format.
+
     '''
 
-    bed_frame = pandas.read_table(infile,
+    bed_frame = pandas.read_table(countsfile,
                                   sep="\t",
                                   compression="gzip",
                                   header=0,
@@ -597,11 +766,22 @@ def enrichmentVsInput(infile, outfile):
 
 
 def runMEDIPSQC(infile, outfile):
-    '''run MEDIPS QC targets.'''
+    '''run QC using the MEDIPS package.
+
+    The QC data will be stored in the directory
+    :file:`./medips.dir`
+
+    Arguments
+    ---------
+    infile : string
+        Filename of :term:`bam` formatted file
+    outfile : string
+        Output filename. Containts logging information.
+    '''
 
     # note that the wrapper adds the filename
     # to the output filenames.
-    job_options = "-l mem_free=10G"
+    job_memory = "10G"
 
     statement = """python %(scriptsdir)s/runMEDIPS.py
             --ucsc-genome=%(medips_genome)s
@@ -620,10 +800,17 @@ def runMEDIPSQC(infile, outfile):
 
 
 def runMEDIPSDMR(design_file, outfile):
-    '''run differential MEDIPS analysis according to
-    designfile.
+    '''run differential methylation analysis using MEDIPS package.
+
+    Arguments
+    ---------
+    infile : string
+        Filename of :term:`bam` formatted file
+    outfile : string
+        Output filename in :term:`tsv` format.
     '''
-    job_options = "-l mem_free=30G"
+
+    job_memory = "30G"
 
     design = Expression.readDesignFile(design_file)
 
@@ -675,6 +862,29 @@ def outputSpikeCounts(outfile, infile_name,
                       fold_nbins=None,
                       expression_bins=None,
                       fold_bins=None):
+    """count significant results in bins of expression and fold change.
+
+    This method groups the results of a DE analysis in a 2-dimensonal
+    histogramy by tag counts/expression level and fold change.
+
+    Either supply one of `nbins` or `bins` for the histograms.
+
+    Arguments
+    ---------
+    outfile : string
+        Output filename
+    infile_name : string
+        Input filename in :term:`tsv` format. Usually the output of
+        :mod:`scripts/runExpression`.
+    expression_nbins : int
+        Number of bins to use for tag count histogram.
+    fold_nbins : int
+        Number of bins to use for fold-change histogram.
+    expression_bins : list
+        List of bins to use for tag count histogram.
+    fold_bins : list
+        List of bins to use for fold-change histogram.
+    """
 
     df = pandas.read_csv(infile_name,
                          sep="\t",
@@ -723,10 +933,21 @@ def outputSpikeCounts(outfile, infile_name,
 
 
 @P.cluster_runnable
-def plotDETagStats(infiles, outfile):
-    '''plot differential expression stats'''
+def plotDETagStats(infile, composition_file, outfile):
+    '''plot differential expression statistics
 
-    infile, composition_file = infiles
+    Arguments
+    ---------
+    infile : string
+        Filename with :term:`tsv` formatted list of differential
+        methylation results output from :doc:`scripts/runExpression`.
+    composition_file : string
+        Filename with :term:`tsv` formatted data about nucleotide
+        compositions of windows tested.
+    outfile : string
+        Output filename, used as sentinel only.
+    '''
+
     Expression.plotDETagStats(
         infile, outfile,
         additional_file=composition_file,
@@ -760,6 +981,16 @@ def buildSpikeResults(infile, outfile):
                     level of fdr and power.
         intervals_percent - percentage of intervals in observed data
               at given level of fdr and power
+
+    The method will also upload the results into the database.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`tsv` format. Usually the output of
+        :mod:`scripts/runExpression`.
+    outfile : string
+        Output filename in :term:`tsv` format.
 
     '''
 
@@ -885,3 +1116,167 @@ def buildSpikeResults(infile, outfile):
            options="--add-index=fdr")
 
     os.unlink(tmpfile_name)
+
+
+def summarizeTagsWithinContext(tagfile,
+                               contextfile,
+                               outfile,
+                               min_overlap=0.5,
+                               job_memory="4G"):
+    '''count occurances of tags in genomic context.
+
+    Examines the genomic context to where tags align.
+
+    A tag is assigned to the genomic context that it
+    overlaps by at least 50%. Thus some reads mapping
+    several contexts might be dropped.
+
+    Arguments
+    ---------
+    tagfile : string
+        Filename with tags. The file can be :term:`bam` or :term:`bed` format.
+    contextfile : string
+        Filename of :term:`bed` formatted files with named intervals (BED4).
+    outfile : string
+        Output in :term:`tsv` format.
+    min_overlap : float
+        Minimum overlap (fraction) to count features as overlapping.
+    job_memory : string
+        Memory to reserve.
+    '''
+
+    statement = '''
+    python %(scriptsdir)s/bam_vs_bed.py
+    --min-overlap=%(min_overlap)f
+    --log=%(outfile)s.log
+    %(tagfile)s %(contextfile)s
+    | gzip
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
+    """combine output from :func:`summarizeTagsWithinContex`.
+
+    Arguments
+    ---------
+    infiles : list
+        List of filenames in :term:`tsv` format
+    outfile : string
+        Output filename in :term:`tsv` format.
+    samples_in_columns :
+        If True, put samples in columns. The default is to put them
+        in rows.
+    """
+
+    header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
+                      for x in infiles])
+    filenames = " ".join(infiles)
+
+    if not samples_in_columns:
+        transpose_cmd = \
+            "| python %(scriptsdir)s/table2table.py --transpose" % P.getParams()
+    else:
+        transpose_cmd = ""
+
+    statement = """python %(scriptsdir)s/combine_tables.py
+    --header-names=%(header)s
+    --missing-value=0
+    --skip-titles
+    %(filenames)s
+    | perl -p -e "s/bin/track/; s/\?/Q/g"
+    %(transpose_cmd)s
+    | gzip
+    > %(outfile)s
+    """
+    
+    P.run()
+
+
+def loadSummarizedContextStats(infiles, outfile,
+                               suffix=".contextstats.tsv.gz"):
+    """merge output from :func:`summarizeTagsWithinContex` and load into database.
+
+    Arguments
+    ---------
+    infiles : list
+        List of filenames in :term:`tsv` format. The files should end
+        in suffix.
+    outfile : string
+        Output filename, the table name is derived from `outfile`.
+    suffix : string
+        Suffix to remove from filename for track name.
+
+    """
+
+    header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
+                      for x in infiles])
+    filenames = " ".join(infiles)
+
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track")
+
+    statement = """python %(scriptsdir)s/combine_tables.py
+    --header-names=%(header)s
+    --missing-value=0
+    --skip-titles
+    %(filenames)s
+    | perl -p -e "s/bin/track/; s/\?/Q/g"
+    | python %(scriptsdir)s/table2table.py --transpose
+    | %(load_statement)s
+    > %(outfile)s
+    """
+    P.run()
+
+
+def testTagContextOverlap(tagfile,
+                          contextfile,
+                          workspace,
+                          outfile,
+                          job_threads=1,
+                          samples=10000,
+                          options=""):
+    """use gat to test for overlap between tags and genomic context.
+
+    Arguments
+    ---------
+    tagfile : string
+         Filename with read tags :term:`bed` format. Tags can be
+         overlapping.
+    contextfile : string
+         Filename with genomic context information in :term:`bed`
+         format.
+    workspace : string
+         Genomic workspace for gat simulations in :term:`bed` format.
+    outfile : string
+         Output filename in :term:`tsv` format.
+    threads : int
+         Number of threads to use.
+    samples : int
+         Number of samples to compute.
+    options : string
+         Options to pass to the gat program.
+    """
+
+    statement = """
+    gat-run.py
+    --annotations-label=reads
+    --annotations=%(tagfile)s
+    --segments=%(contextfile)s
+    --workspace=%(workspace)s
+    --overlapping-annotations
+    --annotations-to-points=midpoint
+    --counter=annotation-overlap
+    --with-segment-tracks
+    --num-samples=%(samples)i
+    --num-threads=%(job_threads)i
+    --log=%(outfile)s.log
+    %(options)s
+    | gzip
+    > %(outfile)s
+    """
+
+    P.run()

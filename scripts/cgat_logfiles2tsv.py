@@ -1,5 +1,4 @@
-'''
-cgat_logfiles2tsv.py - create summary from logfiles
+'''cgat_logfiles2tsv.py - create summary from logfiles
 ===================================================
 
 :Author: Andreas Heger
@@ -10,18 +9,37 @@ cgat_logfiles2tsv.py - create summary from logfiles
 Purpose
 -------
 
-This scripts are collection of logfiles and collates
-summary information.
+This script takes a list of logfiles and collates summary information
+about execution times. This can be useful for post-mortem
+benchmark analysis.
 
-This script uses the ``# job finished`` tag that
-is added by scripts using the module :mod:`Experiment`.
+This script uses the ``# job finished`` tag that is added by scripts
+using the module :mod:`CGAT.Experiment`.
 
 Usage
 -----
 
-Example::
+To collect logfile information from all files matching the pattern
+``bwa.dir/mC-juvenile-stressed-R[12]*.log``, type::
 
-   python cgat_logfiles2tsv.py --help
+   python cgat_logfiles2tsv.py --glob="bwa.dir/mC-juvenile-stressed-R[12]*.log"
+
+to receive output such as this::
+
+  file    chunks  wall    user    sys     cuser   csys
+  bwa.dir/mC-juvenile-stressed-R2.bwa.bam.log     2       2552.00 1563.91  13.73    0.00    0.04
+  bwa.dir/mC-juvenile-stressed-R2.bwa.bw.log      1       2068.00 170.66    4.50  237.51  1194.92
+  bwa.dir/mC-juvenile-stressed-R1.bwa.bam.log     2       1378.00 762.52    9.90    0.00    0.04
+  bwa.dir/mC-juvenile-stressed-R1.bwa.contextstats.log    1       948.00  150.21    2.13  726.00    7.92
+  bwa.dir/mC-juvenile-stressed-R2.bwa.contextstats.log    1       935.00  137.00    2.26  775.07    8.35
+  bwa.dir/mC-juvenile-stressed-R1.bwa.bw.log      1       2150.00 159.64    4.12  214.59  1566.41
+  total   8       10031.00        2943.94  36.64  1953.17 2777.68
+
+The output lists for each file how often it was executed (``chunks``) and
+the total execution time in terms of wall clock time, user time, system
+time, child process user time and child process system time.
+
+The last line contains the sum total.
 
 Type::
 
@@ -33,20 +51,12 @@ Command line options
 --------------------
 
 '''
-import os
 import sys
-import string
 import re
-import tempfile
-import subprocess
-import optparse
 import gzip
 import glob
 
-from types import *
-
 import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
 import CGAT.Logfile as Logfile
 
 
@@ -95,7 +105,7 @@ def main(argv=None):
         filenames = glob.glob(options.glob_pattern)
 
     if len(filenames) == 0:
-        raise "no files to analyse"
+        raise ValueError("no files to analyse")
 
     if options.mode == "file":
         totals = Logfile.LogFileData()
