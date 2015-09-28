@@ -463,28 +463,589 @@ def loadCufflinksFPKM(infile, outfile):
            "--add-index=gene_id --add-index=transcript_id")
 
 
+@merge(PARAMS["annotations_interface_geneset_all_gtf"],
+       "coding_exons.gtf.gz")
+def buildCodingExons(infile, outfile):
+    '''compile set of protein coding exons.
+
+    This set is used for splice-site validation
+    '''
+
+    statement = '''
+    zcat %(infile)s
+    | awk '$3 == "CDS"'
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=filter
+    --filter-method=proteincoding
+    --log=%(outfile)s.log
+    | perl -p -e "s/CDS/exon/"
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-exons
+    --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s
+    '''
+    P.run()
+
 #########################################################################
 #########################################################################
 #########################################################################
-CUFFDIFF_TARGETS_DE = [
-    (
-        (x, y, glob.glob("*.bam")),
-        "%s_%s.tsv.gz" % (P.snip(x, ".tsv"),
-                          P.snip(y, ".gtf.gz")))
-    for x, y in itertools.product(glob.glob("design*.tsv"),
-                                  glob.glob("*.gtf.gz"))
-]
+
+
+@transform("*.gtf.gz",
+           suffix(".gtf.gz"),
+           ".unionintersection.bed.gz")
+def buildUnionIntersectionExons(infile, outfile):
+    '''build union/intersection genes according to
+    Bullard et al. (2010) BMC Bioinformatics.
+
+    Builds a single-segment bed file.
+    '''
+
+    statement = '''
+    gunzip < %(infile)s
+    | python %(scriptsdir)s/gtf2gtf.py --method=intersect-transcripts
+    --with-utr --log=%(outfile)s.log
+    | python %(scriptsdir)s/gff2gff.py
+    --is-gtf
+    --method=crop-unique
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gff2bed.py --is-gtf --log=%(outfile)s.log
+    | sort -k1,1 -k2,2n
+    | gzip
+    > %(outfile)s
+    '''
+
+    P.run()
+
+#########################################################################
+#########################################################################
+#########################################################################
+
+
+@transform("*.gtf.gz",
+           suffix(".gtf.gz"),
+           ".union.bed.gz")
+def buildUnionExons(infile, outfile):
+    '''build union genes.
+
+    Exons across all transcripts of a gene are merged.
+    They are then intersected between genes to remove any overlap.
+
+    Builds a single-segment bed file.
+    '''
+
+    statement = '''
+    gunzip < %(infile)s
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-exons
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gff2gff.py
+    --is-gtf
+    --method=crop-unique
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gff2bed.py
+    --is-gtf
+    --log=%(outfile)s.log
+    | sort -k1,1 -k2,2n
+    | gzip
+    > %(outfile)s
+    '''
+
+    P.run()
+
+#########################################################################
+#########################################################################
+#########################################################################
+
+
+@follows(mkdir("genecounts.dir"))
+@files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
+         ("genecounts.dir/%s.%s.tsv.gz" % (x.asFile(), y.asFile())))
+        for x, y in itertools.product(TRACKS, GENESETS)])
+def buildGeneLevelReadCounts(infiles, outfile):
+    '''compute read counts and coverage of exons with reads.
+    '''
+
+    bamfile, exons = infiles
+
+    if BamTools.isPaired(bamfile):
+        counter = 'readpair-counts'
+    else:
+        counter = 'read-counts'
+
+    # ignore multi-mapping reads
+    statement = '''
+    zcat %(exons)s
+    | python %(scriptsdir)s/gtf2table.py
+          --reporter=genes
+          --bam-file=%(bamfile)s
+          --counter=length
+          --column-prefix="exons_"
+          --counter=%(counter)s
+          --column-prefix=""
+          --counter=read-coverage
+          --column-prefix=coverage_
+          --min-mapping-quality=%(counting_min_mapping_quality)i
+          --multi-mapping-method=ignore
+          --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+@transform(buildGeneLevelReadCounts,
+           suffix(".tsv.gz"),
+           "_genecounts.load")
+def loadGeneLevelReadCounts(infile, outfile):
+    P.load(infile, outfile, options="--add-index=gene_id")
+
+
+@collate(buildGeneLevelReadCounts,
+         regex("genecounts.dir/([^.]+)\.([^.]+).tsv.gz"),
+         r"genecounts.dir/\2.genecounts.tsv.gz")
+def aggregateGeneLevelReadCounts(infiles, outfile):
+    ''' build a matrix of counts with genes and tracks dimensions '''
+
+    infiles = " ".join(infiles)
+    # use anysense unique counts, needs to parameterized
+    # for stranded/unstranded rnaseq data
+    statement = '''python %(scriptsdir)s/combine_tables.py
+    --columns=1
+    --take=%(counting_type)s
+    --use-file-prefix
+    --regex-filename='([^.]+)\..+.tsv.gz'
+    --log=%(outfile)s.log
+    %(infiles)s
+    | sed 's/geneid/gene_id/'
+    | gzip > %(outfile)s '''
+
+    P.run()
+
+
+@follows(mkdir("extension_counts.dir"))
+@transform("*.bam",
+           regex(r"(\S+).bam"),
+           r"extension_counts.dir/\1.extension_counts.tsv.gz")
+def buildGeneLevelReadExtension(infile, outfile):
+    '''compute extension of cds.
+
+    Known UTRs are counted as well.
+    '''
+
+    cds = PARAMS["annotations_dir_interface_geneset_cds_gtf"]
+    territories = PARAMS["annotations_interface_territories_gff"]
+    utrs = PARAMS["annotations_interface_annotation_gff"]
+
+    if "geneset_remove_contigs" in PARAMS:
+        remove_contigs = '''| awk '$1 !~ /%s/' ''' % PARAMS[
+            "geneset_remove_contigs"]
+    else:
+        remove_contigs = ""
+
+    statement = '''
+    zcat %(cds)s
+    %(remove_contigs)s
+    | python %(scriptsdir)s/gtf2table.py
+          --reporter=genes
+          --bam-file=%(infile)s
+          --counter=position
+          --counter=read-extension
+          --min-mapping-quality=%(counting_min_mapping_quality)i
+          --output-filename-pattern=%(outfile)s.%%s.tsv.gz
+          --gff-file=%(territories)s
+          --gff-file=%(utrs)s
+          --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s
+    '''
+
+    P.run()
+
+#########################################################################
+#########################################################################
+#########################################################################
+
+
+@follows(mkdir("transcript_counts.dir"))
+@files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
+         ("transcript_counts.dir/%s.%s.tsv.gz" % (x.asFile(), y.asFile())))
+        for x, y in itertools.product(TRACKS, GENESETS)])
+def buildTranscriptLevelReadCounts(infiles, outfile):
+    '''count reads falling into transcripts of protein coding gene models.
+
+    .. note::
+       In paired-end data sets each mate will be counted. Thus
+       the actual read counts are approximately twice the fragment
+       counts.
+
+    '''
+    bamfile, geneset = infiles
+
+    if BamTools.isPaired(bamfile):
+        counter = 'readpair-counts'
+    else:
+        counter = 'read-counts'
+
+    statement = '''
+    zcat %(geneset)s
+    | python %(scriptsdir)s/gtf2table.py
+          --reporter=transcripts
+          --bam-file=%(bamfile)s
+          --counter=length
+          --column-prefix="exons_"
+          --counter=%(counter)s
+          --column-prefix=""
+          --counter=read-coverage
+          --column-prefix=coverage_
+          --min-mapping-quality=%(counting_min_mapping_quality)i
+          --multi-mapping-method=ignore
+          --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+@transform(buildTranscriptLevelReadCounts,
+           suffix(".tsv.gz"),
+           ".load")
+def loadTranscriptLevelReadCounts(infile, outfile):
+    P.load(infile, outfile, options="--add-index=transcript_id")
+
+
+@follows(mkdir("featurecounts.dir"))
+@files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
+         ("featurecounts.dir/%s.%s.tsv.gz" % (x.asFile(), y.asFile())))
+        for x, y in itertools.product(TRACKS, GENESETS)])
+def buildFeatureCounts(infiles, outfile):
+    '''counts reads falling into "features", which by default are genes.
+
+    A read overlaps if at least one bp overlaps.
+
+    Pairs and strandedness can be used to resolve reads falling into
+    more than one feature. Reads that cannot be resolved to a single
+    feature are ignored.
+
+    '''
+    bamfile, annotations = infiles
+    PipelineRnaseq.runFeatureCounts(
+        annotations,
+        bamfile,
+        outfile,
+        job_threads=PARAMS['featurecounts_threads'],
+        strand=PARAMS['featurecounts_strand'],
+        options=PARAMS['featurecounts_options'])
+
+
+@collate(buildFeatureCounts,
+         regex("featurecounts.dir/([^.]+)\.([^.]+).tsv.gz"),
+         r"featurecounts.dir/\2.featurecounts.tsv.gz")
+def aggregateFeatureCounts(infiles, outfile):
+    ''' build a matrix of counts with genes and tracks dimensions.
+    '''
+
+    # Use column 7 as counts This is a possible source of bugs, the
+    # column position has changed before.
+
+    infiles = " ".join(infiles)
+    statement = '''python %(scriptsdir)s/combine_tables.py
+    --columns=1
+    --take=7
+    --use-file-prefix
+    --regex-filename='([^.]+)\..+.tsv.gz'
+    --log=%(outfile)s.log
+    %(infiles)s
+    | sed 's/geneid/gene_id/'
+    | gzip
+    > %(outfile)s '''
+
+    P.run()
+
+
+@transform(aggregateFeatureCounts,
+           suffix(".tsv.gz"),
+           ".load")
+def loadFeatureCounts(infile, outfile):
+    '''load individual feature counts into database'''
+    P.load(infile, outfile, "--add-index=gene_id")
+
+
+@merge(buildFeatureCounts,
+       "featurecounts_summary.load")
+def loadFeatureCountsSummary(infiles, outfile):
+    '''load feature counts summary data into table.'''
+    infiles = [P.snip(x, ".gz") + ".summary" for x in infiles]
+    P.mergeAndLoad(infiles, outfile, options="--add-index=track")
+
+
+@transform((aggregateGeneLevelReadCounts,
+            aggregateFeatureCounts),
+           suffix(".tsv.gz"),
+           ".stats.tsv.gz")
+def summarizeCounts(infile, outfile):
+    '''perform summarization of read counts'''
+
+    prefix = P.snip(outfile, ".tsv.gz")
+    job_memory = "32G"
+    statement = '''python %(scriptsdir)s/runExpression.py
+    --method=summary
+    --tags-tsv-file=%(infile)s
+    --output-filename-pattern=%(prefix)s_
+    --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s'''
+    P.run()
+
+
+@follows(mkdir("designs.dir"))
+@product("design*.tsv",
+         formatter(".*/(?P<PART1>.*).tsv$"),
+         (aggregateGeneLevelReadCounts,
+          aggregateFeatureCounts),
+         formatter(".*/(?P<PART2>.*).tsv.gz$"),
+         "designs.dir/{PART1[0][0]}.{PART2[1][0]}.stats.tsv")
+def summarizeCountsPerDesign(infiles, outfile):
+    '''perform summarization of read counts within experiments.
+    '''
+
+    design_file, counts_file = infiles
+    prefix = P.snip(outfile, ".tsv")
+    statement = '''python %(scriptsdir)s/runExpression.py
+              --method=summary
+              --design-tsv-file=%(design_file)s
+              --tags-tsv-file=%(counts_file)s
+              --output-filename-pattern=%(prefix)s_
+              --log=%(outfile)s.log
+              > %(outfile)s'''
+    P.run()
+
+
+@transform((summarizeCounts,
+            summarizeCountsPerDesign),
+           suffix(".stats.tsv"),
+           "_stats.load")
+def loadTagCountSummary(infile, outfile):
+    '''load windows summary.'''
+    P.load(infile, outfile)
+    P.load(P.snip(infile, ".tsv") + "_correlation.tsv",
+           P.snip(outfile, "_stats.load") + "_correlation.load",
+           options="--first-column=track")
+
+
+@follows(loadTagCountSummary,
+         loadFeatureCounts,
+         loadFeatureCountsSummary,
+         aggregateGeneLevelReadCounts,
+         aggregateFeatureCounts)
+@transform((summarizeCounts,
+            summarizeCountsPerDesign),
+           suffix("_stats.tsv"), "_stats.load")
+def counting():
+    pass
+
+
+@follows(mkdir("deseq.dir"), counting)
+@product("design*.tsv",
+         formatter("(.*).tsv$"),
+         (aggregateGeneLevelReadCounts,
+          aggregateFeatureCounts),
+         formatter("(.*).tsv.gz$"),
+         "deseq.dir/{basename[0][0]}.{basename[1][0]}.gz")
+def runDESeq(infiles, outfile):
+    '''perform differential expression analysis using deseq.'''
+
+    design_file, count_file = infiles
+
+    track = P.snip(outfile, ".tsv.gz")
+
+    statement = '''python %(scriptsdir)s/runExpression.py
+    --method=deseq
+    --tags-tsv-file=%(count_file)s
+    --design-tsv-file=%(design_file)s
+    --output-filename-pattern=%(track)s.
+    --outfile=%(outfile)s
+    --fdr=%(deseq_fdr)f
+    --deseq-fit-type=%(deseq_fit_type)s
+    --deseq-dispersion-method=%(deseq_dispersion_method)s
+    --deseq-sharing-mode=%(deseq_sharing_mode)s
+    --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
+    --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
+    --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
+    > %(outfile)s.log '''
+
+    P.run()
+
+
+@transform(runDESeq, suffix(".tsv.gz"), "_deseq.load")
+def loadDESeq(infile, outfile):
+    '''load differential expression results.
+    '''
+    # add gene level follow convention "<level>_diff"
+    P.load(infile,
+           outfile,
+           tablename=P.toTable(outfile) + "_gene_diff",
+           options="--allow-empty-file --add-index=test_id")
+
+
+@follows(loadGeneSetGeneInformation)
+@merge(loadDESeq, "deseq_stats.tsv")
+def buildDESeqStats(infiles, outfile):
+    PipelineRnaseq.buildExpressionStats(
+        connect(),
+        outfile,
+        tablenames=[P.toTable(x) + "_gene_diff" for x in infiles],
+        outdir=os.path.dirname(infiles[0]))
+
+
+@transform(buildDESeqStats,
+           suffix(".tsv"),
+           ".load")
+def loadDESeqStats(infile, outfile):
+    P.load(infile, outfile)
+
+
+@follows(counting, mkdir("edger.dir"))
+@product("design*.tsv",
+         formatter("(.*).tsv$"),
+         (aggregateGeneLevelReadCounts,
+          aggregateFeatureCounts),
+         formatter("(.*).tsv.gz$"),
+         "edger.dir/{basename[0][0]}.{basename[1][0]}.gz")
+def runEdgeR(infiles, outfile):
+    '''perform differential expression analysis using edger.'''
+
+    design_file, count_file = infiles
+    track = P.snip(outfile, ".tsv.gz")
+
+    statement = '''python %(scriptsdir)s/runExpression.py
+    --method=edger
+    --tags-tsv-file=%(count_file)s
+    --design-tsv-file=%(design_file)s
+    --output-filename-pattern=%(track)s.
+    --outfile=%(outfile)s
+    --fdr=%(edger_fdr)f
+    --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
+    --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
+    --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
+    > %(outfile)s.log '''
+
+    P.run()
+
+
+@transform(runEdgeR, suffix(".tsv.gz"), "_edger.load")
+def loadEdgeR(infile, outfile):
+    '''load differential expression results.
+    '''
+    # add gene level follow convention "<level>_diff"
+    P.load(infile,
+           outfile,
+           tablename=P.toTable(outfile) + "_gene_diff",
+           options="--allow-empty-file --add-index=test_id")
+
+
+@follows(loadGeneSetGeneInformation)
+@merge(loadEdgeR, "edger_stats.tsv")
+def buildEdgeRStats(infiles, outfile):
+    PipelineRnaseq.buildExpressionStats(
+        connect(),
+        outfile,
+        tablenames=[P.toTable(x) + "_gene_diff" for x in infiles],
+        outdir=os.path.dirname(infiles[0]))
+
+
+@transform(buildEdgeRStats,
+           suffix(".tsv"),
+           ".load")
+def loadEdgeRStats(infile, outfile):
+    P.load(infile, outfile)
+
+
+###############################################################################
+# Run DESeq2
+###############################################################################
+
+
+@follows(mkdir("deseq2.dir"), counting)
+@product("design*.tsv",
+         formatter("(.*).tsv$"),
+         # (aggregateGeneLevelReadCounts,
+         aggregateFeatureCounts,
+         formatter("(.*).tsv.gz$"),
+         "deseq2.dir/{basename[0][0]}.{basename[1][0]}.gz")
+def runDESeq2(infiles, outfile):
+    """
+    Perform differential expression analysis using DESeq2.
+    """
+
+    design_file, count_file = infiles
+    track = P.snip(outfile, ".tsv.gz")
+
+    statement = (
+        "python %(scriptsdir)s/runExpression.py"
+        " --method=deseq2"
+        " --outfile=%(outfile)s"
+        " --output-filename-pattern=%(track)s_"
+        " --fdr=%(deseq2_fdr)f"
+        " --tags-tsv-file=%(count_file)s"
+        " --design-tsv-file=%(design_file)s"
+        " --deseq2-design-formula=%(deseq2_model)s"
+        " --deseq2-contrasts=%(deseq2_contrasts)s"
+        " --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i"
+        " --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i"
+        " --filter-percentile-rowsums=%(deseq2_filter_percentile_rowsums)i"
+        " > %(outfile)s.log")
+    P.run()
+
+
+@transform(runDESeq2, suffix(".tsv.gz"), "_deseq2.load")
+def loadDESeq2(infile, outfile):
+    """Generate globally adjusted pvalue for all contrasts in a design.
+    To avoid confusion, drop the DESeq2 generated padj, which is for
+    single contrast.  Load table NB. Empty pvalues are due to DESeq2's
+    default outlier detection
+
+    """
+    # get R p.adjust
+    rstats = importr("stats")
+
+    # Read dataframe, extract pvalues, perform global padjust
+    df = pandas.read_table(infile, index_col=0, compression="gzip")
+    padj = ro.FloatVector(df["pvalue"].tolist())
+    padj = rstats.p_adjust(padj, method="BH")
+    # padj = rpyn.ri2numpy(padj)
+    assert isinstance(padj, numpy.ndarray), \
+        "Script assumes pipeline imports module calling numpy2ri.activate()"
+
+    # drop DESeq adjusted pvalues, add instead globally adjusted pvalues
+    df.drop("padj", axis=1, inplace=True)
+    df["padj_global"] = padj
+
+    # load table containing adjusted pvalues
+    tmpf = P.getTempFilename("/ifs/scratch")
+    df.to_csv(tmpf, sep="\t")
+    P.load(tmpf,
+           outfile,
+           tablename=P.toTable(outfile) + "_gene_diff",
+           options="--add-index=gene_id")
+    os.unlink(tmpf)
 
 
 @follows(mkdir("cuffdiff.dir"), buildMaskGtf)
-@files([(x, os.path.join("cuffdiff.dir", y))
-        for x, y in CUFFDIFF_TARGETS_DE])
+@product("design*.tsv",
+         formatter(".+/(?P<design>.*).tsv$"),
+         "*.gtf.gz",
+         formatter(".+/(?P<geneset>.*).gtf.gz$"),
+         add_inputs("*.bam"),
+         r"cuffdiff.dir/{design[0][0]}.{geneset[1][0]}.fpkm.tsv.gz")
 def runCuffdiff(infiles, outfile):
     '''perform differential expression analysis using cuffdiff.'''
 
-    design_file = infiles[0]
-    geneset_file = infiles[1]
-    bamfiles = infiles[2]
+    design_file, geneset_file = infiles[0]
+    bamfiles = infiles[1:]
 
     if PARAMS["cuffdiff_include_mask"]:
         mask_file = os.path.abspath("geneset_mask.gtf")
@@ -600,10 +1161,6 @@ def buildCuffdiffPlots(infile, outfile):
 
     P.touch(outfile)
 
-#########################################################################
-#########################################################################
-#########################################################################
-
 
 @follows(loadGeneSetGeneInformation)
 @merge(loadCuffdiff,
@@ -612,7 +1169,7 @@ def buildCuffdiffStats(infiles, outfile):
     PipelineRnaseq.buildExpressionStats(
         connect(),
         outfile,
-        tablenames=[P.toTable(x) for x in infiles],
+        tablenames=[P.toTable(x) + "_gene_diff" for x in infiles],
         outdir=os.path.dirname(infiles[0]))
 
 
@@ -622,583 +1179,6 @@ def buildCuffdiffStats(infiles, outfile):
 def loadCuffdiffStats(infile, outfile):
     '''import cuffdiff results.'''
     P.load(infile, outfile)
-
-
-@merge(PARAMS["annotations_interface_geneset_all_gtf"],
-       "coding_exons.gtf.gz")
-def buildCodingExons(infile, outfile):
-    '''compile set of protein coding exons.
-
-    This set is used for splice-site validation
-    '''
-
-    statement = '''
-    zcat %(infile)s
-    | awk '$3 == "CDS"'
-    | python %(scriptsdir)s/gtf2gtf.py
-    --method=filter
-    --filter-method=proteincoding
-    --log=%(outfile)s.log
-    | perl -p -e "s/CDS/exon/"
-    | python %(scriptsdir)s/gtf2gtf.py
-    --method=merge-exons
-    --log=%(outfile)s.log
-    | gzip
-    > %(outfile)s
-    '''
-    P.run()
-
-#########################################################################
-#########################################################################
-#########################################################################
-
-
-@transform("*.gtf.gz",
-           suffix(".gtf.gz"),
-           ".unionintersection.bed.gz")
-def buildUnionIntersectionExons(infile, outfile):
-    '''build union/intersection genes according to
-    Bullard et al. (2010) BMC Bioinformatics.
-
-    Builds a single-segment bed file.
-    '''
-
-    statement = '''
-    gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=intersect-transcripts
-    --with-utr --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2gff.py
-    --is-gtf
-    --method=crop-unique
-    --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --log=%(outfile)s.log
-    | sort -k1,1 -k2,2n
-    | gzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-#########################################################################
-#########################################################################
-#########################################################################
-
-
-@transform("*.gtf.gz",
-           suffix(".gtf.gz"),
-           ".union.bed.gz")
-def buildUnionExons(infile, outfile):
-    '''build union genes.
-
-    Exons across all transcripts of a gene are merged.
-    They are then intersected between genes to remove any overlap.
-
-    Builds a single-segment bed file.
-    '''
-
-    statement = '''
-    gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
-    --method=merge-exons
-    --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2gff.py
-    --is-gtf
-    --method=crop-unique
-    --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py
-    --is-gtf
-    --log=%(outfile)s.log
-    | sort -k1,1 -k2,2n
-    | gzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-#########################################################################
-#########################################################################
-#########################################################################
-
-
-@follows(mkdir("gene_counts.dir"))
-@files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
-         ("gene_counts.dir/%s_vs_%s.tsv.gz" % (x.asFile(), y.asFile())))
-        for x, y in itertools.product(TRACKS, GENESETS)])
-def buildGeneLevelReadCounts(infiles, outfile):
-    '''compute read counts and coverage of exons with reads.
-    '''
-
-    bamfile, exons = infiles
-
-    if BamTools.isPaired(bamfile):
-        counter = 'readpair-counts'
-    else:
-        counter = 'read-counts'
-
-    # ignore multi-mapping reads
-    statement = '''
-    zcat %(exons)s
-    | python %(scriptsdir)s/gtf2table.py
-          --reporter=genes
-          --bam-file=%(bamfile)s
-          --counter=length
-          --column-prefix="exons_"
-          --counter=%(counter)s
-          --column-prefix=""
-          --counter=read-coverage
-          --column-prefix=coverage_
-          --min-mapping-quality=%(counting_min_mapping_quality)i
-          --multi-mapping-method=ignore
-          --log=%(outfile)s.log
-    | gzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-
-@transform(buildGeneLevelReadCounts,
-           suffix(".tsv.gz"),
-           "_gene_counts.load")
-def loadGeneLevelReadCounts(infile, outfile):
-    P.load(infile, outfile, options="--add-index=gene_id")
-
-#########################################################################
-#########################################################################
-#########################################################################
-
-
-@collate(buildGeneLevelReadCounts,
-         regex("gene_counts.dir/(.+)_vs_(.+).tsv.gz"),
-         r"gene_counts.dir/\2.gene_counts.tsv.gz")
-def aggregateGeneLevelReadCounts(infiles, outfile):
-    ''' build a matrix of counts with genes and tracks dimensions '''
-
-    infiles = " ".join(infiles)
-    # use anysense unique counts, needs to parameterized
-    # for stranded/unstranded rnaseq data
-    statement = '''python %(scriptsdir)s/combine_tables.py
-    --columns=1
-    --take=%(counting_type)s
-    --use-file-prefix
-    --regex-filename='(.+)_vs.+.tsv.gz'
-    --log=%(outfile)s.log
-    %(infiles)s
-    | sed 's/geneid/gene_id/'
-    | gzip > %(outfile)s '''
-
-    P.run()
-
-
-#########################################################################
-#########################################################################
-#########################################################################
-@follows(mkdir("extension_counts.dir"))
-@transform("*.bam",
-           regex(r"(\S+).bam"),
-           r"extension_counts.dir/\1.extension_counts.tsv.gz")
-def buildGeneLevelReadExtension(infile, outfile):
-    '''compute extension of cds.
-
-    Known UTRs are counted as well.
-    '''
-
-    cds = PARAMS["annotations_dir_interface_geneset_cds_gtf"]
-    territories = PARAMS["annotations_interface_territories_gff"]
-    utrs = PARAMS["annotations_interface_annotation_gff"]
-
-    if "geneset_remove_contigs" in PARAMS:
-        remove_contigs = '''| awk '$1 !~ /%s/' ''' % PARAMS[
-            "geneset_remove_contigs"]
-    else:
-        remove_contigs = ""
-
-    statement = '''
-    zcat %(cds)s
-    %(remove_contigs)s
-    | python %(scriptsdir)s/gtf2table.py
-          --reporter=genes
-          --bam-file=%(infile)s
-          --counter=position
-          --counter=read-extension
-          --min-mapping-quality=%(counting_min_mapping_quality)i
-          --output-filename-pattern=%(outfile)s.%%s.tsv.gz
-          --gff-file=%(territories)s
-          --gff-file=%(utrs)s
-          --log=%(outfile)s.log
-    | gzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-#########################################################################
-#########################################################################
-#########################################################################
-
-
-@follows(mkdir("transcript_counts.dir"))
-@files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
-         ("transcript_counts.dir/%s_vs_%s.tsv.gz" % (x.asFile(), y.asFile())))
-        for x, y in itertools.product(TRACKS, GENESETS)])
-def buildTranscriptLevelReadCounts(infiles, outfile):
-    '''count reads falling into transcripts of protein coding gene models.
-
-    .. note::
-       In paired-end data sets each mate will be counted. Thus
-       the actual read counts are approximately twice the fragment
-       counts.
-
-    '''
-    bamfile, geneset = infiles
-
-    if BamTools.isPaired(bamfile):
-        counter = 'readpair-counts'
-    else:
-        counter = 'read-counts'
-
-    statement = '''
-    zcat %(geneset)s
-    | python %(scriptsdir)s/gtf2table.py
-          --reporter=transcripts
-          --bam-file=%(bamfile)s
-          --counter=length
-          --column-prefix="exons_"
-          --counter=%(counter)s
-          --column-prefix=""
-          --counter=read-coverage
-          --column-prefix=coverage_
-          --min-mapping-quality=%(counting_min_mapping_quality)i
-          --multi-mapping-method=ignore
-          --log=%(outfile)s.log
-    | gzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-
-@transform(buildTranscriptLevelReadCounts,
-           suffix(".tsv.gz"),
-           ".load")
-def loadTranscriptLevelReadCounts(infile, outfile):
-    P.load(infile, outfile, options="--add-index=transcript_id")
-
-
-@follows(mkdir("feature_counts.dir"))
-@files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
-         ("feature_counts.dir/%s_vs_%s.tsv.gz" % (x.asFile(), y.asFile())))
-        for x, y in itertools.product(TRACKS, GENESETS)])
-def buildFeatureCounts(infiles, outfile):
-    '''counts reads falling into "features", which by default are genes.
-
-    A read overlaps if at least one bp overlaps.
-
-    Pairs and strandedness can be used to resolve reads falling into
-    more than one feature. Reads that cannot be resolved to a single
-    feature are ignored.
-
-    '''
-    bamfile, annotations = infiles
-    PipelineRnaseq.runFeatureCounts(
-        annotations,
-        bamfile,
-        outfile,
-        job_threads=PARAMS['featurecounts_threads'],
-        strand=PARAMS['featurecounts_strand'],
-        options=PARAMS['featurecounts_options'])
-
-
-@collate(buildFeatureCounts,
-         regex("feature_counts.dir/(.+)_vs_(.+).tsv.gz"),
-         r"feature_counts.dir/\2.feature_counts.tsv.gz")
-def aggregateFeatureCounts(infiles, outfile):
-    ''' build a matrix of counts with genes and tracks dimensions.
-    '''
-
-    # Use column 7 as counts This is a possible source of bugs, the
-    # column position has changed before.
-
-    infiles = " ".join(infiles)
-    statement = '''python %(scriptsdir)s/combine_tables.py
-    --columns=1
-    --take=7
-    --use-file-prefix
-    --regex-filename='(.+)_vs.+.tsv.gz'
-    --log=%(outfile)s.log
-    %(infiles)s
-    | sed 's/geneid/gene_id/'
-    | gzip
-    > %(outfile)s '''
-
-    P.run()
-
-
-@transform(aggregateFeatureCounts,
-           suffix(".tsv.gz"),
-           ".load")
-def loadFeatureCounts(infile, outfile):
-    '''load individual feature counts into database'''
-    P.load(infile, outfile, "--add-index=gene_id")
-
-
-@merge(buildFeatureCounts,
-       "feature_counts_summary.load")
-def loadFeatureCountsSummary(infiles, outfile):
-    '''load feature counts summary data into table.'''
-    infiles = [P.snip(x, ".gz") + ".summary" for x in infiles]
-    P.mergeAndLoad(infiles, outfile, options="--add-index=track")
-
-
-@transform((aggregateGeneLevelReadCounts,
-            aggregateFeatureCounts),
-           suffix(".tsv.gz"),
-           "_stats.tsv.gz")
-def summarizeCounts(infile, outfile):
-    '''perform summarization of read counts'''
-
-    prefix = P.snip(outfile, ".tsv.gz")
-    job_memory = "32G"
-    statement = '''python %(scriptsdir)s/runExpression.py
-    --method=summary
-    --tags-tsv-file=%(infile)s
-    --output-filename-pattern=%(prefix)s_
-    --log=%(outfile)s.log
-    | gzip
-    > %(outfile)s'''
-    P.run()
-
-
-@follows(mkdir("designs.dir"))
-@product("design*.tsv",
-         formatter(".*/(?P<PART1>.*).tsv$"),
-         (aggregateGeneLevelReadCounts,
-          aggregateFeatureCounts),
-         formatter(".*/(?P<PART2>.*).tsv.gz$"),
-         "designs.dir/{PART1[0][0]}_vs_{PART2[1][0]}_stats.tsv")
-def summarizeCountsPerDesign(infiles, outfile):
-    '''perform summarization of read counts within experiments.
-    '''
-
-    design_file, counts_file = infiles
-    prefix = P.snip(outfile, ".tsv")
-    statement = '''python %(scriptsdir)s/runExpression.py
-              --method=summary
-              --design-tsv-file=%(design_file)s
-              --tags-tsv-file=%(counts_file)s
-              --output-filename-pattern=%(prefix)s_
-              --log=%(outfile)s.log
-              > %(outfile)s'''
-    P.run()
-
-
-@transform((summarizeCounts,
-            summarizeCountsPerDesign),
-           suffix("_stats.tsv"), "_stats.load")
-def loadTagCountSummary(infile, outfile):
-    '''load windows summary.'''
-    P.load(infile, outfile)
-    P.load(P.snip(infile, ".tsv") + "_correlation.tsv",
-           P.snip(outfile, "_stats.load") + "_correlation.load",
-           options="--first-column=track")
-
-
-@follows(loadTagCountSummary,
-         loadFeatureCounts,
-         loadFeatureCountsSummary,
-         aggregateGeneLevelReadCounts,
-         aggregateFeatureCounts)
-@transform((summarizeCounts,
-            summarizeCountsPerDesign),
-           suffix("_stats.tsv"), "_stats.load")
-def counting():
-    pass
-
-
-@follows(mkdir("deseq.dir"), counting)
-@product("design*.tsv",
-         formatter("(.*).tsv$"),
-         (aggregateGeneLevelReadCounts,
-          aggregateFeatureCounts),
-         formatter("(.*).tsv.gz$"),
-         "deseq.dir/{basename[0][0]}_vs_{basename[1][0]}.gz")
-def runDESeq(infiles, outfile):
-    '''perform differential expression analysis using deseq.'''
-
-    design_file, count_file = infiles
-
-    track = P.snip(outfile, ".tsv.gz")
-
-    statement = '''python %(scriptsdir)s/runExpression.py
-    --method=deseq
-    --tags-tsv-file=%(count_file)s
-    --design-tsv-file=%(design_file)s
-    --output-filename-pattern=%(track)s_
-    --outfile=%(outfile)s
-    --fdr=%(deseq_fdr)f
-    --deseq-fit-type=%(deseq_fit_type)s
-    --deseq-dispersion-method=%(deseq_dispersion_method)s
-    --deseq-sharing-mode=%(deseq_sharing_mode)s
-    --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
-    --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
-    --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
-    > %(outfile)s.log '''
-
-    P.run()
-
-
-@transform(runDESeq, suffix(".tsv.gz"), "_deseq.load")
-def loadDESeq(infile, outfile):
-    '''load differential expression results.
-    '''
-    # add gene level follow convention "<level>_diff"
-    P.load(infile,
-           outfile,
-           tablename=P.toTable(outfile) + "_gene_diff",
-           options="--allow-empty-file --add-index=test_id")
-
-
-@follows(loadGeneSetGeneInformation)
-@merge(loadDESeq, "deseq_stats.tsv")
-def buildDESeqStats(infiles, outfile):
-    PipelineRnaseq.buildExpressionStats(
-        connect(),
-        outfile,
-        tablenames=[P.toTable(x) + "_diff" for x in infiles],
-        outdir=os.path.dirname(infiles[0]))
-
-
-@transform(buildDESeqStats,
-           suffix(".tsv"),
-           ".load")
-def loadDESeqStats(infile, outfile):
-    P.load(infile, outfile)
-
-
-@follows(counting, mkdir("edger.dir"))
-@product("design*.tsv",
-         formatter("(.*).tsv$"),
-         (aggregateGeneLevelReadCounts,
-          aggregateFeatureCounts),
-         formatter("(.*).tsv.gz$"),
-         "edger.dir/{basename[0][0]}_vs_{basename[1][0]}.gz")
-def runEdgeR(infiles, outfile):
-    '''perform differential expression analysis using edger.'''
-
-    design_file, count_file = infiles
-    track = P.snip(outfile, ".tsv.gz")
-
-    statement = '''python %(scriptsdir)s/runExpression.py
-    --method=edger
-    --tags-tsv-file=%(count_file)s
-    --design-tsv-file=%(design_file)s
-    --output-filename-pattern=%(track)s_
-    --outfile=%(outfile)s
-    --fdr=%(edger_fdr)f
-    --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
-    --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
-    --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
-    > %(outfile)s.log '''
-
-    P.run()
-
-
-@transform(runEdgeR, suffix(".tsv.gz"), "_edger.load")
-def loadEdgeR(infile, outfile):
-    '''load differential expression results.
-    '''
-    # add gene level follow convention "<level>_diff"
-    P.load(infile,
-           outfile,
-           tablename=P.toTable(outfile) + "_gene_diff",
-           options="--allow-empty-file --add-index=test_id")
-
-
-@follows(loadGeneSetGeneInformation)
-@merge(loadEdgeR, "edger_stats.tsv")
-def buildEdgeRStats(infiles, outfile):
-    PipelineRnaseq.buildExpressionStats(
-        connect(),
-        outfile,
-        tables=[P.toTable(x) + "_diff" for x in infiles],
-        outdir=os.path.dirname(infiles[0]))
-
-
-@transform(buildEdgeRStats,
-           suffix(".tsv"),
-           ".load")
-def loadEdgeRStats(infile, outfile):
-    P.load(infile, outfile)
-
-
-###############################################################################
-# Run DESeq2
-###############################################################################
-
-
-@follows(mkdir("deseq2.dir"), counting)
-@product("design*.tsv",
-         formatter("(.*).tsv$"),
-         # (aggregateGeneLevelReadCounts,
-         aggregateFeatureCounts,
-         formatter("(.*).tsv.gz$"),
-         "deseq2.dir/{basename[0][0]}_vs_{basename[1][0]}.gz")
-def runDESeq2(infiles, outfile):
-    """
-    Perform differential expression analysis using DESeq2.
-    """
-
-    design_file, count_file = infiles
-    track = P.snip(outfile, ".tsv.gz")
-
-    statement = (
-        "python %(scriptsdir)s/runExpression.py"
-        " --method=deseq2"
-        " --outfile=%(outfile)s"
-        " --output-filename-pattern=%(track)s_"
-        " --fdr=%(deseq2_fdr)f"
-        " --tags-tsv-file=%(count_file)s"
-        " --design-tsv-file=%(design_file)s"
-        " --deseq2-design-formula=%(deseq2_model)s"
-        " --deseq2-contrasts=%(deseq2_contrasts)s"
-        " --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i"
-        " --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i"
-        " --filter-percentile-rowsums=%(deseq2_filter_percentile_rowsums)i"
-        " > %(outfile)s.log")
-    P.run()
-
-
-@transform(runDESeq2, suffix(".tsv.gz"), "_deseq2.load")
-def loadDESeq2(infile, outfile):
-    """Generate globally adjusted pvalue for all contrasts in a design.
-    To avoid confusion, drop the DESeq2 generated padj, which is for
-    single contrast.  Load table NB. Empty pvalues are due to DESeq2's
-    default outlier detection
-
-    """
-    # get R p.adjust
-    rstats = importr("stats")
-
-    # Read dataframe, extract pvalues, perform global padjust
-    df = pandas.read_table(infile, index_col=0, compression="gzip")
-    padj = ro.FloatVector(df["pvalue"].tolist())
-    padj = rstats.p_adjust(padj, method="BH")
-    # padj = rpyn.ri2numpy(padj)
-    assert isinstance(padj, numpy.ndarray), \
-        "Script assumes pipeline imports module calling numpy2ri.activate()"
-
-    # drop DESeq adjusted pvalues, add instead globally adjusted pvalues
-    df.drop("padj", axis=1, inplace=True)
-    df["padj_global"] = padj
-
-    # load table containing adjusted pvalues
-    tmpf = P.getTempFilename("/ifs/scratch")
-    df.to_csv(tmpf, sep="\t")
-    P.load(tmpf,
-           outfile,
-           tablename=P.toTable(outfile) + "_gene_diff",
-           options="--add-index=gene_id")
-    os.unlink(tmpf)
 
 
 @follows(loadCufflinks,
@@ -1236,7 +1216,7 @@ def loadDEStats(infiles, outfile):
          (aggregateGeneLevelReadCounts,
           aggregateFeatureCounts),
          formatter("(.*).tsv.gz$"),
-         "tagplots.dir/{basename[0][0]}_vs_{basename[1][0]}.log")
+         "tagplots.dir/{basename[0][0]}.{basename[1][0]}.log")
 def plotTagStats(infiles, outfile):
     '''perform differential expression analysis using deseq.'''
 

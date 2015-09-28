@@ -1195,7 +1195,8 @@ def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
     P.run()
 
 
-def loadSummarizedContextStats(infiles, outfile,
+def loadSummarizedContextStats(infiles,
+                               outfile,
                                suffix=".contextstats.tsv.gz"):
     """merge output from :func:`summarizeTagsWithinContex` and load into database.
 

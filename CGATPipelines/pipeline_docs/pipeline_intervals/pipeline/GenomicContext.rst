@@ -3,16 +3,17 @@ Genomic context
 ===============
 
 This section summarizes the genomic context that reads have mapped to. This section
-serves as a rough indicator to where reads have aligned too. The counting is naive:
+serves as a rough indicator to where reads have aligned to. The counting is naive:
 
-* Counts are in terms of alignments. Thus a single read might contribute several counts
-   to the same context or different contexts.
+* Counts are in terms of alignments. Thus a single read might
+  contribute several counts to the same context or different contexts.
 
-* Some genomic contexts can be overlapping, thus some alignments might be counted several
-   times. 
+* Some genomic contexts can be overlapping, thus some alignments might
+  be counted several times.
 
-* An alignment needs to map to a context over at least 50% of its bases. 
-  Thus some alignments spanning several contexts might be dropped.
+* An alignment needs to map to a context over at least 50% of its
+  bases.  Thus some alignments spanning several contexts might be
+  dropped.
 
 All regions
 ===========

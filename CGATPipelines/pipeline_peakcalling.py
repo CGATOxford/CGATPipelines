@@ -343,8 +343,6 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
-print "annotations_interface_contigs", PARAMS["annotations_interface_contigs"]
-
 PipelinePeakcalling.PARAMS = PARAMS
 
 ###################################################################
@@ -518,7 +516,7 @@ def checkInput(infiles, outfile):
 @transform("*.genome.bam",
            suffix(".genome.bam"),
            ".prep.bam")
-def prepareBAMForPeakCalling(infiles, outfile):
+def prepareBAMForPeakCalling(infile, outfile):
     '''Prepare BAM files for peak calling.
 
         - unmapped reads are removed.
@@ -534,8 +532,6 @@ def prepareBAMForPeakCalling(infiles, outfile):
         single end reads.
 
     '''
-    bam_file, mask_file = infiles
-
     if PARAMS["calling_filter_regions"]:
         if not os.path.exists(mask):
             raise IOError("filter file '%s' does not exist")
@@ -544,7 +540,7 @@ def prepareBAMForPeakCalling(infiles, outfile):
         mask = None
 
     PipelinePeakcalling.buildBAMforPeakCalling(
-        bam_file, outfile, PARAMS["calling_deduplicate"], mask)
+        infile, outfile, PARAMS["calling_deduplicate"], mask)
 
 
 @merge(prepareBAMForPeakCalling, "preparation_stats.load")
@@ -556,9 +552,6 @@ def loadDuplicationStats(infiles, outfile):
                                         suffix=".picard_metrics")
 
 
-############################################################
-############################################################
-############################################################
 if PARAMS["calling_normalize"] is True:
     '''Normalise the number of reads in a set of prepared bam files.
 
