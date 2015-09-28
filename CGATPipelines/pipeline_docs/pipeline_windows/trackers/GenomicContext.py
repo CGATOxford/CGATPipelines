@@ -52,8 +52,7 @@ _gat_analysis = {"Results": GatResults,
                  "Fold": GatLogFold,
                  "LogFold": GatLogFold}
 
-_gat_sets = {"Context": GatTableContext
-}
+_gat_sets = {"Context": GatTableContext}
 
 for a, aa in _gat_analysis.items():
     for b, bb in _gat_sets.items():
