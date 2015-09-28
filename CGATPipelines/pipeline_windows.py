@@ -622,7 +622,7 @@ def countTagsWithinWindows(infiles, outfile):
 
 
 @merge(countTagsWithinWindows,
-       r"counts.dir/counts.tsv.gz")
+       r"counts.dir/windows_counts.tsv.gz")
 def aggregateWindowsTagCounts(infiles, outfile):
     '''aggregate tag counts into a single file.
     '''
@@ -658,7 +658,7 @@ def countTagsWithinContext(infiles, outfile):
 
 
 @merge(countTagsWithinContext,
-       r"contextstats.dir/counts.tsv.gz")
+       r"contextstats.dir/context_counts.tsv.gz")
 def aggregateContextTagCounts(infiles, outfile):
     '''aggregate tag counts into a single file.
     '''
@@ -756,7 +756,8 @@ def mapTrack2Input(tracks):
     return map_track2input
 
 
-@transform(loadWindowsTagCounts, suffix(".load"),
+@transform(loadWindowsTagCounts,
+           suffix(".load"),
            "_l2foldchange_input.tsv.gz")
 def buildWindowsFoldChangesPerInput(infile, outfile):
     '''Compute fold changes for each sample compared to appropriate input.
@@ -768,7 +769,7 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     # get all data
     dbh = connect()
     cc = dbh.cursor()
-    cc.execute("SELECT * FROM counts")
+    cc.execute("SELECT * FROM windows_counts")
     data = cc.fetchall()
 
     # transpose, remove interval_id column
@@ -820,7 +821,8 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
                      sep="\t", index=False)
 
 
-@transform(loadWindowsTagCounts, suffix(".load"),
+@transform(loadWindowsTagCounts,
+           suffix(".load"),
            "_l2foldchange_median.tsv.gz")
 def buildWindowsFoldChangesPerMedian(infile, outfile):
     '''Compute l2fold changes for each sample compared to the median count
@@ -831,7 +833,7 @@ def buildWindowsFoldChangesPerMedian(infile, outfile):
     # get all data
     dbh = connect()
     cc = dbh.cursor()
-    cc.execute("SELECT * FROM counts")
+    cc.execute("SELECT * FROM windows_counts")
     data = cc.fetchall()
 
     # transpose, remove interval_id column
@@ -1634,10 +1636,10 @@ def mergeSummarizedContextStats(infiles, outfile):
     PipelineWindows.mergeSummarizedContextStats(infiles, outfile)
 
 
-@transform(mergeSummarizedContextStats, suffix(".tsv.gz"), ".load")
-def loadSummarizedContextStats(infile, outfile):
+@merge(summarizeTagsWithinContext, "context_stats.load")
+def loadSummarizedContextStats(infiles, outfile):
     """load context mapping statistics."""
-    P.load(infile, outfile)
+    PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 
 @merge(summarizeTagsWithinContext,
@@ -1652,7 +1654,7 @@ def mergeSummarizedContextStatsAsCounts(infiles, outfile):
            suffix(".tsv.gz"),
            "_normed.tsv.gz")
 def normalizeSummarizedContextStats(infile, outfile):
-    """load context mapping statistics."""
+    """normalize context mapping statistics."""
 
     PipelineWindows.normalizeTagCounts(
         infile,
@@ -1683,6 +1685,15 @@ def testTagContextOverlap(infiles, outfile):
         job_threads=PARAMS["gat_threads"],
         samples=PARAMS["gat_samples"],
         options=PARAMS["gat_options"])
+
+
+@transform(testTagContextOverlap,
+           suffix(".tsv.gz"),
+           "_context_gat.load")
+def loadTagContextOverlap(infile, outfile):
+    """load results from GAT analysis into database.
+    """
+    P.load(infile, outfile, options="--add-index=track")
 
 
 @follows(mkdir("medips.dir"))
@@ -1759,8 +1770,17 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
-@follows(buildTranscriptProfiles, gc, loadPicardDuplicateStats,
-         diff_windows, dmr)
+@follows(loadTagContextOverlap, loadSummarizedContextStats)
+def context():
+    """context based analysis"""
+    pass
+
+
+@follows(buildTranscriptProfiles,
+         gc,
+         loadPicardDuplicateStats,
+         diff_windows,
+         dmr)
 def full():
     pass
 
