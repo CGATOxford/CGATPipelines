@@ -211,7 +211,7 @@ def countTagsWithinWindows(tagfile,
     zcat %(tagfile)s
     %(f)s
     | coverageBed -a stdin -b %(windowfile)s -split
-    | sort -k1,1 -k2,2n -k4,4
+    | sort -k1,1 -k2,2n -k3,3n -k4,4
     | gzip
     > %(outfile)s
     '''
