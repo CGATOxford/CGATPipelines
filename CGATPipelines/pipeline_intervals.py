@@ -772,6 +772,7 @@ def buildIntervalProfileOfTranscripts(infiles, outfile):
     --normalize-profile=area
     --normalize-profile=counts
     %(bedfile)s %(gtffile)s
+    | gzip
     > %(outfile)s
     '''
     P.run()
