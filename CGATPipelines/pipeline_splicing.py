@@ -192,6 +192,9 @@ DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 def runMATS(infile, outfile):
     '''run rMATS.'''
 
+    if not os.path.exists(outfile):
+        os.makedirs(outfile)
+
     design = infile
     Design = Expression.ExperimentalDesign(design)
     if len(Design.groups) != 2:
@@ -216,11 +219,12 @@ def runMATS(infile, outfile):
     if Design.has_pairs:
         statement += "-analysis P "
 
+    
     # Get Insert Size Statistics if Paired End Reads
     if BamTools.isPaired(Design.samples[0]+".bam"):
-        inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam")
+        inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam",10000)
                     for sample in Design.getSamplesInGroup(Design.groups[0])]
-        inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam")
+        inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam",10000)
                     for sample in Design.getSamplesInGroup(Design.groups[1])]
         r1 = ",".join(map(str, [item[0] for item in inserts1]))
         sd1 = ",".join(map(str, [item[1] for item in inserts1]))
