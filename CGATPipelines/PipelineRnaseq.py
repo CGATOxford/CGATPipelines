@@ -381,12 +381,12 @@ def runFeatureCounts(annotations_file,
 def buildExpressionStats(
         dbhandle,
         outfile,
-        tables,
+        tablenames,
         outdir,
-        regex_table="(?P<design>[^_]+)_vs_"
+        regex_table="(?P<design>[^_]+)_"
         "(?P<geneset>[^_]+)_"
-        "(?P<counting_method>.+)_"
-        "(?P<method>([^_]+)_"
+        "(?P<counting_method>[^_]+)_"
+        "(?P<method>[^_]+)_"
         "(?P<level>[^_]+)_diff"):
     """compile expression summary statistics from database.
 
@@ -423,7 +423,7 @@ def buildExpressionStats(
          "significant",
          "twofold")) + "\n")
 
-    for tablename in tables:
+    for tablename in tablenames:
         r = re.search(regex_table, tablename)
         if r is None:
             raise ValueError(
@@ -550,7 +550,7 @@ def loadCuffdiff(dbhandle, infile, outfile, min_fpkm=1.0):
     # cuff = R('''readCufflinks(dir = %(indir)s, dbfile=%(indir)s/csvdb)''' )
     # to be continued...
 
-    tmpname = P.getTempFilename(".")
+    tmpname = P.getTempFilename(shared=True)
 
     # ignore promoters and splicing - no fold change column, but  sqrt(JS)
     for fn, level in (("cds_exp.diff.gz", "cds"),
@@ -564,23 +564,8 @@ def loadCuffdiff(dbhandle, infile, outfile, min_fpkm=1.0):
 
         infile = os.path.join(indir, fn)
 
-        # rename diff files to align column names with column names
-        # from deseq and edger. This is important for later processing
-        # of summary statistics and is done via loading into a pandas database
-        # and modifying the column headers accordingly
-        pandas_tmp = pandas.DataFrame.from_csv(infile, sep='\t')
-        pandas_tmp.rename(columns={'sample_1': 'treatment_name'}, inplace=True)
-        pandas_tmp.rename(columns={'sample_2': 'control_name'}, inplace=True)
-        pandas_tmp.rename(columns={'log2(fold_change)': 'l2fold'},
-                          inplace=True)
-        pandas_tmp.rename(columns={'p_value': 'pvalue'}, inplace=True)
-        pandas_tmp.rename(columns={'q_value': 'qvalue'}, inplace=True)
-        d = {"yes": 1, "no": 0}
-        pandas_tmp["significant"] = pandas_tmp["significant"].map(d)
-
-        os.remove(tmpname)
-        pandas_tmp.to_csv(tmpname, sep='\t', index_label='test_id')
-
+        results = parseCuffdiff(infile, min_fpkm=min_fpkm)
+        Expression.writeExpressionResults(tmpname, results)
         P.load(tmpname, outfile,
                tablename=tablename,
                options="--allow-empty-file "
