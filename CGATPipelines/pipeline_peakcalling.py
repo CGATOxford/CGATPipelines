@@ -767,7 +767,7 @@ def predictFragmentSize(infile, outfile):
 
     if BamTools.isPaired(infile):
         mode = "PE"
-        mean, std = BamTools.estimateInsertSizeDistribution(infile, 10000)
+        mean, std, n = BamTools.estimateInsertSizeDistribution(infile, 10000)
     else:
         mode = "SE"
         statement = '''macs2 predictd
