@@ -124,7 +124,6 @@ import sys
 import os
 import glob
 import sqlite3
-import pandas
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
 import CGAT.Expression as Expression
@@ -219,12 +218,11 @@ def runMATS(infile, outfile):
     if Design.has_pairs:
         statement += "-analysis P "
 
-    
     # Get Insert Size Statistics if Paired End Reads
     if BamTools.isPaired(Design.samples[0]+".bam"):
-        inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam",10000)
+        inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
                     for sample in Design.getSamplesInGroup(Design.groups[0])]
-        inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam",10000)
+        inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
                     for sample in Design.getSamplesInGroup(Design.groups[1])]
         r1 = ",".join(map(str, [item[0] for item in inserts1]))
         sd1 = ",".join(map(str, [item[1] for item in inserts1]))
