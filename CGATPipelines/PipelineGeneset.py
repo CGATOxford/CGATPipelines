@@ -722,6 +722,28 @@ def loadTranscripts(infile, outfile):
     P.run()
 
 
+def loadGeneCoordinates(infile, outfile):
+    '''merge transcripts to generate the genomic coordinates per gene
+    and load '''
+
+    # TS. remove transcript_id column as this is now meaningless
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=gene_id "
+        "--ignore-column=transcript_id "
+        "--allow-empty-file ")
+
+    statement = '''
+    gunzip < %(infile)s
+    | python %(scriptsdir)s/gtf2gtf.py
+    -m merge-transcripts --with-utr
+    | python %(scriptsdir)s/gtf2tsv.py
+    | %(load_statement)s
+    > %(outfile)s'''
+
+    P.run()
+
+
 def loadTranscript2Gene(infile, outfile):
     '''build and load a map of transcript to gene from gtf file
     '''
@@ -757,7 +779,7 @@ def loadTranscriptStats(infile, outfile):
           --reporter=transcripts \
           --counter=position \
           --counter=length \
-          --counter=composition-na 
+          --counter=composition-na
     | %(load_statement)s
     > %(outfile)s'''
 
