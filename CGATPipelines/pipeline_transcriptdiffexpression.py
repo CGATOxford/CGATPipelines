@@ -412,7 +412,7 @@ def countKmers(infile, outfile):
     job_memory = PARAMS["simulation_kmer_memory"]
 
     statement = '''
-    python %(scriptsdir)s/fasta2kmercontent_tom.py --fastq=%(infile)s
+    python %(scriptsdir)s/fasta2unique_kmers.py --input-fastq=%(infile)s
     --kmer-size=%(kallisto_kmer)s -L %(outfile)s.log > %(outfile)s '''
 
     P.run()

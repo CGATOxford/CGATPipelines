@@ -1129,11 +1129,15 @@ class Kallisto(Mapper):
         else:
             raise ValueError("incorrect number of input files")
 
+        outdir = os.path.dirname(outfile)
+
         # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
+        mkdir %(outdir)s;
         kallisto quant %%(kallisto_options)s
         --bootstrap-samples=%%(bootstrap)s
-        -i %%(index)s -o %(tmpdir)s %(infiles)s > %(logfile)s;''' % locals()
+        -i %%(index)s -o %(tmpdir)s %(infiles)s
+        > %(logfile)s &> %(logfile)s ;''' % locals()
 
         self.tmpdir = tmpdir
 
