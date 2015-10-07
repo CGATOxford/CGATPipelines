@@ -1,28 +1,22 @@
-"""
-=====================================
-Rnaseq.py - Tools for RNAseq analysis
-=====================================
+"""PipelineRnaseq.py - Tasks for RNAseq analysis
+==============================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
+This module provides tasks related to RNAseq analysis.
 
-Purpose
--------
+Cufflinks/Cuffdiff
+------------------
 
-Pipeline components - GO analysis
+The module contains wrappers for running and parsing the output
+of cufflinks and cuffdiff.
 
-Tasks related to gene set GO analysis.
+UTR analysis
+------------
 
-Usage
------
+The functions :func:`plotGeneLevelReadExtension` and
+:func:`buildUTRExtension` are part of a method to predict UTRs from
+short-read data.
 
-Type::
-
-   python <script_name>.py --help
-
-for command line help.
+These methods should become part of a separate pipeline or a tool.
 
 
 Requirements:
@@ -34,30 +28,32 @@ Requirements:
 * featureCounts >= 1.4.3
 * samtools >= 1.1
 
+Reference
+----------
+
 """
 
 import CGAT.Experiment as E
 import CGAT.CSV as CSV
 
-import os
-import shutil
-import itertools
-import glob
 import collections
-import re
+import glob
+import itertools
 import math
 import numpy
-import sqlite3
+import os
 import pandas
+import re
 
-import CGAT.GTF as GTF
-import CGAT.BamTools as BamTools
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
-import CGAT.Expression as Expression
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
 import rpy2.rinterface as ri
+
+import CGAT.BamTools as BamTools
+import CGAT.Database as Database
+import CGAT.Expression as Expression
+import CGAT.GTF as GTF
+import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 
 # AH: commented as I thought we wanted to avoid to
@@ -66,26 +62,817 @@ import CGATPipelines.Pipeline as P
 # import rpy2.robjects.numpy2ri
 # rpy2.robjects.numpy2ri.activate()
 
-# levels of cuffdiff analysis
-# (no promotor and splice -> no lfold column)
-CUFFDIFF_LEVELS = ("gene", "cds", "isoform", "tss")
 
-# should be set in calling module
-PARAMS = {}
+def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
+    '''remove genes from GTF file.
 
-#############################################################
-#############################################################
-#############################################################
+    Genes that match gene identifiers the dictionary `remove_genes`
+    are removed. The dictionary maps lists of labels to genes. The
+    labels can for example correspond to filters that have been
+    applied and that require this particular gene to be removed, for
+    example::
+
+        remove_genes = {'ENSG00001' : ('is_repeat', 'is_known'),
+                        'ENSG00003' : ('is_repeat')}
+
+    A summary file :file:`<outfile>.summary` contains the number of
+    transcripts that failed various filters.
+
+    The :file:`<outfile>.removed.tsv.gz` contains the filters that a
+    transcript failed.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`gtf` format.
+    outfile : string
+        Output filename in :term:`gtf` format.
+    remove_genes : dict
+        Dictionary mapping gene identifiers to names of filters.
+    merge : bool
+        If True, the resultant transcript models are merged by overlap.
+
+    '''
+
+    counter = E.Counter()
+
+    # write summary table
+    outf = IOTools.openFile(outfile + ".removed.tsv.gz", "w")
+    outf.write("gene_id\tnoverlap\tsection\n")
+    for gene_id, r in remove_genes.iteritems():
+        for s in r:
+            counter[s] += 1
+        outf.write("%s\t%i\t%s\n" % (gene_id,
+                                     len(r),
+                                     ",".join(r)))
+    outf.close()
+
+    # filter gtf file
+    tmpfile = P.getTempFile(".")
+    inf = GTF.iterator(IOTools.openFile(infile))
+
+    genes_input, genes_output = set(), set()
+
+    for gtf in inf:
+        genes_input.add(gtf.gene_id)
+        if gtf.gene_id in remove_genes:
+            continue
+        genes_output.add(gtf.gene_id)
+        tmpfile.write("%s\n" % str(gtf))
+
+    tmpfile.close()
+    tmpfilename = tmpfile.name
+
+    outf = IOTools.openFile(outfile + ".summary.tsv.gz", "w")
+    outf.write("category\ttranscripts\n")
+    for x, y in counter.iteritems():
+        outf.write("%s\t%i\n" % (x, y))
+    outf.write("input\t%i\n" % len(genes_input))
+    outf.write("output\t%i\n" % len(genes_output))
+    outf.write("removed\t%i\n" % (len(genes_input) - len(genes_output)))
+
+    outf.close()
+
+    # close-by exons need to be merged, otherwise
+    # cuffdiff fails for those on "." strand
+
+    if merge:
+        statement = '''
+        %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
+        | python %(scriptsdir)s/gtf2gtf.py
+            --method=unset-genes --pattern-identifier="NONC%%06i"
+            --log=%(outfile)s.log
+        | python %(scriptsdir)s/gtf2gtf.py
+            --method=merge-genes
+            --log=%(outfile)s.log
+        | python %(scriptsdir)s/gtf2gtf.py
+            --method=merge-exons
+            --merge-exons-distance=5
+            --log=%(outfile)s.log
+        | python %(scriptsdir)s/gtf2gtf.py
+            --method=renumber-genes
+            --pattern-identifier="NONC%%06i"
+            --log=%(outfile)s.log
+        | python %(scriptsdir)s/gtf2gtf.py
+            --method=renumber-transcripts
+            --pattern-identifier="NONC%%06i"
+            --log=%(outfile)s.log
+        | %(pipeline_scriptsdir)s/gff_sort genepos
+        | gzip > %(outfile)s
+        '''
+    else:
+        statement = '''
+        %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
+        | gzip > %(outfile)s
+        '''
+
+    P.run()
+
+    os.unlink(tmpfilename)
+
+
+def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
+    '''run cufflinks to estimate expression levels.
+
+    Arguments
+    ---------
+    gtffile : string
+        Filename of geneset in :term:`gtf` format.
+    bamfile : string
+        Filename of reads in :term:`gtf` format.
+    outfile : outfile
+        Output filename in :term:`gtf` format.
+    job_threads : int
+        Number of threads to use
+    '''
+
+    track = os.path.basename(P.snip(gtffile, ".gtf.gz"))
+
+    tmpdir = P.getTempDir()
+
+    gtffile = os.path.abspath(gtffile)
+    bamfile = os.path.abspath(bamfile)
+    outfile = os.path.abspath(outfile)
+
+    # note: cufflinks adds \0 bytes to gtf file - replace with '.'
+    # increase max-bundle-length to 4.5Mb due to Galnt-2 in mm9 with a
+    # 4.3Mb intron.
+
+    # AH: removed log messages about BAM record error
+    # These cause logfiles to grow several Gigs and are
+    # frequent for BAM files not created by tophat.
+
+    # Error is:
+    # BAM record error: found spliced alignment without XS attribute
+    statement = '''mkdir %(tmpdir)s;
+    cd %(tmpdir)s;
+    cufflinks --label %(track)s
+              --GTF <(gunzip < %(gtffile)s)
+              --num-threads %(job_threads)i
+              --frag-bias-correct %(genome_dir)s/%(genome)s.fa
+              --library-type %(cufflinks_library_type)s
+              %(cufflinks_options)s
+              %(bamfile)s
+    | grep -v 'BAM record error'
+    >& %(outfile)s;
+    perl -p -e "s/\\0/./g" < transcripts.gtf | gzip > %(outfile)s.gtf.gz;
+    gzip < isoforms.fpkm_tracking > %(outfile)s.fpkm_tracking.gz;
+    gzip < genes.fpkm_tracking > %(outfile)s.genes_tracking.gz;
+    rm -rf %(tmpdir)s
+    '''
+
+    P.run()
+
+
+def loadCufflinks(infile, outfile):
+    '''load cufflinks expression levels
+
+    Arguments
+    ---------
+    infile : string
+        Cufflinks output. This is used to find
+        auxiliary files.
+    outfile : string
+        Output filename wicg logging information. The table name
+        is derived from `outfile`.
+    '''
+
+    track = P.snip(outfile, ".load")
+    P.load(infile + ".genes_tracking.gz",
+           outfile=track + "_genefpkm.load",
+           options="--add-index=gene_id "
+           "--ignore-column=tracking_id "
+           "--ignore-column=class_code "
+           "--ignore-column=nearest_ref_id")
+
+    track = P.snip(outfile, ".load")
+    P.load(infile + ".fpkm_tracking.gz",
+           outfile=track + "_fpkm.load",
+           options="--add-index=tracking_id "
+           "--ignore-column=nearest_ref_id "
+           "--rename-column=tracking_id:transcript_id")
+
+    P.touch(outfile)
+
+
+def mergeCufflinksFPKM(infiles, outfile, genesets,
+                       tracking="genes_tracking",
+                       identifier="gene_id"):
+    '''build aggregate table with cufflinks FPKM values.
+
+    Arguments
+    ---------
+    infiles : list
+        Filenames of cufflinks results
+    outfile : string
+        Output filename in :term:`tsv` format.
+    genesets : string
+        Genesets that have been used. This is used
+        to derive the prefix for extracting the correct
+        column from the cufflinks output.
+    tracking : string
+        Select file type to merge. Valid values are `genes_tracking`
+        to merge per-gene estimates and `fpkm_tracking` to merge
+        per-transcript estimates.
+    identifier : string
+        Identifier to use for genes/transcripts. Replaces the
+        default `tracking_id` from cufflinks.
+    '''
+
+    for x in genesets:
+        if str(x) in os.path.basename(outfile):
+            prefix = str(x)
+
+    headers = ",".join(
+        [re.match("fpkm.dir/.*_(.*).cufflinks", x).groups()[0]
+         for x in infiles])
+
+    statement = '''
+    python %(scriptsdir)s/combine_tables.py
+        --log=%(outfile)s.log
+        --columns=1
+        --skip-titles
+        --header-names=%(headers)s
+        --take=FPKM fpkm.dir/%(prefix)s_*.%(tracking)s.gz
+    | perl -p -e "s/tracking_id/%(identifier)s/"
+    | %(pipeline_scriptsdir)s/hsort 1
+    | gzip
+    > %(outfile)s
+    '''
+    P.run()
+
+
+def runFeatureCounts(annotations_file,
+                     bamfile,
+                     outfile,
+                     job_threads=4,
+                     strand=0,
+                     options=""):
+    '''run FeatureCounts to collect read counts.
+
+    If `bamfile` is paired, paired-end counting is enabled and the bam
+    file automatically sorted.
+
+    Arguments
+    ---------
+    annotations_file : string
+        Filename with gene set in :term:`gtf` format.
+    bamfile : string
+        Filename with short reads in :term:`bam` format.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    job_threads : int
+        Number of threads to use.
+    strand : int
+        Strand option in FeatureCounts.
+    options : string
+        Options to pass on to FeatureCounts.
+
+    '''
+
+    # featureCounts cannot handle gzipped in or out files
+    outfile = P.snip(outfile, ".gz")
+    tmpdir = P.getTempDir()
+    annotations_tmp = os.path.join(tmpdir,
+                                   'geneset.gtf')
+    bam_tmp = os.path.join(tmpdir,
+                           os.path.basename(bamfile))
+
+    # -p -B specifies count fragments rather than reads, and both
+    # reads must map to the feature
+    # for legacy reasons look at feature_counts_paired
+    if BamTools.isPaired(bamfile):
+        # select paired end mode, additional options
+        paired_options = "-p -B"
+        # remove .bam extension
+        bam_prefix = P.snip(bam_tmp, ".bam")
+        # sort by read name
+        paired_processing = \
+            """samtools
+            sort -@ %(job_threads)i -n %(bamfile)s %(bam_prefix)s;
+            checkpoint; """ % locals()
+        bamfile = bam_tmp
+    else:
+        paired_options = ""
+        paired_processing = ""
+
+    # AH: what is the -b option doing?
+    statement = '''mkdir %(tmpdir)s;
+                   zcat %(annotations_file)s > %(annotations_tmp)s;
+                   checkpoint;
+                   %(paired_processing)s
+                   featureCounts %(options)s
+                                 -T %(job_threads)i
+                                 -s %(strand)s
+                                 -a %(annotations_tmp)s
+                                 %(paired_options)s
+                                 -o %(outfile)s
+                                 %(bamfile)s
+                    >& %(outfile)s.log;
+                    checkpoint;
+                    gzip -f %(outfile)s;
+                    checkpoint;
+                    rm -rf %(tmpdir)s
+    '''
+
+    P.run()
+
+
+def buildExpressionStats(
+        dbhandle,
+        outfile,
+        tablenames,
+        outdir,
+        regex_table="(?P<design>[^_]+)_"
+        "(?P<geneset>[^_]+)_"
+        "(?P<counting_method>[^_]+)_"
+        "(?P<method>[^_]+)_"
+        "(?P<level>[^_]+)_diff"):
+    """compile expression summary statistics from database.
+
+    This method outputs a table with the number of genes tested,
+    failed, differentially expressed, etc. for a series of DE tests.
+
+    Arguments
+    ---------
+    dbhandle : object
+        Database handle.
+    tables : list
+        List of tables to process.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    outdir : string
+        Output directory for diagnostic plots.
+    regex : string
+        Regular expression to extract experimental information
+        from table name.
+    """
+
+    keys_status = "OK", "NOTEST", "FAIL", "NOCALL"
+
+    outf = IOTools.openFile(outfile, "w")
+    outf.write("\t".join(
+        ("design",
+         "geneset",
+         "level",
+         "counting_method",
+         "treatment_name",
+         "control_name",
+         "tested",
+         "\t".join(["status_%s" % x for x in keys_status]),
+         "significant",
+         "twofold")) + "\n")
+
+    for tablename in tablenames:
+        r = re.search(regex_table, tablename)
+        if r is None:
+            raise ValueError(
+                "can't match tablename '%s' to regex" % tablename)
+        geneset = r.group("geneset")
+        design = r.group("design")
+        level = r.group("level")
+        counting_method = r.group("counting_method")
+        geneset = r.group("geneset")
+
+        def toDict(vals, l=2):
+            return collections.defaultdict(
+                int,
+                [(tuple(x[:l]), x[l]) for x in vals])
+
+        tested = toDict(Database.executewait(
+            dbhandle,
+            "SELECT treatment_name, control_name, "
+            "COUNT(*) FROM %(tablename)s "
+            "GROUP BY treatment_name,control_name" % locals()
+            ).fetchall())
+        status = toDict(Database.executewait(
+            dbhandle,
+            "SELECT treatment_name, control_name, status, "
+            "COUNT(*) FROM %(tablename)s "
+            "GROUP BY treatment_name,control_name,status"
+            % locals()).fetchall(), 3)
+        signif = toDict(Database.executewait(
+            dbhandle,
+            "SELECT treatment_name, control_name, "
+            "COUNT(*) FROM %(tablename)s "
+            "WHERE significant "
+            "GROUP BY treatment_name,control_name" % locals()
+            ).fetchall())
+
+        fold2 = toDict(Database.executewait(
+            dbhandle,
+            "SELECT treatment_name, control_name, "
+            "COUNT(*) FROM %(tablename)s "
+            "WHERE (l2fold >= 1 or l2fold <= -1) AND significant "
+            "GROUP BY treatment_name,control_name,significant"
+            % locals()).fetchall())
+
+        for treatment_name, control_name in tested.keys():
+            outf.write("\t".join(map(str, (
+                design,
+                geneset,
+                level,
+                counting_method,
+                treatment_name,
+                control_name,
+                tested[(treatment_name, control_name)],
+                "\t".join(
+                    [str(status[(treatment_name, control_name, x)])
+                     for x in keys_status]),
+                signif[(treatment_name, control_name)],
+                fold2[(treatment_name, control_name)]))) + "\n")
+
+        # plot length versus P-Value
+        data = Database.executewait(
+            dbhandle,
+            "SELECT i.sum, pvalue "
+            "FROM %(tablename)s, "
+            "%(geneset)s_geneinfo as i "
+            "WHERE i.gene_id = test_id AND "
+            "significant" % locals()).fetchall()
+
+        # require at least 10 datapoints - otherwise smooth scatter fails
+        if len(data) > 10:
+            data = zip(*data)
+
+            pngfile = ("%(outdir)s/%(design)s_%(geneset)s_%(level)s"
+                       "_pvalue_vs_length.png") % locals()
+            R.png(pngfile)
+            R.smoothScatter(R.log10(ro.FloatVector(data[0])),
+                            R.log10(ro.FloatVector(data[1])),
+                            xlab='log10( length )',
+                            ylab='log10( pvalue )',
+                            log="x", pch=20, cex=.1)
+
+            R['dev.off']()
+
+    outf.close()
+
+
+def loadCuffdiff(dbhandle, infile, outfile, min_fpkm=1.0):
+    '''load results from cuffdiff analysis.
+
+    This functions parses and loads of a cuffdiff differential
+    expression analysis and produces summary plots.
+
+    Multiple table will be created as cuffdiff outputs information
+    on gene, isoform, tss, etc. levels.
+
+    The method converts from ln(fold change) to log2 fold change.
+
+    Pairwise comparisons in which one gene is not expressed (fpkm <
+    `min_fpkm`) are set to status 'NOCALL'. These transcripts might
+    nevertheless be significant.
+
+    Arguments
+    ---------
+    dbhandle : object
+        Database handle.
+    infile : string
+        Input filename, output from cuffdiff
+    outfile : string
+        Output filename in :term:`tsv` format.
+    min_fpkm : float
+        Minimum fpkm. Genes with an fpkm lower than this will
+        be set to status `NOCALL`.
+
+    '''
+
+    prefix = P.toTable(outfile)
+    indir = infile + ".dir"
+
+    if not os.path.exists(indir):
+        P.touch(outfile)
+        return
+
+    # E.info( "building cummeRbund database" )
+    # R('''library(cummeRbund)''')
+    # cuff = R('''readCufflinks(dir = %(indir)s, dbfile=%(indir)s/csvdb)''' )
+    # to be continued...
+
+    tmpname = P.getTempFilename(shared=True)
+
+    # ignore promoters and splicing - no fold change column, but  sqrt(JS)
+    for fn, level in (("cds_exp.diff.gz", "cds"),
+                      ("gene_exp.diff.gz", "gene"),
+                      ("isoform_exp.diff.gz", "isoform"),
+                      # ("promoters.diff.gz", "promotor"),
+                      # ("splicing.diff.gz", "splice"),
+                      ("tss_group_exp.diff.gz", "tss")):
+
+        tablename = prefix + "_" + level + "_diff"
+
+        infile = os.path.join(indir, fn)
+
+        results = parseCuffdiff(infile, min_fpkm=min_fpkm)
+        Expression.writeExpressionResults(tmpname, results)
+        P.load(tmpname, outfile,
+               tablename=tablename,
+               options="--allow-empty-file "
+               "--add-index=treatment_name "
+               "--add-index=control_name "
+               "--add-index=test_id")
+
+    for fn, level in (("cds.fpkm_tracking.gz", "cds"),
+                      ("genes.fpkm_tracking.gz", "gene"),
+                      ("isoforms.fpkm_tracking.gz", "isoform"),
+                      ("tss_groups.fpkm_tracking.gz", "tss")):
+
+        tablename = prefix + "_" + level + "_levels"
+        infile = os.path.join(indir, fn)
+
+        P.load(infile, outfile,
+               tablename=tablename,
+               options="--allow-empty-file "
+               "--add-index=tracking_id "
+               "--add-index=control_name "
+               "--add-index=test_id")
+
+    # Jethro - load tables of sample specific cuffdiff fpkm values into csvdb
+    # IMS: First read in lookup table for CuffDiff/Pipeline sample name
+    # conversion
+    inf = IOTools.openFile(os.path.join(indir, "read_groups.info.gz"))
+    inf.readline()
+    sample_lookup = {}
+
+    for line in inf:
+        line = line.split("\t")
+        our_sample_name = IOTools.snip(line[0])
+        our_sample_name = re.sub("-", "_", our_sample_name)
+        cuffdiff_sample_name = "%s_%s" % (line[1], line[2])
+        sample_lookup[cuffdiff_sample_name] = our_sample_name
+
+    inf.close()
+
+    for fn, level in (("cds.read_group_tracking.gz", "cds"),
+                      ("genes.read_group_tracking.gz", "gene"),
+                      ("isoforms.read_group_tracking.gz", "isoform"),
+                      ("tss_groups.read_group_tracking.gz", "tss")):
+
+        tablename = prefix + "_" + level + "sample_fpkms"
+
+        tmpf = P.getTempFilename(".")
+        inf = IOTools.openFile(os.path.join(indir, fn)).readlines()
+        outf = IOTools.openFile(tmpf, "w")
+
+        samples = []
+        genes = {}
+
+        is_first = True
+        for line in inf:
+
+            if is_first:
+                is_first = False
+                continue
+
+            line = line.split()
+            gene_id = line[0]
+            condition = line[1]
+            replicate = line[2]
+            fpkm = line[6]
+            status = line[8]
+
+            sample_id = condition + "_" + replicate
+
+            if sample_id not in samples:
+                samples.append(sample_id)
+
+            # IMS: The following block keeps getting its indenting messed
+            # up. It is not part of the 'if sample_id not in samples' block
+            # please make sure it does not get made part of it
+            if gene_id not in genes:
+                genes[gene_id] = {}
+                genes[gene_id][sample_id] = fpkm
+            else:
+                if sample_id in genes[gene_id]:
+                    raise ValueError(
+                        'sample_id %s appears twice in file for gene_id %s'
+                        % (sample_id, gene_id))
+                else:
+                    if status != "OK":
+                        genes[gene_id][sample_id] = status
+                    else:
+                        genes[gene_id][sample_id] = fpkm
+
+        samples = sorted(samples)
+
+        # IMS - CDS files might be empty if not cds has been
+        # calculated for the genes in the long term need to add CDS
+        # annotation to denovo predicted genesets in meantime just
+        # skip if cds tracking file is empty
+
+        if len(samples) == 0:
+            continue
+
+        headers = "gene_id\t" + "\t".join([sample_lookup[x] for x in samples])
+        outf.write(headers + "\n")
+
+        for gene in genes.iterkeys():
+            outf.write(gene + "\t")
+            s = 0
+            while x < len(samples) - 1:
+                outf.write(genes[gene][samples[s]] + "\t")
+                s += 1
+
+            # IMS: Please be careful with this line. It keeps getting moved
+            # into the above while block where it does not belong
+            outf.write(genes[gene][samples[len(samples) - 1]] + "\n")
+
+        outf.close()
+
+        P.load(tmpf,
+               outfile,
+               tablename=tablename,
+               options="--allow-empty-file "
+               " --add-index=gene_id")
+
+        os.unlink(tmpf)
+
+    # build convenience table with tracks
+    tablename = prefix + "_isoform_levels"
+    tracks = Database.getColumnNames(dbhandle, tablename)
+    tracks = [x[:-len("_FPKM")] for x in tracks if x.endswith("_FPKM")]
+
+    tmpfile = P.getTempFile(dir=".")
+    tmpfile.write("track\n")
+    tmpfile.write("\n".join(tracks) + "\n")
+    tmpfile.close()
+
+    P.load(tmpfile.name, outfile)
+    os.unlink(tmpfile.name)
+
+
+def parseCuffdiff(infile, min_fpkm=1.0):
+    '''parse a cuffdiff .diff output file.
+
+    This method takes cuffdiff output and converts the results into a
+    standardized table.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename, output from cuffdiff
+    outfile : string
+        Output filename in :term:`tsv` format.
+    min_fpkm : float
+        Minimum fpkm. Genes with an fpkm lower than this will
+        be set to status `NOCALL`.
+    '''
+
+    CuffdiffResult = collections.namedtuple(
+        "CuffdiffResult",
+        "test_id gene_id gene  locus   sample_1 sample_2  "
+        "status  value_1 value_2 l2fold  "
+        "test_stat p_value q_value significant ")
+
+    results = []
+
+    for line in IOTools.openFile(infile):
+        if line.startswith("test_id"):
+            continue
+        data = CuffdiffResult._make(line[:-1].split("\t"))
+        status = data.status
+        significant = [0, 1][data.significant == "yes"]
+        if status == "OK" and (float(data.value_1) < min_fpkm or
+                               float(data.value_2) < min_fpkm):
+            status = "NOCALL"
+
+        try:
+            fold = math.pow(2.0, float(data.l2fold))
+        except OverflowError:
+            fold = "na"
+
+        results.append(Expression.GeneExpressionResult._make((
+            data.test_id,
+            data.sample_1,
+            data.value_1,
+            0,
+            data.sample_2,
+            data.value_2,
+            0,
+            data.p_value,
+            data.q_value,
+            data.l2fold,
+            fold,
+            data.l2fold,
+            significant,
+            status)))
+
+    return results
+
+
+def runCuffdiff(bamfiles,
+                design_file,
+                geneset_file,
+                outfile,
+                cuffdiff_options="",
+                job_threads=4,
+                job_memory="4G",
+                fdr=0.1,
+                mask_file=None):
+    '''estimate differential expression using cuffdiff.
+
+    Replicates within each track are grouped.
+
+    Arguments
+    ---------
+    bamfiles : list
+        List of filenames in :term:`bam` format.
+    designfile : string
+        Filename with experimental design in :term:`tsv` format.
+    geneset_file : string
+        Filename with geneset.
+    outfile : string
+        Output filename. The output is :term:`tsv` formatted.
+    cuffdiff_options : string
+        Options to pass on to cuffdiff
+    job_treads : int
+        Number of threads to use.
+    job_memory : string
+        Memory to reserve.
+    fdr : float
+        FDR threshold to apply.
+    mask_file : string
+        If given, ignore genes overlapping gene models in
+        this :term:`gtf` formatted file.
+    '''
+
+    design = Expression.readDesignFile(design_file)
+
+    outdir = outfile + ".dir"
+    try:
+        os.mkdir(outdir)
+    except OSError:
+        pass
+
+    # replicates are separated by ","
+    reps = collections.defaultdict(list)
+    for bamfile in bamfiles:
+        groups = collections.defaultdict()
+        # .accepted.bam kept for legacy reasons (see rnaseq pipeline)
+        track = P.snip(os.path.basename(bamfile), ".bam", ".accepted.bam")
+        if track not in design:
+            E.warn("bamfile '%s' not part of design - skipped" % bamfile)
+            continue
+
+        d = design[track]
+        if not d.include:
+            continue
+        reps[d.group].append(bamfile)
+
+    groups = sorted(reps.keys())
+    labels = ",".join(groups)
+    reps = "   ".join([",".join(reps[group]) for group in groups])
+
+    # Nick - add mask gtf to not assess rRNA and ChrM
+    extra_options = []
+
+    if mask_file:
+        extra_options.append(" -M %s" % os.path.abspath(mask_file))
+
+    extra_options = " ".join(extra_options)
+
+    # IMS added a checkpoint to catch cuffdiff errors
+    # AH: removed log messages about BAM record error
+    # These cause logfiles to grow several Gigs and are
+    # frequent for BAM files not created by tophat.
+    # Error is:
+    # BAM record error: found spliced alignment without XS attribute
+    # AH: compress output in outdir
+    job_memory = "7G"
+    statement = '''date > %(outfile)s.log;
+    hostname >> %(outfile)s.log;
+    cuffdiff --output-dir %(outdir)s
+             --verbose
+             --num-threads %(job_threads)i
+             --labels %(labels)s
+             --FDR %(fdr)f
+             %(extra_options)s
+             %(cuffdiff_options)s
+             <(gunzip < %(geneset_file)s )
+             %(reps)s
+    2>&1
+    | grep -v 'BAM record error'
+    >> %(outfile)s.log;
+    checkpoint;
+    gzip -f %(outdir)s/*;
+    checkpoint;
+    date >> %(outfile)s.log;
+    '''
+    P.run()
+
+    results = parseCuffdiff(os.path.join(outdir, "gene_exp.diff.gz"))
+
+    Expression.writeExpressionResults(outfile, results)
+
+
 # UTR estimation
-#############################################################
 Utr = collections.namedtuple("Utr", "old new max status")
 
 
 def buildUTRExtension(infile, outfile):
     '''build new utrs by building and fitting an HMM
     to reads upstream and downstream of known genes.
-
-    Works on output of buildGeneLevelReadExtension.
 
     Known problems
 
@@ -138,15 +925,22 @@ def buildUTRExtension(infile, outfile):
 
     The method could be improved.
 
-        * base level resolution?
-            * longer chains result in more data and longer running times.
-            * the averaging in windows smoothes the data, which might have
-                a beneficial effect.
+    * base level resolution?
+       * longer chains result in more data and longer running times.
+       * the averaging in windows smoothes the data, which might have
+         a beneficial effect.
 
-        * raw counts instead of scaled counts?
-            * better model, as highly expressed genes should give more
-                confident predictions.
+    * raw counts instead of scaled counts?
+       * better model, as highly expressed genes should give more
+         confident predictions.
 
+    Arguments
+    ---------
+    infile : string
+        Output of :func:`buildGeneLevelReadExtension`
+    outfile : string
+        Output filename
+    
     '''
 
     # the bin size , see gtf2table - can be cleaned from column names
@@ -424,7 +1218,6 @@ def buildUTRExtension(infile, outfile):
 
     def _buildCoords(upstream, downstream, start, end):
 
-        r = []
         if upstream:
             start5, end5 = start - upstream, start
         else:
@@ -485,11 +1278,16 @@ def buildUTRExtension(infile, outfile):
 
 
 def plotGeneLevelReadExtension(infile, outfile):
-    '''plot reads extending beyond last exon.'''
+    '''plot read density of reads extending beyond last exon.
+
+    Arguments
+    ---------
+    infile : string
+    outfile : string
+
+    '''
 
     infiles = glob.glob(infile + ".*.tsv.gz")
-
-    outdir = os.path.join(PARAMS["exportdir"], "utr_extension")
 
     R('''suppressMessages(library(RColorBrewer))''')
     R('''suppressMessages(library(MASS))''')
@@ -509,11 +1307,7 @@ def plotGeneLevelReadExtension(infile, outfile):
             '''data = read.table(gzfile("%(filename)s"),
             header=TRUE, fill=TRUE, row.names=1)''' % locals())
 
-        ##########################################
-        ##########################################
-        ##########################################
         # estimation
-        ##########################################
         # take only those with a 'complete' territory
         R('''d = data[-which( apply( data,1,function(x)any(is.na(x)))),]''')
         # save UTR
@@ -553,759 +1347,19 @@ def plotGeneLevelReadExtension(infile, outfile):
                  xlim=c(0,nrow(oreads)*%(binsize)i))
         }''' % locals())
 
-        fn = ".".join((parts[0], parts[4], "raw", "png"))
-        outfilename = os.path.join(outdir, fn)
+        fn = ".".join((outfile, parts[0], parts[4], "raw", "png"))
 
-        R.png(outfilename, height=2000, width=1000)
-        R('''myplot( lraw, utrs )''')
+        R.png(fn, height=2000, width=1000)
+        R('''myplot(lraw, utrs)''')
         R['dev.off']()
 
         # plot scaled data
-        fn = ".".join((parts[0], parts[4], "scaled", "png"))
-        outfilename = os.path.join(outdir, fn)
+        fn = ".".join((outfile, parts[0], parts[4], "scaled", "png"))
 
-        R.png(outfilename, height=2000, width=1000)
-        R('''myplot( lscaled, utrs )''')
+        R.png(fn, height=2000, width=1000)
+        R('''myplot(lscaled, utrs)''')
         R['dev.off']()
 
     P.touch(outfile)
 
 
-def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
-    '''filter gtf file infile with gene ids in remove_genes
-    and write to outfile.
-
-    If *merge* is set, the resultant transcript models are merged by overlap.
-
-    A summary file "<outfile>.summary" contains the number of
-    transcripts that failed various filters.
-
-    A file "<outfile>.removed.tsv.gz" contains the filters that a
-    transcript failed.
-
-    '''
-
-    counter = E.Counter()
-
-    # write summary table
-    outf = IOTools.openFile(outfile + ".removed.tsv.gz", "w")
-    outf.write("gene_id\tnoverlap\tsection\n")
-    for gene_id, r in remove_genes.iteritems():
-        for s in r:
-            counter[s] += 1
-        outf.write("%s\t%i\t%s\n" % (gene_id,
-                                     len(r),
-                                     ",".join(r)))
-    outf.close()
-
-    # filter gtf file
-    tmpfile = P.getTempFile(".")
-    inf = GTF.iterator(IOTools.openFile(infile))
-
-    genes_input, genes_output = set(), set()
-
-    for gtf in inf:
-        genes_input.add(gtf.gene_id)
-        if gtf.gene_id in remove_genes:
-            continue
-        genes_output.add(gtf.gene_id)
-        tmpfile.write("%s\n" % str(gtf))
-
-    tmpfile.close()
-    tmpfilename = tmpfile.name
-
-    outf = IOTools.openFile(outfile + ".summary.tsv.gz", "w")
-    outf.write("category\ttranscripts\n")
-    for x, y in counter.iteritems():
-        outf.write("%s\t%i\n" % (x, y))
-    outf.write("input\t%i\n" % len(genes_input))
-    outf.write("output\t%i\n" % len(genes_output))
-    outf.write("removed\t%i\n" % (len(genes_input) - len(genes_output)))
-
-    outf.close()
-
-    # close-by exons need to be merged, otherwise
-    # cuffdiff fails for those on "." strand
-
-    if merge:
-        statement = '''
-        %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
-        | python %(scriptsdir)s/gtf2gtf.py
-            --method=unset-genes --pattern-identifier="NONC%%06i"
-            --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
-            --method=merge-genes
-            --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
-            --method=merge-exons
-            --merge-exons-distance=5
-            --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
-            --method=renumber-genes --pattern-identifier="NONC%%06i"
-            --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
-            --method=renumber-transcripts --pattern-identifier="NONC%%06i"
-            --log=%(outfile)s.log
-        | %(pipeline_scriptsdir)s/gff_sort genepos
-        | gzip > %(outfile)s
-        '''
-    else:
-        statement = '''
-        %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
-        | gzip > %(outfile)s
-        '''
-
-    P.run()
-
-    os.unlink(tmpfilename)
-
-
-#############################################################
-#############################################################
-#############################################################
-# running cufflinks
-#############################################################
-def runCufflinks(infiles, outfile):
-    '''estimate expression levels in each set.
-    '''
-
-    gtffile, bamfile = infiles
-
-    job_threads = PARAMS["cufflinks_threads"]
-
-    track = os.path.basename(P.snip(gtffile, ".gtf.gz"))
-
-    tmpfilename = P.getTempFilename(".")
-    if os.path.exists(tmpfilename):
-        os.unlink(tmpfilename)
-
-    gtffile = os.path.abspath(gtffile)
-    bamfile = os.path.abspath(bamfile)
-    outfile = os.path.abspath(outfile)
-
-    # note: cufflinks adds \0 bytes to gtf file - replace with '.'
-    # increase max-bundle-length to 4.5Mb due to Galnt-2 in mm9 with a 4.3Mb
-    # intron.
-
-    # AH: removed log messages about BAM record error
-    # These cause logfiles to grow several Gigs and are
-    # frequent for BAM files not created by tophat.
-    # Error is:
-    # BAM record error: found spliced alignment without XS attribute
-    statement = '''mkdir %(tmpfilename)s;
-    cd %(tmpfilename)s;
-    cufflinks --label %(track)s
-              --GTF <(gunzip < %(gtffile)s)
-              --num-threads %(cufflinks_threads)i
-              --frag-bias-correct %(genome_dir)s/%(genome)s.fa
-              --library-type %(cufflinks_library_type)s
-              %(cufflinks_options)s
-              %(bamfile)s
-    | grep -v 'BAM record error'
-    >& %(outfile)s;
-    perl -p -e "s/\\0/./g" < transcripts.gtf | gzip > %(outfile)s.gtf.gz;
-    gzip < isoforms.fpkm_tracking > %(outfile)s.fpkm_tracking.gz;
-    gzip < genes.fpkm_tracking > %(outfile)s.genes_tracking.gz;
-    '''
-
-    P.run()
-
-    shutil.rmtree(tmpfilename)
-
-
-def loadCufflinks(infile, outfile):
-    '''load expression level measurements.'''
-
-    track = P.snip(outfile, ".load")
-    P.load(infile + ".genes_tracking.gz",
-           outfile=track + "_genefpkm.load",
-           options="--add-index=gene_id "
-           "--ignore-column=tracking_id "
-           "--ignore-column=class_code "
-           "--ignore-column=nearest_ref_id")
-
-    track = P.snip(outfile, ".load")
-    P.load(infile + ".fpkm_tracking.gz",
-           outfile=track + "_fpkm.load",
-           options="--add-index=tracking_id "
-           "--ignore-column=nearest_ref_id "
-           "--rename-column=tracking_id:transcript_id")
-
-    P.touch(outfile)
-
-
-def mergeCufflinksFPKM(infiles, outfile, genesets,
-                       tracking="genes_tracking",
-                       identifier="gene_id"):
-    '''build aggregate table with cufflinks FPKM values.
-
-    * tracking* - select file type to merge:
-    genes_tracking: genes
-    fpkm_tracking: isoforms
-    '''
-
-    for x in genesets:
-        if str(x) in os.path.basename(outfile):
-            prefix = str(x)
-    print prefix
-
-    headers = ",".join(
-        [re.match("fpkm.dir/.*_(.*).cufflinks", x).groups()[0]
-         for x in infiles])
-
-    statement = '''
-    python %(scriptsdir)s/combine_tables.py
-        --log=%(outfile)s.log
-        --columns=1
-        --skip-titles
-        --header-names=%(headers)s
-        --take=FPKM fpkm.dir/%(prefix)s_*.%(tracking)s.gz
-    | perl -p -e "s/tracking_id/%(identifier)s/"
-    | %(pipeline_scriptsdir)s/hsort 1
-    | gzip
-    > %(outfile)s
-    '''
-    P.run()
-
-
-def runFeatureCounts(annotations_file,
-                     bamfile,
-                     outfile,
-                     nthreads=4,
-                     strand=0,
-                     options=""):
-    '''run feature counts on *annotations_file* with
-    *bam_file*.
-
-    If the bam-file is paired, paired-end counting
-    is enabled and the bam file automatically sorted.
-    '''
-
-    # featureCounts cannot handle gzipped in or out files
-    outfile = P.snip(outfile, ".gz")
-    tmpdir = P.getTempDir()
-    annotations_tmp = os.path.join(tmpdir,
-                                   'geneset.gtf')
-    bam_tmp = os.path.join(tmpdir,
-                           os.path.basename(bamfile))
-
-    # -p -B specifies count fragments rather than reads, and both
-    # reads must map to the feature
-    # for legacy reasons look at feature_counts_paired
-    if BamTools.isPaired(bamfile):
-        # select paired end mode, additional options
-        paired_options = "-p -B"
-        # remove .bam extension
-        bam_prefix = P.snip(bam_tmp, ".bam")
-        # sort by read name
-        paired_processing = \
-            """samtools
-            sort -@ %(nthreads)i -n %(bamfile)s %(bam_prefix)s;
-            checkpoint; """ % locals()
-        bamfile = bam_tmp
-    else:
-        paired_options = ""
-        paired_processing = ""
-
-    job_threads = nthreads
-
-    # AH: what is the -b option doing?
-    statement = '''mkdir %(tmpdir)s;
-                   zcat %(annotations_file)s > %(annotations_tmp)s;
-                   checkpoint;
-                   %(paired_processing)s
-                   featureCounts %(options)s
-                                 -T %(nthreads)i
-                                 -s %(strand)s
-                                 -a %(annotations_tmp)s
-                                 %(paired_options)s
-                                 -o %(outfile)s
-                                 %(bamfile)s
-                    >& %(outfile)s.log;
-                    checkpoint;
-                    gzip -f %(outfile)s;
-                    checkpoint;
-                    rm -rf %(tmpdir)s
-    '''
-
-    P.run()
-
-
-def buildExpressionStats(dbhandle, tables, genesets, method, outfile, outdir):
-    '''build expression summary statistics.
-
-    Creates also diagnostic plots in
-
-    <exportdir>/<method> directory.
-    '''
-
-    def _genesetintablename(table, genesets):
-        out = []
-        for g in genesets:
-            if str(g) in table:
-                out.append(str(g))
-        if (len(out) == 1):
-            return out[0]
-        elif (len(out) == 0):
-            raise ValueError("Geneset name not contained in: %s" % table)
-        else:
-            raise ValueError("Multiple genset names match: %s" % tablename)
-
-    def _split(tablename, geneset):
-        # this would be much easier, if feature_counts/gene_counts/etc.
-        # would not contain an underscore.
-        try:
-            design, counting_method = re.match(
-                "([^_]+)_vs_%s_(.*)_%s" % (geneset, method),
-                tablename).groups()
-        except AttributeError:
-            try:
-                design = re.match(
-                    "([^_]+)_%s_%s" % (geneset, method),
-                    tablename).groups()
-                counting_method = "na"
-            except AttributeError:
-                raise ValueError("can't parse tablename %s" % tablename)
-
-        return design, counting_method
-
-        # return re.match("([^_]+)_", tablename ).groups()[0]
-
-    keys_status = "OK", "NOTEST", "FAIL", "NOCALL"
-
-    outf = IOTools.openFile(outfile, "w")
-    outf.write("\t".join(
-        ("design",
-         "geneset",
-         "level",
-         "counting_method",
-         "treatment_name",
-         "control_name",
-         "tested",
-         "\t".join(["status_%s" % x for x in keys_status]),
-         "significant",
-         "twofold")) + "\n")
-
-    all_tables = set(Database.getTables(dbhandle))
-
-    for level in CUFFDIFF_LEVELS:
-
-        for tablename in tables:
-            geneset = _genesetintablename(tablename, genesets)
-            tablename_diff = "%s_%s_diff" % (tablename, level)
-            tablename_levels = "%s_%s_diff" % (tablename, level)
-            design, counting_method = _split(tablename_diff, geneset)
-
-            if tablename_diff not in all_tables:
-                continue
-
-            def toDict(vals, l=2):
-                return collections.defaultdict(
-                    int,
-                    [(tuple(x[:l]), x[l]) for x in vals])
-
-            tested = toDict(Database.executewait(
-                dbhandle,
-                "SELECT treatment_name, control_name, "
-                "COUNT(*) FROM %(tablename_diff)s "
-                "GROUP BY treatment_name,control_name" % locals()
-                ).fetchall())
-            status = toDict(Database.executewait(
-                dbhandle,
-                "SELECT treatment_name, control_name, status, "
-                "COUNT(*) FROM %(tablename_diff)s "
-                "GROUP BY treatment_name,control_name,status"
-                % locals()).fetchall(), 3)
-            signif = toDict(Database.executewait(
-                dbhandle,
-                "SELECT treatment_name, control_name, "
-                "COUNT(*) FROM %(tablename_diff)s "
-                "WHERE significant "
-                "GROUP BY treatment_name,control_name" % locals()
-                ).fetchall())
-
-            fold2 = toDict(Database.executewait(
-                dbhandle,
-                "SELECT treatment_name, control_name, "
-                "COUNT(*) FROM %(tablename_diff)s "
-                "WHERE (l2fold >= 1 or l2fold <= -1) AND significant "
-                "GROUP BY treatment_name,control_name,significant"
-                % locals()).fetchall())
-
-            for treatment_name, control_name in tested.keys():
-                outf.write("\t".join(map(str, (
-                    design,
-                    geneset,
-                    level,
-                    counting_method,
-                    treatment_name,
-                    control_name,
-                    tested[(treatment_name, control_name)],
-                    "\t".join(
-                        [str(status[(treatment_name, control_name, x)])
-                         for x in keys_status]),
-                    signif[(treatment_name, control_name)],
-                    fold2[(treatment_name, control_name)]))) + "\n")
-
-            ###########################################
-            ###########################################
-            ###########################################
-            # plot length versus P-Value
-            data = Database.executewait(
-                dbhandle,
-                "SELECT i.sum, pvalue "
-                "FROM %(tablename_diff)s, "
-                "%(geneset)s_geneinfo as i "
-                "WHERE i.gene_id = test_id AND "
-                "significant" % locals()).fetchall()
-
-            # require at least 10 datapoints - otherwise smooth scatter fails
-            if len(data) > 10:
-                data = zip(*data)
-
-                pngfile = ("%(outdir)s/%(design)s_%(geneset)s_%(level)s"
-                           "_pvalue_vs_length.png") % locals()
-                R.png(pngfile)
-                R.smoothScatter(R.log10(ro.FloatVector(data[0])),
-                                R.log10(ro.FloatVector(data[1])),
-                                xlab='log10( length )',
-                                ylab='log10( pvalue )',
-                                log="x", pch=20, cex=.1)
-
-                R['dev.off']()
-
-    outf.close()
-
-
-def parseCuffdiff(infile, min_fpkm=1.0):
-    '''parse a cuffdiff .diff output file.'''
-
-    CuffdiffResult = collections.namedtuple(
-        "CuffdiffResult",
-        "test_id gene_id gene  locus   sample_1 sample_2  "
-        " status  value_1 value_2 l2fold  "
-        "test_stat p_value q_value significant ")
-
-    results = []
-
-    for line in IOTools.openFile(infile):
-        if line.startswith("test_id"):
-            continue
-        data = CuffdiffResult._make(line[:-1].split("\t"))
-        status = data.status
-        significant = [0, 1][data.significant == "yes"]
-        if status == "OK" and (float(data.value_1) < min_fpkm or
-                               float(data.value_2) < min_fpkm):
-            status = "NOCALL"
-
-        try:
-            fold = math.pow(2.0, float(data.l2fold))
-        except OverflowError:
-            fold = "na"
-
-        results.append(Expression.GeneExpressionResult._make((
-            data.test_id,
-            data.sample_1,
-            data.value_1,
-            0,
-            data.sample_2,
-            data.value_2,
-            0,
-            data.p_value,
-            data.q_value,
-            data.l2fold,
-            fold,
-            data.l2fold,
-            significant,
-            status)))
-
-    return results
-
-
-def loadCuffdiff(infile, outfile, min_fpkm=1.0):
-    '''load results from differential expression analysis and produce
-    summary plots.
-
-    Note: converts from ln(fold change) to log2 fold change.
-
-    The cuffdiff output is parsed.
-
-    Pairwise comparisons in which one gene is not expressed (fpkm <
-    fpkm_silent) are set to status 'NOCALL'. These transcripts might
-    nevertheless be significant.
-
-    This requires the cummeRbund library to be present in R.
-
-    '''
-
-    prefix = P.toTable(outfile)
-    indir = infile + ".dir"
-
-    if not os.path.exists(indir):
-        P.touch(outfile)
-        return
-
-    # E.info( "building cummeRbund database" )
-    # R('''library(cummeRbund)''')
-    # cuff = R('''readCufflinks(dir = %(indir)s, dbfile=%(indir)s/csvdb)''' )
-    # to be continued
-
-    dbhandle = sqlite3.connect(PARAMS["database_name"])
-
-    tmpname = P.getTempFilename(".")
-
-    # ignore promoters and splicing - no fold change column, but  sqrt(JS)
-    for fn, level in (("cds_exp.diff.gz", "cds"),
-                      ("gene_exp.diff.gz", "gene"),
-                      ("isoform_exp.diff.gz", "isoform"),
-                      # ("promoters.diff.gz", "promotor"),
-                      # ("splicing.diff.gz", "splice"),
-                      ("tss_group_exp.diff.gz", "tss")):
-
-        tablename = prefix + "_" + level + "_diff"
-
-        infile = os.path.join(indir, fn)
-
-        # rename diff files to align column names with column names
-        # from deseq and edger. This is important for later processing
-        # of summary statistics and is done via loading into a pandas database
-        # and modifying the column headers accordingly
-        pandas_tmp = pandas.DataFrame.from_csv(infile, sep='\t')
-        pandas_tmp.rename(columns={'sample_1': 'treatment_name'}, inplace=True)
-        pandas_tmp.rename(columns={'sample_2': 'control_name'}, inplace=True)
-        pandas_tmp.rename(columns={'log2(fold_change)': 'l2fold'},
-                          inplace=True)
-        pandas_tmp.rename(columns={'p_value': 'pvalue'}, inplace=True)
-        pandas_tmp.rename(columns={'q_value': 'qvalue'}, inplace=True)
-        d = {"yes": 1, "no": 0}
-        pandas_tmp["significant"] = pandas_tmp["significant"].map(d)
-
-        os.remove(tmpname)
-        pandas_tmp.to_csv(tmpname, sep='\t', index_label='test_id')
-
-        P.load(tmpname, outfile,
-               tablename=tablename,
-               options="--allow-empty-file "
-               "--add-index=treatment_name "
-               "--add-index=control_name "
-               "--add-index=test_id")
-
-    for fn, level in (("cds.fpkm_tracking.gz", "cds"),
-                      ("genes.fpkm_tracking.gz", "gene"),
-                      ("isoforms.fpkm_tracking.gz", "isoform"),
-                      ("tss_groups.fpkm_tracking.gz", "tss")):
-
-        tablename = prefix + "_" + level + "_levels"
-        infile = os.path.join(indir, fn)
-
-        P.load(infile, outfile,
-               tablename=tablename,
-               options="--allow-empty-file "
-               "--add-index=tracking_id "
-               "--add-index=control_name "
-               "--add-index=test_id")
-
-    # Jethro - load tables of sample specific cuffdiff fpkm values into csvdb
-    # IMS: First read in lookup table for CuffDiff/Pipeline sample name
-    # conversion
-    inf = IOTools.openFile(os.path.join(indir, "read_groups.info.gz"))
-    inf.readline()
-    sample_lookup = {}
-
-    for line in inf:
-        line = line.split("\t")
-        our_sample_name = IOTools.snip(line[0])
-        our_sample_name = re.sub("-", "_", our_sample_name)
-        cuffdiff_sample_name = "%s_%s" % (line[1], line[2])
-        sample_lookup[cuffdiff_sample_name] = our_sample_name
-
-    inf.close()
-
-    for fn, level in (("cds.read_group_tracking.gz", "cds"),
-                      ("genes.read_group_tracking.gz", "gene"),
-                      ("isoforms.read_group_tracking.gz", "isoform"),
-                      ("tss_groups.read_group_tracking.gz", "tss")):
-
-        tablename = prefix + "_" + level + "sample_fpkms"
-
-        tmpf = P.getTempFilename(".")
-        inf = IOTools.openFile(os.path.join(indir, fn)).readlines()
-        outf = IOTools.openFile(tmpf, "w")
-
-        samples = []
-        genes = {}
-
-        x = 0
-        for line in inf:
-            if x == 0:
-                x += 1
-                continue
-            line = line.split()
-            gene_id = line[0]
-            condition = line[1]
-            replicate = line[2]
-            fpkm = line[6]
-            status = line[8]
-
-            sample_id = condition + "_" + replicate
-
-            if sample_id not in samples:
-                samples.append(sample_id)
-
-            # IMS: The following block keeps getting its indenting messed
-            # up. It is not part of the 'if sample_id not in samples' block
-            # plesae make sure it does not get made part of it
-            if gene_id not in genes:
-                genes[gene_id] = {}
-                genes[gene_id][sample_id] = fpkm
-            else:
-                if sample_id in genes[gene_id]:
-                    raise ValueError(
-                        'sample_id %s appears twice in file for gene_id %s'
-                        % (sample_id, gene_id))
-                else:
-                    if status != "OK":
-                        genes[gene_id][sample_id] = status
-                    else:
-                        genes[gene_id][sample_id] = fpkm
-
-        samples = sorted(samples)
-
-        # IMS - CDS files might be empty if not cds has been
-        # calculated for the genes in the long term need to add CDS
-        # annotation to denovo predicted genesets in meantime just
-        # skip if cds tracking file is empty
-
-        if len(samples) == 0:
-            continue
-
-        headers = "gene_id\t" + "\t".join([sample_lookup[x] for x in samples])
-        outf.write(headers + "\n")
-
-        for gene in genes.iterkeys():
-            outf.write(gene + "\t")
-            x = 0
-            while x < len(samples) - 1:
-                outf.write(genes[gene][samples[x]] + "\t")
-                x += 1
-
-            # IMS: Please be careful with this line. It keeps getting moved
-            # into the above while block where it does not belong
-            outf.write(genes[gene][samples[len(samples) - 1]] + "\n")
-
-        outf.close()
-
-        P.load(tmpf,
-               outfile,
-               tablename=tablename,
-               options="--allow-empty-file "
-               " --add-index=gene_id")
-
-        os.unlink(tmpf)
-
-    # build convenience table with tracks
-    tablename = prefix + "_isoform_levels"
-    tracks = Database.getColumnNames(dbhandle, tablename)
-    tracks = [x[:-len("_FPKM")] for x in tracks if x.endswith("_FPKM")]
-
-    tmpfile = P.getTempFile(dir=".")
-    tmpfile.write("track\n")
-    tmpfile.write("\n".join(tracks) + "\n")
-    tmpfile.close()
-
-    P.load(tmpfile.name, outfile)
-    os.unlink(tmpfile.name)
-
-
-def runCuffdiff(bamfiles,
-                design_file,
-                geneset_file,
-                outfile,
-                cuffdiff_options="",
-                threads=4,
-                memory="4G",
-                fdr=0.1,
-                mask_file=None):
-    '''estimate differential expression using cuffdiff.
-
-    infiles
-       bam files
-
-    geneset_file
-       geneset to use for the analysis
-
-    design_file
-       design file describing which differential expression to test
-
-    Replicates within each track are grouped.
-    '''
-
-    design = Expression.readDesignFile(design_file)
-
-    outdir = outfile + ".dir"
-    try:
-        os.mkdir(outdir)
-    except OSError:
-        pass
-
-    job_threads = threads
-    job_memory = memory
-    # replicates are separated by ","
-    reps = collections.defaultdict(list)
-    for bamfile in bamfiles:
-        groups = collections.defaultdict()
-        # .accepted.bam kept for legacy reasons (see rnaseq pipeline)
-        track = P.snip(os.path.basename(bamfile), ".bam", ".accepted.bam")
-        if track not in design:
-            E.warn("bamfile '%s' not part of design - skipped" % bamfile)
-            continue
-
-        d = design[track]
-        if not d.include:
-            continue
-        reps[d.group].append(bamfile)
-
-    groups = sorted(reps.keys())
-    labels = ",".join(groups)
-    reps = "   ".join([",".join(reps[group]) for group in groups])
-
-    # Nick - add mask gtf to not assess rRNA and ChrM
-    extra_options = []
-
-    if mask_file:
-        extra_options.append(" -M %s" % os.path.abspath(mask_file))
-
-    extra_options = " ".join(extra_options)
-
-    # IMS added a checkpoint to catch cuffdiff errors
-    # AH: removed log messages about BAM record error
-    # These cause logfiles to grow several Gigs and are
-    # frequent for BAM files not created by tophat.
-    # Error is:
-    # BAM record error: found spliced alignment without XS attribute
-    # AH: compress output in outdir
-    job_memory = "7G"
-    statement = '''date > %(outfile)s.log;
-    hostname >> %(outfile)s.log;
-    cuffdiff --output-dir %(outdir)s
-             --verbose
-             --num-threads %(threads)i
-             --labels %(labels)s
-             --FDR %(fdr)f
-             %(extra_options)s
-             %(cuffdiff_options)s
-             <(gunzip < %(geneset_file)s )
-             %(reps)s
-    2>&1
-    | grep -v 'BAM record error'
-    >> %(outfile)s.log;
-    checkpoint;
-    gzip -f %(outdir)s/*;
-    checkpoint;
-    date >> %(outfile)s.log;
-    '''
-    P.run()
-
-    results = parseCuffdiff(os.path.join(outdir, "gene_exp.diff.gz"))
-
-    Expression.writeExpressionResults(outfile, results)

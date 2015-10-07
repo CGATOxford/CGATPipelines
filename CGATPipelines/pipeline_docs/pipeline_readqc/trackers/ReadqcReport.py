@@ -10,7 +10,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 EXPORTDIR = P.get('readqc_exportdir', P.get('exportdir', 'export'))
 DATADIR = P.get('readqc_datadir', P.get('datadir', '.'))
 DATABASE = P.get('readqc_backend', P.get('sql_backend', 'sqlite:///./csvdb'))
-PROCESSEDDIR = "processed.dir" 
+PROCESSEDDIR = "processed.dir"
 
 TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
     glob.glob("%s/*.sra" % DATADIR), "(\S+).sra") +\
@@ -24,6 +24,9 @@ TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
         glob.glob("%s/*.fastq.gz" % PROCESSEDDIR), "(\S+).fastq.gz") +\
     PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
         glob.glob("%s/*.fastq.1.gz" % PROCESSEDDIR), "(\S+).fastq.1.gz")
+
+
+UNPROCESSED_TRACKS = [x for x in TRACKS if not str(x).startswith("trimmed")]
 
 
 class ReadqcTracker(TrackerSQL):
@@ -67,14 +70,15 @@ class FilteringSummary(SingleTableTrackerRows):
 
 class FastQCDetails(ReadqcTracker):
     tracks = ["all"]
-    slices = ("duplication_levels",
+    slices = ("adapter_content",
+              "duplication_levels",
               "kmer_profiles",
-              "per_base_gc_content",
               "per_base_n_content",
               "per_base_quality",
               "per_base_sequence_content",
               "per_sequence_gc_content",
               "per_sequence_quality",
+              "per_tile_quality",
               "sequence_length_distribution")
 
     def __call__(self, track, slice=None):
@@ -130,6 +134,33 @@ class FastqcSummary(ReadqcTracker, SingleTableTrackerRows):
     table = "basic_statistics_summary"
 
 
+class OverRepresentedSequences(ReadqcTracker):
+    pattern = "(.*)_Overrepresented_sequences"
+    
+    def __call__(self, track):
+        return self.getAll(
+            "SELECT * FROM %(track)s_Overrepresented_sequences")
+
+
+class ProcessingComparison(ReadqcTracker):
+    """compare before after for read-processing."""
+    table = "basic_statistics_summary"
+    tracks = sorted([x.asFile() for x in UNPROCESSED_TRACKS])
+    slices = ("Total_Sequences", "Sequence_length")
+
+    def __call__(self, track, slice):
+
+        untrimmed = self.getValue(
+            "SELECT %(slice)s FROM %(table)s WHERE track = '%(track)s'")
+
+        trimmed = self.getValue(
+            "SELECT %(slice)s FROM %(table)s "
+            "WHERE track = 'trimmed-%(track)s'")
+
+        return odict((("untrimmed", untrimmed),
+                      ("trimmed", trimmed)))
+
+
 class ProcessingDetails(ReadqcTracker):
 
     '''return summary of the read processing steps.'''
@@ -144,3 +175,5 @@ class ProcessingDetails(ReadqcTracker):
 
 class ProcessingSummary(ReadqcTracker, SingleTableTrackerRows):
     table = "processing_summary"
+
+

@@ -12,7 +12,13 @@ Purpose
 
 This script looks at files matching a certain pattern and will remove
 incomplete files. File completeness is determined by the file itself
-or an associated log-files.
+or an associated log-file.
+
+For example, the file :file:`sample1.tsv` is deemed complete if:
+
+1. :file:`sample1.tsv.log` exists and ends in
+   ``# job finished ...``,
+2. :file:`sample1.tsv` exists and ends in ``# job finished ...``
 
 Usage
 -----
@@ -65,6 +71,11 @@ def main(argv=None):
     c = E.Counter()
     for filename in filenames:
         c.checked += 1
+        if os.path.exists(filename + ".log"):
+            if IOTools.isComplete(filename + ".log"):
+                c.complete += 1
+                continue
+
         if IOTools.isComplete(filename):
             c.complete += 1
             continue

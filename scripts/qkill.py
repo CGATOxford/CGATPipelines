@@ -1,5 +1,4 @@
-"""
-qkill.py - kill jobs in the queue
+"""qkill.py - kill jobs in the queue
 ==================================
 
 :Author: Andreas Heger
@@ -10,17 +9,24 @@ qkill.py - kill jobs in the queue
 Purpose
 -------
 
-kill jobs in the job queue according to certain criteria.
+This script kills jobs in the job queue according to certain criteria.
+It is complementary to the ``qdel`` command, but provides more
+flexible pattern matching.
 
-This script requires the qstat and qdel commands in the
+This script requires the ``qstat`` and ``qdel`` commands to be in the
 user's PATH. The script works with Sun Grid Engine.
 
 Usage
 -----
 
+For example, to kill all jobs matching the pattern ``pipeline``,
+type::
+
+  python qkill.py -p=pipeline
+
 Type::
 
-   python <script_name>.py --help
+   python qkill.py --help
 
 for command line help.
 
@@ -51,9 +57,10 @@ def main(argv=None):
         version="%prog version: $Id$",
         usage=globals()["__doc__"])
 
-    parser.add_option("-p", "--pattern-identifier", dest="pattern", type="string",
-                      help="jobs matching `pattern` in their job "
-                      "description will be killed [default=%default].")
+    parser.add_option(
+        "-p", "--pattern-identifier", dest="pattern", type="string",
+        help="jobs matching `pattern` in their job "
+        "description will be killed [default=%default].")
 
     parser.add_option("-n", "--dry-run", dest="dry_run", action="store_true",
                       help="do dry run, do not kill [default=%default].")

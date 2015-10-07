@@ -217,7 +217,7 @@ def writeSequencesForIntervals(track,
         raise ValueError(
             "Unknown value passed as order parameter, check your ini file")
 
-    tablename = "%s_intervals" % P.quote(track)
+    tablename = "%s_intervals" % P.tablequote(track)
     statement = '''SELECT contig, start, end, interval_id, peakcenter 
                        FROM %(tablename)s 
                        ''' % locals() + orderby
@@ -327,7 +327,7 @@ def runRegexMotifSearch(infiles, outfile):
 
     controlfile, dbfile = infiles
     if not os.path.exists(controlfile):
-        raise P.PipelineError(
+        raise ValueError(
             "control file %s for %s does not exist" % (controlfile, dbfile))
 
     motifs = []
@@ -383,7 +383,7 @@ def runGLAM2SCAN(infiles, outfile):
     controlfile, dbfile, motiffiles = infiles
     controlfile = dbfile[:-len(".fasta")] + ".controlfasta"
     if not os.path.exists(controlfile):
-        raise P.PipelineError(
+        raise ValueError(
             "control file %s for %s does not exist" % (controlfile, dbfile))
 
     if os.path.exists(outfile):
@@ -425,7 +425,7 @@ def loadGLAM2SCAN(infile, outfile):
             motif = re.match(
                 ":: motif = (\S+) ::", lines[chunks[chunk]]).groups()[0]
         except AttributeError:
-            raise P.PipelineError(
+            raise ValueError(
                 "parsing error in line '%s'" % lines[chunks[chunk]])
 
         if chunks[chunk] + 1 == chunks[chunk + 1]:
@@ -523,7 +523,7 @@ def loadMAST(infile, outfile):
             motif, part = re.match(
                 ":: motif = (\S+) - (\S+) ::", lines[chunks[chunk]]).groups()
         except AttributeError:
-            raise P.PipelineError(
+            raise ValueError(
                 "parsing error in line '%s'" % lines[chunks[chunk]])
 
         E.info("reading %s - %s" % (motif, part))
@@ -728,7 +728,7 @@ def runMAST(infiles, outfile):
         return
 
     if not os.path.exists(controlfile):
-        raise P.PipelineError(
+        raise ValueError(
             "control file %s for %s does not exist" % (controlfile, dbfile))
 
     # remove previous results

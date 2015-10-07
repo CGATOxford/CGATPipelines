@@ -582,7 +582,6 @@ import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineGO as PipelineGO
-import CGATPipelines.PipelineDatabase as PipelineDatabase
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import CGATPipelines.PipelineKEGG as PipelineKEGG
 import CGAT.Intervals as Intervals
@@ -609,7 +608,6 @@ PARAMS.update(dict([
 # Set parameter dictionary in auxilliary modules
 PipelineGeneset.PARAMS = PARAMS
 PipelineGO.PARAMS = PARAMS
-PipelineDatabase.PARAMS = PARAMS
 PipelineUCSC.PARAMS = PARAMS
 
 
@@ -621,6 +619,13 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     return dbh
+
+
+def connectToUCSC():
+    return PipelineUCSC.connectToUCSC(
+        host=PARAMS["ucsc_host"],
+        user=PARAMS["ucsc_user"],
+        database=PARAMS["ucsc_database"])
 
 
 ############################################################
@@ -1024,7 +1029,7 @@ def downloadTranscriptInformation(infile, outfile):
 
     data = filter(lambda x: x['ensembl_gene_id'] in gene_ids, data)
 
-    PipelineDatabase.importFromIterator(
+    P.importFromIterator(
         outfile, tablename,
         data,
         columns=columns,
@@ -1078,7 +1083,7 @@ def downloadEntrezToEnsembl(infile, outfile):
         biomart="ensembl",
         dataset=PARAMS["ensembl_biomart_dataset"])
 
-    PipelineDatabase.importFromIterator(
+    P.importFromIterator(
         outfile,
         tablename,
         data,
@@ -1109,7 +1114,7 @@ def downloadTranscriptSynonyms(infile, outfile):
             "ensembl_biomart_dataset"],
         host=PARAMS["ensembl_biomart_host"])
 
-    PipelineDatabase.importFromIterator(
+    P.importFromIterator(
         outfile,
         tablename,
         data,
@@ -1366,8 +1371,10 @@ def importRNAAnnotationFromUCSC(infile, outfile):
     '''
 
     repclasses = P.asList(PARAMS["ucsc_rnatypes"])
-    dbhandle = PipelineUCSC.connectToUCSC()
-    PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
+    dbhandle = connectToUCSC()
+    PipelineUCSC.getRepeatsFromUCSC(
+        dbhandle, repclasses, outfile,
+        remove_contigs_regex=PARAMS["ensembl_remove_contigs"])
 
 
 @follows(mkdir('ucsc.dir'))
@@ -1379,7 +1386,7 @@ def importRepeatsFromUCSC(infile, outfile):
     '''
 
     repclasses = P.asList(PARAMS["ucsc_repeattypes"])
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
 
 
@@ -1391,7 +1398,7 @@ def importCpGIslandsFromUCSC(infile, outfile):
     The repeats are stored as a :term:`bed` formatted file.
     '''
 
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getCpGIslandsFromUCSC(dbhandle, outfile)
 
 
@@ -1438,7 +1445,7 @@ def importAllRepeatsFromUCSC(infile, outfile):
     '''
 
     repclasses = None
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
 
 

@@ -1,10 +1,9 @@
-=============================
-Differential methylation
-=============================
+==================================
+Window based differential analysis
+==================================
 
 The following sections reports the number of windows that contain a
 significantly different number of reads.
-
 
 +--------------------+------------------------------------------------------------+
 |*Column*            |*Content*                                                   |
@@ -51,7 +50,7 @@ significantly different number of reads.
    .. toctree::
       EdgeR.rst
 
-.. ifconfig:: "medips" in PARAMS['methods']:
+.. ifconfig:: "medips" in PARAMS['methods']
 
    .. toctree::
       Medips.rst

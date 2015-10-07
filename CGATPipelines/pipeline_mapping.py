@@ -215,7 +215,7 @@ import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGATPipelines.PipelinePublishing as PipelinePublishing
+import CGATPipelines.PipelineWindows as PipelineWindows
 
 # Pipeline configuration
 P.getParameters(
@@ -226,6 +226,7 @@ P.getParameters(
         'paired_end': False})
 
 PARAMS = P.PARAMS
+
 # Add parameters from the annotation pipeline, but
 # only the interface
 PARAMS.update(P.peekParameters(
@@ -237,7 +238,6 @@ PARAMS.update(P.peekParameters(
 
 PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
-PipelinePublishing.PARAMS = PARAMS
 
 # Helper functions mapping tracks to conditions, etc
 # determine the location of the input files (reads).
@@ -1341,7 +1341,7 @@ def loadBAMStats(infiles, outfile):
            suffix(".bam"),
            add_inputs(
                PARAMS["annotations_interface_genomic_context_bed"]),
-           ".contextstats")
+           ".contextstats.tsv.gz")
 def buildContextStats(infiles, outfile):
     '''build mapping context stats.
 
@@ -1352,21 +1352,8 @@ def buildContextStats(infiles, outfile):
     contexts might be dropped.
 
     '''
-
-    infile, reffile = infiles
-
-    min_overlap = 0.5
-    job_memory = "4G"
-
-    statement = '''
-       python %(scriptsdir)s/bam_vs_bed.py
-              --min-overlap=%(min_overlap)f
-              --log=%(outfile)s.log
-              %(infile)s %(reffile)s
-       > %(outfile)s
-       '''
-
-    P.run()
+    PipelineWindows.summarizeTagsWithinContext(
+        infiles[0], infiles[1], outfile)
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
@@ -1375,25 +1362,7 @@ def buildContextStats(infiles, outfile):
 def loadContextStats(infiles, outfile):
     """
     load context mapping statistics."""
-
-    header = ",".join([os.path.basename(P.snip(x, ".contextstats"))
-                      for x in infiles])
-    filenames = " ".join(infiles)
-    load_statement = P.build_load_statement(
-        P.toTable(outfile),
-        options="--add-index=track")
-
-    statement = """python %(scriptsdir)s/combine_tables.py
-    --header-names=%(header)s
-    --missing-value=0
-    --skip-titles
-    %(filenames)s
-    | perl -p -e "s/(bin|category)/track/; s/\?/Q/g"
-    | python %(scriptsdir)s/table2table.py --transpose
-    | %(load_statement)s
-    > %(outfile)s
-    """
-    P.run()
+    PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 ###################################################################
 ###################################################################
@@ -1797,7 +1766,7 @@ def publish():
     P.publish_report(export_files=export_files)
 
     E.info("publishing UCSC data hub")
-    PipelinePublishing.publish_tracks(export_files)
+    P.publish_tracks(export_files)
 
 
 if __name__ == "__main__":
