@@ -205,7 +205,7 @@ def runMATS(infile, outfile):
         ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[1])])
     readlength = BamTools.estimateTagSize(Design.samples[0]+".bam")
 
-    statement = '''python %(MATS_executable)s/RNASeq-MATS.py
+    statement = '''rMATS
     -b1 %(group1)s
     -b2 %(group2)s
     -gtf <(gunzip < %(gtf)s)
@@ -236,9 +236,41 @@ def runMATS(infile, outfile):
     P.run()
 
 
+@follows(runMATS)
+@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
+           regex("(\S+).design.tsv"),
+           r"results.dir/\1.sashimi")
+def sashimi(infile, outfile):
+
+    if not os.path.exists(outfile):
+        os.makedirs(outfile)
+
+    results = P.snip(outfile) + ".dir/MATS_output/SE.MATS.JunctionCountOnly.txt"
+    Design = Expression.ExperimentalDesign(infile)
+    if len(Design.groups) != 2:
+        raise ValueError("Please specify exactly two groups per experiment.")
+
+    group1 = ",".join(
+        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[0])])
+    group2 = ",".join(
+        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[1])])
+    group1name = Design.groups[0]
+    group2name = Design.groups[1]
+
+    statement = '''rmats2sashimiplot
+    -s1 %(group1)s
+    -s2 %(group2)s
+    -e %(results)s
+    -l1 %(group1name)s
+    -l2 %(group2name)s
+    -o %(outfile)s
+    '''
+    P.run()
+
+
 # ---------------------------------------------------
 # Generic pipeline tasks
-@follows(runMATS)
+@follows(sashimi)
 def full():
     pass
 
