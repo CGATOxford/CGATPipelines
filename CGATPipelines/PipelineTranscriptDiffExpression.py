@@ -115,7 +115,7 @@ def identifyLowConfidenceTranscripts(infile, outfile):
 
         outf.write("%s\t%s\n" % ("transcript_id", "reason"))
 
-        # idenify transcript with low fraction of kmers - these show
+        # identify transcript with low fraction of kmers - these show
         # poorer correlation between ground truth and esimated counts
         low_fraction = df[df['fraction_bin'] < 0.01].index.tolist()
 

@@ -1130,10 +1130,11 @@ class Kallisto(Mapper):
             raise ValueError("incorrect number of input files")
 
         outdir = os.path.dirname(outfile)
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
 
         # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
-        mkdir %(outdir)s;
         kallisto quant %%(kallisto_options)s
         --bootstrap-samples=%%(bootstrap)s
         -i %%(index)s -o %(tmpdir)s %(infiles)s
@@ -1149,7 +1150,7 @@ class Kallisto(Mapper):
         tmpdir = self.tmpdir
 
         statement = ('''
-        mv %(tmpdir)s/abundance.h5 %(outfile)s;
+        mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
 
         return statement

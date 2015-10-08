@@ -418,14 +418,6 @@ def countKmers(infile, outfile):
     P.run()
 
 
-@transform(countKmers,
-           suffix(".tsv"),
-           ".load")
-def loadKmerResults(infile, outfile):
-    ''' load results from the kmer analysis '''
-    P.load(infile, outfile)
-
-
 @follows(buildReferenceTranscriptome)
 @files([("index.dir/transcripts.fa",
          ("simulation.dir/simulated_reads_%i.fastq.1.gz" % x,
@@ -533,14 +525,6 @@ def concatSimulationResults(infiles, outfile):
     df.to_csv(outfile, sep="\t", index=False)
 
 
-@transform(concatSimulationResults,
-           suffix(".tsv"),
-           ".load")
-def loadSimResults(infile, outfile):
-    ''' load results from the simulation '''
-    P.load(infile, outfile)
-
-
 @merge((concatSimulationResults,
         countKmers),
        "simulation.dir/simulation_correlations.tsv")
@@ -627,8 +611,7 @@ def loadLowConfidenceTranscripts(infile, outfile):
 
 
 @mkdir("simulation.dir")
-@follows(loadSimResults,
-         loadKmerResults,
+@follows(loadCorrelation,
          loadLowConfidenceTranscripts)
 def simulate():
     pass
