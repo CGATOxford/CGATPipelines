@@ -412,7 +412,7 @@ def countKmers(infile, outfile):
     job_memory = PARAMS["simulation_kmer_memory"]
 
     statement = '''
-    python %(scriptsdir)s/fasta2unique_kmers.py --input-fastq=%(infile)s
+    python %(scriptsdir)s/fasta2unique_kmers.py --input-fasta=%(infile)s
     --kmer-size=%(kallisto_kmer)s -L %(outfile)s.log > %(outfile)s '''
 
     P.run()
@@ -614,7 +614,8 @@ def identifyLowConfidenceTranscript(infile, outfile):
 
     job_memory = "2G"
 
-    TranscriptDiffExpression(infile, outfile, submit=True)
+    TranscriptDiffExpression.identifyLowConfidenceTranscripts(
+        infile, outfile, submit=True)
 
 
 @transform(identifyLowConfidenceTranscript,
