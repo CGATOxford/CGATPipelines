@@ -2,7 +2,7 @@
 MeDIP pipeline - Meta
 =====================
 
-:Author: David Sims
+:Author:
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -58,18 +58,13 @@ Code
 from ruffus import *
 
 import CGAT.Experiment as E
-import logging as L
 import sys
 import os
 import glob
 import sqlite3
-import PipelineTracks
-import Pipeline as P
+import CGATPipelines.Pipeline as P
+import CGATPipelines.PipelineTracks as PipelineTracks
 
-
-#########################################################################
-#########################################################################
-#########################################################################
 # load options from the config file
 P.getParameters(["%s/pipeline.ini" % __file__[:-len(".py")],
                  "../pipeline.ini",
@@ -80,25 +75,9 @@ PARAMS = P.PARAMS
 PARAMS_ANNOTATIONS = P.peekParameters(PARAMS["annotations_dir"],
                                       "pipeline_annotations.py")
 
-###################################################################
-###################################################################
-###################################################################
 Sample = PipelineTracks.Sample
 TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(glob.glob("medip_*"),
                                                          "medip_(\S+)")
-
-
-###################################################################
-###################################################################
-###################################################################
-# if conf.py exists: execute to change the above assignmentsn
-if os.path.exists("pipeline_conf.py"):
-    L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
-
-###################################################################
-###################################################################
-###################################################################
 
 
 def connect():
@@ -123,10 +102,6 @@ def connect():
         cc.close()
 
     return dbh
-
-###################################################################
-###################################################################
-###################################################################
 
 
 @merge(None, "mapping.tsv")
@@ -157,10 +132,6 @@ def buildSummaryMapping(infiles, outfile):
             outf.write("\t".join(map(str, (track,) + row)) + "\n")
 
     outf.close()
-
-###################################################################
-###################################################################
-###################################################################
 
 
 @merge(None, "called_dmrs.tsv")
@@ -194,10 +165,6 @@ def buildSummaryCalledDMRs(infiles, outfile):
                 "\t".join(map(str, (track, table, ntested, nok, nsignificant, n2fold))) + "\n")
 
     outf.close()
-
-###################################################################
-###################################################################
-###################################################################
 
 
 @merge(None, "cpg_coverage.tsv")
@@ -240,18 +207,10 @@ def loadSummary(infile, outfile):
     '''load all summary tables.'''
     P.load(infile, outfile)
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @follows(loadSummary)
 def full():
     pass
-
-###################################################################
-###################################################################
-###################################################################
 
 
 @follows(mkdir("report"))
@@ -261,10 +220,6 @@ def build_report():
     E.info("starting documentation build process from scratch")
     P.run_report(clean=True)
 
-###################################################################
-###################################################################
-###################################################################
-
 
 @follows(mkdir("report"))
 def update_report():
@@ -272,10 +227,6 @@ def update_report():
 
     E.info("updating documentation")
     P.run_report(clean=False)
-
-###################################################################
-###################################################################
-###################################################################
 
 
 @follows(mkdir("%s/bamfiles" % PARAMS["web_dir"]),

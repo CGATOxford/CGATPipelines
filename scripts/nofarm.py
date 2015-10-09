@@ -1,5 +1,4 @@
-'''
-nofarm.py - stand-in for ``farm.py``
+'''nofarm.py - stand-in for ``farm.py``
 ====================================
 
 :Author: Andreas Heger
@@ -10,12 +9,12 @@ nofarm.py - stand-in for ``farm.py``
 Purpose
 -------
 
-This script is a stand-in for :doc:`farm`. Instead of running
-splitting the input and running jobs on the cluster, the command
-is executed as is.
+This script is a stand-in for :doc:`farm`. Instead of splitting the
+input and running jobs on the cluster, the command is executed as is.
 
-This script accepts all the options of ``farm.py``, but ignores
-most of them.
+This script accepts all the options of ``farm.py``, but ignores most
+of them. This is useful to turn of remote-processing when debugging a
+pipeline locally.
 
 Usage
 -----
@@ -38,21 +37,10 @@ Command line options
 import os
 import sys
 import re
-import string
-import optparse
-import time
-import glob
 import subprocess
-import tempfile
-import shutil
-
 import farm
 
 import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import threadpool
-
-# --------------------------------------------------------------------
 
 
 def main(argv=None):

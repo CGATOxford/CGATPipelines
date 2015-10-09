@@ -716,7 +716,7 @@ def loadTranscriptomeValidation(infiles, outfile):
 
     to_cluster = USECLUSTER
 
-    headers = ",".join([P.quote(P.snip(x, ".accepted.bam")) for x in infiles])
+    headers = ",".join([P.tablequote(P.snip(x, ".accepted.bam")) for x in infiles])
     infiles = " ".join(["%s.log" % x for x in infiles])
 
     tablename = P.toTable(outfile)
@@ -1061,7 +1061,7 @@ def buildBAMStats(infiles, outfile):
 def loadBAMStats(infiles, outfile):
     '''import bam statisticis.'''
 
-    header = ",".join([P.quote(P.snip(x, ".readstats")) for x in infiles])
+    header = ",".join([P.tablequote(P.snip(x, ".readstats")) for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
     E.info("loading bam stats - summary")
@@ -1214,7 +1214,7 @@ def mergeAndLoad(infiles, outfile, suffix):
     The tables are merged and entered row-wise.
 
     '''
-    header = ",".join([P.quote(P.snip(x, suffix)) for x in infiles])
+    header = ",".join([P.tablequote(P.snip(x, suffix)) for x in infiles])
     if suffix.endswith(".gz"):
         filenames = " ".join(
             ["<( zcat %s | cut -f 1,2 )" % x for x in infiles])

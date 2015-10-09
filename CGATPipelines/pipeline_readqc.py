@@ -61,6 +61,12 @@ is as follows:
    processed data. Note that all the processed data will be found in
    the :file:`processed.dir` directory.
 
+
+.. note::
+
+   If you set the option auto_remove, you will ned to run the
+   pipeline at least once without any pre-processors.
+
 Configuration
 -------------
 
@@ -133,7 +139,8 @@ Requirements:
 """
 
 # import ruffus
-from ruffus import *
+from ruffus import transform, merge, follows, mkdir, regex, suffix, jobs_limit, \
+    subdivide, collate
 
 # import useful standard python modules
 import sys
@@ -141,6 +148,7 @@ import os
 import re
 import shutil
 import sqlite3
+import glob
 
 # import modules from the CGAT code collection
 import CGAT.Experiment as E
@@ -181,12 +189,28 @@ def connect():
     dbh = sqlite3.connect(PARAMS['database'])
     return dbh
 
+
+@transform(INPUT_FORMATS, regex("(.*)"), r"\1")
+def unprocessReads(infiles, outfiles):
+    """dummy task - no processing of reads."""
+    pass
+
+
 # if preprocess tools are specified, preprocessing is done on output that has
 # already been generated in the first run
 if PARAMS.get("preprocessors", None):
     if PARAMS["auto_remove"]:
+        # check if fastqc has been run
+        for x in IOTools.flatten([glob.glob(y) for y in INPUT_FORMATS]):
+            f = re.match(REGEX_TRACK, x).group(1) + ".fastqc"
+            if not os.path.exists(f):
+                raise ValueError(
+                    "file %s missing, "
+                    "you need to run the pipeline once before "
+                    "specifying 'auto_remove'" % f)
+
         @follows(mkdir("fasta.dir"))
-        @transform(INPUT_FORMATS,
+        @transform(unprocessReads,
                    regex(SEQUENCEFILES_REGEX),
                    r"fasta.dir/\1.fasta")
         def makeAdaptorFasta(infile, outfile):
@@ -235,20 +259,18 @@ if PARAMS.get("preprocessors", None):
 
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["trimmomatic_adapter"]:
-            trimmomatic_options = trimmomatic_options + \
-                " ILLUMINACLIP:%s:%s:%s:%s " % (
-                    PARAMS["trimmomatic_adapter"],
-                    PARAMS["trimmomatic_mismatches"],
-                    PARAMS["trimmomatic_p_thresh"],
-                    PARAMS["trimmomatic_c_thresh"])
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+                PARAMS["trimmomatic_adapter"],
+                PARAMS["trimmomatic_mismatches"],
+                PARAMS["trimmomatic_p_thresh"],
+                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
 
         if PARAMS["auto_remove"]:
-            trimmomatic_options = trimmomatic_options + \
-                " ILLUMINACLIP:%s:%s:%s:%s " % (
-                    "contaminants.fasta",
-                    PARAMS["trimmomatic_mismatches"],
-                    PARAMS["trimmomatic_p_thresh"],
-                    PARAMS["trimmomatic_c_thresh"])
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+                "contaminants.fasta",
+                PARAMS["trimmomatic_mismatches"],
+                PARAMS["trimmomatic_p_thresh"],
+                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
 
         job_threads = PARAMS["threads"]
         job_memory = "7G"
@@ -271,22 +293,22 @@ if PARAMS.get("preprocessors", None):
                     trimmomatic_options,
                     threads=PARAMS["threads"]))
             elif tool == "sickle":
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Sickle(
                     PARAMS["sickle_options"],
                     threads=PARAMS["threads"]))
             elif tool == "trimgalore":
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Trimgalore(
                     PARAMS["trimgalore_options"],
                     threads=PARAMS["threads"]))
             elif tool == "flash":
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Flash(
                     PARAMS["flash_options"],
                     threads=PARAMS["threads"]))
             elif tool == "cutadapt":
                 cutadapt_options = PARAMS["cutadapt_options"]
                 if PARAMS["auto_remove"]:
                     cutadapt_options += " -a file:contaminants.fasta "
-                m.add(PipelinePreprocess.Trimmomatic(
+                m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
                     threads=PARAMS["threads"]))
 
@@ -299,12 +321,6 @@ else:
     def processReads():
         """dummy task - no processing of reads."""
         pass
-
-
-@transform(INPUT_FORMATS, regex("(.*)"), r"\1")
-def unprocessReads(infiles, outfiles):
-    """dummy task - no processing of reads."""
-    pass
 
 
 @follows(mkdir(PARAMS["exportdir"]),

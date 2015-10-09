@@ -1,4 +1,3 @@
-import itertools
 import numpy
 
 from RnaseqDiffExpressionReport import *

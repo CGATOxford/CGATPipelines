@@ -1,5 +1,4 @@
-'''
-PipelineMapping.py - Utility functions for mapping short reads
+'''PipelineMapping.py - Utility functions for mapping short reads
 ==============================================================
 
 :Author: Andreas Heger
@@ -8,28 +7,54 @@ PipelineMapping.py - Utility functions for mapping short reads
 :Tags: Python
 
 Mapping reads is a common task in pipelines. Different pipelines
-combine different sources of input (:term:`fastq` files, :term:`sra` files)
-of different data (single end, paired end) with different mapping
-algorithms (bowtie, tophat, stampy). This module provides utility
-functions to abstract some of these variations.
+combine different sources of input (:term:`fastq` files, :term:`sra`
+files) of different data (single end, paired end) with different
+mapping algorithms (bowtie, tophat, stampy). This module provides
+utility functions to abstract some of these variations.
 
-The pipeline does not know what kind of data it gets (a :term:`sra` archive
-might contain single end or paired end data or both).
+The pipeline does not know what kind of data it gets (a :term:`sra`
+archive might contain single end or paired end data or both).
 
 A pipeline might get several input data (:term:`fastq` and :term:`sra`
 formatted files at the same time).
 
-The module currently is able to deal with:
-
-   * tophat mapping against genome
-   * bowtie mapping against transcriptome, genome and junctions
-   * bwa against genome
-   * stampy against genome
-
 It implements:
+
    * .sra: paired-end and single-end
    * .fastq: paired-end and single-end
    * .csfasta: colour-space, single-end
+
+The basic class :class:`SequenceCollectionProcessor`.  The aim of this
+class and its derivatives is to build a sequence of command line
+statements that can be send to a single node on a cluster to process
+the input data.
+
+The basic usage inside a pipeline task is as such::
+
+    @transform()
+    def mapReads(infile, outfile):
+
+        # initialize the Tool
+        m = PipelineMapping.Hisat(
+             executable=P.substituteParameters(**locals())["hisat_executable"],
+             strip_sequence=PARAMS["strip_sequence"])
+
+        # build the command line statement
+        statement = m.build((infile,), outfile)
+
+        P.run()
+
+When implementing a tool, avoid specifying algorithmic options as
+class variables. Instead use an option string that can be set in
+:file:`pipeline.ini`. The only arguments to a tool constructor should
+pertain to pipeline integration, such as filenames, index locations,
+threading and in general processing options that change the tools
+input/output, as these need to be tracked by the pipeline.
+
+The benefit of this approach is to provide completea control to the
+user and is likely to work with different versions of a tool, i.e., if
+a command line option to a tool changes, just the configuration file
+needs to be changed, but the code remains the same.
 
 Requirements:
 
@@ -51,13 +76,12 @@ Requirements:
 * butter >= 0.3.2 (optional)
 * hisat >= 0.1.4 (optional)
 
-Code
-----
+Reference
+---------
 
 '''
 
 import os
-import shutil
 import glob
 import collections
 import re
@@ -71,7 +95,6 @@ import CGAT.GTF as GTF
 import CGAT.Fastq as Fastq
 import CGAT.IndexedFasta as IndexedFasta
 import CGATPipelines.PipelineGeneset as PipelineGeneset
-import pysam
 import CGAT.Sra as Sra
 
 SequenceInformation = collections.namedtuple("SequenceInformation",
@@ -83,36 +106,33 @@ SequenceInformation = collections.namedtuple("SequenceInformation",
                                                  is_colour""")
 
 
-def getReadLengthFromFastq(filename):
-    '''return readlength from a fasta/fastq file.
-
-    Only the first read is inspected. If there are
-    different read lengths in the file, though luck.
-
-    '''
-
-    with IOTools.openFile(filename) as infile:
-        record = iterate(infile).next()
-        readlength = len(record.seq)
-        return readlength
-
-
-def getReadLengthFromBamfile(filename):
-    '''return readlength from a bam file.
-
-    Only the first read is inspected. If there are
-    different read lengths in the file, though luck.
-    '''
-
-    samfile = pysam.Samfile(filename, "rb")
-    record = samfile.fetch().next()
-    readlength = record.rlen
-    samfile.close()
-    return readlength
-
-
 def getSequencingInformation(track):
-    '''glean sequencing information from *track*.'''
+    '''glean sequencing information from *track*.
+
+    This method looks for possible filename suffixes for
+    track that exist. Depending on the files present it
+    will return a named tuple with the following columns:
+
+    paired_end
+       True if data is paired end
+    filename_first
+       Filename of first read in pair
+    filename_second
+       Filename of second read in pair (if paired)
+    readlength_first
+       Read length of first read in pair
+    readlength_second
+       Read length of second read in pair (if given)
+
+    Arguments
+    ---------
+    track : string
+        A track name
+
+    Returns
+    -------
+    data : tuple
+    '''
 
     colour = False
     if os.path.exists("%s.fastq.gz" % track):
@@ -131,11 +151,11 @@ def getSequencingInformation(track):
         if not os.path.exists(second_pair):
             raise IOError("could not find second pair %s for %s" %
                           (second_pair, first_pair))
-        second_length = getReadLengthFromFastq(second_pair)
+        second_length = Fastq.getReadLength(second_pair)
 
     return SequenceInformation._make((second_pair is not None,
                                       first_pair, second_pair,
-                                      getReadLengthFromFastq(first_pair),
+                                      Fastq.getReadLength(first_pair),
                                       second_length,
                                       colour))
 
@@ -150,16 +170,41 @@ def mergeAndFilterGTF(infile, outfile, logfile,
     Merge exons separated by small introns (< 5bp).
 
     Transcripts will be ignored that
-       * have very long introns (max_intron_size) (otherwise,
+       * have very long introns (`max_intron_size`) (otherwise,
          cufflinks complains)
        * are located on contigs to be ignored (usually: chrM, _random, ...)
 
-    Optionally remove transcripts based on repetitive sequences by supplying a
-       repetitve "rna_file"
+    Optionally remove transcripts based on repetitive sequences by
+       supplying a repetitve `rna_file`.
 
     This method preserves all features in a gtf file (exon, CDS, ...).
 
-    returns a dictionary of all gene_ids that have been kept.
+    Arguments
+    ---------
+    infile : string
+       Input filename in :term:`gtf` format
+    outfile : string
+       Output filename in :term:`gtf` format
+    logfile : string
+       Output filename for logging information.
+    genome : string
+       Filename (without extension) of indexed genome file
+       in :term:`fasta` format.
+    max_intron_size : int
+       Remove transripts with introns larger than this value.
+    remove_contigs : string
+       Remove transcripts on contigs matching this regular
+       expression string.
+    rna_file : string
+       Filename of :term:`gff` formatted file with repetetive
+       sequences. If given, all transcripts overlapping any regions
+       in this file will be removed.
+
+    Returns
+    -------
+    kept_genes : dict
+        a dictionary of all gene_ids that have been kept.
+
     '''
 
     c = E.Counter()
@@ -280,11 +325,23 @@ def mergeAndFilterGTF(infile, outfile, logfile,
 
 
 def resetGTFAttributes(infile, genome, gene_ids, outfile):
-    """set GTF attributes in file so that they are compatible with cufflinks.
+    """set GTF attributes in :term:`gtf` formatted file so that they are
+    compatible with cufflinks.
 
     This method runs cuffcompare with `infile` against itself to add
     attributes such as p_id and tss_id.
 
+    Arguments
+    ---------
+    infile : string
+        Filename of :term:`gtf`-formatted input file
+    genome : string
+       Filename (without extension) of indexed genome file
+       in :term:`fasta` format.
+    gene_ids : dict
+       Dictionary mapping transcript ids to gene ids.
+    outfile : string
+       Output filename in :term:`gtf` format
     """
     tmpfile1 = P.getTempFilename(".")
     tmpfile2 = P.getTempFilename(".")
@@ -374,6 +431,24 @@ class SequenceCollectionProcessor(object):
     """base class for processors of sequence collections.
 
     Processors of sequence collections are mappers, trimmers, etc.
+
+    The aim of these processors is to build a sequence
+    of command line statements that can be send to a single node
+    on a cluster to process the input data.
+
+    Attributes
+    ==========
+    compress : bool
+        If True, compress temporary fastq files with gzip
+    convert : bool
+        If True, convert quality scores to Sanger quality scores.
+    preserve_colourspace : bool
+        If True, preserve colour space files. By default they are
+        converted to fastq.
+    tmpdir_fastq : string
+        Directory with the locations of temporary :term:`fastq`
+        formatted files. This directory can be used as a general
+        temporary directory by a mapper.
     """
 
     # compress temporary fastq files with gzip
@@ -386,16 +461,23 @@ class SequenceCollectionProcessor(object):
     # By default, they are converted to fastq.
     preserve_colourspace = False
 
+    # Temporary directory where temporary fastq files will
+    # be located.
+    tmpdir_fastq = None
+
     def __init__(self, *args, **kwargs):
         pass
 
     def quoteFile(self, filename):
-        '''add uncompression for compressed files.
-        and programs that expect uncompressed files.
+        '''return a quoted file for in-situ uncompression.
+
+        The quoting adds uncompression for compressed files for
+        programs that expect uncompressed files.
 
         .. note::
-            This will only work if the downstream programs read the
-            file only once.
+            This will only work if the downstream programs reads
+            the file only once.
+
         '''
         if filename.endswith(".gz") and not self.compress:
             return "<( gunzip < %s )" % filename
@@ -405,12 +487,18 @@ class SequenceCollectionProcessor(object):
     def preprocess(self, infiles, outfile):
         '''build a preprocessing statement
 
-        Build a command line statement that extracts/converts
-        various input formats to fastq formatted files.
+        Build a command line statement that extracts/converts various
+        input formats to :term:`fastq` formatted files.
 
         Mapping qualities are changed to solexa format.
 
-        returns the statement and the fastq files to process
+        Returns
+        -------
+        statement : string
+            The command line statement for pre-processing.
+        files : list
+            List of :term:`fastq` formatted files that will
+            be created by `statement`.
         '''
 
         assert len(infiles) > 0, "no input files for processing"
@@ -671,12 +759,40 @@ class SequenceCollectionProcessor(object):
 
 
 class Mapper(SequenceCollectionProcessor):
+    '''Base class for short-read mappers.
 
-    '''map reads.
+    These tools map reads in :term:`fastq` or :term:`sra` formatted
+    files and outut a :term:`BAM` formatted file.
 
-    preprocesses the input data, calls mapper and post-process the output data.
+    .. note::
+        This class just sets the attributes below, but is not
+        implementing them.
 
-    All in a single statement to be send to the cluster.
+    Attributes
+    ----------
+    datatype : string
+        Datatype of input
+    strip_sequence : bool
+        If True, remove sequence from BAM files in post-processing
+        step.
+    remove_non_unique : bool
+        If True, remove non-unique matches from the BAM file. This
+        processing will happen in addition to any filters applied
+        in the mapper.
+
+    Arguments
+    ---------
+    executable : string
+        Executable to use. If unset, use default.
+    strip_sequence : bool
+        If True, remove sequence from BAM files in post-processing.
+    remove_non_unique : bool
+        If True, remove non-unique matches from the BAM file. This
+        processing will happen in addition to any filters applied
+        in the mapper.
+    tool_options : string
+        Options to be passed to the processing tool.
+
     '''
 
     datatype = "fastq"
@@ -724,7 +840,26 @@ class Mapper(SequenceCollectionProcessor):
         return statement
 
     def build(self, infiles, outfile):
-        '''run mapper.'''
+        '''run mapper
+
+        This method combines the output of the :meth:`preprocess`,
+        :meth:`mapper`, :meth:`postprocess` and :meth:`clean` sections
+        into a single statement.
+
+        Arguments
+        ---------
+        infiles : list
+             List of input filenames
+        outfile : string
+             Output filename
+
+        Returns
+        -------
+        statement : string
+             A command line statement. The statement can be a series
+             of commands separated by ``;`` and/or can be unix pipes.
+
+        '''
 
         cmd_preprocess, mapfiles = self.preprocess(infiles, outfile)
         cmd_mapper = self.mapper(mapfiles, outfile)
@@ -751,15 +886,24 @@ class Mapper(SequenceCollectionProcessor):
 
 
 class FastQc(Mapper):
+    """run the FastQC_ tool.
 
-    '''run fastqc to test read quality.'''
+    Arguments
+    ---------
+    outdir : string
+        Output directory
+    contaminants : string
+        Filename with sequence for contaminant sequences to check for.
+
+    """
 
     compress = True
 
-    def __init__(self, nogroup=False, outdir=".", contaminants=None,
+    def __init__(self,
+                 outdir=".",
+                 contaminants=None,
                  *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
-        self.nogroup = nogroup
         self.outdir = outdir
         if contaminants:
             self.contaminants = self.parse_contaminants(contaminants)
@@ -767,10 +911,12 @@ class FastQc(Mapper):
             self.contaminants = None
 
     def parse_contaminants(self, contaminants):
-        '''
-        Excessive tabs in contaminants file can cause Fastqc
-        to hiccup when provided as an adaptor contaminants file.
-        Parse file and insert a single tab
+        '''remove misplaced tabs from contaminants file.
+
+        Misplated tab characters in the contaminants file can cause
+        Fastqc to hiccup when provided as an adaptor contaminants
+        file.  Parse file and insert a single tab.
+
         Using this file is only appropriate if the adaptors sequences
         are shorter than the reads.
         '''
@@ -806,8 +952,11 @@ class FastQc(Mapper):
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles.
 
-        The output is created in outdir. The output files
-        are extracted.
+        The output is created in outdir.
+
+        The FASTQC output files are extracted in order to available in
+        the pipeline report.
+
         '''
 
         contaminants = self.contaminants
@@ -822,21 +971,14 @@ class FastQc(Mapper):
                 else:
                     contaminants_cmd = ""
 
-                if self.nogroup:
-                    statement.append(
-                        '''fastqc --extract --outdir=%(outdir)s --nogroup %(x)s
-                        %(contaminants_cmd)s >& %(outfile)s ;
-                        rm -f %(contaminats)s ; ''' % locals())
-                else:
-                    statement.append(
-                        '''fastqc --extract --outdir=%(outdir)s %(x)s
-                        %(contaminants_cmd)s >& %(outfile)s ;
-                        rm -f %(contaminants)s ; ''' % locals())
+                statement.append(
+                    '''fastqc --extract --outdir=%(outdir)s %(x)s
+                    %(contaminants_cmd)s >& %(outfile)s ;
+                    rm -f %(contaminants)s ; ''' % locals())
         return " ".join(statement)
 
 
 class FastqScreen(Mapper):
-
     '''run Fastq_screen to test contamination by other organisms.'''
 
     compress = True
@@ -875,7 +1017,6 @@ class FastqScreen(Mapper):
 
 
 class Sailfish(Mapper):
-
     '''run Sailfish to quantify transcript abundance from fastq files'''
 
     def __init__(self, compress=True, strand="", orient="",
@@ -887,7 +1028,6 @@ class Sailfish(Mapper):
         self.threads = threads
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles'''
 
         threads = self.threads
 
@@ -960,9 +1100,66 @@ class Sailfish(Mapper):
         return statement
 
 
-class Counter(Mapper):
+class Kallisto(Mapper):
 
-    '''count number of reads in fastq files.'''
+    '''run Kallisto to quantify transcript abundance from fastq files'''
+
+    def mapper(self, infiles, outfile):
+        '''build mapping statement on infiles'''
+
+        tmpdir = os.path.join(self.tmpdir_fastq + "kallisto")
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+
+            infiles = "--single " + " ".join([x[0] for x in infiles])
+
+        elif nfiles == 2:
+            infiles = " ".join([" ".join(x) for x in infiles])
+
+        else:
+            raise ValueError("incorrect number of input files")
+
+        # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
+        statement = '''
+        kallisto quant %%(kallisto_options)s
+        --bootstrap-samples=%%(bootstrap)s
+        -i %%(index)s -o %(tmpdir)s %(infiles)s;''' % locals()
+
+        self.tmpdir = tmpdir
+
+        return statement
+
+    def postprocess(self, infiles, outfile):
+        '''move outfiles from tmpdir to final location'''
+
+        directory = os.path.dirname(os.path.abspath(outfile))
+        tmpdir = self.tmpdir
+
+        statement = ('''
+        mkdir %(directory)s;
+        mv %(tmpdir)s/abundance.h5 %(outfile)s;
+        ''' % locals())
+
+        return statement
+
+    def cleanup(self, outfile):
+        '''clean up.'''
+        statement = '''rm -rf %s; rm -rf %s;''' % (
+            self.tmpdir_fastq, self.tmpdir)
+
+        return statement
+
+
+class Counter(Mapper):
+    """count number of reads in fastq files."""
 
     compress = True
 
@@ -982,25 +1179,29 @@ class Counter(Mapper):
 
 
 class BWA(Mapper):
-
     '''run bwa to map reads against genome.
 
-    * colour space not implemented
+    .. note::
+       Colour space mapping is not implemented
 
-    if remove_unique is true, a filtering step is included in postprocess,
-    which removes reads that don't have tag X0:i:1 (i.e. have > 1 best hit)
+    If remove_non_unique is true, a filtering step is included in
+    postprocess, which removes reads that don't have tag X0:i:1
+    (i.e. have > 1 best hit)
+
+    Arguments
+    ---------
+    set_nh : bool
+        If True, set the NH flag in a post-processing step.
+
     '''
 
-    def __init__(self, remove_unique=False, strip_sequence=False,
+    def __init__(self,
                  set_nh=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
-        self.remove_unique = remove_unique
-        self.strip_sequence = strip_sequence
         self.set_nh = set_nh
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.'''
 
         num_files = [len(x) for x in infiles]
 
@@ -1082,7 +1283,7 @@ class BWA(Mapper):
         if self.remove_non_unique:
             unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
             --method=filter
-            --filter-method=unique, mapped
+            --filter-method=unique,mapped
             --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
@@ -1173,22 +1374,32 @@ class BWAMEM(BWA):
 
 
 class Bismark(Mapper):
-
     '''run bismark to map reads against genome.
 
-    * colour space not implemented
+    .. note::
+       Colour space not implemented
+
+    Arguments
+    ---------
+    align_stas : bool
+        If True, output alignment statistics.
+    dedup : bool
+        If True, perform a deduplication step.
+    read_group_header : bool
+        unused?
     '''
 
-    def __init__(self, remove_unique=False, align_stats=False, dedup=False,
-                 read_group_header=False, *args, **kwargs):
+    def __init__(self,
+                 align_stats=False,
+                 dedup=False,
+                 read_group_header=False,
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
-        self.remove_unique = remove_unique
         self.align_stats = align_stats
         self.dedup = dedup
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.'''
 
         num_files = [len(x) for x in infiles]
 
@@ -1313,7 +1524,6 @@ class Bismark(Mapper):
 
 
 class Stampy(BWA):
-
     '''map reads against genome using STAMPY.
     '''
 
@@ -1358,7 +1568,7 @@ class Stampy(BWA):
             %(executable)s -v 3
             -g %%(stampy_index_dir)s/%%(genome)s
             -h %%(stampy_index_dir)s/%%(genome)s
-            --bwaoptions="-q10 %(bwa_index_prefix)s"
+            %%(stampy_options)s
             -M %(infiles)s
             > %(tmpdir)s/%(track)s.sam 2>%(outfile)s.log;
             ''' % locals())
@@ -1372,8 +1582,8 @@ class Stampy(BWA):
             statement.append('''
             %(executable)s -v 3 -g %%(stampy_index_dir)s/%%(genome)s
             -h %%(stampy_index_dir)s/%%(genome)s
-                      --bwaoptions="-q10 %(bwa_index_prefix)s"
-                      -M %(infiles1)s %(infiles2)s
+            %%(stampy_options)s
+            -M %(infiles1)s %(infiles2)s
             > %(tmpdir)s/%(track)s.sam 2>%(outfile)s.log;
             ''' % locals())
         else:
@@ -1386,7 +1596,6 @@ class Stampy(BWA):
 
 
 class Butter(BWA):
-
     '''
     map reads against genome using Butter.
     '''
@@ -1458,7 +1667,8 @@ class Butter(BWA):
 
 
 class Tophat(Mapper):
-
+    """Map reads with tophat against the genome.
+    """
     # tophat can map colour space files directly
     preserve_colourspace = True
 
