@@ -460,6 +460,8 @@ class LoggingFilterRabbitMQ(logging.Filter):
             block, task_name = [], None
             task_status = None
             for line in text.split("\n"):
+                line = line.strip()
+
                 if line.startswith("Tasks which will be run"):
                     task_status = "update"
                 elif line.startswith("Tasks which are up-to-date"):
@@ -570,8 +572,9 @@ class LoggingFilterRabbitMQ(logging.Filter):
 
         # filter ruffus logging messages
         if record.filename.endswith("task.py"):
+
             try:
-                before, task_name = record.msg.split(" = ")
+                before, task_name = record.msg.strip().split(" = ")
             except ValueError:
                 return True
 
