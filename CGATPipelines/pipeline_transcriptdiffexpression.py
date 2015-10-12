@@ -548,8 +548,9 @@ def calculateCorrelations(infiles, outfile):
 
     # merge and bin the unique fraction values
     df_final = pd.merge(df_kmer, df_agg, left_index=True, right_index=True)
-    df_final['fraction_bin'] = (np.digitize(df_final["fraction_unique"]*100,
-                                            bins=range(0, 100, 1))-1)/100.0
+    df_final['fraction_bin'] = (
+        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, 1),
+                    right=True))/100.0
 
     df_abund_sum = df_abund.groupby(level=0)["est_counts", "read_count"].sum()
     df_final = pd.merge(df_final, df_abund_sum,
@@ -592,7 +593,7 @@ def identifyLowConfidenceTranscript(infile, outfile):
          transcripts below threshold are flagged
 
     2. is not yet implemented. Currently the minimum kmer fraction is
-    hardcoded as 0.01. Need to implement automatic threshold
+    hardcoded as 0.03. Need to implement automatic threshold
     generation from data
     '''
 

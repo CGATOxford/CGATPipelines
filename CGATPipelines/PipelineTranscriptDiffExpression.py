@@ -117,13 +117,13 @@ def identifyLowConfidenceTranscripts(infile, outfile):
 
         # identify transcript with low fraction of kmers - these show
         # poorer correlation between ground truth and esimated counts
-        low_fraction = df[df['fraction_bin'] < 0.01].index.tolist()
+        low_fraction = df[df['fraction_bin'] < 0.03].index.tolist()
 
         for transcript in low_fraction:
             outf.write("%s\t%s\n" % (transcript, "low_kmers"))
 
         # identify transcript with poor accuracy of quantification
-        low_accuracy = df[[abs(x) > 0.5 for x in
+        low_accuracy = df[[abs(x) > 0.585 for x in
                            df['log2diff']]].index.tolist()
         for transcript in low_accuracy:
             outf.write("%s\t%s\n" % (transcript, "poor_accuracy"))
