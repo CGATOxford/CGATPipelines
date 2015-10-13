@@ -174,12 +174,12 @@ if "axt_dir" in PARAMS:
         for infile in infiles:
             E.info("adding %s" % infile)
             statement = '''gunzip < %(infile)s 
-            | axtToPsl 
+            | axtToPsl
             /dev/stdin
-            %(query)s.sizes 
-            %(target)s.sizes 
-            /dev/stdout 
-            | pslSwap /dev/stdin /dev/stdout 
+            %(query)s.sizes
+            %(target)s.sizes
+            /dev/stdout
+            | pslSwap /dev/stdin /dev/stdout
             | gzip >> %(outfile)s
             '''
             P.run()
@@ -207,17 +207,17 @@ elif "maf_dir" in PARAMS:
             genome_query, genome_target = getGenomes()
 
             statement = '''gunzip < %(infile)s 
-             | python %(scriptsdir)s/maf2psl.py 
+             | python %(scriptsdir)s/maf2psl.py
                   --query=%(maf_name_query)s
                   --target=%(maf_name_target)s
-                  --log=%(outfile)s.log 
-             | python %(scriptsdir)s/psl2psl.py 
-                  --method=filter-fasta 
+                  --log=%(outfile)s.log
+             | python %(scriptsdir)s/psl2psl.py
+                  --method=filter-fasta
                   --method=sanitize
                   --queries-tsv-file=%(genome_query)s
                   --target-psl-file=%(genome_target)s
-                  --log=%(outfile)s.log 
-             | gzip 
+                  --log=%(outfile)s.log
+             | gzip
              >> %(outfile)s
              '''
             P.run()
@@ -266,18 +266,18 @@ elif "maf_dir" in PARAMS:
                   /dev/stdin
                   %(maf_name_target)s
                   %(maf_name_query)s
-                  /dev/stdout 
-                  -stripDb 
-             | axtToPsl 
-                  /dev/stdin 
-                  %(target)s.sizes 
-                  %(query)s.sizes 
-                  /dev/stdout 
-             | python %(scriptsdir)s/psl2psl.py 
+                  /dev/stdout
+                  -stripDb
+             | axtToPsl
+                  /dev/stdin
+                  %(target)s.sizes
+                  %(query)s.sizes
+                  /dev/stdout
+             | python %(scriptsdir)s/psl2psl.py
                   --queries-tsv-file=%(genome_query)s
                   --target-psl-file=%(genome_target)s
                   --method=sanitize
-             | gzip 
+             | gzip
              >> %(outfile)s
              '''
             P.run()

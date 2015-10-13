@@ -333,25 +333,16 @@ def loadTATABox(infile, outfile):
 
     P.load(infile + ".table.gz", outfile, "--add-index=transcript_id")
 
-###################################################################
-###################################################################
-###################################################################
-##
-###################################################################
-
-############################################################
-############################################################
-############################################################
-##
-############################################################
-
 
 @merge(None, "cpg.bed.gz")
 def collectCpGIslands(infile, outfile):
     '''select repeats from UCSC and write to *outfile* in gff format.
     '''
 
-    dbhandle = PipelineGeneset.connectToUCSC()
+    dbhandle = PipelineUCSC.connectToUCSC(
+        host=PARAMS["ucsc_host"],
+        user=PARAMS["ucsc_user"],
+        database=PARAMS["ucsc_database"])
 
     # Repeats are either stored in a single ``rmsk`` table (hg19) or in
     # individual ``rmsk`` tables (mm9) like chr1_rmsk, chr2_rmsk, ....

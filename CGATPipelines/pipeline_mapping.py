@@ -215,7 +215,7 @@ import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGATPipelines.PipelinePublishing as PipelinePublishing
+import CGATPipelines.PipelineWindows as PipelineWindows
 
 # Pipeline configuration
 P.getParameters(
@@ -226,6 +226,7 @@ P.getParameters(
         'paired_end': False})
 
 PARAMS = P.PARAMS
+
 # Add parameters from the annotation pipeline, but
 # only the interface
 PARAMS.update(P.peekParameters(
@@ -237,7 +238,6 @@ PARAMS.update(P.peekParameters(
 
 PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
-PipelinePublishing.PARAMS = PARAMS
 
 # Helper functions mapping tracks to conditions, etc
 # determine the location of the input files (reads).
@@ -837,7 +837,7 @@ def buildTophatStats(infiles, outfile):
             if len(lines) > 0:
                 segment_juncs_version = _select(lines, "segment_juncs (.*)$")
                 possible_splices = int(
-                    _select(lines, "Reported (\d+) total possible splices"))
+                    _select(lines, "Reported (\d+) total potential splices"))
             else:
                 segment_juncs_version = "na"
                 possible_splices = ""
@@ -1165,8 +1165,7 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
         '''
         P.run()
 
-    # add to bam files produced
-    MAPPINGTARGETS.append(mergeBAMFiles)
+    MAPPINGTARGETS = MAPPINGTARGETS + [mergeBAMFiles]
 
     @collate(countReads,
              regex("%s.nreads" % PARAMS["merge_pattern_input"]),
@@ -1342,7 +1341,7 @@ def loadBAMStats(infiles, outfile):
            suffix(".bam"),
            add_inputs(
                PARAMS["annotations_interface_genomic_context_bed"]),
-           ".contextstats")
+           ".contextstats.tsv.gz")
 def buildContextStats(infiles, outfile):
     '''build mapping context stats.
 
@@ -1353,21 +1352,8 @@ def buildContextStats(infiles, outfile):
     contexts might be dropped.
 
     '''
-
-    infile, reffile = infiles
-
-    min_overlap = 0.5
-    job_memory = "4G"
-
-    statement = '''
-       python %(scriptsdir)s/bam_vs_bed.py
-              --min-overlap=%(min_overlap)f
-              --log=%(outfile)s.log
-              %(infile)s %(reffile)s
-       > %(outfile)s
-       '''
-
-    P.run()
+    PipelineWindows.summarizeTagsWithinContext(
+        infiles[0], infiles[1], outfile)
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
@@ -1376,25 +1362,7 @@ def buildContextStats(infiles, outfile):
 def loadContextStats(infiles, outfile):
     """
     load context mapping statistics."""
-
-    header = ",".join([os.path.basename(P.snip(x, ".contextstats"))
-                      for x in infiles])
-    filenames = " ".join(infiles)
-    load_statement = P.build_load_statement(
-        P.toTable(outfile),
-        options="--add-index=track")
-
-    statement = """python %(scriptsdir)s/combine_tables.py
-    --header-names=%(header)s
-    --missing-value=0
-    --skip-titles
-    %(filenames)s
-    | perl -p -e "s/(bin|category)/track/; s/\?/Q/g"
-    | python %(scriptsdir)s/table2table.py --transpose
-    | %(load_statement)s
-    > %(outfile)s
-    """
-    P.run()
+    PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 ###################################################################
 ###################################################################
@@ -1442,20 +1410,10 @@ def loadExonValidation(infiles, outfile):
 
 
 @active_if(SPLICED_MAPPING)
-@split(buildCodingGeneSet,
-       "geneset.dir/refcoding.*.gtf.gz")
-def splitCodingGeneSetByChr(infile, outfiles):
-    '''split coding geneset by chromosome to allow parallel
-    read counting '''
-
-    PipelineMapping.splitGeneSet(infile)
-
-
-@active_if(SPLICED_MAPPING)
-@split(MAPPINGTARGETS,
-       regex("(.+).bam"),
-       add_inputs(splitCodingGeneSetByChr),
-       r"\1.*.transcript_counts.tsv.gz")
+@transform(MAPPINGTARGETS,
+           regex("(.+).bam"),
+           add_inputs(buildCodingGeneSet),
+           r"\1.transcript_counts.tsv.gz")
 def buildTranscriptLevelReadCounts(infiles, outfile):
     '''count reads falling into transcripts of protein coding
        gene models.
@@ -1466,57 +1424,32 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
        counts.
 
     '''
-    infile, genesets = infiles[0], infiles[1:]
+    infile, geneset = infiles
 
-    statements = []
     job_memory = "8G"
-    for geneset in genesets:
-        chrom = re.match(
-            "geneset.dir/refcoding\.(.+)\.gtf.gz", geneset).groups()[0]
-        bam = P.snip(infile, ".bam")
-        outfile = "%s.%s.transcript_counts.tsv.gz" % (bam, chrom)
 
-        statement = '''
-               zcat %(geneset)s
-             | python %%(scriptsdir)s/gtf2table.py
-               --reporter=transcripts
-               --bam-file=%(infile)s
-               --counter=length
-               --column-prefix="exons_"
-               --counter=read-counts
-               --column-prefix=""
-               --counter=read-coverage
-               --column-prefix=coverage_
-               -v 0
-            | gzip
-        > %(outfile)s
-        ''' % locals()
-        statements.append(statement)
+    statement = '''
+    zcat %(geneset)s
+    | python %%(scriptsdir)s/gtf2table.py
+    --reporter=transcripts
+    --bam-file=%(infile)s
+    --counter=length
+    --column-prefix="exons_"
+    --counter=read-counts
+    --column-prefix=""
+    --counter=read-coverage
+    --column-prefix=coverage_
+    -v 0
+    | gzip
+    > %(outfile)s
+    ''' % locals()
 
-    P.run()
-
-
-@active_if(SPLICED_MAPPING)
-@collate(buildTranscriptLevelReadCounts,
-         regex("(.+)\..+\.transcript_counts.tsv.gz"),
-         r"\1.transcript_counts.tsv.gz")
-def collateTranscriptCounts(infiles, outfile):
-    ''' pull together the transcript counts over each chromosome '''
-
-    infiles = " ".join(infiles)
-    statement = '''python %(scriptsdir)s/combine_tables.py
-                                      --cat
-                                      --log=%(outfile)s.log
-                                      %(infiles)s
-                  | cut -f1 --complement
-                  | gzip
-                  > %(outfile)s '''
     P.run()
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
-@transform(collateTranscriptCounts,
+@transform(buildTranscriptLevelReadCounts,
            suffix(".tsv.gz"),
            ".load")
 def loadTranscriptLevelReadCounts(infile, outfile):
@@ -1800,7 +1733,7 @@ def test():
 
 
 @follows(mapping)
-def map():
+def map_only():
     pass
 
 
@@ -1833,7 +1766,7 @@ def publish():
     P.publish_report(export_files=export_files)
 
     E.info("publishing UCSC data hub")
-    PipelinePublishing.publish_tracks(export_files)
+    P.publish_tracks(export_files)
 
 
 if __name__ == "__main__":

@@ -966,7 +966,7 @@ def runCuffCompare(infiles, outfile, reffile):
             try:
                 P.run()
                 break
-            except P.PipelineError, msg:
+            except:
                 E.warn("caught exception - trying again")
     else:
         inf = " ".join(["%s/%s" % (tmpdir, x) for x in infiles])
@@ -1120,7 +1120,7 @@ def loadTranscriptComparison(infile, outfile):
             for contig, v in vv.iteritems():
                 if v.is_empty:
                     continue
-                outf.write("%s\t%s\t%s\n" % (P.quote(track), contig, str(v)))
+                outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
 
         outf.close()
 
@@ -1192,7 +1192,7 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1399,7 +1399,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1548,7 +1548,7 @@ def buildPrunedGeneSet(infiles, outfile):
     keep_gtf = outfile
     remove_gtf = "removed.gtf.gz"
 
-    tablename = P.quote(P.snip(tracking, ".load") + "_tracking")
+    tablename = P.tablequote(P.snip(tracking, ".load") + "_tracking")
 
     dbhandle = sqlite3.connect(PARAMS["database_name"])
     tables = Database.getTables(dbhandle)
@@ -1594,22 +1594,23 @@ def buildPrunedGeneSet(infiles, outfile):
                      PARAMS_ANNOTATIONS["interface_repeats_gff"])),
        "novel.gtf.gz")
 def buildNovelGeneSet(infiles, outfile):
-    '''build a gene set of novel genes by merging the ab-initio gene set and
-    the reference gene set.
+    '''build a gene set of novel genes by merging the ab-initio gene set
+    and the reference gene set.
 
-    Ab-initio transcripts are removed based on features in the reference gene
-    set.
+    Ab-initio transcripts are removed based on features in the
+    reference gene set.
 
-    Removal is aggressive  - as soon as one transcript of a
-    gene/locus overlaps, all transcripts of that gene/locus are gone.
+    Removal is aggressive - as soon as one transcript of a gene/locus
+    overlaps, all transcripts of that gene/locus are gone.
 
-    Transcripts that lie exclusively in repetetive sequence are removed, too.
+    Transcripts that lie exclusively in repetetive sequence are
+    removed, too.
 
-    The resultant set contains a number of novel transcripts. However, these
-    transcripts will still overlap some known genomic features like
-    pseudogenes.
+    The resultant set contains a number of novel transcripts. However,
+    these transcripts will still overlap some known genomic features
+    like pseudogenes.
 
-     '''
+    '''
 
     abinitio_gtf, reference_gtf, repeats_gff = infiles
 
@@ -1620,8 +1621,9 @@ def buildNovelGeneSet(infiles, outfile):
     indices = {}
     for section in sections:
         indices[section] = GTF.readAndIndex(
-            GTF.iterator_filtered(GTF.iterator(IOTools.openFile(reference_gtf)),
-                                  source=section),
+            GTF.iterator_filtered(
+                GTF.iterator(IOTools.openFile(reference_gtf)),
+                source=section),
             with_value=False)
 
     E.info("build indices for %i features" % len(indices))
@@ -1632,30 +1634,26 @@ def buildNovelGeneSet(infiles, outfile):
     E.info("build index for repeats")
 
     total_genes, remove_genes = set(), collections.defaultdict(set)
-    inf = GTF.iterator(IOTools.openFile(abinitio_gtf))
-    for gtf in inf:
-        total_genes.add(gtf.gene_id)
-        for section in sections:
-            if indices[section].contains(gtf.contig, gtf.start, gtf.end):
-                remove_genes[gtf.gene_id].add(section)
+    with IOTools.openFile(abinitio_gtf) as inf:
+        for gtf in GTF.iterator(inf):
+            total_genes.add(gtf.gene_id)
+            for section in sections:
+                if indices[section].contains(gtf.contig, gtf.start, gtf.end):
+                    remove_genes[gtf.gene_id].add(section)
 
-        try:
-            for r in repeats.get(gtf.contig, gtf.start, gtf.end):
-                if r[0] <= gtf.start and r[1] >= gtf.end:
-                    remove_genes[gtf.gene_id].add("repeat")
-                    break
-        except KeyError:
-            pass
+            try:
+                for r in repeats.get(gtf.contig, gtf.start, gtf.end):
+                    if r[0] <= gtf.start and r[1] >= gtf.end:
+                        remove_genes[gtf.gene_id].add("repeat")
+                        break
+            except KeyError:
+                pass
 
     E.info("removing %i out of %i genes" %
            (len(remove_genes), len(total_genes)))
 
     PipelineRnaseq.filterAndMergeGTF(
         abinitio_gtf, outfile, remove_genes, merge=True)
-
-#########################################################################
-#########################################################################
-#########################################################################
 
 
 @merge((buildPrunedGeneSet, buildReferenceGeneSet,

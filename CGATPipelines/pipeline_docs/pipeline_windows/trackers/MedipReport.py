@@ -1,35 +1,9 @@
-import os
-import sys
-import re
-import types
-import itertools
-import glob
-
-from CGATReport.Tracker import *
-
-###################################################################
-###################################################################
-###################################################################
-###################################################################
-# Run configuration script
-
-from CGATReport.Utils import PARAMS as P
-
-EXPORTDIR = P.get('windows_exportdir', P.get('exportdir', 'export'))
-DATADIR = P.get('windows_datadir', P.get('datadir', '.'))
-DATABASE = P.get('windows_backend', P.get('sql_backend', 'sqlite:///./csvdb'))
-
-###########################################################################
-###########################################################################
-###########################################################################
+from CGATReport.Tracker import TrackerSQL, SingleTableTrackerRows,\
+    SingleTableTrackerHistogram
 
 
 class ProjectTracker(TrackerSQL):
-
-    '''Define convenience tracks for plots'''
-
-    def __init__(self, *args, **kwargs):
-        TrackerSQL.__init__(self, *args, backend=DATABASE, **kwargs)
+    """Base class for trackers in this report"""
 
 
 class PicardDuplicatesMetrics(ProjectTracker, SingleTableTrackerRows):

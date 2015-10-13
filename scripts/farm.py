@@ -1,6 +1,6 @@
 #!/bin/env python
-'''farm.py - execute a cmd on the cluster
-======================================
+'''farm.py - process data stream on cluster
+===========================================
 
 :Author: Andreas Heger
 :Release: $Id$
@@ -10,16 +10,17 @@
 Purpose
 -------
 
-.. todo::
-
-   describe purpose of the script.
+This script reads data from stdin and splits it into independent
+chunks to be executed on a cluster.
 
 Usage
 -----
 
-Example::
+As a basic, but not very useful example, the following command will
+take the input of the file ``go.txt``, split the file by the contents
+of the first column and execute a perl command on them::
 
-   cat go | farm.py --split-at-colum=1 perl -p -e "s/GO/gaga/"
+   cat go.txt | farm.py --split-at-colum=1 perl -p -e "s/GO/gaga/"
 
 Type::
 
@@ -31,13 +32,15 @@ Documentation
 -------------
 
 The input on stdin is split for embarrasingly parallel jobs.
-The --split-at-.. options describe how standard input is to
+The ``--split-at`` options describe how standard input is to
 be split. A temporary directory is created in the current
 directory. This directory has be visible on the cluster nodes
 and accessible under the same name.
 
-The output is written to stdout. Results are returned in the
-same order as they are submitted.
+The output is written to stdout. Results are returned in the same
+order as they are submitted. The script implements a few generic ways
+to combine tabular output, for example to avoid duplicating header
+lines. The script is also able to handle multiple outputs for jobs.
 
 On error, error messages are echoed and nothing is returned.
 The temporary directory is not deleted to allow manual recovery.
@@ -180,6 +183,7 @@ def chunk_iterator_regex_group(infile, args, prefix, use_header=False):
     header = None
     n = chunk_size
     outfile = None
+    filename = None
 
     for line in infile:
 
@@ -269,6 +273,7 @@ def chunk_iterator_psl_overlap(infile, args, prefix, use_header=False):
     last_sbjct_id = None
     sbjct_end = 0
     outfile = None
+    filename = None
     while 1:
 
         match = iterator.next()
@@ -282,7 +287,8 @@ def chunk_iterator_psl_overlap(infile, args, prefix, use_header=False):
                 outfile.close()
                 yield filename
 
-            if last_sbjct_id != match.mSbjctId and match.mSbjctId in processed_contigs:
+            if last_sbjct_id != match.mSbjctId and \
+               match.mSbjctId in processed_contigs:
                 raise ValueError(
                     "input not sorted correctly (contig,start): "
                     "already encountered %s\n%s" %

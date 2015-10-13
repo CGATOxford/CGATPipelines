@@ -1,5 +1,4 @@
-'''
-submit.py - run a collection of qsub scripts on the cluster
+'''submit.py - run a collection of qsub scripts on the cluster
 ===========================================================
 
 :Author: Andreas Heger
@@ -11,13 +10,13 @@ Purpose
 -------
 
 This script will submit a collection of qsub scripts on the cluster.
-The script will only submit those jobs for which a result is not 
+The script will only submit those jobs for which a result is not
 present.
 
 Usage
 -----
 
-Example::
+For example::
 
    python submit.py *.qsub
 
@@ -38,11 +37,6 @@ import glob
 import subprocess
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-
-USAGE = """python submit.py [OPTIONS] 
-
-submit a list of jobs to the cluster.
-"""
 
 
 def checkPythonRuns(filename):
@@ -71,16 +65,22 @@ def main(argv=None):
         argv = sys.argv
 
     parser = E.OptionParser(
-        version="%prog version: $Id: submit.py 2782 2009-09-10 11:40:29Z andreas $", usage=globals()["__doc__"])
+        version="%prog version: $Id$",
+        usage=globals()["__doc__"])
 
-    parser.add_option("-g", "--glob", dest="glob_pattern", type="string",
-                      help="glob pattern to use for collecting cluster jobs descriptions [%default]")
+    parser.add_option(
+        "-g", "--glob", dest="glob_pattern", type="string",
+        help="glob pattern to use for collecting cluster jobs descriptions "
+        "[%default]")
 
-    parser.add_option("-i", "--input-pattern", dest="input_pattern", type="string",
-                      help="regular expression to extract job id from filename [%default].")
+    parser.add_option(
+        "-i", "--input-pattern", dest="input_pattern", type="string",
+        help="regular expression to extract job id from filename [%default].")
 
-    parser.add_option("-o", "--output-filename-pattern", dest="output_pattern", type="string",
-                      help="string to convert a job id to a filename [%default].")
+    parser.add_option(
+        "-o", "--output-filename-pattern", dest="output_pattern",
+        type="string",
+        help="string to convert a job id to a filename [%default].")
 
     parser.set_defaults(glob_pattern="job*.qsub",
                         input_pattern="(\S+).qsub",
@@ -148,9 +148,8 @@ def main(argv=None):
                 status = "missing"
                 do = True
 
-        if options.loglevel >= 1:
-            options.stdlog.write("# %s->%s (%s)\n" %
-                                 (filename, result_filename, status))
+        E.info("%s->%s (%s)\n" %
+               (filename, result_filename, status))
 
         if not do:
             nskipped += 1
@@ -190,9 +189,9 @@ def main(argv=None):
                     "# ERROR: failed to execute %s with msg %s\n" % (cmd, e))
         nrun += 1
 
-    if options.loglevel >= 1:
-        options.stdlog.write("# ninput=%i, nrun=%i, nskipped=%i, ndeleted=%i, nerrors=%i\n" %
-                             (ninput, nrun, nskipped, ndeleted, nerrors))
+    E.info(
+        "ninput=%i, nrun=%i, nskipped=%i, ndeleted=%i, nerrors=%i" %
+        (ninput, nrun, nskipped, ndeleted, nerrors))
 
     E.Stop()
 

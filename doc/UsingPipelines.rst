@@ -10,10 +10,10 @@ Introduction
 A pipeline takes input data and performs a series of automated steps
 (:term:`task`) on it to produce some output data.
 
-Each pipeline is usually coupled with a :term:`CGATReport` document
-to summarize and visualize the results.
+Each pipeline is usually coupled with a :term:`CGATReport` document to
+summarize and visualize the results.
 
-It really helps if you are familiar with following:
+It really helps if you are familiar with:
 
    * the unix command line to run and debug the pipeline
    * python_ in order to understand what happens in the pipeline

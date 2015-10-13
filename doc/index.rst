@@ -68,33 +68,23 @@ Other Pipelines
 
    CGATPipelines.rst
 
-Background
-==========
+Documentation
+=============
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
    InstallingPipelines.rst
    UsingPipelines.rst
    BuildingPipelines.rst
    PipelineReports.rst
-   PipelinesBackground.rst   
+   PipelinesBackground.rst
+   Reference.rst
    Release.rst
 
 For information on how to contribute to the pipeline collection,
 please see the `CGAT code collection
 <https://www.cgat.org/downloads/public/cgat/documentation/>`_.
-
-Reference
-=========
-
-This section contains a reference to the complete contents
-of the pipeline collection.
-
-.. toctree::
-   :maxdepth: 1
-
-   Reference.rst
 
 Disclaimer
 ==========

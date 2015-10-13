@@ -1,5 +1,5 @@
 '''
-cgat_build_report_page.py - build report page for all projects
+cgat_build_report_page.py - build a report summary across projects
 =======================================================================
 
 :Author: Andreas Heger
@@ -17,7 +17,7 @@ into :file:`/ifs/projects/overview`.
 Usage
 -----
 
-Example::
+To build the report, execute::
 
    python cgat_build_report_page.py
 
