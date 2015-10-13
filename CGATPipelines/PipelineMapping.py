@@ -1109,6 +1109,8 @@ class Kallisto(Mapper):
 
         tmpdir = os.path.join(self.tmpdir_fastq + "kallisto")
 
+        logfile = outfile + ".log"
+
         num_files = [len(x) for x in infiles]
 
         if max(num_files) != min(num_files):
@@ -1127,11 +1129,16 @@ class Kallisto(Mapper):
         else:
             raise ValueError("incorrect number of input files")
 
+        outdir = os.path.dirname(outfile)
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
         # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
         kallisto quant %%(kallisto_options)s
         --bootstrap-samples=%%(bootstrap)s
-        -i %%(index)s -o %(tmpdir)s %(infiles)s;''' % locals()
+        -i %%(index)s -o %(tmpdir)s %(infiles)s
+        > %(logfile)s &> %(logfile)s ;''' % locals()
 
         self.tmpdir = tmpdir
 
@@ -1140,12 +1147,10 @@ class Kallisto(Mapper):
     def postprocess(self, infiles, outfile):
         '''move outfiles from tmpdir to final location'''
 
-        directory = os.path.dirname(os.path.abspath(outfile))
         tmpdir = self.tmpdir
 
         statement = ('''
-        mkdir %(directory)s;
-        mv %(tmpdir)s/abundance.h5 %(outfile)s;
+        mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
 
         return statement

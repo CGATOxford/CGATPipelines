@@ -964,6 +964,14 @@ def loadTranscripts(infile, outfile):
     PipelineGeneset.loadTranscripts(infile, outfile)
 
 
+@transform(buildGeneSet,
+           suffix(".gtf.gz"),
+           "_gtf_genome_coordinates.load")
+def loadGeneCoordinates(infile, outfile):
+    '''load the coordinates for each gene'''
+    PipelineGeneset.loadGeneCoordinates(infile, outfile)
+
+
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(buildCDSTranscripts, "ensembl.dir/cds_stats.load")
 def loadCDSStats(infile, outfile):
@@ -2245,6 +2253,7 @@ def assembly():
          loadCDSStats,
          loadExonStats,
          loadGeneInformation,
+         loadGeneCoordinates,
          downloadEntrezToEnsembl,
          downloadTranscriptSynonyms,
          buildExonTranscripts,
