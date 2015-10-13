@@ -55,8 +55,26 @@ expression data to identify transcripts which are signficantly
 differentially expressed.
 
 Kallisto requires that the user has prior knowledge of the transcripts
-which may be present in the sample. Here, we use the results of the
-annotation pipeline to generate the transcripts input file.
+which may be present in the sample. If no gtf is provided, the user
+can specify the location of an annotations database to use the results
+of the annotation pipeline to generate the transcripts input file.
+
+Prior to the sample quantification, reads are simulated from the gene set to
+flag transcripts which cannot be accurately quantified.
+
+Principal targets
+-----------------
+
+simulation
+    perform the simulation only
+
+quantification
+    compute all quantifications
+
+full
+    compute all quantifications and perform differential transcript
+    expression testing
+
 
 Usage
 =====
@@ -160,6 +178,8 @@ DEresults.dir contains further plots summarising the sleuth analysis
 The summary_plots directory contains further plots summarising the
 expression estimates across the samples
 
+
+
 Glossary
 ========
 
@@ -182,6 +202,10 @@ Code
 
 # Allow user to supply transcripts as a gtf/multifasta rather than
 # using annotations pipeline results
+
+# add option to remove flagged transcripts from gene set
+
+# add option to remove low support transcripts from gene set (how?)
 
 from ruffus import *
 
@@ -294,10 +318,24 @@ DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 
 GENESET = glob.glob("*.gtf.gz")
 
+# define quantifier targets
+QUANTTARGETS = []
+SIMTARGETS = []
+
+mapToQuantificationTargets = {'kallisto': (quantifyWithKallisto,),
+                              'salmom': (quantifyWithSalmon,)}
+
+mapToSimulationTargets = {'kallisto': (quantifyWithKallistoSimulation,
+                                       extractKallistoCountSimulation),
+                          'salmom': (quantifyWithSalmonSimulation,)}
+
+for x in P.asList(PARAMS["quantifiers"]):
+    QUANTTARGETS.extend(mapToQuantificationTargets[x])
+    SIMTARGETS.extend(mapToSimulationTargets[x])
+
 ###############################################################################
 # Create kallisto index
 ###############################################################################
-
 
 if PARAMS["geneset_auto_generate"]:
 
@@ -459,7 +497,7 @@ def simulateRNASeqReads(infile, outfiles):
            regex("simulation.dir/simulated_reads_(\d+).fastq.1.gz"),
            add_inputs(buildKallistoIndex),
            r"simulation.dir/quant.dir/simulated_reads_\1/abundance.h5")
-def runKallistoSimulation(infiles, outfile):
+def quantifyWithKallistoSimulation(infiles, outfile):
     ''' quantify trancript abundance from simulated reads with kallisto'''
 
     # TS more elegant way to parse infiles and index?
@@ -482,10 +520,10 @@ def runKallistoSimulation(infiles, outfile):
     P.run()
 
 
-@transform(runKallistoSimulation,
+@transform(quantifyWithKallistoSimulation,
            suffix(".h5"),
            ".txt")
-def extractKallistoCounts(infile, outfile):
+def extractKallistoCountSimulation(infile, outfile):
     ''' run kalliso h5dump to extract txt file'''
 
     outfile_dir = os.path.dirname(os.path.abspath(infile))
@@ -495,7 +533,12 @@ def extractKallistoCounts(infile, outfile):
     P.run()
 
 
-@transform(extractKallistoCounts,
+@follows(*SIMTARGETS)
+def quantifySimulation():
+    pass
+
+
+@transform(quantifySimulation,
            regex("simulation.dir/quant.dir/simulated_reads_(\d+)/abundance.txt"),
            r"simulation.dir/quant.dir/simulated_reads_\1/results.tsv",
            r"simulation.dir/simulated_read_counts_\1.tsv")
@@ -614,7 +657,7 @@ def loadLowConfidenceTranscripts(infile, outfile):
 @mkdir("simulation.dir")
 @follows(loadCorrelation,
          loadLowConfidenceTranscripts)
-def simulate():
+def simulation():
     pass
 
 
@@ -633,7 +676,7 @@ def simulate():
          SEQUENCEFILES_REGEX,
          add_inputs(buildKallistoIndex),
          SEQUENCEFILES_OUTPUT)
-def runKallisto(infiles, outfile):
+def quantifyWithKallisto(infiles, outfile):
     ''' quantify trancript abundance with kallisto'''
 
     # TS more elegant way to parse infiles and index?
@@ -654,7 +697,7 @@ def runKallisto(infiles, outfile):
     P.run()
 
 
-@follows(runKallisto)
+@follows(*QUANTTARGETS)
 def quantify():
     pass
 
@@ -664,7 +707,7 @@ def quantify():
 ###############################################################################
 
 
-@follows(runKallisto)
+@follows(quantify)
 @mkdir("DEresults.dir")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
@@ -795,7 +838,7 @@ def expressionSummaryPlots(infiles, logfile):
          quantify,
          differentialExpression,
          expressionSummaryPlots,
-         simulate)
+         simulation)
 def full():
     pass
 
