@@ -371,32 +371,6 @@ def publish_notebooks():
 
     E.run(statement)
 
-
-def _pickle_args(args, kwargs):
-    ''' Pickle a set of function arguments. Removes any kwargs that are
-    arguements to submit first. Returns a tuple, the first member of which
-    is the key word arguements to submit, the second is a file name
-    with the picked call arguements '''
-
-    use_args = ["to_cluster",
-                "logfile",
-                "job_options",
-                "job_queue",
-                "job_threads",
-                "job_memory"]
-
-    submit_args = {}
-
-    for arg in use_args:
-        if arg in kwargs:
-            submit_args[arg] = kwargs[arg]
-            del kwargs[arg]
-
-    args_file = getTempFilename(shared=True)
-    pickle.dump([args, kwargs], open(args_file, "wb"))
-    return (submit_args, args_file)
-
-
 __all__ = [
     # backwards incompatibility
     "clone",
