@@ -484,7 +484,7 @@ def run(**kwargs):
 
         # remove memory spec from job options
         options["cluster_options"] = re.sub(
-            "-l\S*mem_free\s*=\s(\S+)", "", o)
+            "-l\s*mem_free\s*=\s*(\S+)", "", o)
     else:
         job_memory = PARAMS.get("cluster_memory_default", "2G")
 
@@ -499,23 +499,28 @@ def run(**kwargs):
 
         spec = [
             "-V",
-            "-q %(cluster_queue)s",
             "-p %(cluster_priority)i",
             "-N %s" % job_name,
             "%(cluster_options)s"]
 
-        # limit memory of cluster jobs
-        spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
-                                  job_memory))
+        for resource in PARAMS["cluster_memory_resource"].split(","):
+            spec.append("-l %s=%s" % (resource, job_memory))
 
         # if process has multiple threads, use a parallel environment
         if 'job_threads' in options:
             spec.append(
                 "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
+        if "cluster_pe_queue" in options and 'job_threads' in options:
+                spec.append(
+                    "-q %(cluster_pe_queue)s")
+        else:
+            spec.append("-q %(cluster_queue)s")
 
         jt.nativeSpecification = " ".join(spec) % options
         # keep stdout and stderr separate
         jt.joinFiles = False
+
+        E.debug("Job spec is: %s" % jt.nativeSpecification)
 
         return jt
 
