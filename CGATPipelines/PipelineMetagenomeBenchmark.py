@@ -1,5 +1,5 @@
 """PipelineMetagenomeBenchmark.py
-======================================
+=================================
 """
 
 import os
@@ -63,7 +63,7 @@ def plotRelativeAbundanceCorrelations(infiles, outfile):
     '''
 
     # connect to database
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     cc = dbh.cursor()
 
     true_file = infiles[0]
@@ -132,7 +132,7 @@ def calculateFalsePositiveRate(infiles, outfile):
     taxonomy false positives and negatives etc
     '''
     # connect to database
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     cc = dbh.cursor()
 
     levels = ["phylum", "class", "order", "family", "genus", "species"]
@@ -173,7 +173,7 @@ def filterByCoverage(infiles, outfile):
     fcoverage = PARAMS["coverage_filter"]
     contig_file = infiles[0]
     dbh = sqlite3.connect(
-        os.path.join(PARAMS["results_resultsdir"], PARAMS["database"]))
+        os.path.join(PARAMS["results_resultsdir"], PARAMS["database_name"]))
     cc = dbh.cursor()
     contigs = set()
     for infile in infiles[1:]:

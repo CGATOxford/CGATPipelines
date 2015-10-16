@@ -209,7 +209,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -1021,7 +1021,8 @@ def buildDMRStats(infiles, outfile):
     '''compute differential methylation stats.'''
     tablenames = [P.toTable(x) for x in infiles]
     method = P.snip(outfile, "_stats.tsv")
-    PipelineMedip.buildDMRStats(tablenames, method, outfile)
+    PipelineMedip.buildDMRStats(tablenames, method, outfile,
+                                dbhandle=connect())
 
 
 @transform(buildDMRStats, suffix(".tsv"), ".load")

@@ -22,10 +22,9 @@ import CGATPipelines.Pipeline as P
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
+import CGAT.BamTools as BamTools
 import CGAT.WrapperMACS as WrapperMACS
 import CGAT.WrapperZinba as WrapperZinba
-
-import CGATPipelines.PipelineMapping as PipelineMapping
 
 
 def getPeakShiftFromMacs(infile):
@@ -107,7 +106,7 @@ def getMinimumMappedReads(infiles):
         if x:
             v.append(x)
     if len(v) == 0:
-        raise P.PipelineError(
+        raise ValueError(
             "could not find mapped reads in files %s" % (str(infiles)))
     return min(v)
 
@@ -451,7 +450,7 @@ def exportIntervalsAsBed(infile, outfile):
     '''export macs peaks as bed files.
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     if outfile.endswith(".gz"):
         compress = True
@@ -460,7 +459,7 @@ def exportIntervalsAsBed(infile, outfile):
         compress = False
         track = P.snip(outfile, ".bed")
 
-    tablename = "%s_intervals" % P.quote(track)
+    tablename = "%s_intervals" % P.tablequote(track)
 
     cc = dbhandle.cursor()
     statement = "SELECT contig, start, end, interval_id, peakval FROM %s ORDER by contig, start" % tablename
@@ -493,7 +492,7 @@ def exportIntervalsAsBed(infile, outfile):
 def exportMacsIntervalsAsBed(infile, outfile, foldchange):
     '''export sequences for all intervals.'''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     track = P.toTable(os.path.basename(infile))
     assert track.endswith("_macs")
@@ -521,7 +520,7 @@ def exportMacsIntervalsAsBed(infile, outfile, foldchange):
 def exportPeaksAsBed(infile, outfile):
     '''export peaks as bed files.'''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     if infile.endswith("_macs.load"):
         track = infile[:-len("_macs.load")]
@@ -647,7 +646,7 @@ def intersectBedFiles(infiles, outfile):
 
     elif len(infiles) == 2:
 
-        if P.isEmpty(infiles[0]) or P.isEmpty(infiles[1]):
+        if IOTools.isEmpty(infiles[0]) or IOTools.isEmpty(infiles[1]):
             P.touch(outfile)
         else:
             statement = '''
@@ -664,7 +663,7 @@ def intersectBedFiles(infiles, outfile):
 
         # need to merge incrementally
         fn = infiles[0]
-        if P.isEmpty(infiles[0]):
+        if IOTools.isEmpty(infiles[0]):
             P.touch(outfile)
             return
 
@@ -672,7 +671,7 @@ def intersectBedFiles(infiles, outfile):
         P.run()
 
         for fn in infiles[1:]:
-            if P.isEmpty(infiles[0]):
+            if IOTools.isEmpty(infiles[0]):
                 P.touch(outfile)
                 os.unlink(tmpfile)
                 return
@@ -699,10 +698,10 @@ def subtractBedFiles(infile, subtractfile, outfile):
     and store in *outfile*.
     '''
 
-    if P.isEmpty(subtractfile):
+    if IOTools.isEmpty(subtractfile):
         shutil.copyfile(infile, outfile)
         return
-    elif P.isEmpty(infile):
+    elif IOTools.isEmpty(infile):
         P.touch(outfile)
         return
 
@@ -1203,12 +1202,13 @@ def loadZinba(infile, outfile, bamfile,
 
     if not os.path.exists(infilename):
         E.warn("could not find %s" % infilename)
-    elif P.isEmpty(infile):
-        E.warn("no data in %s" % filename)
+    elif IOTools.isEmpty(infilename):
+        E.warn("no data in %s" % infilename)
     else:
         # filter peaks
         shift = getPeakShiftFromZinba(infile)
-        assert shift is not None, "could not determine peak shift from Zinba file %s" % infile
+        assert shift is not None, \
+            "could not determine peak shift from Zinba file %s" % infile
 
         E.info("%s: found peak shift of %i" % (track, shift))
 
@@ -1217,7 +1217,7 @@ def loadZinba(infile, outfile, bamfile,
 
         if controlfile:
             controlfiles = [pysam.Samfile(controlfile, "rb")]
-            readlength = PipelineMapping.getReadLengthFromBamfile(controlfile)
+            readlength = BamTools.estimateTagSize(controlfile)
             control_max_peakval = readlength // 2
             E.info("removing intervals in which control has peak higher than %i reads" %
                    control_max_peakval)
@@ -1308,12 +1308,12 @@ def makeIntervalCorrelation(infiles, outfile, field, reference):
     '''compute correlation of interval properties between sets
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tracks, idx = [], []
     for infile in infiles:
         track = P.snip(infile, ".bed.gz")
-        tablename = "%s_intervals" % P.quote(track)
+        tablename = "%s_intervals" % P.tablequote(track)
         cc = dbhandle.cursor()
         statement = "SELECT contig, start, end, %(field)s FROM %(tablename)s" % locals(
         )

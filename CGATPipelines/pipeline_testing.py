@@ -481,6 +481,22 @@ def loadComparison(infile, outfile):
     P.load(infile, outfile)
 
 
+@transform(mergeFileStatistics,
+           suffix(".stats"),
+           "_results.load")
+def loadResults(infile, outfile):
+    '''load comparison data into database.'''
+    P.load(infile, outfile, options="--add-index=file")
+
+
+@transform(mergeFileStatistics,
+           suffix(".ref"),
+           "_reference.load")
+def loadReference(infile, outfile):
+    '''load comparison data into database.'''
+    P.load(infile, outfile, options="--add-index=file")
+
+
 @transform(runTests,
            suffix(".log"),
            ".report")
@@ -501,7 +517,7 @@ def runReports(infile, outfile):
     P.run(ignore_errors=True)
 
 
-@follows(runTests, runReports, loadComparison)
+@follows(runTests, runReports, loadComparison, loadResults, loadReference)
 def full():
     pass
 

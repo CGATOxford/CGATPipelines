@@ -1,28 +1,8 @@
-"""
+"""PipelineGO - Tasks for a GO analysis
+============================================
 
-:Author: Andreas Heger
-:Release: $Id: PipelineGO.py 2877 2010-03-27 17:42:26Z andreas $
-:Date: |today|
-:Tags: Python
-
-Purpose
--------
-
-Pipeline components - GO analysis
-
-Tasks related to gene set GO analysis.
-
-Usage
------
-
-Type::
-
-   python <script_name>.py --help
-
-for command line help.
-
-Code
-----
+Reference
+---------
 
 
 """
@@ -43,26 +23,63 @@ PARAMS = {}
 
 
 def createGOFromENSEMBL(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    """get GO assignments from ENSEMBL
 
-    job_options = "-l mem_free=5G"
+    Download GO assignments from the ENSEMBL database and store in
+    file.
+
+    Configuration
+    -------------
+    go_host
+       ENSEMBL mysql host name, e.g., ensembldb.ensembl.org
+    go_database
+       ENSEMBL database, e.g., homo_sapiens_core_75_37
+    go_port
+      ENSEMBL port to use, e.g., 5306
+
+    Arguments
+    ---------
+    infile : string
+        Unused
+    outfile : string
+        Output filename
+
+    """
+
+    job_memory = "5G"
     statement = '''
     python %(scriptsdir)s/runGO.py
     --filename-dump=%(outfile)s
-    --host=%(go_host)s
-    --user=anonymous
-    --database=%(go_database)s
-    --port=%(go_port)i > %(outfile)s.log
+    --database-host=%(go_host)s
+    --database-user=anonymous
+    --database-name=%(go_database)s
+    --database-port=%(go_port)i
+    > %(outfile)s.log
     '''
 
     P.run()
 
 
 def createGOFromGeneOntology(infile, outfile):
-    '''get GO assignments from Geneontology.org
+    """get GO assignments from Geneontology.org
 
     GO terms are mapped to ensembl gene names via uniprot identifiers.
-    '''
+
+    Configuration
+    -------------
+    geneontology_file
+       Filename on geneontology database, e.g.,
+       gene_association.goa_human.gz
+    database_name
+       Pipeline database name
+
+    Arguments
+    ---------
+    infile : string
+        Unused
+    outfile : string
+        Output filename
+    """
 
     filename = os.path.join(os.path.dirname(outfile), "geneontology.goa.gz")
     if not os.path.exists(filename):
@@ -82,7 +99,7 @@ def createGOFromGeneOntology(infile, outfile):
         " annotation_extension"
         " gene_product_form_id")
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     cc = dbh.cursor()
     map_uniprot2ensembl = dict(
         cc.execute("SELECT DISTINCT gene_name, gene_id FROM transcript_info").fetchall())
@@ -135,11 +152,21 @@ def createGOFromGeneOntology(infile, outfile):
 
 
 def imputeGO(infile_go, infile_paths, outfile):
-    '''impute GO accessions.
+    """impute GO accessions.
 
-    Infile is a file with GO assocations and a file
-    with paths of term to ancester (see go2fmt.pl).
-    '''
+    Output a list of gene-to-GO associations for genes that includes
+    ancestral terms.
+
+    Arguments
+    ---------
+    infile_go : string
+        Filename with gene-to-GO assocations for genes
+    infile_paths : string
+        Filename with paths of term to ancestor (see go2fmt.pl).
+    outfile : string
+         Output filename
+
+    """
 
     c = E.Counter()
 
@@ -178,7 +205,8 @@ def imputeGO(infile_go, infile_paths, outfile):
 
         for goid in out_goids:
             outf.write("\t".join(
-                (goid2type.get(goid, ""), gene_id, goid, goid2description.get(goid, ""), "NA")) + "\n")
+                (goid2type.get(goid, ""), gene_id, goid,
+                 goid2description.get(goid, ""), "NA")) + "\n")
             c.assocations += 1
 
     outf.close()
@@ -187,10 +215,20 @@ def imputeGO(infile_go, infile_paths, outfile):
 
 
 def buildGOPaths(infile, outfile):
-    '''output file with paths of terms to root.
+    """create paths from derived to ancestral terms.
 
-    infile is an ontology obo file.
-    '''
+    The output of this function maps all terms inside an ontology to
+    all its ancestors.
+
+    Arguments
+    ---------
+    infile : string
+       An ontology (.obo) file
+    outfile : string
+       Output file with paths of terms to root.
+
+    """
+
     statement = '''
     go2fmt.pl -w pathlist %(infile)s > %(outfile)s
     '''
@@ -198,30 +236,40 @@ def buildGOPaths(infile, outfile):
 
 
 def buildGOTable(infile, outfile):
-    '''output file with paths of terms to root.
+    """convert ontology to tab-separated table.
 
-    infile is an ontology obo file.
-    '''
+    Arguments
+    ---------
+    infile : string
+        An ontology (.obo) file
+    outfile : string
+        Output file mapping GO terms to their description,
+        long description and text.
+    """
+
     statement = '''
     echo -e "go_id\\tdescription\\tlong_description\\ttext\\n" > %(outfile)s;
     go2fmt.pl -w tbl %(infile)s >> %(outfile)s
     '''
     P.run()
 
-############################################################
-############################################################
-############################################################
-# get GO descriptions
-############################################################
-
 
 def getGODescriptions(infile):
-    '''return dictionary mapping GO category to description
-    and namespace.
+    '''build dictionary mapping GOids to types and descriptions.
+
+    Arguments
+    ---------
+    infile : string
+        Filename of table with GO assignments
+
+    Returns
+    -------
+    mapping : dict
+        Dictionary mapping GOid to GOtype and GOdescription.
     '''
 
     with IOTools.openFile(infile) as inf:
-        fields, table = CSV.ReadTable(inf, as_rows=False)
+        fields, table = CSV.readTable(inf, as_rows=False)
 
     return dict([(y, (x, z)) for x, y, z in zip(
         table[fields.index("go_type")],
@@ -230,7 +278,29 @@ def getGODescriptions(infile):
 
 
 def createGOSlimFromENSEMBL(infile, outfile):
-    '''get GO SLIM assignments from ENSEMBL'''
+    """build GO SLIM assignments.
+
+    This method downloads a GOSlim specification
+    from ``go_url_goslim`` and applies it to
+    a table of GO assignments.
+
+    Config
+    ------
+    go_url_goslim
+       GOSlim definition, e.g.,
+       http://www.geneontology.org/ontology/subsets/goslim_generic.obo
+    go_url_ontology
+       GO Ontology location, e.g.,
+       http://www.geneontology.org/ontology/gene_ontology.obo
+
+    Arguments
+    ---------
+    infile : string
+        Filename with GO assignments
+    outfile : strinng
+        Output filename with GOSlim assignments.
+
+    """
 
     dirname = os.path.dirname(outfile)
 
@@ -281,23 +351,38 @@ def runGOFromFiles(outfile,
                    minimum_counts=0,
                    pairs=False,
                    gene2name=None):
-    '''check for GO enrichment within a gene list.
+    """check for GO enrichment.
 
-    The gene list is given in ``fg_file``. It is compared
-    against ``bg_file`` using the GO assignments from
-    ``go_file``. Results are saved in ``outfile`` and
-    ``outdir``.
+    The gene lists are supplied by files.
+    This method is a wrapper for `runGO.py`.
 
-    if *bg_file* is None, the all genes with GO annotations
-    will be used.
-
-    If *gene2name* is given, it will be supplied to the runGO.py script.
-
-    If *pairs* is set, each category for each pair of gene sets will be tested for 
-    differential enrichment.
-    '''
-
-    to_cluster = True
+    Arguments
+    ---------
+    outfile : string
+        Output filename
+    outdir : string
+        Output directory for auxiliary files
+    fg_file : string
+        Gene list of foreground.
+    bg_file : string
+        Gene list for background. If None, all genes
+        with GO annotations are used as background.
+    go_file : string
+        Filename with Gene-to-GO assignments
+    ontology_file : string
+        Filename with ontology information.
+    samples : int
+        Number of samples for empirical FDR. If not given, use
+        BH FDR.
+    minimum_counts : int
+        Minimum number of observations in a GO category
+        required in order for using it.
+    pairs : bool
+       If True, each category for each pair of gene sets will
+       be tested for differential enrichment.
+    gene2name : string
+        Filename with a gene-to-genename information.
+    """
 
     if ontology_file is None:
         ontology_file = PARAMS.get("go_ontology", None)
@@ -311,7 +396,7 @@ def runGOFromFiles(outfile,
 
     if samples is not None:
         options.append("--fdr")
-        options.append("--method=sample --sample-size=%(samples)i" % locals())
+        options.append("--sample-size=%(samples)i" % locals())
         options.append("--fdr-method=empirical")
     else:
         options.append("--fdr")
@@ -337,17 +422,38 @@ def runGOFromFiles(outfile,
     P.run()
 
 
-def runGOFromDatabase(outfile, outdir,
+def runGOFromDatabase(outfile,
+                      outdir,
                       statement_fg,
                       statement_bg,
                       go_file,
                       ontology_file=None,
                       samples=1000):
-    '''Take gene lists from the SQL database using
-    ``statement_foreground`` and ``statement_background``
-    '''
+    """check for GO enrichment.
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    Gene lists are extracted from a database.
+    This method is a wrapper for `runGO.py`.
+    
+    Arguments
+    ---------
+    outfile : string
+        Output filename
+    outdir : string
+        Output directory for auxiliary files
+    statement_fg : string
+        SQL statement to select genes of foreground set.
+    statement_bg : string
+        SQL statement to select genes in background set.
+    go_file : string
+        Filename with Gene-to-GO assignments
+    ontology_file : string
+        Filename with ontology information.
+    samples : int
+        Number of samples for empirical FDR. If not given, use
+        BH FDR.
+    """
+
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     cc = dbhandle.cursor()
     fg = set([x[0] for x in cc.execute(statement_fg).fetchall()])
@@ -372,15 +478,14 @@ def runGOFromDatabase(outfile, outdir,
                    ontology_file=ontology_file,
                    samples=samples)
 
-############################################################
-############################################################
-############################################################
-##
-############################################################
-
 
 def loadGO(infile, outfile, tablename):
-    '''import GO results into individual tables.'''
+    """import GO results into individual tables.
+
+    This method concatenates all the results from
+    a GO analysis and uploads into a single table.
+
+    """
 
     indir = infile + ".dir"
 
@@ -388,28 +493,34 @@ def loadGO(infile, outfile, tablename):
         P.touch(outfile)
         return
 
+    load_statement = P.build_load_statement(
+        tablename=tablename,
+        options="--allow-empty-file "
+        "--add-index=category "
+        "--add-index=goid ")
+
     statement = '''
-    python %(toolsdir)s/cat_tables.py %(indir)s/*.overall |\
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
-              --allow-empty-file \
-              --add-index=category \
-              --add-index=goid \
-              --table=%(tablename)s \
+    python %(toolsdir)s/cat_tables.py %(indir)s/*.overall
+    | %(load_statement)s
     > %(outfile)s
     '''
     P.run()
 
 
-############################################################
-############################################################
-############################################################
-##
-############################################################
 def loadGOs(infiles, outfile, tablename):
     '''import GO results into a single table.
 
     This method also computes a global QValue over all
     tracks, genesets and annotation sets.
+
+    Arguments
+    ---------
+    infiles : string
+       Output files of several runGO analyses
+    outfile : string
+       Output filename, contains log information
+    tablename : string
+       Table name for storing results.
     '''
 
     header = False
@@ -457,23 +568,15 @@ def loadGOs(infiles, outfile, tablename):
         tempf2.write("%s\t%s\n" % (line[:-1], str(qvalue)))
 
     tempf2.close()
-    tempfilename = tempf2.name
-    print tempf1.name
-    print tempf2.name
 
-    statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
-              --allow-empty-file 
-              --add-index=category 
-              --add-index=track,geneset,annotationset
-              --add-index=geneset
-              --add-index=annotationset
-              --add-index=goid 
-              --table=%(tablename)s 
-    < %(tempfilename)s
-    > %(outfile)s
-    '''
-    P.run()
+    P.load(tempf2.name, outfile,
+           tablename=tablename,
+           options="--allow-empty-file "
+           "--add-index=category "
+           "--add-index=track,geneset,annotationset "
+           "--add-index=geneset "
+           "--add-index=annotationset "
+           "--add-index=goid ")
 
-    #os.unlink( tempf1.name )
-    #os.unlink( tempf2.name )
+    os.unlink(tempf1.name)
+    os.unlink(tempf2.name)

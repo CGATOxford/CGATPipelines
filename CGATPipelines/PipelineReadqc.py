@@ -1,5 +1,12 @@
-"""PipelineReadqc.py
-========================
+"""PipelineReadqc.py - Tasks for QC'ing short read data sets
+============================================================
+
+The majority of the functions in this module are for running
+and processing the information from the fastqc_ tool.
+
+Reference
+---------
+
 """
 
 import os
@@ -15,8 +22,29 @@ import CGAT.CSV2DB as CSV2DB
 
 def FastqcSectionIterator(infile):
     """iterate over FASTQC output file and yield each section.
+
+    Sections in FASTQC output start with `>>`` and end with
+    ``>>END_MODULE``.
+
+    Yields
+    ------
+    name : string
+        Section name
+    status : string
+        Section status
+    header : string
+        Section header
+    data : list
+        Lines within section
+
+    Arguments
+    ---------
+    infile : iterator
+        Iterator over contents of Fastqc output.
+
     """
     data = []
+    name, status, header, data = None, None, None, None
     for line in infile:
         if line.startswith(">>END_MODULE"):
             yield name, status, header, data
@@ -31,7 +59,25 @@ def FastqcSectionIterator(infile):
 
 
 def collectFastQCSections(infiles, section, datadir):
-    '''iterate over all fastqc files and extract a particular section.'''
+    '''iterate over all fastqc files and extract a particular section.
+
+    Arguments
+    ---------
+    infiles : list
+        List of filenames with fastqc output (logging information). The
+        track name is derived from that.
+    section : string
+        Section name to extract
+    datadir : string
+        Location of actual Fastqc output to be parsed.
+
+    Returns
+    -------
+    results : list
+        List of tuples, one tuple per input file. Each tuple contains
+        track, status, header and data of `section`.
+
+    '''
     results = []
     for infile in infiles:
         track = P.snip(os.path.basename(infile), ".fastqc")
@@ -44,8 +90,43 @@ def collectFastQCSections(infiles, section, datadir):
     return results
 
 
-def loadFastqc(filename):
-    '''load FASTQC stats.'''
+def loadFastqc(filename,
+               backend="sqlite",
+               database="csvdb",
+               host="",
+               username="",
+               password="",
+               port=3306):
+    '''load FASTQC statistics into database.
+
+    Each section will be uploaded to its own table.
+
+    Arguments
+    ----------
+    filename : string
+        Filename with FASTQC data
+    backend : string
+        Database backend. Only this is required for an sqlite database.
+    host : string
+        Database host name
+    username : string
+        Database user name
+    password : string
+        Database password
+    port : int
+        Database server port.
+    '''
+
+    parser = CSV2DB.buildParser()
+    (options, args) = parser.parse_args([])
+
+    options.database_backend = backend
+    options.database_host = host
+    options.database_name = database
+    options.database_username = username
+    options.database_password = password
+    options.database_port = port
+    options.allow_empty = True
 
     for fn in glob.glob(filename):
         prefix = os.path.basename(os.path.dirname(fn))
@@ -57,20 +138,14 @@ def loadFastqc(filename):
             if name == "Basic Statistics":
                 continue
 
-            parser = CSV2DB.buildParser()
-            (options, args) = parser.parse_args([])
             options.tablename = prefix + "_" + re.sub(" ", "_", name)
-            options.allow_empty = True
 
             inf = cStringIO.StringIO("\n".join([header] + data) + "\n")
             CSV2DB.run(inf, options)
             results.append((name, status))
 
         # load status table
-        parser = CSV2DB.buildParser()
-        (options, args) = parser.parse_args([])
         options.tablename = prefix + "_status"
-        options.allow_empty = True
 
         inf = cStringIO.StringIO(
             "\n".join(["name\tstatus"] +
@@ -79,7 +154,19 @@ def loadFastqc(filename):
 
 
 def buildFastQCSummaryStatus(infiles, outfile, datadir):
-    '''load fastqc status summaries into a single table.'''
+    '''collect fastqc status results from multiple runs into a single table.
+
+    Arguments
+    ---------
+    infiles : list
+        List of filenames with fastqc output (logging information). The
+        track name is derived from that.
+    outfile : list
+        Output filename in :term:`tsv` format.
+    datadir : string
+        Location of actual Fastqc output to be parsed.
+
+    '''
 
     outf = IOTools.openFile(outfile, "w")
     names = set()
@@ -89,7 +176,6 @@ def buildFastQCSummaryStatus(infiles, outfile, datadir):
         filename = os.path.join(datadir,
                                 track + "*_fastqc",
                                 "fastqc_data.txt")
-        
         # there can be missing sections
         for fn in glob.glob(filename):
             stats = collections.defaultdict(str)
@@ -99,7 +185,7 @@ def buildFastQCSummaryStatus(infiles, outfile, datadir):
 
             results.append((track, fn, stats))
             names.update(stats.keys())
-            
+
     names = list(names)
     outf.write("track\tfilename\t%s\n" % "\t".join(names))
     for track, fn, stats in results:
@@ -110,7 +196,19 @@ def buildFastQCSummaryStatus(infiles, outfile, datadir):
 
 
 def buildFastQCSummaryBasicStatistics(infiles, outfile, datadir):
-    '''load fastqc summaries into a single table.'''
+    '''collect fastqc summary results from multiple runs into a single table.
+
+    Arguments
+    ---------
+    infiles : list
+        List of filenames with fastqc output (logging information). The
+        track name is derived from that.
+    outfile : list
+        Output filename in :term:`tsv` format.
+    datadir : string
+        Location of actual Fastqc output to be parsed.
+
+    '''
 
     data = collectFastQCSections(infiles, "Basic Statistics", datadir)
 
@@ -127,12 +225,27 @@ def buildFastQCSummaryBasicStatistics(infiles, outfile, datadir):
 
 
 def buildExperimentReadQuality(infiles, outfile, datadir):
-    """
+    """build per-experiment read quality summary.
+
+    Arguments
+    ---------
+    infiles : list
+        List of filenames with fastqc output (logging information). The
+        track name is derived from that.
+    outfile : list
+        Output filename in :term:`tsv` format.
+    datadir : string
+        Location of actual Fastqc output to be parsed.
+
     """
     data = collectFastQCSections(infiles,
                                  "Per sequence quality scores",
                                  datadir)
     first = True
+
+    if len(data) == 0:
+        raise ValueError("received no data")
+
     for track, status, header, rows in data:
         T = track
         rows = [map(float, x.split("\t")) for x in rows]

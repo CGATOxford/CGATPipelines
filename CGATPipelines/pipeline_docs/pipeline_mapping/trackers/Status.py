@@ -1,12 +1,4 @@
-import os
-import sys
-import re
-import types
-import itertools
-import math
-import numpy
-
-from MappingReport import *
+from CGATReport.Tracker import Status, SQLError
 
 
 class MappingStatus(Status):
@@ -49,11 +41,15 @@ class MappingStatus(Status):
         FAIL : < 40% pairs mapped
         '''
 
-        value = self.getValue("""SELECT
-        pairs_proper_unique / CAST(pairs_total AS FLOAT)
-        FROM view_mapping
-        WHERE track = '%(track)s'
-        AND pairs_total > 0""")
+        try:
+            value = self.getValue("""SELECT
+            pairs_proper_unique / CAST(pairs_total AS FLOAT)
+            FROM view_mapping
+            WHERE track = '%(track)s'
+            AND pairs_total > 0""")
+        except SQLError:
+            # pairs column might be missing if all data is single end
+            return "NA", 0
 
         if value is None:
             return "NA", 0

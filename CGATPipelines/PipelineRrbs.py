@@ -35,35 +35,25 @@ Code
 ----
 
 '''
-import random
 import os
-import shutil
-import glob
-import collections
 import re
-import gzip
 import itertools
 import copy
 import CGATPipelines.Pipeline as P
-import logging as L
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import CGAT.GTF as GTF
-import CGAT.Fastq as Fastq
-import CGAT.IndexedFasta as IndexedFasta
-import CGAT.Fasta as Fa
-import pysam
+import CGAT.FastaIterator as FastaIterator
 import pandas as pd
 from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
 import pandas.rpy.common as com
 from rpy2.robjects import r
-import rpy2.robjects as robj
-from rpy2.robjects.packages import importr
 from rpy2.robjects.packages import importr
 from rpy2.robjects.vectors import FloatVector
-import CGATPipelines.PipelineTracks as PipelineTracks
-stats = importr('stats')
+# AH: this causes an import error:
+# AssertionError: PipelineRrbs scripts/modules - ImportError: Conflict when converting R symbol in the package "stats" to a Python symbol (format.perc -> format_perc while there is already format_perc)
+# best only to import when needed in individual methods
+# stats = importr('stats')
 
 
 def hjoin(items):
@@ -210,14 +200,15 @@ def fasta2CpG(infile, outfile):
     and if so, what their read position is'''
     # to do: paramterise (digestion site, read length, PE/SE)
 
-    FA = Fa.Fasta(open(infile, "r"))
-    temp_contig = FA.FetchOne()
+    # AH: Use FastaIterator
+    fasta = FastaIterator.FastaIterator(IOTools.openFile(infile, "r"))
+    temp_contig = fasta.next()
 
-    outfile = open(outfile, "w")
+    outfile = IOTools.openFile(outfile, "w")
     outfile.write("contig\tposition\tstrand\tread_position\n")
 
     while len(temp_contig[1]) > 1:
-        contig, contig_seq = temp_contig
+        contig, contig_seq = temp_contig.title, temp_contig.sequence
         # find MspI sites
         iter_pos = re.finditer("[cC][cC][gG][gG]", contig_seq)
         pos_start = [x.start(0) for x in iter_pos]
@@ -266,7 +257,7 @@ def fasta2CpG(infile, outfile):
                 read_pos = MspI_cpg_dict[g_pos]
             outfile.write("%s\t%s\t%s\t%s\n" % (contig, g_pos,
                                                 "-", read_pos))
-        temp_contig = FA.FetchOne()
+        temp_contig = fasta.next()
     outfile.close()
 
 

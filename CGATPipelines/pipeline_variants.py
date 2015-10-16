@@ -130,7 +130,6 @@ import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGAT.FastaIterator as FastaIterator
 import PipelineEnrichment as PEnrichment
-import PipelineDatabase as PipelineDatabase
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import scipy.stats
 import CGAT.Stats as Stats
@@ -160,7 +159,6 @@ PARAMS_ANNOTATIONS = P.peekParameters(
     "pipeline_annotations.py")
 
 
-PipelineDatabase.PARAMS = PARAMS
 PipelineUCSC.PARAMS = PARAMS
 
 ###################################################################
@@ -222,7 +220,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -682,7 +680,7 @@ def loadGene2Omim(infile, outfile):
                 "mim_morbid_description"].strip()
             yield result
 
-    PipelineDatabase.importFromIterator(
+    P.importFromIterator(
         outfile, tablename, transform_data(data),
         columns=columns, indices=("gene_id", ))
 
@@ -707,7 +705,7 @@ def loadHumanOrthologs(infile, outfile):
         data = Biomart.biomart_iterator(
             columns.keys(), biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
-        PipelineDatabase.importFromIterator(
+        P.importFromIterator(
             outfile, tablename, data,
             columns=columns, indices=("hs_gene_id", "gene_id", ))
 
@@ -3010,7 +3008,7 @@ def loadGeneListAnalysis(infile, outfile):
 #     * compute stats on it
 #     '''
 
-#     dbhandle = sqlite3.connect( PARAMS["database"] )
+#     dbhandle = sqlite3.connect( PARAMS["database_name"] )
 
 #     statement = '''SELECT track, geneset, annotationset, category, min(pover,punder)
 #                    FROM alleles_go'''

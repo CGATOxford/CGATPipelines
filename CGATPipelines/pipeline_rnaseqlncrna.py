@@ -64,7 +64,7 @@ follows:
 
 * Filter putative lncRNA gene set
    Due to many fragments being produced
-   from RNA-seq data, putative single exon lncRNA are flagged with in
+   from RNA-seq data, putative single exon lncRNA are flagged in
    the lncRNA gtf file so it is easy to filter for the more reliable
    multi-exonic lncRNA.  Although many single exon lncRNA are likely
    to be artifacts, we assess the overlap of putative single exon
@@ -218,7 +218,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_annotations_database"])
     cc = dbh.cursor()
@@ -239,19 +239,9 @@ def Rconnect():
     R('''library("RSQLite")''')
     R('''library("sciplot")''')
     R('''drv <- dbDriver("SQLite")''')
-    R('''con <- dbConnect(drv, dbname = "%s") ''' % PARAMS["database"])
+    R('''con <- dbConnect(drv, dbname = "%s") ''' % PARAMS["database_name"])
     return R('''con''')
 
-#########################################################################
-#########################################################################
-#########################################################################
-
-
-def filenameToTablename(filename):
-    '''
-    converts filename containing "." to tablename where "." converted to "_"
-    '''
-    return filename.replace(".", "_")
 
 #########################################################################
 #########################################################################
@@ -549,9 +539,10 @@ def runCPC(infile, outfile):
     run coding potential calculations on lncRNA geneset
     '''
     # farm.py is called from within cpc.sh
-    assert P.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
+    assert IOTools.which("farm.py"), \
+        "farm.py needs to be in $PATH for cpc to run"
     # Default cpc parameters don't work with later versions of blast
-    E.info("Running cpc with blast version:%s" % P.which("blastx"))
+    E.info("Running cpc with blast version:%s" % IOTools.which("blastx"))
 
     result_evidence = P.snip(outfile, ".result") + ".evidence"
     working_dir = "cpc"
@@ -562,10 +553,6 @@ def runCPC(infile, outfile):
                  " %(result_evidence)s")
     P.run()
 
-##########################################################################
-##########################################################################
-##########################################################################
-
 
 @follows(runCPC)
 @transform(runCPC, regex("cpc/(\S+).result"), r"\1.load")
@@ -573,18 +560,11 @@ def loadCPCResults(infile, outfile):
     '''
     load the results of the cpc analysis
     '''
-    tablename = filenameToTablename(os.path.basename(infile))
-    statement = ("python %(scriptsdir)s/csv2db.py"
-                 "  -t %(tablename)s"
-                 "  --log=%(outfile)s.log"
-                 "  --header-names=transcript_id,feature,C_NC,CP_score"
-                 "  --add-index=transcript_id"
-                 " < %(infile)s > %(outfile)s")
-    P.run()
 
-##########################################################################
-##########################################################################
-##########################################################################
+    P.load(infile,
+           outfile,
+           options="--header-names=transcript_id,feature,C_NC,CP_score "
+           "--add-index=transcript_id")
 
 
 @follows(loadCPCResults)
@@ -710,12 +690,7 @@ def loadGeneSetStats(infile, outfile):
     '''
     load stats on coding and lncRNA gene sets
     '''
-    tablename = filenameToTablename(infile)
-    statement = ("python %(scriptsdir)s/csv2db.py"
-                 " -t %(tablename)s"
-                 " --log=%(outfile)s.log"
-                 " < %(infile)s > %(outfile)s")
-    P.run()
+    P.load(infile, outfile)
 
 ##########################################################################
 ##########################################################################
@@ -756,22 +731,15 @@ def classifyLncRNA(infiles, outfile):
     PipelineLncRNA.classifyLncRNAGenes(
         infiles[0], infiles[1], outfile, dist=PARAMS["lncrna_dist"])
 
-##########################################################################
-##########################################################################
-##########################################################################
-
 
 @transform(classifyLncRNA, suffix(".gtf.gz"), ".load")
 def loadLncRNAClass(infile, outfile):
     '''
     load the lncRNA classifications
     '''
-    tablename = os.path.basename(
-        filenameToTablename(P.snip(infile, ".gtf.gz")))
 
-    to_cluster = False
     # just load each transcript with its classification
-    temp = P.getTempFile()
+    temp = P.getTempFile(".")
     inf = IOTools.openFile(infile)
     for transcript in GTF.transcript_iterator(GTF.iterator(inf)):
         temp.write("%s\t%s\t%s\n" % (
@@ -780,17 +748,13 @@ def loadLncRNAClass(infile, outfile):
             transcript[0].source))
     temp.close()
 
-    inf_1 = temp.name
-    statement = ("python %(scriptsdir)s/csv2db.py"
-                 "  -t %(tablename)s"
-                 "  --log=%(outfile)s.log"
-                 "  --header-names=transcript_id,gene_id,class"
-                 " < %(inf_1)s > %(outfile)s")
-    P.run()
+    P.load(temp.name,
+           outfile,
+           options="--header-names=transcript_id,gene_id,class "
+           "--add-index=transcript_id "
+           "--add-index=gene_id")
 
-##########################################################################
-##########################################################################
-##########################################################################
+    os.unlink(temp.name)
 
 
 @merge([buildCodingGeneSet, classifyLncRNA], "gtfs/transcripts.gtf.gz")
@@ -968,14 +932,14 @@ def runLncRNAPhyloCSF(infile, outfile):
 def mergeLncRNAPhyloCSF(infiles, outfile):
     file_name = " ".join([x for x in infiles])
     statement = '''
-                python %(scriptsdir)s/combine_tables.py
-                 --no-titles
-                 --cat=CAT
-                 --missing-value=0
-                 --log=%(outfile)s.log
-                 %(file_name)s
-                > %(outfile)s
-                 '''
+    python %(scriptsdir)s/combine_tables.py
+    --no-titles
+    --cat=CAT
+    --missing-value=0
+    --log=%(outfile)s.log
+    %(file_name)s
+    > %(outfile)s
+    '''
     P.run()
 
 
@@ -1160,9 +1124,9 @@ def buildControlFasta(infile, outfile):
            r"\1/cpc/control_cpc.result")
 def runControlCPC(infile, outfile):
     # farm.py is called from within cpc.sh
-    assert P.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
+    assert IOTools.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
     # Default cpc parameters don't work with later versions of blast
-    E.info("Running cpc with blast version:%s" % P.which("blastx"))
+    E.info("Running cpc with blast version:%s" % IOTools.which("blastx"))
 
     result_evidence = P.snip(outfile, ".result") + ".evidence"
     working_dir = "lncRNA_control/cpc"
@@ -1176,20 +1140,12 @@ def runControlCPC(infile, outfile):
 
 @transform(runControlCPC, regex("(?:.+)/(.+)/(.+).result"), r"\2.load")
 def loadControlCPCResults(infile, outfile):
-    tablename = filenameToTablename(os.path.basename(infile))
-    statement = ("cat %(infile)s |"
-                 " python %(scriptsdir)s/csv2db.py"
-                 "  -t %(tablename)s"
-                 "  --log=%(outfile)s.log"
-                 "  --header-names=transcript_id,feature,C_NC,CP_score"
-                 "  --add-index=transcript_id"
-                 " > %(outfile)s")
-    P.run()
+    P.load(infile,
+           outfile,
+           options="--header-names=transcript_id,feature,C_NC,CP_score "
+           "--add-index=transcript_id")
 
 
-##########################################################################
-##########################################################################
-##########################################################################
 # targets
 @follows(buildCodingGeneSet,
          buildRefnoncodingGeneSet,

@@ -5,6 +5,14 @@ Release notes
 The CGAT pipeline collection is unreleased. Please use
 the latest version from the repository.
 
+0.1
+---
+
+* Re-organize Pipeline.py as a package.
+* Move legacy pipelines OPTIC and GPIPE into separate repository.
+* Distribute contents of PipelineUtilities to CGAT code collection.
+* Revise documentation for modules and scripts.
+
 Contributions
 =============
 

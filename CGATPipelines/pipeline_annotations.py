@@ -582,7 +582,6 @@ import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineGO as PipelineGO
-import CGATPipelines.PipelineDatabase as PipelineDatabase
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import CGATPipelines.PipelineKEGG as PipelineKEGG
 import CGAT.Intervals as Intervals
@@ -609,7 +608,6 @@ PARAMS.update(dict([
 # Set parameter dictionary in auxilliary modules
 PipelineGeneset.PARAMS = PARAMS
 PipelineGO.PARAMS = PARAMS
-PipelineDatabase.PARAMS = PARAMS
 PipelineUCSC.PARAMS = PARAMS
 
 
@@ -619,8 +617,15 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     return dbh
+
+
+def connectToUCSC():
+    return PipelineUCSC.connectToUCSC(
+        host=PARAMS["ucsc_host"],
+        user=PARAMS["ucsc_user"],
+        database=PARAMS["ucsc_database"])
 
 
 ############################################################
@@ -844,9 +849,6 @@ def buildGeneSet(infile, outfile):
     --skip-missing
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
-    --method=set-gene_biotype-to-source
-    --log=%(outfile)s.log
     ''']
 
     if PARAMS["ensembl_remove_contigs"]:
@@ -855,7 +857,12 @@ def buildGeneSet(infile, outfile):
         statement.append(
             ''' --contig-pattern="%(ensembl_remove_contigs)s" ''')
 
-    statement.append(''' | gzip > %(outfile)s ''')
+    statement.append(
+        '''
+        | python %(scriptsdir)s/gtf2gtf.py
+        --method=set-gene_biotype-to-source
+        --log=%(outfile)s.log
+        | gzip > %(outfile)s ''')
 
     statement = " ".join(statement)
 
@@ -957,11 +964,18 @@ def loadTranscripts(infile, outfile):
     PipelineGeneset.loadTranscripts(infile, outfile)
 
 
+@transform(buildGeneSet,
+           suffix(".gtf.gz"),
+           "_gtf_genome_coordinates.load")
+def loadGeneCoordinates(infile, outfile):
+    '''load the coordinates for each gene'''
+    PipelineGeneset.loadGeneCoordinates(infile, outfile)
+
+
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(buildCDSTranscripts, "ensembl.dir/cds_stats.load")
 def loadCDSStats(infile, outfile):
     '''load the transcript set stats.'''
-
     PipelineGeneset.loadTranscriptStats(infile, outfile)
 
 
@@ -973,6 +987,9 @@ def downloadTranscriptInformation(infile, outfile):
 
     tablename = P.toTable(outfile)
 
+    # only use transcript relevant information. Uniprot ids
+    # should go into a separate table. There is some duplication
+    # here of gene information
     columns = {
         "ensembl_gene_id": "gene_id",
         "ensembl_transcript_id": "transcript_id",
@@ -983,17 +1000,7 @@ def downloadTranscriptInformation(infile, outfile):
         "status": "gene_status",
         "transcript_status": "transcript_status",
         "external_gene_name": "gene_name",
-        "uniprot_sptrembl": "uniprot_id",
-        "uniprot_genename": "uniprot_name",
     }
-
-    # biomart db dmelanogaster_gene_ensemble doesn't have attribute
-    # uniprot_genename
-    if PARAMS["genome"].startswith("dm"):
-        del columns["uniprot_genename"]
-    # same fix for yeast
-    if PARAMS["genome"].startswith("sac"):
-        del columns["uniprot_genename"]
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -1022,7 +1029,7 @@ def downloadTranscriptInformation(infile, outfile):
 
     data = filter(lambda x: x['ensembl_gene_id'] in gene_ids, data)
 
-    PipelineDatabase.importFromIterator(
+    P.importFromIterator(
         outfile, tablename,
         data,
         columns=columns,
@@ -1076,7 +1083,7 @@ def downloadEntrezToEnsembl(infile, outfile):
         biomart="ensembl",
         dataset=PARAMS["ensembl_biomart_dataset"])
 
-    PipelineDatabase.importFromIterator(
+    P.importFromIterator(
         outfile,
         tablename,
         data,
@@ -1107,7 +1114,7 @@ def downloadTranscriptSynonyms(infile, outfile):
             "ensembl_biomart_dataset"],
         host=PARAMS["ensembl_biomart_host"])
 
-    PipelineDatabase.importFromIterator(
+    P.importFromIterator(
         outfile,
         tablename,
         data,
@@ -1164,7 +1171,7 @@ def loadProteinStats(infile, outfile):
 def buildSelenoList(infile, outfile):
     '''export a list of seleno cysteine transcripts.'''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''
     SELECT DISTINCT transcript_id
     FROM transcript_info as t,
@@ -1364,8 +1371,10 @@ def importRNAAnnotationFromUCSC(infile, outfile):
     '''
 
     repclasses = P.asList(PARAMS["ucsc_rnatypes"])
-    dbhandle = PipelineUCSC.connectToUCSC()
-    PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
+    dbhandle = connectToUCSC()
+    PipelineUCSC.getRepeatsFromUCSC(
+        dbhandle, repclasses, outfile,
+        remove_contigs_regex=PARAMS["ensembl_remove_contigs"])
 
 
 @follows(mkdir('ucsc.dir'))
@@ -1377,7 +1386,7 @@ def importRepeatsFromUCSC(infile, outfile):
     '''
 
     repclasses = P.asList(PARAMS["ucsc_repeattypes"])
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
 
 
@@ -1389,7 +1398,7 @@ def importCpGIslandsFromUCSC(infile, outfile):
     The repeats are stored as a :term:`bed` formatted file.
     '''
 
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getCpGIslandsFromUCSC(dbhandle, outfile)
 
 
@@ -1398,23 +1407,24 @@ def importCpGIslandsFromUCSC(infile, outfile):
 def loadRepeats(infile, outfile):
     '''load total repeats length'''
 
-    headers = "contig,start,stop,class"
+    load_statement = P.build_load_statement(
+        tablename="repeats",
+        options="--add-index=class "
+        "--header-names=contig,start,stop,class")
+
     statement = """zcat %(infile)s
-    | python %(scriptsdir)s/gff2bed.py --set-name=class | grep -v "#"
+    | python %(scriptsdir)s/gff2bed.py --set-name=class
+    | grep -v "#"
     | cut -f1,2,3,4
-    | python %(scriptsdir)s/csv2db.py
-    --retry
-    --table=repeats
-    --header-names=%(headers)s
-    --add-index=class
-    > %(outfile)s; """
+    | %(load_statement)s
+    > %(outfile)s"""
     P.run()
 
 
 @transform(loadRepeats, suffix(".gff.gz.load"), ".counts.load")
 def countTotalRepeatLength(infile, outfile):
     ''' Count total repeat length and add to database '''
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
     statement = """DROP TABLE IF EXISTS repeat_length"""
     Database.executewait(dbhandle, statement)
@@ -1435,7 +1445,7 @@ def importAllRepeatsFromUCSC(infile, outfile):
     '''
 
     repclasses = None
-    dbhandle = PipelineUCSC.connectToUCSC()
+    dbhandle = connectToUCSC()
     PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
 
 
@@ -1752,16 +1762,8 @@ def createGOSlim(infile, outfile):
            r"\1_assignments.load")
 def loadGOAssignments(infile, outfile):
     '''load GO assignments into database.'''
-    table = P.toTable(outfile)
-    statement = '''
-    zcat < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --table=%(table)s
-              --add-index=gene_id
-              --add-index=go_id
-    > %(outfile)s
-    '''
-    P.run()
+    P.load(infile, outfile,
+           options="--add-index=gene_id --add-index=go_id")
 
 
 @transform(createGO, suffix(".tsv.gz"), ".paths")
@@ -2079,16 +2081,7 @@ if 0:
     @files(PARAMS["filename_ucsc_encode"], "ucsc_encode.import")
     def importUCSCEncodeTracks(infile, outfile):
 
-        statement = '''
-        mysql --user=genome --host=genome-mysql.cse.ucsc.edu
-                 -A -B -e "SELECT * FROM %(tablename)s" %(ucsc_database)s |\
-        python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
-                  --table=%(tablename)s \
-        >> %(outfile)s
-
-        '''
-
-        dbhandle = sqlite3.connect(PARAMS["database"])
+        dbhandle = sqlite3.connect(PARAMS["database_name"])
 
         cc = dbhandle.cursor()
         tables = set(
@@ -2102,7 +2095,16 @@ if 0:
                 E.info("skipping %(tablename)s - already exists" % locals())
                 continue
 
+            load_statement = P.build_load_statement(tablename)
+
             E.info("importing %(tablename)s" % locals())
+
+            statement = '''
+            mysql --user=genome --host=genome-mysql.cse.ucsc.edu
+            -A -B -e "SELECT * FROM %(tablename)s" %(ucsc_database)s
+            | %(load_statement)s
+            >> %(outfile)s
+            '''
             P.run()
 
     ############################################################
@@ -2113,7 +2115,7 @@ if 0:
     @transform(importUCSCEncodeTracks, suffix(".import"), ".bed")
     def exportUCSCEncodeTracks(infile, outfile):
 
-        dbhandle = sqlite3.connect(PARAMS["database"])
+        dbhandle = sqlite3.connect(PARAMS["database_name"])
 
         outs = open(outfile, "w")
         for tablename in getUCSCTracks():
@@ -2128,86 +2130,6 @@ if 0:
                 outs.write("%s\t%i\t%i\n" % (contig, start, end))
         outs.close()
 
-
-# ############################################################
-# ############################################################
-# ############################################################
-# # Mappability
-# @files(os.path.join(PARAMS["gem_dir"],
-#                     PARAMS["genome"] + ".gem"),
-#        PARAMS["genome"] + ".mappability")
-# def calculateMappability(infile, outfile):
-#     '''Calculate mappability using GEM '''
-#     index = P.snip(infile, ".gem")
-#     job_threads = PARAMS["gem_threads"]
-#     statement = '''gem-mappability
-#     -t %(gem_threads)s -m %(gem_mismatches)s
-#     --max-indel-length %(gem_max_indel_length)s
-#     -l %(gem_window_size)s
-#     -I %(index)s -o %(outfile)s '''
-#     P.run()
-
-
-# @transform(calculateMappability, suffix(".mappability"),
-#            ".mappability.count")
-# def countMappableBases(infile, outfile):
-#     '''Count mappable bases in genome'''
-#     statement = '''cat %(infile)s | tr -cd ! | wc -c > %(outfile)s'''
-#     P.run()
-
-
-# @transform(countMappableBases, suffix(".count"), ".count.load")
-# def loadMappableBases(infile, outfile):
-#     '''load count of mappable bases in genome'''
-#     header = "total_mappable_bases"
-#     statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
-#                       --table=total_mappable_bases
-#                       --header-names=%(header)s
-#                    > %(outfile)s '''
-#     P.run()
-
-# ###################################################################
-
-
-# @transform(calculateMappability, suffix(".mappability"), ".split.log")
-# def splitMappabiliyFileByContig(infile, outfile):
-#     '''Count mappable bases in genome'''
-#     track = P.snip(os.path.basename(infile), ".mappability")
-#     statement = '''mkdir contigs;
-#     csplit -k -f contigs/contig %(infile)s '/^~[a-zA-Z]/' {100000}
-#     > %(outfile)s;
-#     rm contigs/contig00;'''
-#     P.run()
-
-# ###################################################################
-
-
-# @follows(splitMappabiliyFileByContig)
-# @merge("contigs/contig*", PARAMS["genome"] + "_mappability_per_contig.tsv")
-# def countMappableBasesPerContig(infiles, outfile):
-#     '''Count mappable bases for each contig'''
-#     for infile in infiles:
-#         statement = '''grep '~' %(infile)s
-#         | sed s/~//g >> %(outfile)s; cat %(infile)s | tr -cd !
-#         | wc -c >> %(outfile)s'''
-#         P.run()
-
-#     statement = '''sed -i '{N;s/\\n/\\t/g}' %(outfile)s;'''
-#     P.run()
-
-# ###################################################################
-
-
-# @transform(countMappableBasesPerContig, suffix(".tsv"), ".tsv.load")
-# def loadMappableBasesPerContig(infile, outfile):
-#     '''load count of mappable bases per contig '''
-#     header = "contig,mappable_bases"
-#     statement = '''cat %(infile)s
-#     | python %(scriptsdir)s/csv2db.py
-#     --table=mappable_bases_per_contig
-#     --header-names=%(header)s
-#     > %(outfile)s '''
-#     P.run()
 
 @transform("*/*.gff.gz",
            suffix(".gff.gz"),
@@ -2331,6 +2253,7 @@ def assembly():
          loadCDSStats,
          loadExonStats,
          loadGeneInformation,
+         loadGeneCoordinates,
          downloadEntrezToEnsembl,
          downloadTranscriptSynonyms,
          buildExonTranscripts,

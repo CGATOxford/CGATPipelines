@@ -1,29 +1,9 @@
 """
-======================================================
-PipelineMappingQC.py - common tasks for QC'ing mapping
-======================================================
+PipelineMappingQC.py - Tasks for QC'ing mapping
+===============================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-Purpose
--------
-
-
-Usage
------
-
-Type::
-
-   python <script_name>.py --help
-
-for command line help.
-
-Code
-----
-
+Reference
+---------
 
 """
 
@@ -31,11 +11,10 @@ import CGAT.Experiment as E
 import os
 import re
 import CGAT.IOTools as IOTools
+import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
 
-
-def getPicardOptions():
-    return "-l mem_free=1.4G -l picard=1"
+PICARD_MEMORY = "2.1G"
 
 
 def getNumReadsFromReadsFile(infile):
@@ -50,37 +29,25 @@ def getNumReadsFromReadsFile(infile):
     return nreads
 
 
-def getNumReadsFromBAMFile(infile):
-    '''count number of reads in bam file.'''
-    # by-passes a problem with pysam, which was reading in stdout as the first
-    # elements in list data
-    tmpf = P.getTempFile(".")
-    tmpfile_name = tmpf.name
-    statement = '''samtools idxstats %(infile)s > %(tmpfile_name)s'''
-
-    P.run()
-
-    read_info = IOTools.openFile(tmpfile_name).readlines()
-    os.unlink(tmpfile_name)
-
-    try:
-        data = sum(map(int, [x.split("\t")[2]
-                   for x in read_info if not x.startswith("#")]))
-
-    except IndexError, msg:
-        raise IndexError(
-            "can't get number of reads from bamfile, msg=%s, data=%s" %
-            (msg, read_info))
-    return data
-
-
 def buildPicardInsertSizeStats(infile, outfile, genome_file):
-    '''gather BAM file insert size statistics using Picard '''
+    '''run Picard:CollectInsertSizeMetrics
 
-    job_options = getPicardOptions()
+    Collect insert size statistics.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`BAM` format.
+    outfile : string
+        Output filename with picard output.
+    genome_file : string
+        Filename with genomic sequence.
+    '''
+
+    job_memory = PICARD_MEMORY
     job_threads = 3
 
-    if getNumReadsFromBAMFile(infile) == 0:
+    if BamTools.getNumReads(infile) == 0:
         E.warn("no reads in %s - no metrics" % infile)
         P.touch(outfile)
         return
@@ -97,19 +64,29 @@ def buildPicardInsertSizeStats(infile, outfile, genome_file):
 
 
 def buildPicardAlignmentStats(infile, outfile, genome_file):
-    '''gather BAM file alignment statistics using Picard '''
+    '''run picard:CollectMultipleMetrics
 
-    job_options = getPicardOptions()
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`BAM` format.
+    outfile : string
+        Output filename with picard output.
+    genome_file : string
+        Filename with genomic sequence.
+    '''
+
+    job_memory = PICARD_MEMORY
     job_threads = 3
 
-    if getNumReadsFromBAMFile(infile) == 0:
+    if BamTools.getNumReads(infile) == 0:
         E.warn("no reads in %s - no metrics" % infile)
         P.touch(outfile)
         return
 
     # Picard seems to have problem if quality information is missing
     # or there is no sequence/quality information within the bam file.
-    # Thus, add it explicitely.
+    # Thus, add it explicitly.
     statement = '''cat %(infile)s
     | python %(scriptsdir)s/bam2bam.py -v 0
     --method=set-sequence --output-sam
@@ -125,14 +102,23 @@ def buildPicardAlignmentStats(infile, outfile, genome_file):
 
 
 def buildPicardDuplicationStats(infile, outfile):
-    '''Record duplicate metrics using Picard, the marked records
-    are discarded
+    '''run picard:MarkDuplicates
+
+    Record duplicate metrics using Picard, the marked records
+    are discarded.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`BAM` format.
+    outfile : string
+        Output filename with picard output.
     '''
 
-    job_options = getPicardOptions()
+    job_memory = PICARD_MEMORY
     job_threads = 3
 
-    if getNumReadsFromBAMFile(infile) == 0:
+    if BamTools.getNumReads(infile) == 0:
         E.warn("no reads in %s - no metrics" % infile)
         P.touch(outfile)
         return
@@ -166,12 +152,24 @@ def buildPicardDuplicationStats(infile, outfile):
 
 
 def buildPicardDuplicateStats(infile, outfile):
-    '''Record duplicate metrics using Picard and keep the dedupped .bam file'''
+    '''run picard:MarkDuplicates
 
-    job_options = getPicardOptions()
+    Record duplicate metrics using Picard and keep the dedupped .bam
+    file.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`BAM` format.
+    outfile : string
+        Output filename with picard output.
+
+    '''
+
+    job_memory = PICARD_MEMORY
     job_threads = 3
 
-    if getNumReadsFromBAMFile(infile) == 0:
+    if BamTools.getNumReads(infile) == 0:
         E.warn("no reads in %s - no metrics" % infile)
         P.touch(outfile)
         return
@@ -188,17 +186,32 @@ def buildPicardDuplicateStats(infile, outfile):
 
 
 def buildPicardCoverageStats(infile, outfile, baits, regions):
-    '''Generate coverage statistics for regions of interest from a bed
-    file using Picard'''
-    job_options = getPicardOptions()
+    '''run picard:CalculateHSMetrics
+
+    Generate coverage statistics for regions of interest from a bed
+    file using Picard.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`BAM` format.
+    outfile : string
+        Output filename with picard output.
+    baits : :term:`bed` formatted file of bait regions
+    regions : :term:`bed` formatted file of target regions
+
+    '''
+
+    job_memory = PICARD_MEMORY
     job_threads = 3
 
-    if getNumReadsFromBAMFile(infile) == 0:
+    if BamTools.getNumReads(infile) == 0:
         E.warn("no reads in %s - no metrics" % infile)
         P.touch(outfile)
         return
 
-    statement = '''CalculateHsMetrics BAIT_INTERVALS=%(baits)s
+    statement = '''CalculateHsMetrics
+    BAIT_INTERVALS=%(baits)s
     TARGET_INTERVALS=%(regions)s
     INPUT=%(infile)s
     OUTPUT=%(outfile)s
@@ -207,12 +220,25 @@ def buildPicardCoverageStats(infile, outfile, baits, regions):
 
 
 def buildPicardGCStats(infile, outfile, genome_file):
-    '''Gather BAM file GC bias stats using Picard '''
+    """picard:CollectGCBiasMetrics
 
-    job_options = getPicardOptions()
+    Collect GC bias metrics.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`BAM` format.
+    outfile : string
+        Output filename with picard output.
+    genome_file : string
+        Filename with genomic sequence.
+
+    """
+
+    job_memory = PICARD_MEMORY
     job_threads = 3
 
-    if getNumReadsFromBAMFile(infile) == 0:
+    if BamTools.getNumReads(infile) == 0:
         E.warn("no reads in %s - no metrics" % infile)
         P.touch(outfile)
         return
@@ -231,8 +257,26 @@ def buildPicardGCStats(infile, outfile, genome_file):
 
 def loadPicardMetrics(infiles, outfile, suffix,
                       pipeline_suffix=".picard_stats",
-                      tablename=False):
-    '''load picard metrics.'''
+                      tablename=None):
+    '''load picard metrics.
+
+    Arguments
+    ---------
+    infiles : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfile : string
+        Logfile.
+    suffix : string
+        Suffix to append to table name.
+    pipeline_suffix : string
+        Suffix to remove from track name.
+    tablename : string
+        Tablename to use. If unset, the table name will be derived
+        from `outfile` and suffix as ``toTable(outfile) + "_" +
+        suffix``.
+
+    '''
 
     if not tablename:
         tablename = "%s_%s" % (P.toTable(outfile), suffix)
@@ -242,7 +286,6 @@ def loadPicardMetrics(infiles, outfile, suffix,
     filenames = ["%s.%s" % (x, suffix) for x in infiles]
 
     first = True
-
     for filename in filenames:
         track = P.snip(os.path.basename(filename), "%s.%s" %
                        (pipeline_suffix, suffix))
@@ -268,6 +311,7 @@ def loadPicardMetrics(infiles, outfile, suffix,
         if len(lines) == 0:
             E.warn("no lines in %s: %s" % (track, filename))
             continue
+
         if first:
             outf.write("%s\t%s" % ("track", lines[0]))
             fields = lines[0][:-1].split("\t")
@@ -284,25 +328,37 @@ def loadPicardMetrics(infiles, outfile, suffix,
 
     outf.close()
 
-    tmpfilename = outf.name
+    P.load(outf.name,
+           outfile,
+           tablename=tablename,
+           options="--add-index=track --allow-empty-file")
 
-    to_cluster = False
-    statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                      --allow-empty-file
-                > %(outfile)s
-               '''
-    P.run()
-
-    os.unlink(tmpfilename)
+    os.unlink(outf.name)
 
 
 def loadPicardHistogram(infiles, outfile, suffix, column,
                         pipeline_suffix=".picard_stats", tablename=False):
     '''extract a histogram from a picard output file and load
-    it into database.'''
+    it into database.
+
+    Arguments
+    ---------
+    infiles : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfile : string
+        Logfile.
+    suffix : string
+        Suffix to append to table name.
+    column : string
+        Column name to take from the histogram.
+    pipeline_suffix : string
+        Suffix to remove from track name.
+    tablename : string
+        Tablename to use. If unset, the table name will be derived
+        from `outfile` and suffix as ``toTable(outfile) + "_" +
+        suffix``.
+    '''
 
     if not tablename:
         tablename = "%s_%s" % (P.toTable(outfile), suffix)
@@ -321,26 +377,38 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
 
     # there might be a variable number of columns in the tables
     # only take the first ignoring the rest
+
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=track "
+        " --header-names=%s,%s"
+        " --allow-empty-file"
+        " --replace-header" % (column, header))
+
     statement = """python %(scriptsdir)s/combine_tables.py
-                      --regex-start="## HISTOGRAM"
-                      --missing-value=0
-                      --take=2
-                   %(filenames)s
-                | python %(scriptsdir)s/csv2db.py
-                      --allow-empty-file
-                      --header-names=%(column)s,%(header)s
-                      --replace-header
-                      --add-index=track
-                      --table=%(tablename)s
-                >> %(outfile)s
-                """
+    --regex-start="## HISTOGRAM"
+    --missing-value=0
+    --take=2
+    %(filenames)s
+    | %(load_statement)s
+    >> %(outfile)s
+    """
 
     P.run()
 
 
 def loadPicardAlignmentStats(infiles, outfile):
-    '''load all output from Picard's CollectMultipleMetrics
-    into sql database.'''
+    '''load all output from Picard's CollectMultipleMetrics into database.
+
+    Arguments
+    ---------
+    infiles : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.
+
+    '''
 
     loadPicardMetrics(infiles, outfile, "alignment_summary_metrics")
 
@@ -356,7 +424,16 @@ def loadPicardAlignmentStats(infiles, outfile):
 
 
 def loadPicardDuplicationStats(infiles, outfiles):
-    '''load picard duplicate filtering stats.'''
+    '''load picard duplicate filtering stats into database.
+
+    Arguments
+    ---------
+    infiles : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.
+    '''
     # SNS: added to enable naming consistency
 
     outfile_metrics, outfile_histogram = outfiles
@@ -395,19 +472,43 @@ def loadPicardDuplicationStats(infiles, outfiles):
 
 
 def loadPicardDuplicateStats(infiles, outfile, pipeline_suffix=".bam"):
-    '''load picard duplicate filtering stats.'''
+    '''load picard duplicate filtering stats.
+
+    Arguments
+    ---------
+    infiles : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.
+    pipeline_suffix : string
+        Suffix appended to pipeline output file, will be removed to
+        define track.
+    '''
 
     loadPicardMetrics(
-        infiles, outfile, "duplicate_metrics", pipeline_suffix=pipeline_suffix)
-    loadPicardHistogram(infiles, outfile, "duplicate_metrics",
-                        "duplicates", pipeline_suffix=pipeline_suffix)
+        infiles, outfile, "duplicate_metrics",
+        pipeline_suffix=pipeline_suffix)
+    loadPicardHistogram(infiles,
+                        outfile,
+                        "duplicate_metrics",
+                        "duplicates",
+                        pipeline_suffix=pipeline_suffix)
 
 
 def loadPicardCoverageStats(infiles, outfile):
-    '''Import coverage statistics into SQLite'''
+    '''import coverage statistics into database.
 
-    tablename = P.toTable(outfile)
-    outf = open('coverage.txt', 'w')
+    Arguments
+    ---------
+    infiles : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.
+    '''
+
+    outf = P.getTempFile(".")
     first = True
     for f in infiles:
         track = P.snip(os.path.basename(f), ".cov")
@@ -418,19 +519,24 @@ def loadPicardCoverageStats(infiles, outfile):
         first = False
         outf.write("%s\t%s" % (track, lines[1]))
     outf.close()
-    tmpfilename = outf.name
-    statement = '''cat %(tmpfilename)s
-                   | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                      --ignore-empty
-                      --retry
-                   > %(outfile)s '''
-    P.run()
+    P.load(outf.name,
+           outfile,
+           options="--ignore-empty --add-index=track")
+    os.unlink(outf.name)
 
 
 def buildBAMStats(infile, outfile):
-    '''Count number of reads mapped, duplicates, etc. '''
+    '''Count number of reads mapped, duplicates, etc. using
+    bam2stats.py
+
+    Arguments
+    ---------
+    infile : string
+        Input file in :term:`BAM` format
+    outfile : string
+        Output file in :term:`tsv` format.
+
+    '''
 
     statement = '''python %(scriptsdir)s/bam2stats.py
     --force-output
@@ -441,43 +547,55 @@ def buildBAMStats(infile, outfile):
 
 
 def loadBAMStats(infiles, outfile):
-    '''load bam2stats.py output into sqlite database.'''
+    '''load output of :func:`buildBAMStats` into database.
+
+    Arguments
+    ---------
+    infiles : string
+        Input files, output from :func:`buildBAMStats`.
+    outfile : string
+        Output file in :term:`tsv` format.
+    '''
 
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
+
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=track "
+        " --allow-empty-file")
+
     E.info("loading bam stats - summary")
     statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --missing-value=0
-                      --ignore-empty
-                   %(filenames)s
-                | perl -p -e "s/bin/track/"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
-                      --allow-empty-file
-                      --add-index=track
-                      --table=%(tablename)s
-                > %(outfile)s"""
+    --header-names=%(header)s
+    --missing-value=0
+    --ignore-empty
+    %(filenames)s
+    | perl -p -e "s/bin/track/"
+    | python %(scriptsdir)s/table2table.py --transpose
+    | %(load_statement)s
+    > %(outfile)s"""
     P.run()
 
     for suffix in ("nm", "nh"):
         E.info("loading bam stats - %s" % suffix)
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
-        tname = "%s_%s" % (tablename, suffix)
+
+        load_statement = P.build_load_statement(
+            "%s_%s" % (tablename, suffix),
+            options="--allow-empty-file")
 
         statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --skip-titles
-                      --missing-value=0
-                      --ignore-empty
-                   %(filenames)s
-                | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
-                      --table=%(tname)s
-                      --allow-empty-file
-                >> %(outfile)s """
+        --header-names=%(header)s
+        --skip-titles
+        --missing-value=0
+        --ignore-empty
+        %(filenames)s
+        | perl -p -e "s/bin/%(suffix)s/"
+        | %(load_statement)s
+        >> %(outfile)s """
         P.run()
 
     # load mapping qualities, there are two columns per row
@@ -486,18 +604,19 @@ def loadBAMStats(infiles, outfile):
     for suffix in ("mapq",):
         E.info("loading bam stats - %s" % suffix)
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
-        tname = "%s_%s" % (tablename, suffix)
+
+        load_statement = P.build_load_statement(
+            "%s_%s" % (tablename, suffix),
+            options=" --allow-empty-file")
 
         statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --skip-titles
-                      --missing-value=0
-                      --ignore-empty
-                      --take=3
-                   %(filenames)s
-                | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
-                      --table=%(tname)s
-                      --allow-empty-file
-                >> %(outfile)s """
+        --header-names=%(header)s
+        --skip-titles
+        --missing-value=0
+        --ignore-empty
+        --take=3
+        %(filenames)s
+        | perl -p -e "s/bin/%(suffix)s/"
+        | %(load_statement)s
+        >> %(outfile)s """
         P.run()

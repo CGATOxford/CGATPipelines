@@ -213,7 +213,7 @@ def connect():
     Use this method to connect to additional databases.
     Returns a database connection.
     '''
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
 
     return dbh
 
@@ -437,7 +437,6 @@ def makeCpgIslandsBed(outfile):
 @subdivide(makeCpgIslandsBed,
            regex("coverage.dir/(\S+).bed"),
            r"coverage.dir/\1_1based.tsv")
-# r"coverage.dir/\1_1based.load"
 def make1basedCpgIslands(infile, outfile):
 
     # outfile, loadfile = outfiles
@@ -452,27 +451,6 @@ def make1basedCpgIslands(infile, outfile):
             for position in [x for x in range(int(start), int(stop)+2)]:
                 out.write("%s\t%s\t%s\n" % (contig, position, "CpGIsland"))
     out.close()
-    # this file takes hours(!) to load and it's not being used from csvdb
-    # dbh = connect()
-    # tablename = P.toTable(loadfile)
-
-    # statement = '''cat %(outfile)s |
-    #            python %%(scriptsdir)s/csv2db.py
-    #            --table %(tablename)s --retry --ignore-empty
-    #             > %(loadfile)s''' % locals()
-    # P.run()
-
-
-@transform(make1basedCpgIslands,
-           regex("coverage.dir/(\S+).load"),
-           r"coverage.dir/cpg_table.load")
-# not currently implemented
-def joinAllCpGsAndCpGIslands(infile, outfile):
-
-    tablename = P.toTable(outfile)
-    statement = '''sqlite3 csvdb
-                  "CREATE %(tablename)s FROM
-                   SELECT *"'''
 
 
 #########################################################################
@@ -522,14 +500,16 @@ def mergeCoverage(infiles, outfile):
            "_meth_cpgi.tsv")
 def addCpGIs(infiles, outfile):
     infile, CpGI = infiles
+    # TS:
     # still memory intensive even after supplying data types for all columns!
-    job_options = "-l mem_free=30G"
+    # why is this?
+    job_memory = "40G"
     job_threads = 1
 
     RRBS.pandasMerge(infile, CpGI, outfile, merge_type="left",
                      left=['contig', 'position'],
                      right=['contig', 'position'],
-                     submit=True, job_options=job_options)
+                     submit=True, job_memory=job_memory)
 
 
 # not currently in target full as table never queried from csvdb
@@ -753,6 +733,20 @@ def addTreatmentMeans(infile, outfile):
 
     RRBS.addTreatmentMean(infile, outfile,
                           submit=True, job_options=job_options)
+
+
+@transform(addTreatmentMeans,
+           suffix(".tsv"),
+           ".load")
+def loadCoveredCpGs(infile, outfile):
+    dbh = connect()
+    tablename = P.toTable(outfile)
+
+    statement = '''cat %(infile)s |
+                python %%(scriptsdir)s/csv2db.py
+                --table %(tablename)s --retry --ignore-empty
+                 > %(outfile)s''' % locals()
+    P.run()
 
 
 @transform(addTreatmentMeans,
@@ -1064,7 +1058,8 @@ def startSummary():
          mergeCoverage,
          plotReadBias,
          power,
-         M3D)
+         M3D,
+         loadCoveredCpGs)
 def full():
     pass
 
@@ -1086,7 +1081,12 @@ def biseq():
 
 
 @follows(callMethylationStatus,
-         plotReadBias)
+         plotReadBias,
+         sortAndIndexBams,
+         addCpGIs,
+         loadCoverage,
+         loadCpGOverlap,
+         loadRemainingReads)
 def callMeth():
     pass
 #########################################################################

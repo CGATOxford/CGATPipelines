@@ -1,4 +1,4 @@
-##########################################################################
+###########################################################################
 #
 #   MRC FGU Computational Genomics Group
 #
@@ -20,8 +20,7 @@
 #   along with this program; if not, write to the Free Software
 #   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 ##########################################################################
-"""
-===========================
+"""===========================
 Pipeline IDR
 ===========================
 
@@ -43,45 +42,59 @@ Fist stage
 ----------
 
 1) Pre-processing bamfiles
+
 Bamfiles are filtered prior to peak-calling. With the option to remove
-non-uniquely mapping reads, remove duplicates, and mask genomic regions in a
-specified bedfile.
-Bamfiles are variously pooled by EXPERIMENT (tissue-condition-agg )and split,
-to provide pseudoreplicates of individual samples and pooled-pseudoreplicates.
+non-uniquely mapping reads, remove duplicates, and mask genomic
+regions in a specified bedfile.  Bamfiles are variously pooled by
+EXPERIMENT (tissue-condition-agg )and split, to provide
+pseudoreplicates of individual samples and pooled-pseudoreplicates.
 
 2) Peak calling is carried out using SPP on three sets of samples:
-i) individual samples, ii) pseudoreplicates, and iii) pooled-pseudoreplicates.
-Three options exist for using control files in peak-calling:
-i) All peak calling may be carried out against a single control per experiment,
-in which case the control must be labelled <tissue>-<control>-R1.
-ii) Peaks may be called against pooled control files for each EXPERIMENT (as
-recommended for IDR) in which case all three peak-calling steps will be carried
-out using pooled controls labelled <tissue>-<condition>-R0.
-iii) Peak calling for individual samples may be carried out using controls
-matched by replicate. In which case peak calling for pseudoreplicates will be
-carried out against the same control (i.e. pseudoreplication of the control
-file does not take place), and peak calling for the pooled pseudoreplicates is
-carried out against a pooled control.
-Peakcalling for IDR is necessarily lax and the option exists to specify the
-number of peaks called using either -npeaks or -fdr. (It may be necessary to
-use a customized version of run_spp.R for one or other of these options,
-depending on which version of SPP is being run, this option is also provided.)
 
-3) IDR analysis is carried out using WrapperIDR (which us a python wrapper for
-batch-consistency-analysis.r) for i) all pairwise comparisons of individual
-replicates within an EXPERIMENT, ii) pairs of psuedoreplicates for each sample,
-and iii) paired pooled pseudoreplicates for each EXPERIMENT. These steps
-provide IDR analysis on origanl replicates, IDR analysis on self-
-pseudoreplicates, and IDR analysis on pooled-pseudoreplicates, respectively.
+i) individual samples, ii) pseudoreplicates, and iii)
+pooled-pseudoreplicates.
+
+Three options exist for using control files in peak-calling:
+
+i) All peak calling may be carried out against a single control per
+experiment, in which case the control must be labelled
+<tissue>-<control>-R1.
+
+ii) Peaks may be called against pooled control files for each
+EXPERIMENT (as recommended for IDR) in which case all three
+peak-calling steps will be carried out using pooled controls labelled
+<tissue>-<condition>-R0.
+
+iii) Peak calling for individual samples may be carried out using
+controls matched by replicate. In which case peak calling for
+pseudoreplicates will be carried out against the same control
+(i.e. pseudoreplication of the control file does not take place), and
+peak calling for the pooled pseudoreplicates is carried out against a
+pooled control.
+
+Peakcalling for IDR is necessarily lax and the option exists to
+specify the number of peaks called using either -npeaks or -fdr. (It
+may be necessary to use a customized version of run_spp.R for one or
+other of these options, depending on which version of SPP is being
+run, this option is also provided.)
+
+3) IDR analysis is carried out using WrapperIDR (which us a python
+wrapper for batch-consistency-analysis.r) for i) all pairwise
+comparisons of individual replicates within an EXPERIMENT, ii) pairs
+of psuedoreplicates for each sample, and iii) paired pooled
+pseudoreplicates for each EXPERIMENT. These steps provide IDR analysis
+on origanl replicates, IDR analysis on self- pseudoreplicates, and IDR
+analysis on pooled-pseudoreplicates, respectively.
 
 Second stage
 ------------
 
-4) Following IDR analysis, a second stage of the pipeline (generatePeakSets)
-may be run. Libraries that fail in terms of 'max_numPeaks_Rep' or
-'self-consistency' may be specified for exclusion in the config file.
-Subsequently, all non-excluded bamfiles are pooled per EXPERIMENT so that both
-a conservative peak set and optimal peak set may be derived.
+4) Following IDR analysis, a second stage of the pipeline
+(generatePeakSets) may be run. Libraries that fail in terms of
+'max_numPeaks_Rep' or 'self-consistency' may be specified for
+exclusion in the config file.  Subsequently, all non-excluded bamfiles
+are pooled per EXPERIMENT so that both a conservative peak set and
+optimal peak set may be derived.
 
 
 Usage
@@ -164,16 +177,13 @@ import shutil
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import CGATPipelines.PipelineUtilities as PU
+import CGAT.Database as Database
+
 import CGATPipelines.PipelineIDR as IDR
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
-##########################################################################
-##########################################################################
-##########################################################################
+
 # Pipeline configuration
-##########################################################################
-# load options from the config file
 P.getParameters(
     ["%s/pipeline.ini" % __file__[:-len(".py")],
      "../pipeline.ini",
@@ -184,10 +194,8 @@ PARAMS_ANNOTATIONS = P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py")
 
-##########################################################################
-##########################################################################
+
 # Helper functions mapping tracks to conditions, etc
-##########################################################################
 Sample = PipelineTracks.AutoSample
 
 # define tracks based on all samples in .bamfile that are not input or index
@@ -218,10 +226,6 @@ def get_peak_caller_parameters(peak_caller_id):
 
     return caller_parameters
 
-##########################################################################
-##########################################################################
-##########################################################################
-
 
 def connect():
     '''connect to database.
@@ -231,7 +235,7 @@ def connect():
     Returns a database connection.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -240,13 +244,8 @@ def connect():
 
     return dbh
 
-##########################################################################
-##########################################################################
-##########################################################################
+
 # Process Bamfiles
-##########################################################################
-
-
 @follows(mkdir("bamfiles_filtered"))
 @transform(os.path.join(PARAMS["location_bamfiles"], "*.bam"),
            regex("(.+)/(.+).bam"),
@@ -888,10 +887,10 @@ def callPeaksOnPooledReplicates(infile, outfile):
          loadNPeaksForPooledPseudoreplicates,
          mkdir("peakfiles_final_conservative"),
          mkdir("peakfiles_final_optimum"))
-@split("./peakfiles_final/*.narrowPeak.gz",
-       regex("(.+)/(.+)-R0_VS_(.+)-R0_peaks.narrowPeak.gz"),
-       [r"peakfiles_final_conservative/\2.narrowPeak.gz",
-        r"peakfiles_final_optimum/\2.narrowPeak.gz"])
+@transform("./peakfiles_final/*.narrowPeak.gz",
+           regex("(.+)/(.+)-R0_VS_(.+)-R0_peaks.narrowPeak.gz"),
+           [r"peakfiles_final_conservative/\2.narrowPeak.gz",
+            r"peakfiles_final_optimum/\2.narrowPeak.gz"])
 def generatePeakSets(infile, outfiles):
     outf_con, outf_opt = outfiles
 
@@ -902,7 +901,7 @@ def generatePeakSets(infile, outfiles):
                  " max(n_peaks) AS nPeaks"
                  " FROM individual_replicates_nPeaks"
                  " GROUP BY experiment")
-    df = PU.fetch_DataFrame(statement)
+    df = Database.fetch_DataFrame(statement)
     # reassign experiment as index
     df = df.set_index("Experiment")
 
@@ -912,7 +911,7 @@ def generatePeakSets(infile, outfiles):
                  " Experiment,"
                  " n_peaks AS nPeaks"
                  " FROM pooled_pseudoreplicates_nPeaks")
-    df2 = PU.fetch_DataFrame(statement)
+    df2 = Database.fetch_DataFrame(statement)
 
     # reassign experiment as index
     df2 = df2.set_index("Experiment")

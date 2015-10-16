@@ -330,7 +330,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -593,7 +593,7 @@ def buildReferenceGeneSet(infile, outfile):
     statement = '''
     cuffcompare -r <( gunzip < %(tmpfilename)s )
          -T
-         -s %(bowtie_index_dir)s/%(genome)s.fa
+         -s %(genome_dir)s/%(genome)s.fa
          -o %(tmpfilename2)s
          <( gunzip < %(tmpfilename)s )
          <( gunzip < %(tmpfilename)s )
@@ -717,10 +717,28 @@ def buildReferenceGeneSetWithCDS(infile, outfile):
 #########################################################################
 
 
+@originate("protein_coding_gene_ids.tsv")
+def identifyProteinCodingGenes(outfile):
+    dbh = connect()
+    table = os.path.basename(PARAMS_ANNOTATIONS["interface_table_gene_info"])
+
+    try:
+        select = dbh.execute("""SELECT DISTINCT gene_id FROM %(table)s
+        WHERE gene_biotype = 'protein_coding';""" % locals())
+    except sqlite3.OperationalError as error:
+        E.critical("sqlite3 cannot find table or gene_biotype column. "
+                   "Error message: '%s'" % error)
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("gene_id\n")
+        outf.write("\n".join((x[0] for x in select)) + "\n")
+
+
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
-def buildCodingGeneSet(infile, outfile):
+def buildCodingGeneSet(infiles, outfile):
     '''build a gene set with only protein coding transcripts.
 
     Genes are selected via their gene biotype in the GTF file.
@@ -730,11 +748,14 @@ def buildCodingGeneSet(infile, outfile):
     This set includes UTR and CDS.
     '''
 
+    infile, gene_tsv = infiles
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
-    --filter-method=proteincoding
+    --filter-method=gene
+    --map-tsv-file=%(gene_tsv)s
     --log=%(outfile)s.log
     | gzip > %(outfile)s
     '''
@@ -779,10 +800,12 @@ def buildCodingTranscriptSet(infile, outfile):
 
 # Nick - added building of a mask file for omitting certain regions during
 # gene model building
+# Tom - this needs updating for ensembl >v79 GTFs
+# (no longer contain "rRNA" in source")
 
 
 @files(os.path.join(PARAMS["annotations_dir"],
-                    "geneset_all.gtf.gz"),
+                    PARAMS_ANNOTATIONS["interface_geneset_all_gtf"]),
        "geneset_mask.gtf")
 def buildMaskGtf(infile, outfile):
     '''
@@ -836,7 +859,7 @@ def buildTranscriptsWithCufflinks(infiles, outfile):
 
     # note: cufflinks adds \0 bytes to gtf file - replace with '.'
     genome_file = os.path.abspath(
-        os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"] + ".fa"))
+        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
 
     options = PARAMS["cufflinks_options"]
 
@@ -910,7 +933,7 @@ def runCuffCompare(infiles, outfile, reffile):
     cmd_extract = "; ".join(
         ["gunzip < %s > %s/%s" % (x, tmpdir, x) for x in infiles])
 
-    genome = os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"]) + ".fa"
+    genome = os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fa"
     genome = os.path.abspath(genome)
 
     # note: cuffcompare adds \0 bytes to gtf file - replace with '.'
@@ -943,7 +966,7 @@ def runCuffCompare(infiles, outfile, reffile):
             try:
                 P.run()
                 break
-            except P.PipelineError, msg:
+            except:
                 E.warn("caught exception - trying again")
     else:
         inf = " ".join(["%s/%s" % (tmpdir, x) for x in infiles])
@@ -1002,7 +1025,7 @@ def mergeUsingCuffmerge(infiles, outfile):
 
     tmp2 = P.getTempFilename(".")
 
-    genome = os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"]) + ".fa"
+    genome = os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fa"
     genome = os.path.abspath(genome)
     job_threads = PARAMS["cufflinks_threads"]
 
@@ -1097,7 +1120,7 @@ def loadTranscriptComparison(infile, outfile):
             for contig, v in vv.iteritems():
                 if v.is_empty:
                     continue
-                outf.write("%s\t%s\t%s\n" % (P.quote(track), contig, str(v)))
+                outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
 
         outf.close()
 
@@ -1169,7 +1192,7 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1376,7 +1399,7 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1525,9 +1548,9 @@ def buildPrunedGeneSet(infiles, outfile):
     keep_gtf = outfile
     remove_gtf = "removed.gtf.gz"
 
-    tablename = P.quote(P.snip(tracking, ".load") + "_tracking")
+    tablename = P.tablequote(P.snip(tracking, ".load") + "_tracking")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     tables = Database.getTables(dbhandle)
     if tablename in tables:
         cc = dbhandle.cursor()
@@ -1571,22 +1594,23 @@ def buildPrunedGeneSet(infiles, outfile):
                      PARAMS_ANNOTATIONS["interface_repeats_gff"])),
        "novel.gtf.gz")
 def buildNovelGeneSet(infiles, outfile):
-    '''build a gene set of novel genes by merging the ab-initio gene set and
-    the reference gene set.
+    '''build a gene set of novel genes by merging the ab-initio gene set
+    and the reference gene set.
 
-    Ab-initio transcripts are removed based on features in the reference gene
-    set.
+    Ab-initio transcripts are removed based on features in the
+    reference gene set.
 
-    Removal is aggressive  - as soon as one transcript of a
-    gene/locus overlaps, all transcripts of that gene/locus are gone.
+    Removal is aggressive - as soon as one transcript of a gene/locus
+    overlaps, all transcripts of that gene/locus are gone.
 
-    Transcripts that lie exclusively in repetetive sequence are removed, too.
+    Transcripts that lie exclusively in repetetive sequence are
+    removed, too.
 
-    The resultant set contains a number of novel transcripts. However, these
-    transcripts will still overlap some known genomic features like
-    pseudogenes.
+    The resultant set contains a number of novel transcripts. However,
+    these transcripts will still overlap some known genomic features
+    like pseudogenes.
 
-     '''
+    '''
 
     abinitio_gtf, reference_gtf, repeats_gff = infiles
 
@@ -1597,8 +1621,9 @@ def buildNovelGeneSet(infiles, outfile):
     indices = {}
     for section in sections:
         indices[section] = GTF.readAndIndex(
-            GTF.iterator_filtered(GTF.iterator(IOTools.openFile(reference_gtf)),
-                                  source=section),
+            GTF.iterator_filtered(
+                GTF.iterator(IOTools.openFile(reference_gtf)),
+                source=section),
             with_value=False)
 
     E.info("build indices for %i features" % len(indices))
@@ -1609,30 +1634,26 @@ def buildNovelGeneSet(infiles, outfile):
     E.info("build index for repeats")
 
     total_genes, remove_genes = set(), collections.defaultdict(set)
-    inf = GTF.iterator(IOTools.openFile(abinitio_gtf))
-    for gtf in inf:
-        total_genes.add(gtf.gene_id)
-        for section in sections:
-            if indices[section].contains(gtf.contig, gtf.start, gtf.end):
-                remove_genes[gtf.gene_id].add(section)
+    with IOTools.openFile(abinitio_gtf) as inf:
+        for gtf in GTF.iterator(inf):
+            total_genes.add(gtf.gene_id)
+            for section in sections:
+                if indices[section].contains(gtf.contig, gtf.start, gtf.end):
+                    remove_genes[gtf.gene_id].add(section)
 
-        try:
-            for r in repeats.get(gtf.contig, gtf.start, gtf.end):
-                if r[0] <= gtf.start and r[1] >= gtf.end:
-                    remove_genes[gtf.gene_id].add("repeat")
-                    break
-        except KeyError:
-            pass
+            try:
+                for r in repeats.get(gtf.contig, gtf.start, gtf.end):
+                    if r[0] <= gtf.start and r[1] >= gtf.end:
+                        remove_genes[gtf.gene_id].add("repeat")
+                        break
+            except KeyError:
+                pass
 
     E.info("removing %i out of %i genes" %
            (len(remove_genes), len(total_genes)))
 
     PipelineRnaseq.filterAndMergeGTF(
         abinitio_gtf, outfile, remove_genes, merge=True)
-
-#########################################################################
-#########################################################################
-#########################################################################
 
 
 @merge((buildPrunedGeneSet, buildReferenceGeneSet,
@@ -1999,6 +2020,8 @@ def classifyTranscripts(infiles, outfile):
     # IMS: changed to allow different classifiers
     counter = PARAMS['gtf2table_classifier']
 
+    job_memory = "4G"
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2table.py
@@ -2022,6 +2045,7 @@ def classifyTranscriptsCuffcompare(infiles, outfile):
     '''classify transcripts.
     '''
     to_cluster = True
+    job_memory = "4G"
 
     infile, reference = infiles
 
@@ -2131,7 +2155,7 @@ def buildReproducibility(infile, outfile):
 
     replicates = PipelineTracks.getSamplesInTrack(track, TRACKS)
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tablename = "%s_cuffcompare_fpkm" % track.asTable()
     tablename2 = "%s_cuffcompare_tracking" % track.asTable()

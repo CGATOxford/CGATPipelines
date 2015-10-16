@@ -217,7 +217,7 @@ def writeSequencesForIntervals(track,
         raise ValueError(
             "Unknown value passed as order parameter, check your ini file")
 
-    tablename = "%s_intervals" % P.quote(track)
+    tablename = "%s_intervals" % P.tablequote(track)
     statement = '''SELECT contig, start, end, interval_id, peakcenter 
                        FROM %(tablename)s 
                        ''' % locals() + orderby
@@ -327,7 +327,7 @@ def runRegexMotifSearch(infiles, outfile):
 
     controlfile, dbfile = infiles
     if not os.path.exists(controlfile):
-        raise P.PipelineError(
+        raise ValueError(
             "control file %s for %s does not exist" % (controlfile, dbfile))
 
     motifs = []
@@ -383,7 +383,7 @@ def runGLAM2SCAN(infiles, outfile):
     controlfile, dbfile, motiffiles = infiles
     controlfile = dbfile[:-len(".fasta")] + ".controlfasta"
     if not os.path.exists(controlfile):
-        raise P.PipelineError(
+        raise ValueError(
             "control file %s for %s does not exist" % (controlfile, dbfile))
 
     if os.path.exists(outfile):
@@ -408,7 +408,6 @@ def loadGLAM2SCAN(infile, outfile):
     Parse several motif runs and add them to the same
     table.
     '''
-    tablename = outfile[:-len(".load")]
     tmpfile = tempfile.NamedTemporaryFile(delete=False)
     tmpfile.write(
         "motif\tid\tnmatches\tscore\tscores\tncontrols\tmax_controls\n")
@@ -426,7 +425,7 @@ def loadGLAM2SCAN(infile, outfile):
             motif = re.match(
                 ":: motif = (\S+) ::", lines[chunks[chunk]]).groups()[0]
         except AttributeError:
-            raise P.PipelineError(
+            raise ValueError(
                 "parsing error in line '%s'" % lines[chunks[chunk]])
 
         if chunks[chunk] + 1 == chunks[chunk + 1]:
@@ -457,10 +456,10 @@ def loadGLAM2SCAN(infile, outfile):
             scores = [x.score for x in matches]
             score = max(scores)
             # move to genomic coordinates
-            #contig, start, end = re.match( "(\S+):(\d+)..(\d+)", match.id).groups()
-            #start, end = int(start), int(end)
-            #match.start += start
-            #match.end += start
+            # contig, start, end = re.match( "(\S+):(\d+)..(\d+)", match.id).groups()
+            # start, end = int(start), int(end)
+            # match.start += start
+            # match.end += start
             contig = ""
 
             if id not in controls:
@@ -481,20 +480,15 @@ def loadGLAM2SCAN(infile, outfile):
                                          mmax))) + "\n")
 
     tmpfile.close()
-    tmpfilename = tmpfile.name
 
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    -b sqlite
-    --add-index=id
-    --add-index=motif
-    --add-index=id,motif
-    --table=%(tablename)s
-    --map=base_qualities:text
-    < %(tmpfilename)s > %(outfile)s
-    '''
+    P.load(tmpfile.name,
+           outfile,
+           options="--add-index=id "
+           "--add-index=motif "
+           "--add-index=id,motif "
+           "--allow-empty-file "
+           "--map=base_qualities:text")
 
-    P.run()
     os.unlink(tmpfile.name)
 
 
@@ -529,7 +523,7 @@ def loadMAST(infile, outfile):
             motif, part = re.match(
                 ":: motif = (\S+) - (\S+) ::", lines[chunks[chunk]]).groups()
         except AttributeError:
-            raise P.PipelineError(
+            raise ValueError(
                 "parsing error in line '%s'" % lines[chunks[chunk]])
 
         E.info("reading %s - %s" % (motif, part))
@@ -608,21 +602,15 @@ def loadMAST(infile, outfile):
                            ) + "\n")
 
     tmpfile.close()
-    tmpfilename = tmpfile.name
 
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    -b sqlite
-    --add-index=id
-    --add-index=motif
-    --add-index=id,motif
-    --table=%(tablename)s
-    --allow-empty-file
-    --map=base_qualities:text
-    < %(tmpfilename)s > %(outfile)s
-    '''
+    P.load(tmpfile.name,
+           outfile,
+           options="--add-index=id "
+           "--add-index=motif "
+           "--add-index=id,motif "
+           "--allow-empty-file "
+           "--map=base_qualities:text")
 
-    P.run()
     os.unlink(tmpfile.name)
 
 
@@ -664,7 +652,6 @@ def runBioProspector(infiles, outfile, dbhandle):
 def loadBioProspector(infile, outfile):
     '''load results from bioprospector.'''
 
-    tablename = outfile[:-len(".load")]
     target_path = os.path.join(
         os.path.abspath(PARAMS["exportdir"]), "bioprospector")
 
@@ -710,25 +697,18 @@ def loadBioProspector(infile, outfile):
                            strand,
                            arrangement))
     tmpfile.close()
-    tmpfilename = tmpfile.name
 
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --allow-empty-file
-    -b sqlite
-    --add-index=id
-    --add-index=motif
-    --add-index=id,motif
-    --table=%(tablename)s
-    < %(tmpfilename)s > %(outfile)s
-    '''
+    P.load(tmpfile.name,
+           outfile,
+           options="--add-index=id "
+           "--add-index=motif "
+           "--add-index=id,motif "
+           "--allow-empty-file "
+           "--map=base_qualities:text")
 
-    P.run()
+    os.unlink(tmpfile.name)
 
 
-############################################################
-############################################################
-############################################################
 def runMAST(infiles, outfile):
     '''run mast on all intervals and motifs.
 
@@ -748,7 +728,7 @@ def runMAST(infiles, outfile):
         return
 
     if not os.path.exists(controlfile):
-        raise P.PipelineError(
+        raise ValueError(
             "control file %s for %s does not exist" % (controlfile, dbfile))
 
     # remove previous results

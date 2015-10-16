@@ -1,14 +1,9 @@
 '''
-PipelineEnrichment.py - 
-======================================================
+PipelineEnrichment.py - Tasks for computing genomic enrichment
+==============================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-Code
-----
+Reference
+---------
 
 '''
 import re
@@ -89,20 +84,14 @@ def buildAnnotatorGC(infile, outfile):
     '''compute G+C regions.'''
 
     statement = '''
-    python %(scriptsdir)s/bed2bed.py 
+    python %(scriptsdir)s/bed2bed.py
         --method=bins
         --num-bins=%(enrichment_gc_bins)s
         --binning-method=%(enrichment_gc_method)s 
-        --log=%(outfile)s.log 
+        --log=%(outfile)s.log
     < %(infile)s > %(outfile)s'''
 
     P.run()
-
-############################################################
-############################################################
-############################################################
-##
-############################################################
 
 
 def buildIsochoresGC(infile, outfile):
@@ -251,7 +240,7 @@ def buildWorkSpace(outfile, workspace):
         > %(outfile)s
         '''
     else:
-        raise P.PipelineError("unknown workspace '%s'" % workspace)
+        raise ValueError("unknown workspace '%s'" % workspace)
 
     P.run()
 
@@ -298,7 +287,7 @@ def buildAnnotatorAnnotations(tmpdir, outfile,
         > %(tmpannotations)s
         '''
     else:
-        raise P.PipelineError("unknown annotations '%s'" % annotations)
+        raise ValueError("unknown annotations '%s'" % annotations)
 
     P.run()
 
@@ -319,7 +308,7 @@ def buildGeneSetAnnotations(infiles, outfile, slice):
     else:
         where = "is_%(slice)s" % locals()
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     subsets = []
 
@@ -557,7 +546,7 @@ def buildAnnotatorSegmentsROI(tmpdir, roi_class, outfile, overlap=None):
     tmpsegments = os.path.join(tmpdir, "segments")
     to_cluster = True
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     if overlap:
         statement = '''

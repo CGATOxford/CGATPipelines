@@ -215,7 +215,7 @@ import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGATPipelines.PipelinePublishing as PipelinePublishing
+import CGATPipelines.PipelineWindows as PipelineWindows
 
 # Pipeline configuration
 P.getParameters(
@@ -227,15 +227,17 @@ P.getParameters(
 
 PARAMS = P.PARAMS
 
+# Add parameters from the annotation pipeline, but
+# only the interface
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
     prefix="annotations_",
-    update_interface=True))
+    update_interface=True,
+    restrict_interface=True))
 
 PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
-PipelinePublishing.PARAMS = PARAMS
 
 # Helper functions mapping tracks to conditions, etc
 # determine the location of the input files (reads).
@@ -268,9 +270,16 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
-    statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
+
+    if not os.path.exists(PARAMS["annotations_database"]):
+        raise ValueError(
+            "can't find database '%s'" %
+            PARAMS["annotations_database"])
+
+    statement = '''ATTACH DATABASE '%s' as annotations''' % \
+                (PARAMS["annotations_database"])
+
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
@@ -329,7 +338,7 @@ def buildReferenceGeneSet(infile, outfile):
     # Add tss_id and p_id
     PipelineMapping.resetGTFAttributes(
         infile=tmp_mergedfiltered,
-        genome=os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"]),
+        genome=os.path.join(PARAMS["genome_dir"], PARAMS["genome"]),
         gene_ids=gene_ids,
         outfile=outfile)
 
@@ -337,13 +346,36 @@ def buildReferenceGeneSet(infile, outfile):
 
 
 @active_if(SPLICED_MAPPING)
+@originate("protein_coding_gene_ids.tsv")
+def identifyProteinCodingGenes(outfile):
+    """output a list of proteing coding gene identifiers."""
+
+    dbh = connect()
+
+    table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
+
+    select = dbh.execute("""SELECT DISTINCT gene_id
+    FROM annotations.%(table)s
+    WHERE gene_biotype = 'protein_coding'""" % locals())
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("gene_id\n")
+        outf.write("\n".join((x[0] for x in select)) + "\n")
+
+
+@active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
-def buildCodingGeneSet(infile, outfile):
+def buildCodingGeneSet(infiles, outfile):
     '''build a gene set with only protein coding transcripts.
 
-    Genes are selected via their gene biotype in the GTF file.
+    Genes are no longer selected via their gene biotype in the GTF file.
+
+    Genes are now identified from the annotation database table and then
+    provided in a tsv file to gtf2gtf.py
+
     Note that this set will contain all transcripts of protein
     coding genes, including processed transcripts.
 
@@ -351,11 +383,14 @@ def buildCodingGeneSet(infile, outfile):
 
     '''
 
+    infile, genes_tsv = infiles
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
-    --filter-method=proteincoding
+    --filter-method=gene
+    --map-tsv-file=%(genes_tsv)s
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s
@@ -369,9 +404,11 @@ def buildCodingGeneSet(infile, outfile):
 
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
-@merge(PARAMS["annotations_interface_geneset_flat_gtf"],
-       "geneset.dir/introns.gtf.gz")
-def buildIntronGeneModels(infile, outfile):
+@transform(PARAMS["annotations_interface_geneset_flat_gtf"],
+           regex(".*"),
+           add_inputs(identifyProteinCodingGenes),
+           "geneset.dir/introns.gtf.gz")
+def buildIntronGeneModels(infiles, outfile):
     '''build protein-coding intron-transcipts.
 
     Intron-transcripts are the reverse complement of transcripts.
@@ -387,11 +424,13 @@ def buildIntronGeneModels(infile, outfile):
 
     filename_exons = PARAMS["annotations_interface_geneset_exons_gtf"]
 
+    infile, genes_tsv = infiles
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter
-    --filter-method=proteincoding
+    --map-tsv-file=%(genes_tsv)s
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort
@@ -408,7 +447,7 @@ def buildIntronGeneModels(infile, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=set-transcript-to-gene
     --log=%(outfile)s.log
-    | perl -p -e 's/intron/exon/'
+    | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
     | gzip
     > %(outfile)s
     '''
@@ -440,7 +479,7 @@ def buildCodingExons(infile, outfile):
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
-    | perl -p -e "s/CDS/exon/"
+    | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
     | python %(scriptsdir)s/gtf2gtf.py
     --method=merge-exons
     --log=%(outfile)s.log
@@ -466,7 +505,7 @@ def buildReferenceTranscriptome(infile, outfile):
     gtf_file = P.snip(infile, ".gz")
 
     genome_file = os.path.abspath(
-        os.path.join(PARAMS["bowtie_index_dir"], PARAMS["genome"] + ".fa"))
+        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
 
     statement = '''
     zcat %(infile)s
@@ -637,9 +676,9 @@ def mapReadsWithTophat(infiles, outfile):
     if "--butterfly-search" in PARAMS["tophat_options"]:
         # for butterfly search - require insane amount of
         # RAM.
-        job_options = " -l mem_free=50G"
+        job_memory = "50G"
     else:
-        job_options = " -l mem_free=%s" % PARAMS["tophat_memory"]
+        job_memory = PARAMS["tophat_memory"]
 
     m = PipelineMapping.Tophat(
         executable=P.substituteParameters(**locals())["tophat_executable"],
@@ -683,16 +722,16 @@ def mapReadsWithTophat2(infiles, outfile):
     if "--butterfly-search" in PARAMS["tophat2_options"]:
         # for butterfly search - require insane amount of
         # RAM.
-        job_options = " -l mem_free=50G"
+        job_memory = "50G"
     else:
-        job_options = " -l mem_free=%s" % PARAMS["tophat2_memory"]
+        job_memory = PARAMS["tophat2_memory"]
 
     m = PipelineMapping.Tophat2(
         executable=P.substituteParameters(**locals())["tophat2_executable"],
         strip_sequence=PARAMS["strip_sequence"])
+
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + \
-        " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = PARAMS["tophat2_options"] + " --raw-juncs %(reffile)s " % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -729,8 +768,7 @@ def mapReadsWithHisat(infiles, outfile):
 
     '''
     job_threads = PARAMS["hisat_threads"]
-
-    job_options = " -l mem_free=%s" % PARAMS["hisat_memory"]
+    job_memory = PARAMS["hisat_memory"]
 
     m = PipelineMapping.Hisat(
         executable=P.substituteParameters(**locals())["hisat_executable"],
@@ -799,7 +837,7 @@ def buildTophatStats(infiles, outfile):
             if len(lines) > 0:
                 segment_juncs_version = _select(lines, "segment_juncs (.*)$")
                 possible_splices = int(
-                    _select(lines, "Reported (\d+) total possible splices"))
+                    _select(lines, "Reported (\d+) total potential splices"))
             else:
                 segment_juncs_version = "na"
                 possible_splices = ""
@@ -841,7 +879,7 @@ def mapReadsWithGSNAP(infiles, outfile):
 
     infile, infile_splices = infiles
 
-    job_options = "-l mem_free=%s" % PARAMS["gsnap_memory"]
+    job_memory = PARAMS["gsnap_memory"]
     job_threads = PARAMS["gsnap_node_threads"]
     gsnap_mapping_genome = PARAMS["gsnap_genome"] or PARAMS["genome"]
 
@@ -856,10 +894,6 @@ def mapReadsWithGSNAP(infiles, outfile):
     statement = m.build((infile,), outfile)
     P.run()
 
-############################################################
-############################################################
-############################################################
-
 
 @active_if(SPLICED_MAPPING)
 @follows(mkdir("star.dir"))
@@ -872,7 +906,7 @@ def mapReadsWithSTAR(infile, outfile):
     '''
 
     job_threads = PARAMS["star_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["star_memory"]
+    job_memory = PARAMS["star_memory"]
 
     star_mapping_genome = PARAMS["star_genome"] or PARAMS["genome"]
 
@@ -882,10 +916,6 @@ def mapReadsWithSTAR(infile, outfile):
 
     statement = m.build((infile,), outfile)
     P.run()
-
-############################################################
-############################################################
-############################################################
 
 
 @active_if(SPLICED_MAPPING)
@@ -955,12 +985,6 @@ def mapReadsWithBowtieAgainstTranscriptome(infiles, outfile):
     statement = m.build((infile,), outfile)
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
-# Map reads with bowtie
-###################################################################
-
 
 @follows(mkdir("bowtie.dir"))
 @transform(SEQUENCEFILES,
@@ -973,20 +997,37 @@ def mapReadsWithBowtie(infiles, outfile):
     '''map reads with bowtie. For bowtie2 set executable apppropriately.'''
 
     job_threads = PARAMS["bowtie_threads"]
+    job_memory = PARAMS["bowtie_memory"]
+
     m = PipelineMapping.Bowtie(
         executable=P.substituteParameters(**locals())["bowtie_executable"],
+        tool_options=P.substituteParameters(**locals())["bowtie_options"],
         strip_sequence=PARAMS["strip_sequence"])
     infile, reffile = infiles
-    # IMS remove reporting options to the ini
-    # bowtie_options = "%s --best --strata -a" % PARAMS["bowtie_options"]
     statement = m.build((infile,), outfile)
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
-# Map reads with bwa
-###################################################################
+
+@follows(mkdir("bowtie2.dir"))
+@transform(SEQUENCEFILES,
+           SEQUENCEFILES_REGEX,
+           add_inputs(
+               os.path.join(PARAMS["bowtie_index_dir"],
+                            PARAMS["genome"] + ".fa")),
+           r"bowtie2.dir/\1.bowtie2.bam")
+def mapReadsWithBowtie2(infiles, outfile):
+    '''map reads with bowtie. For bowtie2 set executable apppropriately.'''
+
+    job_threads = PARAMS["bowtie2_threads"]
+    job_memory = PARAMS["bowtie2_memory"]
+
+    m = PipelineMapping.Bowtie2(
+        executable=P.substituteParameters(**locals())["bowtie2_executable"],
+        tool_options=P.substituteParameters(**locals())["bowtie2_options"],
+        strip_sequence=PARAMS["strip_sequence"])
+    infile, reffile = infiles
+    statement = m.build((infile,), outfile)
+    P.run()
 
 
 @follows(mkdir("bwa.dir"))
@@ -997,27 +1038,23 @@ def mapReadsWithBWA(infile, outfile):
     '''map reads with bwa'''
 
     job_threads = PARAMS["bwa_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["bwa_memory"]
+    job_memory = PARAMS["bwa_memory"]
 
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
             remove_non_unique=PARAMS["remove_non_unique"],
-            strip_sequence=PARAMS["strip_sequence"])
+            strip_sequence=PARAMS["strip_sequence"],
+            set_nh=PARAMS["bwa_set_nh"])
     elif PARAMS["bwa_algorithm"] == "mem":
         m = PipelineMapping.BWAMEM(
             remove_non_unique=PARAMS["remove_non_unique"],
-            strip_sequence=PARAMS["strip_sequence"])
+            strip_sequence=PARAMS["strip_sequence"],
+            set_nh=PARAMS["bwa_set_nh"])
     else:
         raise ValueError("bwa algorithm '%s' not known" % algorithm)
 
     statement = m.build((infile,), outfile)
     P.run()
-
-###################################################################
-###################################################################
-###################################################################
-# Map reads with stampy
-###################################################################
 
 
 @follows(mkdir("stampy.dir"))
@@ -1028,7 +1065,8 @@ def mapReadsWithStampy(infile, outfile):
     '''map reads with stampy'''
 
     job_threads = PARAMS["stampy_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["stampy_memory"]
+    job_memory = PARAMS["stampy_memory"]
+
     m = PipelineMapping.Stampy(strip_sequence=PARAMS["strip_sequence"])
     statement = m.build((infile,), outfile)
     P.run()
@@ -1046,7 +1084,7 @@ def mapReadsWithStampy(infile, outfile):
            r"butter.dir/\1.butter.bam")
 def mapReadsWithButter(infile, outfile):
     '''map reads with butter'''
-    # easier to check whether infiles arepaired reads here
+    # easier to check whether infiles are paired reads here
     if infile.endswith(".sra"):
         outdir = P.getTempDir()
         f = Sra.sneak(infile, outdir)
@@ -1059,9 +1097,12 @@ def mapReadsWithButter(infile, outfile):
         Butter does not support paired end reads''' % locals())
 
     job_threads = PARAMS["butter_threads"]
-    job_options = "-l mem_free=%s" % PARAMS["butter_memory"]
-    m = PipelineMapping.Butter(strip_sequence=PARAMS["strip_sequence"])
-    statement = m.build((infile,), outfile)
+    job_memory = PARAMS["butter_memory"]
+
+    m = PipelineMapping.Butter(
+        strip_sequence=PARAMS["strip_sequence"],
+        set_nh=PARAMS["butter_set_nh"])
+
     P.run()
 
 ###################################################################
@@ -1074,6 +1115,7 @@ MAPPINGTARGETS = []
 mapToMappingTargets = {'tophat': (mapReadsWithTophat, loadTophatStats),
                        'tophat2': (mapReadsWithTophat2,),
                        'bowtie': (mapReadsWithBowtie,),
+                       'bowtie2': (mapReadsWithBowtie2,),
                        'bwa': (mapReadsWithBWA,),
                        'stampy': (mapReadsWithStampy,),
                        'transcriptome':
@@ -1092,14 +1134,12 @@ for x in P.asList(PARAMS["mappers"]):
 def mapping():
     pass
 
-###################################################################
-###################################################################
-###################################################################
+
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
     if "merge_pattern_output" not in PARAMS or \
        not PARAMS["merge_pattern_output"]:
         raise ValueError(
-            "no output pattern 'merge_pattern_output' specificied")
+            "no output pattern 'merge_pattern_output' specified")
 
     @collate(MAPPINGTARGETS,
              regex("%s\.([^.]+).bam" % PARAMS["merge_pattern_input"].strip()),
@@ -1125,8 +1165,7 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
         '''
         P.run()
 
-    # add to bam files produced
-    MAPPINGTARGETS.append(mergeBAMFiles)
+    MAPPINGTARGETS = MAPPINGTARGETS + [mergeBAMFiles]
 
     @collate(countReads,
              regex("%s.nreads" % PARAMS["merge_pattern_input"]),
@@ -1150,6 +1189,11 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
 
 else:
     @follows(countReads)
+    @transform(SEQUENCEFILES,
+               SEQUENCEFILES_REGEX,
+               r"nreads.dir/\1.nreads")
+    # this decorator for the dummy mergeReadCounts is needed to prevent
+    # rerunning of all downstream functions.
     def mergeReadCounts():
         pass
 
@@ -1159,9 +1203,9 @@ else:
 # QC targets
 ###################################################################
 
-############################################################
-############################################################
-############################################################
+###################################################################
+###################################################################
+###################################################################
 #
 # This is not a pipelined task - remove?
 #
@@ -1187,7 +1231,7 @@ else:
 
 @transform(MAPPINGTARGETS,
            suffix(".bam"),
-           add_inputs(os.path.join(PARAMS["bowtie_index_dir"],
+           add_inputs(os.path.join(PARAMS["genome_dir"],
                                    PARAMS["genome"] + ".fa")),
            ".picard_stats")
 def buildPicardStats(infiles, outfile):
@@ -1238,35 +1282,7 @@ def loadPicardDuplicationStats(infiles, outfiles):
     # separate load function while testing
     PipelineMappingQC.loadPicardDuplicationStats(infiles, outfiles)
 
-# ############################################################
-# ############################################################
-# ############################################################
-# @merge( buildBAMs, "mapping_stats.load" )
-# def loadMappingStats( infiles, outfile ):
 
-#     header = ",".join( [P.snip( x, ".bam") for x in infiles] )
-#     filenames = " ".join( [ "%s.tsv" % x for x in infiles ] )
-#     tablename = P.toTable( outfile )
-
-#     statement = """python %(scriptsdir)s/combine_tables.py
-#                       --header-names=%(header)s
-#                       --missing-value=0
-#                       --ignore-empty
-#                    %(filenames)s
-#                 | perl -p -e "s/bin/track/"
-#                 | perl -p -e "s/unique/unique_alignments/"
-#                 | python %(scriptsdir)s/table2table.py --transpose
-#                 | python %(scriptsdir)s/csv2db.py
-#                       --add-index=track
-#                       --table=%(tablename)s
-#                 > %(outfile)s
-#             """
-#     P.run()
-
-
-############################################################
-############################################################
-############################################################
 @follows(countReads, mergeReadCounts)
 @transform(MAPPINGTARGETS,
            regex("(.*)/(.*)\.(.*).bam"),
@@ -1278,7 +1294,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_options = "-l mem_free=12G"
+    job_memory = "16G"
 
     bamfile, readsfile = infiles
 
@@ -1318,7 +1334,6 @@ def buildBAMStats(infiles, outfile):
 @merge(buildBAMStats, "bam_stats.load")
 def loadBAMStats(infiles, outfile):
     '''import bam statisticis.'''
-
     PipelineMappingQC.loadBAMStats(infiles, outfile)
 
 
@@ -1326,7 +1341,7 @@ def loadBAMStats(infiles, outfile):
            suffix(".bam"),
            add_inputs(
                PARAMS["annotations_interface_genomic_context_bed"]),
-           ".contextstats")
+           ".contextstats.tsv.gz")
 def buildContextStats(infiles, outfile):
     '''build mapping context stats.
 
@@ -1337,20 +1352,8 @@ def buildContextStats(infiles, outfile):
     contexts might be dropped.
 
     '''
-
-    infile, reffile = infiles
-
-    min_overlap = 0.5
-    job_options = "-l mem_free=4G"
-    statement = '''
-       python %(scriptsdir)s/bam_vs_bed.py
-              --min-overlap=%(min_overlap)f
-              --log=%(outfile)s.log
-              %(infile)s %(reffile)s
-       > %(outfile)s
-       '''
-
-    P.run()
+    PipelineWindows.summarizeTagsWithinContext(
+        infiles[0], infiles[1], outfile)
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
@@ -1359,36 +1362,7 @@ def buildContextStats(infiles, outfile):
 def loadContextStats(infiles, outfile):
     """
     load context mapping statistics."""
-
-    header = ",".join([os.path.basename(P.snip(x, ".contextstats"))
-                      for x in infiles])
-    filenames = " ".join(infiles)
-    tablename = P.toTable(outfile)
-
-    statement = """python %(scriptsdir)s/combine_tables.py
-                      --header-names=%(header)s
-                      --missing-value=0
-                      --skip-titles
-                   %(filenames)s
-                | perl -p -e "s/(bin|category)/track/; s/\?/Q/g"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
-                      --add-index=track
-                      --table=%(tablename)s
-                > %(outfile)s
-                """
-    P.run()
-
-    dbhandle = sqlite3.connect(PARAMS["database"])
-
-# The following is not necessary any more as context stats now also outputs a "total" column
-#    cc = Database.execute
-#    statement = '''UPDATE %(tablename)s SET mapped =
-#                                       (SELECT b.alignments_mapped FROM bam_stats AS b
-#                                            WHERE %(tablename)s.track = b.track)''' % locals()#
-#
-#    cc = Database.executewait( dbhandle, statement )
-#    dbhandle.commit()
+    PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 ###################################################################
 ###################################################################
@@ -1436,20 +1410,10 @@ def loadExonValidation(infiles, outfile):
 
 
 @active_if(SPLICED_MAPPING)
-@split(buildCodingGeneSet,
-       "geneset.dir/refcoding.*.gtf.gz")
-def splitCodingGeneSetByChr(infile, outfiles):
-    '''split coding geneset by chromosome to allow parallel
-    read counting '''
-
-    PipelineMapping.splitGeneSet(infile)
-
-
-@active_if(SPLICED_MAPPING)
-@split(MAPPINGTARGETS,
-       regex("(.+).bam"),
-       add_inputs(splitCodingGeneSetByChr),
-       r"\1.*.transcript_counts.tsv.gz")
+@transform(MAPPINGTARGETS,
+           regex("(.+).bam"),
+           add_inputs(buildCodingGeneSet),
+           r"\1.transcript_counts.tsv.gz")
 def buildTranscriptLevelReadCounts(infiles, outfile):
     '''count reads falling into transcripts of protein coding
        gene models.
@@ -1460,61 +1424,37 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
        counts.
 
     '''
-    infile, genesets = infiles[0], infiles[1:]
+    infile, geneset = infiles
 
-    statements = []
-    job_options = "-l mem_free=4G"
-    for geneset in genesets:
-        chrom = re.match(
-            "geneset.dir/refcoding\.(.+)\.gtf.gz", geneset).groups()[0]
-        bam = P.snip(infile, ".bam")
-        outfile = "%s.%s.transcript_counts.tsv.gz" % (bam, chrom)
+    job_memory = "8G"
 
-        statement = '''
-               zcat %(geneset)s
-             | python %%(scriptsdir)s/gtf2table.py
-               --reporter=transcripts
-               --bam-file=%(infile)s
-               --counter=length
-               --column-prefix="exons_"
-               --counter=read-counts
-               --column-prefix=""
-               --counter=read-coverage
-               --column-prefix=coverage_
-               -v 0
-            | gzip
-        > %(outfile)s
-        ''' % locals()
-        statements.append(statement)
+    statement = '''
+    zcat %(geneset)s
+    | python %%(scriptsdir)s/gtf2table.py
+    --reporter=transcripts
+    --bam-file=%(infile)s
+    --counter=length
+    --column-prefix="exons_"
+    --counter=read-counts
+    --column-prefix=""
+    --counter=read-coverage
+    --column-prefix=coverage_
+    -v 0
+    | gzip
+    > %(outfile)s
+    ''' % locals()
 
-    P.run()
-
-
-@active_if(SPLICED_MAPPING)
-@collate(buildTranscriptLevelReadCounts,
-         regex("(.+)\..+\.transcript_counts.tsv.gz"),
-         r"\1.transcript_counts.tsv.gz")
-def collateTranscriptCounts(infiles, outfile):
-    ''' pull together the transcript counts over each chromosome '''
-
-    infiles = " ".join(infiles)
-    statement = '''python %(scriptsdir)s/combine_tables.py
-                                      --cat
-                                      --log=%(outfile)s.log
-                                      %(infiles)s
-                  | cut -f1 --complement
-                  | gzip
-                  > %(outfile)s '''
     P.run()
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
-@transform(collateTranscriptCounts,
+@transform(buildTranscriptLevelReadCounts,
            suffix(".tsv.gz"),
            ".load")
 def loadTranscriptLevelReadCounts(infile, outfile):
-    P.load(infile, outfile, options="--add-index=transcript_id --allow-empty-file")
+    P.load(infile, outfile,
+           options="--add-index=transcript_id --allow-empty-file")
 
 
 @active_if(SPLICED_MAPPING)
@@ -1527,6 +1467,8 @@ def buildIntronLevelReadCounts(infiles, outfile):
     '''
 
     infile, exons = infiles
+
+    job_memory = "4G"
 
     if "transcriptome.dir" in infile:
         P.touch(outfile)
@@ -1587,6 +1529,8 @@ def buildTranscriptProfiles(infiles, outfile):
 
     bamfile, gtffile = infiles
 
+    job_memory = "8G"
+
     statement = '''python %(scriptsdir)s/bam2geneprofile.py
     --output-filename-pattern="%(outfile)s.%%s"
     --force-output
@@ -1620,7 +1564,7 @@ def buildBigWig(infile, outfile):
         scale = 1000000.0 / float(reads_mapped)
         tmpfile = P.getTempFilename()
         contig_sizes = PARAMS["annotations_interface_contigs"]
-        job_options = "-l mem_free=3G"
+        job_memory = "3G"
         statement = '''bedtools genomecov
         -ibam %(infile)s
         -g %(contig_sizes)s
@@ -1635,7 +1579,7 @@ def buildBigWig(infile, outfile):
         '''
     else:
         # wigToBigWig observed to use 16G
-        job_options = "-l mem_free=16G"
+        job_memory = "16G"
         statement = '''python %(scriptsdir)s/bam2wiggle.py
         --output-format=bigwig
         %(bigwig_options)s
@@ -1656,7 +1600,9 @@ def loadBigWigStats(infiles, outfile):
     headers = ",".join([P.snip(os.path.basename(x), ".bw")
                         for x in infiles])
 
-    tablename = P.toTable(outfile)
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track")
 
     statement = '''python %(scriptsdir)s/combine_tables.py
     --header-names=%(headers)s
@@ -1666,9 +1612,7 @@ def loadBigWigStats(infiles, outfile):
     %(data)s
     | perl -p -e "s/bin/track/"
     | python %(scriptsdir)s/table2table.py --transpose
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=track
-    --table=%(tablename)s
+    | %(load_statement)s
     > %(outfile)s
     '''
 
@@ -1745,12 +1689,6 @@ def duplication():
 def wig():
     pass
 
-###################################################################
-###################################################################
-###################################################################
-# export targets
-###################################################################
-
 
 @merge((loadBAMStats, loadPicardStats, loadContextStats), "view_mapping.load")
 def createViewMapping(infile, outfile):
@@ -1773,7 +1711,7 @@ def createViewMapping(infile, outfile):
     tables = (("bam_stats", "track", ),
               ("context_stats", "track", ))
 
-    # do not use: ( "picard_stats_alignment_summary_metrics", "track" ), )
+    # do not use: ("picard_stats_alignment_summary_metrics", "track"),)
     # as there are multiple rows per track for paired-ended data.
 
     P.createView(dbh, tables, tablename, outfile, view_type)
@@ -1789,13 +1727,13 @@ def full():
     pass
 
 
-@follows(buildJunctions)
+@follows(buildCodingGeneSet)
 def test():
     pass
 
 
 @follows(mapping)
-def map():
+def map_only():
     pass
 
 
@@ -1828,7 +1766,7 @@ def publish():
     P.publish_report(export_files=export_files)
 
     E.info("publishing UCSC data hub")
-    PipelinePublishing.publish_tracks(export_files)
+    P.publish_tracks(export_files)
 
 
 if __name__ == "__main__":

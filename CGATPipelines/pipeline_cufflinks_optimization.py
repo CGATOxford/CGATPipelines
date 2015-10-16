@@ -39,14 +39,16 @@ specified parameters. It performs the following tasks
 
     * Reduction of input bam files into chr19 only bamfiles
 
-    * Runs the rnaseq transcript building pipeline for all combinations
-      of user specified parameters
+    * Runs the rnaseq transcript building pipeline for all
+      combinations of user specified parameters
 
-    * Collects metrics in a single database csvdb from each run (metrics provided by the transcript
-      building pipeline) and assesses how many reads contribute to transcripts (inc. spliced reads)
+    * Collects metrics in a single database csvdb from each run
+      (metrics provided by the transcript building pipeline) and
+      assesses how many reads contribute to transcripts (inc. spliced
+      reads)
 
-    * It also assesses the ratio of single vs. multi exon transfrags as a measure of overall transcriptome
-      quality.
+    * It also assesses the ratio of single vs. multi exon transfrags
+      as a measure of overall transcriptome quality.
 
 
 Usage
@@ -209,7 +211,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -440,7 +442,10 @@ def filterReferenceGtfForChr19(infile, outfile):
 
 
 @follows(executePipelineRnaseqTranscripts)
-@split([os.path.join(directory, "abinitio_lincrna.gtf.gz") for directory in getDirectoryNames(options_generator(cufflinks_options))], regex(r"(\S+).gtf.gz"), r"\1.*_exon.gtf.gz")
+@transform([os.path.join(directory, "abinitio_lincrna.gtf.gz")
+            for directory in getDirectoryNames(
+                options_generator(cufflinks_options))],
+           regex(r"(\S+).gtf.gz"), r"\1.*_exon.gtf.gz")
 def splitMultiAndSingleExonLincRna(infile, outfiles):
     '''
     pulls out the multi-exonic and the single exonic lincRNA transcripts

@@ -1,4 +1,4 @@
-from SphinxReport.Tracker import *
+from CGATReport.Tracker import *
 from rrbsReport import *
 
 
@@ -23,4 +23,10 @@ class readsRemaining(RrbsTracker):
 class CpGOverlap(RrbsTracker):
     def __call__(self, track, slice=None):
         statement = '''SELECT * FROM coverage_overlap'''
+        return self.getAll(statement)
+
+
+class coveredCpGs(RrbsTracker):
+    def __call__(self, track, slice=None):
+        statement = '''SELECT * FROM cpgs_covered_with_means'''
         return self.getAll(statement)

@@ -152,6 +152,9 @@ with, use the files supplied with the Example_ data.
 Input
 -----
 
+
+TS re-write this to described input file format:
+cell-factor-replicate
 Mapped reads
 ++++++++++++
 
@@ -334,9 +337,11 @@ P.getParameters(
 
 PARAMS = P.PARAMS
 
-PARAMS_ANNOTATIONS = P.peekParameters(
+PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py")
+    "pipeline_annotations.py",
+    prefix="annotations_",
+    update_interface=True))
 
 PipelinePeakcalling.PARAMS = PARAMS
 
@@ -462,7 +467,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -507,42 +512,11 @@ def checkInput(infiles, outfile):
             c.found += 1
     E.info(c)
 
-############################################################
-############################################################
-############################################################
 
-
-@files(input is None, "regions.mask")
-def makeMask(infile, outfile):
-    '''Make a mask for filtering reads if required.
-    '''
-    if PARAMS["calling_filter_exons"] or PARAMS["calling_filter_regions"]:
-        regions_to_filter = []
-
-        if PARAMS["calling_filter_exons"]:
-            regions_to_filter += PipelinePeakcalling.getExonLocations(
-                PARAMS["calling_filter_exons"])
-
-        if PARAMS["calling_filter_regions"]:
-            regions_to_filter += Bed.iterator(
-                IOTools.openFile(PARAMS["calling_filter_regions"]))
-
-        fh = IOTools.openFile(outfile, "w")
-
-        for bed in itertools.chain(regions_to_filter):
-            fh.write("%s\n" %
-                     "\t".join(map(str, (bed.contig, bed.start, bed.end))))
-
-        fh.close()
-    else:
-        P.touch(outfile)
-
-
-############################################################
-############################################################
-@transform("*.genome.bam", suffix(".genome.bam"),
-           add_inputs(makeMask), ".prep.bam")
-def prepareBAMForPeakCalling(infiles, outfile):
+@transform("*.genome.bam",
+           suffix(".genome.bam"),
+           ".prep.bam")
+def prepareBAMForPeakCalling(infile, outfile):
     '''Prepare BAM files for peak calling.
 
         - unmapped reads are removed.
@@ -550,33 +524,23 @@ def prepareBAMForPeakCalling(infiles, outfile):
         - if the option "calling_deduplicate" is Picard.MarkDuplicates
             is run to remove duplicate reads
 
-        - reads may be filtered by exon or location
-
-           - to remove reads by exon, the option
-             "calling_filter_exons" should specify a file containing a
-             list of ensembl gene identifiers (one per line)
-
-           - to remove reads by location, the option
-             "calling_filter_regions" should specify a bed file''
+        - reads may be filtered with a black-list of genomic regions.
+             "calling_filter_regions" should specify a bed file.
 
         The resulting bam file has a .prep.bam extension. Merging
         infiles is currently untested and the methods only consider
         single end reads.
 
     '''
-    bam_file, mask_file = infiles
-
-    if PARAMS["calling_filter_exons"] or PARAMS["calling_filter_regions"]:
-        mask = mask_file
+    if PARAMS["calling_filter_regions"]:
+        if not os.path.exists(mask):
+            raise IOError("filter file '%s' does not exist")
+        mask = PARAMS["calling_filter_regions"]
     else:
         mask = None
 
     PipelinePeakcalling.buildBAMforPeakCalling(
-        bam_file, outfile, PARAMS["calling_deduplicate"], mask)
-
-############################################################
-############################################################
-############################################################
+        infile, outfile, PARAMS["calling_deduplicate"], mask)
 
 
 @merge(prepareBAMForPeakCalling, "preparation_stats.load")
@@ -588,9 +552,6 @@ def loadDuplicationStats(infiles, outfile):
                                         suffix=".picard_metrics")
 
 
-############################################################
-############################################################
-############################################################
 if PARAMS["calling_normalize"] is True:
     '''Normalise the number of reads in a set of prepared bam files.
 
@@ -632,9 +593,8 @@ if PARAMS["calling_normalize"] is True:
     @follows(minReads)
     @transform(prepareBAMForPeakCalling,
                regex(r"(.*).prep.bam"),
-               inputs((r"\1.prep.bam", r"\1.prep.count")),
                r"\1.call.bam")
-    def normalizeBAM(infiles, outfile):
+    def normalizeBAM(infile, outfile):
         '''build a normalized BAM file such that all files
         have approximately
         the same number of reads.
@@ -642,9 +602,10 @@ if PARAMS["calling_normalize"] is True:
         fh = IOTools.openFile("minreads")
         minreads = int(fh.read())
         fh.close
-        PipelinePeakcalling.buildSimpleNormalizedBAM(infiles,
-                                                     outfile,
-                                                     minreads)
+        PipelinePeakcalling.buildSimpleNormalizedBAM(
+            infile,
+            outfile,
+            minreads)
 else:
     @transform(prepareBAMForPeakCalling,
                suffix(".prep.bam"),
@@ -666,6 +627,9 @@ else:
 def buildBAMStats(infile, outfile):
     '''count number of reads mapped, duplicates, etc.
     '''
+
+    job_memory = "4G"
+
     statement = '''python
     %(scriptsdir)s/bam2stats.py
          --force-output
@@ -725,7 +689,7 @@ def mergeBackgroundWindows(infiles, outfile):
 
     infiles = " ".join(infiles)
     genomefile = os.path.join(
-        PARAMS["annotations_dir"], PARAMS_ANNOTATIONS['interface_contigs'])
+        PARAMS["annotations_dir"], PARAMS['annotations_interface_contigs'])
     statement = '''
     zcat %(infiles)s
     | bedtools slop -i stdin
@@ -803,7 +767,7 @@ def predictFragmentSize(infile, outfile):
 
     if BamTools.isPaired(infile):
         mode = "PE"
-        mean, std = BamTools.estimateInsertSizeDistribution(infile, 10000)
+        mean, std, n = BamTools.estimateInsertSizeDistribution(infile, 10000)
     else:
         mode = "SE"
         statement = '''macs2 predictd
@@ -920,7 +884,7 @@ def loadMACS(infile, outfile):
            regex(r"(.*)/(.*).macs"),
            add_inputs(os.path.join(
                PARAMS["annotations_dir"],
-               PARAMS_ANNOTATIONS["interface_contigs"])),
+               PARAMS["annotations_interface_contigs"])),
            (os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.treat.bw"),
             os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.control.bw")))
 def cleanMACS(infiles, outfiles):
@@ -993,10 +957,18 @@ def callPeaksWithMACS2(infile, outfile):
     track = P.snip(infile, ".call.bam")
     controls = getControl(Sample(track), suffix=".call.bam")
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
+    contigsfile = os.path.join(PARAMS["annotations_dir"],
+                               PARAMS["annotations_interface_contigs"])
+
+    print "annoatations.dir", PARAMS["annotations_dir"]
+    print "interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"]
+    print "contigsfile: ", contigsfile
+
     PipelinePeakcalling.runMACS2(
         infile,
         outfile,
         controlfile,
+        contigsfile,
         P.isTrue('macs2_force_single_end',
                  **locals()),
         tagsize=getTagSize(track)
@@ -1159,9 +1131,23 @@ def callBroaderPeaksWithSICER(infile, outfile):
            r"\1\2\3\4_\5Sicer.load")
 def loadSICER(infile, outfile):
     '''load sicer results.'''
+
+    # TS. identify original bam file name from infile name
+    # to identify fragment size
+    track = os.path.basename(infile)
+    if "broad" in track:
+        track = P.snip(track, ".broad.sicer")
+    elif "narrow" in track:
+        track = P.snip(track, ".narrow.sicer")
+    else:
+        E.Warn("can't identify bam file for fragment size analysis")
+
     mode = infile.split(".")[1]
     bamfile, controlfile = getBamFiles(infile, "." + mode + ".sicer")
-    PipelinePeakcalling.loadSICER(infile, outfile, bamfile, controlfile, mode)
+
+    PipelinePeakcalling.loadSICER(infile, outfile, bamfile,
+                                  controlfile, mode,
+                                  fragment_size=getFragmentSize(track))
 
 ############################################################
 
@@ -1398,29 +1384,14 @@ def loadSPPSummary(infile, outfile):
 def estimateSPPQualityMetrics(infile, outfile):
     '''estimate ChIP-Seq quality metrics using SPP'''
 
-    job_options = "-l mem_free=4G"
     track = P.snip(infile, ".call.bam")
     controls = getControl(Sample(track))
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
     if controlfile is None:
         raise ValueError("idr analysis requires a control")
 
-    executable = P.which("run_spp.R")
-    if executable is None:
-        raise ValueError("could not find run_spp.R")
-
-    statement = '''
-    Rscript %(executable)s -c=%(infile)s -i=%(controlfile)s -rf \
-           -savp -out=%(outfile)s
-    >& %(outfile)s.log'''
-
-    P.run()
-
-    if os.path.exists(track + ".pdf"):
-        dest = os.path.join(PARAMS["exportdir"], "quality", track + ".pdf")
-        if os.path.exists(dest):
-            os.unlink(dest)
-        shutil.move(track + ".pdf", dest)
+    PipelinePeakcalling.estimateSPPQualityMetrics(
+        infile, track, controlfile, outfile)
 
 
 @merge(estimateSPPQualityMetrics, "spp_quality.load")
@@ -1455,7 +1426,7 @@ def callPeaksWithSPPForIDR(infile, outfile):
     if controlfile is None:
         raise ValueError("idr analysis requires a control")
 
-    executable = P.which("run_spp.R")
+    executable = IOTools.which("run_spp.R")
     if executable is None:
         raise ValueError("could not find run_spp.R")
 
@@ -1482,7 +1453,7 @@ def applyIDR(infiles, outfile):
     job_options = "-l mem_free=4G"
 
     chromosome_table = os.path.join(
-        PARAMS["annotations_dir"], PARAMS_ANNOTATIONS["interface_contigs"])
+        PARAMS["annotations_dir"], PARAMS["annotations_interface_contigs"])
 
     for infile1, infile2 in itertools.combinations(infiles, 2):
         E.info("applyIDR: processing %s and %s" % (infile1, infile2))
@@ -1544,7 +1515,7 @@ def callPeaksWithScripture(infile, outfile):
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
 
     contig_sizes = os.path.join(PARAMS["annotations_dir"],
-                                PARAMS_ANNOTATIONS["interface_contigs"])
+                                PARAMS["annotations_interface_contigs"])
 
     PipelinePeakcalling.runScripture(infile,
                                      outfile,
@@ -1630,16 +1601,17 @@ def exportFilteredIntervalsAsBed(infiles, outfiles):
         "category\tinput\toutput\tremoved_background\tremoved_merged\n")
 
     for category, tablename, outfile in (
-            ('peaks', "%s_peaks" % P.quote(track),
+            ('peaks', "%s_peaks" % P.tablequote(track),
              outfile_peaks),
-            ('regions', "%s_regions" % P.quote(track),
+            ('regions', "%s_regions" % P.tablequote(track),
              outfile_regions),
-            ('summits', "%s_summits" % P.quote(track),
+            ('summits', "%s_summits" % P.tablequote(track),
              outfile_summits)):
         dbh = connect()
         if tablename in Database.getTables(dbh):
             c = PipelinePeakcalling.exportIntervalsAsBed(
                 infile, outfile, tablename,
+                dbh,
                 bedfilter=background_bed,
                 merge=True)
             logfile.write("\t".join(map(str, (
@@ -1685,13 +1657,13 @@ def exportIntervalsAsBed(infile, outfiles):
     track = P.snip(os.path.basename(infile), ".load")
 
     for tablename, outfile in (
-            ("%s_peaks" % P.quote(track), outfile_peaks),
-            ("%s_regions" % P.quote(track), outfile_regions),
-            ("%s_summits" % P.quote(track), outfile_summits)):
+            ("%s_peaks" % P.tablequote(track), outfile_peaks),
+            ("%s_regions" % P.tablequote(track), outfile_regions),
+            ("%s_summits" % P.tablequote(track), outfile_summits)):
         dbh = connect()
         if tablename in Database.getTables(dbh):
             PipelinePeakcalling.exportIntervalsAsBed(
-                infile, outfile, tablename)
+                infile, outfile, tablename, dbh)
         else:
             E.warn("no table %s - empty bed file output" % tablename)
             P.touch(outfile)
@@ -1857,9 +1829,10 @@ def reproducibility():
     pass
 
 
+# TS. removed loadSPPQualityMetrics as run_spp.R cannot be found
+# ValueError("could not find run_spp.R")
 @follows(loadBAMStats,
-         loadDuplicationStats,
-         loadSPPQualityMetrics)
+         loadDuplicationStats)
 def qc():
     pass
 
@@ -1869,17 +1842,6 @@ def qc():
          exportIntervalsAsBed,
          loadFilteredExportSummary)
 def full():
-    pass
-
-
-# avoid running estimateSPPQualityMetrics which throws an error:
-# ValueError("could not find run_spp.R")
-@follows(calling,
-         loadBAMStats,
-         loadDuplicationStats,
-         exportIntervalsAsBed,
-         loadFilteredExportSummary)
-def test():
     pass
 
 

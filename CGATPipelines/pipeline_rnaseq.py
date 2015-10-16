@@ -526,7 +526,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -796,7 +796,7 @@ def buildReferenceGeneSet(infile, outfile):
     statement = '''
     cuffcompare -r <( gunzip < %(tmpfilename)s )
          -T
-         -s %(bowtie_index_dir)s/%(genome)s.fa
+         -s %(genome_dir)s/%(genome)s.fa
          -o %(tmpfilename2)s
          <( gunzip < %(tmpfilename)s )
          <( gunzip < %(tmpfilename)s )
@@ -1305,7 +1305,7 @@ def buildJunctionsDB(infiles, outfile):
     juncs_db %(min_anchor_length)i %(read_length)i
               <( zcat %(outfile_junctions)s )
               /dev/null /dev/null
-              %(bowtie_index_dir)s/%(genome)s.fa
+              %(genome_dir)s/%(genome)s.fa
               > %(outfile)s
               2> %(outfile)s.log
     '''
@@ -1532,7 +1532,7 @@ def buildBAMReports(infile, outfile):
 
     # use a fake X display in order to avoid problems with
     # no X connection on the cluster
-    xvfb_command = P.which("xvfb-run")
+    xvfb_command = IOTools.which("xvfb-run")
 
     # permit multiple servers using -a option
     if xvfb_command:
@@ -1846,7 +1846,7 @@ def loadContextStats(infiles, outfile):
                 """
     P.run()
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     cc = Database.executewait(
         dbhandle, '''ALTER TABLE %(tablename)s ADD COLUMN mapped INTEGER''' % locals())
@@ -2089,7 +2089,7 @@ def runCuffCompare(infiles, outfile, reffile):
         try:
             P.run()
             break
-        except P.PipelineError, msg:
+        except:
             E.warn("caught exception - trying again")
 
     shutil.rmtree(tmpdir)
@@ -2183,7 +2183,7 @@ def loadTranscriptComparison(infile, outfile):
         for contig, v in vv.iteritems():
             if v.is_empty:
                 continue
-            outf.write("%s\t%s\t%s\n" % (P.quote(track), contig, str(v)))
+            outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
     outf.close()
 
     tablename = P.toTable(outfile) + "_benchmark"
@@ -2224,7 +2224,7 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.quote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -2392,10 +2392,10 @@ def buildFullGeneSet(infiles, outfile):
     keep_gtf = outfile
     remove_gtf = "removed.gtf.gz"
 
-    tablename = P.quote(
+    tablename = P.tablequote(
         P.snip(abinitio_gtf, ".gtf.gz") + "_cuffcompare_tracking")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     tables = Database.getTables(dbhandle)
     if tablename in tables:
         cc = dbhandle.cursor()
@@ -2902,7 +2902,7 @@ def buildReproducibility(infile, outfile):
 
     replicates = PipelineTracks.getSamplesInTrack(track, TRACKS)
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tablename = "%s_cuffcompare_fpkm" % track.asTable()
     tablename2 = "%s_cuffcompare_tracking" % track.asTable()
@@ -3197,7 +3197,7 @@ def buildExpressionStats(tables, method, outfile):
     <exportdir>/<method> directory.
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     def togeneset(tablename):
         return re.match("([^_]+)_", tablename).groups()[0]
@@ -3308,7 +3308,7 @@ def buildCuffdiffPlots(infile, outfile):
     ###########################################
     outdir = os.path.join(PARAMS["exportdir"], "cuffdiff")
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     prefix = P.snip(infile, ".load")
 
@@ -3435,10 +3435,10 @@ def buildFPKMGeneLevelTagCounts(infiles, outfile):
 
     # normalize
     results = []
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     for track in tracks:
-        table = "%s_ref_gene_expression" % P.quote(track)
+        table = "%s_ref_gene_expression" % P.tablequote(track)
         statement = "SELECT gene_id, FPKM / %(scale)f FROM %(table)s" % locals()
         results.append(
             dict(Database.executewait(dbhandle, statement).fetchall()))

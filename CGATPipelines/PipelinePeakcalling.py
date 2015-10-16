@@ -1,13 +1,23 @@
-'''PipelinePeakCalling.py - ChIP-Seq tasks associated with calling peaks
-========================================================================
+'''PipelinePeakCalling.py - Tasks associated with pipeline_peakcalling
+======================================================================
 
-def runXXX():
+One set of functions runs peak callers and uploads the called peaks
+into the database. The functions follow the following naming convention:
+
+
+runXXX()
     run a certain peak caller
 
-def loadXXX():
-    load results from peak caller. The minimum information required are:
-        contig, start, end
+loadXXX()
+    load results from peak caller into standardized tables in the database
 
+summarizeXXX()
+    summarize the output from a peak caller, typically by looking at log
+    files or auxiliary files created by the caller.
+
+The minimum information required as output from a peakcaller are ``contig``,
+``start`` and ``end.
+ 
 Requirements:
 
 * samtools >= 1.1
@@ -18,11 +28,14 @@ Requirements:
 * SICER >= 1.1 (optional)
 * peakranger >= 1.16 (optional)
 * BroadPeak >= 1.0 (optional)
-* scripture >= 2.0
+* scripture >= 2.0 (optional)
 
 Currently obsolete:
 
 * spp >= ?
+
+Reference
+---------
 
 '''
 
@@ -54,9 +67,18 @@ import CGAT.WrapperMACS as WrapperMACS
 
 
 def getPeakShiftFromMacs(infile):
-    '''get peak shift for filename infile (.macs output file).
+    '''get peak shift from MACS output.
 
-    returns None if no shift found'''
+    Arguments
+    ---------
+    infile : string
+        Filename, (.macs) file
+
+    Returns
+    -------
+    peakshift : int
+       None if no shift information is found
+    '''
 
     shift = None
     with IOTools.openFile(infile, "r") as ins:
@@ -89,9 +111,17 @@ def getPeakShiftFromMacs(infile):
 
 
 def getPeakShiftFromZinba(infile):
-    '''get peak shift for filename infile (.zinba output file).
+    '''get peak shift from ZINBA output.
 
-    returns None if no shift found
+    Arguments
+    ---------
+    infile : string
+        Filename, (.zinba) file
+
+    Returns
+    -------
+    peakshift : int
+       None if no shift information is found
     '''
 
     shift = None
@@ -111,9 +141,17 @@ def getPeakShiftFromZinba(infile):
 
 
 def getPeakShiftFromSPP(infile):
-    '''get peak shift for filename infile (.spp output file).
+    '''get peak shift from SPP output.
 
-    returns None if no shift found
+    Arguments
+    ---------
+    infile : string
+        Filename, (.spp) file
+
+    Returns
+    -------
+    peakshift : int
+       None if no shift information is found
     '''
 
     shift = None
@@ -130,127 +168,65 @@ def getPeakShiftFromSPP(infile):
     return shift
 
 
-def getPeakShift(track):
-    '''get peak shift for a track or filename.'''
+def getPeakShift(filename):
+    '''get peak shift for a track or filename.
 
-    if track.endswith(".macs"):
-        return getPeakShiftFromMacs(track)
-    elif track.endswith(".zinba"):
-        return getPeakShiftFromZinba(track)
-    elif track.endswith(".spp"):
-        return getPeakShiftFromSPP(track)
-    elif os.path.exists("%s.macs" % track):
-        return getPeakShiftFromMacs("%s.macs" % track)
-    elif os.path.exists("%s.zinba" % track):
-        return getPeakShiftFromZinba("%s.zinba" % track)
-    elif os.path.exists("%s.spp" % track):
-        return getPeakShiftFromSPP("%s.spp" % track)
+    This method examines the extension of filename to
+    identify the peak caller and call the approporiate
+    parser. Alternatively, it will check if a file
+    with one of the known peak caller suffixes is
+    present that starts with ``filename``.
 
+    Arguments
+    ---------
+    filename : string
+         Filename of peak caller output.
+    Returns
+    -------
+    peakshift : int
+       None if no shift information is found
 
-def getMappedReads(infile):
-    '''return number of reads mapped. '''
-    for lines in IOTools.openFile(infile, "r"):
-        data = lines[:-1].split("\t")
-        if data[1].startswith("without duplicates"):
-            return int(data[0])
-    return
-
-
-def getMinimumMappedReads(infiles):
-    '''find the minimum number of mapped reads in infiles.'''
-    v = []
-    for infile in infiles:
-        x = getMappedReads(infile)
-        if x:
-            v.append(x)
-    if len(v) == 0:
-        raise P.PipelineError(
-            "could not find mapped reads in files %s" % (str(infiles)))
-    return min(v)
-
-
-def getExonLocations(filename):
-    '''return a list of exon locations as Bed entries
-    from a file contain a one ensembl gene ID per line
     '''
-    fh = IOTools.openFile(filename, "r")
-    ensembl_ids = []
-    for line in fh:
-        ensembl_ids.append(line.strip())
-    fh.close()
 
-    dbhandle = sqlite3.connect(PARAMS["annotations_database"])
-    cc = dbhandle.cursor()
-
-    gene_ids = []
-    n_ids = 0
-    for ID in ensembl_ids:
-        gene_ids.append('gene_id="%s"' % ID)
-        n_ids += 1
-
-    statement = "select contig,start,end from geneset_cds_gtf where " + \
-        " OR ".join(gene_ids)
-
-    cc.execute(statement)
-
-    region_list = []
-    n_regions = 0
-    for result in cc:
-        b = Bed.Bed()
-        b.contig, b.start, b.end = result
-        region_list.append(b)
-        n_regions += 1
-
-    cc.close()
-
-    E.info("Retrieved exon locations for %i genes. Got %i regions" %
-           (n_ids, n_regions))
-
-    return(region_list)
-
-
-def getBedLocations(filename):
-    '''return a list of regions as (contig,start,end) tuples
-    from a bed file'''
-    fh = open(filename, "r")
-    region_list = []
-    n_regions = 0
-
-    for line in fh:
-        if line.strip() != "" and line[0] != "#":
-            fields = line.split("\t")
-            contig, start, end = fields[0], int(fields[1]), int(fields[2])
-            region_list.append((contig, start, end))
-            n_regions += 1
-
-    fh.close()
-
-    # E.info("Read in %i regions from %s" % ( n_regions, filename) )
-    return (region_list)
-
-
-def buildQuicksectMask(bed_file):
-    '''return Quicksect object containing the regions specified
-       takes a bed file listing the regions to mask
-    '''
-    mask = IndexedGenome.Quicksect()
-
-    n_regions = 0
-    for bed in Bed.iterator(IOTools.openFile(bed_file)):
-        # it is neccessary to extend the region to make an accurate mask
-        mask.add(bed.contig, (bed.start - 1), (bed.end + 1), 1)
-        n_regions += 1
-
-    E.info("Built Quicksect mask for %i regions" % n_regions)
-
-    return(mask)
+    if filename.endswith(".macs"):
+        return getPeakShiftFromMacs(filename)
+    elif filename.endswith(".zinba"):
+        return getPeakShiftFromZinba(filename)
+    elif filename.endswith(".spp"):
+        return getPeakShiftFromSPP(filename)
+    elif os.path.exists("%s.macs" % filename):
+        return getPeakShiftFromMacs("%s.macs" % filename)
+    elif os.path.exists("%s.zinba" % filename):
+        return getPeakShiftFromZinba("%s.zinba" % filename)
+    elif os.path.exists("%s.spp" % filename):
+        return getPeakShiftFromSPP("%s.spp" % filename)
 
 
 def getCounts(contig, start, end, samfiles, offsets=[]):
-    '''count reads per position.
+    '''count number of reads within a genomic interval
 
-    If offsets are given, shift tags by offset / 2 and extend
-    by offset / 2.
+    If offsets are given, tags are shifted by `offset` / 2 and
+    extended by `offset` / 2.
+
+    Arguments
+    ---------
+    contig : string
+        Chromosome
+    start : int
+        Start coordinate, 0-based
+    end : int
+        End coordinate, 0-based, position after end of interval
+    samfiles : list
+        List of pysam file handles to :term:`bam` formatted files.
+    offsets : list
+        Peak shifts to apply to reads
+
+    Returns
+    -------
+    nreads : int
+        Number of reads overlapping interval.
+    counts : array
+        Read density in interval.
     '''
     assert len(offsets) == 0 or len(samfiles) == len(offsets)
 
@@ -300,16 +276,43 @@ def getCounts(contig, start, end, samfiles, offsets=[]):
 
 
 def countPeaks(contig, start, end, samfiles, offsets=None):
-    '''update peak values within interval contig:start-end.
+    '''compute peak parameters within a genomic interval.
 
-    If offsets is given, tags are moved by the offset
-    before summarizing.
+    If offsets are given, tags are shifted by `offset` / 2 and
+    extended by `offset` / 2.
+
+    Arguments
+    ---------
+    contig : string
+        Chromosome
+    start : int
+        Start coordinate, 0-based
+    end : int
+        End coordinate, 0-based, position after end of interval
+    samfiles : list
+        List of pysam file handles to :term:`bam` formatted files.
+    offsets : list
+        Peak shifts to apply to reads
+
+    Returns
+    -------
+    nresidues_in_peaks : int
+        Number of bases with maximum read counts.
+    peakcenter : int
+        Position of maximum tag density.
+    length : int
+        Size of interval.
+    avgval : int
+        Average tag density in interval
+    peakval : int
+        Maximum tag density in interval.
+    nreads : int
+        Number of tags contained in interval.
     '''
 
     nreads, counts = getCounts(contig, start, end, samfiles, offsets)
 
     length = end - start
-    nprobes = nreads
     avgval = numpy.mean(counts)
     peakval = max(counts)
 
@@ -324,30 +327,27 @@ def countPeaks(contig, start, end, samfiles, offsets=None):
 
 
 def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
-    ''' Make a BAM file suitable for peak calling.
+    '''build a BAM file suitable for peak calling.
+
+    This method uses bedtools_.
 
     Infiles are merged and unmapped reads removed.
 
-    If specificied duplicate reads are removed.
-    This method use Picard.
-
-    If a mask is specified, reads falling within
-    the mask are filtered out.
-
-    This uses bedtools.
-
-    The mask is a quicksect object containing
-    the regions from which reads are to be excluded.
+    Arguments
+    ---------
+    infiles : list
+        List of :term:`bam` formatted files.
+    outfile : string
+        Filename of output file in :term:`bam` format.
+    dedup : int
+        If True, remove duplicate reads using Picard.
+    mask : string
+        If given, `mask` should be a :term:`bed` formatted
+        file. Reads falling into these regions are removed.
     '''
 
     # open the infiles, if more than one merge and sort first using samtools.
-
-    samfiles = []
-    num_reads = 0
-    nfiles = 0
     statement = []
-
-    tmpfile = P.getTempFilename()
 
     if len(infiles) > 1 and isinstance(infiles, str) == 0:
         # assume: samtools merge output is sorted
@@ -356,7 +356,7 @@ def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
         statement.append('''samtools sort @IN@ @OUT@''')
 
     if dedup:
-        job_options = "-l mem_free=16G -l picard=1"
+        job_options = "-l mem_free=16G"
         statement.append('''MarkDuplicates
         INPUT=@IN@
         ASSUME_SORTED=true
@@ -378,17 +378,26 @@ def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
     P.run()
 
 
-def buildSimpleNormalizedBAM(infiles, outfile, nreads):
+def buildSimpleNormalizedBAM(bamfile, outfile, nreads):
     '''normalize a bam file to given number of counts
        by random sampling
+
+    This method assumes that unmapped reads and multi-mapping
+    reads have been removed from the :term:`bam` file.
+
+    Arguments
+    ---------
+    bamfile : string
+        Input file in :term:`bam` format.
+    outfile : string
+        Filename of output file in :term:`bam` format.
+    nreads :int
+        Number of reads to normalize to.
     '''
-    infile, countfile = infiles
 
-    pysam_in = pysam.Samfile(infile, "rb")
+    readcount = BamTools.getNumReads(bamfile)
 
-    fh = IOTools.openFile(countfile, "r")
-    readcount = int(fh.read())
-    fh.close()
+    pysam_in = pysam.Samfile(bamfile, "rb")
 
     threshold = float(nreads) / float(readcount)
 
@@ -422,13 +431,14 @@ def buildNormalizedBAM(infiles, outfile, normalize=True):
 
     '''
 
-    min_reads = getMinimumMappedReads(glob.glob("*.readstats"))
+    read_counts = [BamTools.getNumReads(x) for x in infiles]
+    min_reads = min(read_counts)
 
     samfiles = []
     num_reads = 0
-    for infile, statsfile in infiles:
+    for infile, read_count in zip(infiles, read_counts):
         samfiles.append(pysam.Samfile(infile, "rb"))
-        num_reads += getMappedReads(statsfile)
+        num_reads += read_count
 
     threshold = float(min_reads) / num_reads
 
@@ -489,92 +499,36 @@ def buildNormalizedBAM(infiles, outfile, normalize=True):
            (ninput, noutput, 100.0 * noutput / ninput, min_reads))
 
 
-def buildBAMStats(infile, outfile):
-    '''calculate bamfile statistics - currently only single-ended
-    duplicates.
-    '''
-
-    # no bedToBigBed
-    # to_cluster = True
-    outs = IOTools.openFile(outfile, "w")
-    outs.write("reads\tcategory\n")
-    for line in pysam.flagstat(infile):
-        data = line[:-1].split(" ")
-        outs.write("%s\t%s\n" % (data[0], " ".join(data[1:])))
-
-    pysam_in = pysam.Samfile(infile, "rb")
-
-    outs_dupl = IOTools.openFile(outfile + ".duplicates", "w")
-    outs_dupl.write("contig\tpos\tcounts\n")
-
-    outs_hist = IOTools.openFile(outfile + ".histogram", "w")
-    outs_hist.write("duplicates\tcounts\tcumul\tfreq\tcumul_freq\n")
-
-    last_contig, last_pos = None, None
-    ninput, nduplicates = 0, 0
-
-    duplicates = collections.defaultdict(int)
-    counts = collections.defaultdict(int)
-    count = 0
-
-    # count nh, nm tags
-    nh, nm = [], []
-
-    for read in pysam_in.fetch():
-
-        ninput += 1
-
-        if read.rname == last_contig and read.pos == last_pos:
-            count += 1
-            nduplicates += 1
-            continue
-
-        if count > 1:
-            outs_dupl.write("%s\t%i\t%i\n" % (last_contig, last_pos, count))
-            counts[count] += 1
-
-        count = 1
-        last_contig, last_pos = read.rname, read.pos
-
-    outs.write("%i\tduplicates (%5.2f%%)\n" %
-               (nduplicates, 100.0 * nduplicates / ninput))
-    outs.write("%i\twithout duplicates (%5.2f%%)\n" % (
-        ninput - nduplicates,
-        100.0 * (ninput - nduplicates) / ninput))
-    pysam_in.close()
-    outs.close()
-    outs_dupl.close()
-
-    keys = counts.keys()
-    # count per position (not the same as nduplicates, which is # of reads)
-    c = 0
-    total = sum(counts.values())
-    for k in sorted(keys):
-        c += counts[k]
-        outs_hist.write("%i\t%i\t%i\t%f\t%f\n" % (k, counts[k], c,
-                                                  100.0 * counts[k] / total,
-                                                  100.0 * c / total))
-    outs_hist.close()
-
-
-############################################################
-############################################################
-############################################################
-def exportIntervalsAsBed(infile, outfile,
+def exportIntervalsAsBed(infile,
+                         outfile,
                          tablename,
+                         dbhandle,
                          bedfilter=None,
                          merge=False):
-    '''export intervals from database as bed files.
+    '''export intervals from database as :term:`bed` formatted files.
 
-    If *bedfilter* is set, remove intervals overlapping
-    any of the intervals in the :term:`bed` formatted file.
+    Arguments
+    ---------
+    infile : string
+        Unused
+    outfile : string
+        Output filename.
+    tablename : string
+        Table name with intervals.
+    dbhandle : object
+        Database handle
+    bedfilter : string
+        If given, remove intervals overlapping any of the intervals in
+        the :term:`bed` formatted file.
+    merge : bool
+        If True, merge overlapping intervals.
 
-    If *merge* is set, merge overlapping intervals.
+    Returns
+    -------
+    counter : object
+        Counter object
 
-    Returns a counter object.
     '''
-
-    dbhandle = sqlite3.connect(PARAMS["database"])
 
     if outfile.endswith(".gz"):
         compress = True
@@ -642,221 +596,6 @@ def exportIntervalsAsBed(infile, outfile,
 
     os.unlink(tmpfile)
     return c
-
-
-def exportMacsIntervalsAsBed(infile, outfile, foldchange):
-    '''export sequences for all intervals.'''
-
-    dbhandle = sqlite3.connect(PARAMS["database"])
-
-    track = P.toTable(os.path.basename(infile))
-    assert track.endswith("_macs")
-    track = track[:-len("_macs")]
-
-    cc = dbhandle.cursor()
-    statement = """SELECT contig, start, end, interval_id, fold
-    FROM %(track)s_macs_intervals where fold >= %(foldchange)s
-    ORDER by contig, start""" % locals()
-    cc.execute(statement)
-
-    outs = open(outfile, "w")
-
-    for result in cc:
-        contig, start, end, interval_id, fold = result
-        outs.write("%s\t%i\t%i\t%s\t%d\n" %
-                   (contig, start, end, str(interval_id), fold))
-    cc.close()
-    outs.close()
-
-
-def exportPeaksAsBed(infile, outfile):
-    '''export peaks as bed files.'''
-
-    dbhandle = sqlite3.connect(PARAMS["database"])
-
-    if infile.endswith("_macs.load"):
-        track = infile[:-len("_macs.load")]
-    else:
-        track = infile[:-len("_intervals.load")]
-
-    if track.startswith("control"):
-        return
-
-    peakwidth = PARAMS["peakwidth"]
-
-    cc = dbhandle.cursor()
-    statement = '''SELECT contig, peakcenter - %(peakwidth)i, peakcenter + %(peakwidth)i,
-    interval_id, peakval FROM %(track)s_intervals
-    ORDER by contig, start''' % locals()
-    cc.execute(statement)
-
-    outs = IOTools.openFile(outfile, "w")
-
-    for result in cc:
-        contig, start, end, interval_id, peakval = result
-        # peakval is truncated at a 1000 as this is the maximum permitted
-        # score in a bed file.
-        peakval = int(min(peakval, 1000))
-        outs.write("%s\t%i\t%i\t%s\t%i\n" %
-                   (contig, start, end, str(interval_id), peakval))
-
-    cc.close()
-    outs.close()
-
-
-def mergeBedFiles(infiles, outfile):
-    '''generic method for merging bed files. '''
-
-    if len(infiles) < 2:
-        raise ValueError(
-            "expected at least two files to merge into %s" % outfile)
-
-    infile = " ".join(infiles)
-    statement = '''
-    zcat %(infile)s
-    | mergeBed -i stdin
-    | cut -f 1-3
-    | awk '{printf("%%s\\t%%i\\n",$0, ++a); }'
-    | bgzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-
-def mergeIntervalsWithScores(infile, outfile, dist, method):
-    '''merge adjacent intervals (within dist) and integrate scores (using
-       method) from merged peaks.  Assume bed file sorted by position
-       and score in column 5.  Methods: mean, max, length weighted
-       mean
-
-    '''
-
-    intervals = open(infile, "r")
-    merged = open(outfile, "w")
-
-    topline = intervals.readline()
-    last_contig, last_start, last_end, last_id, last_score = topline[
-        :-1].split("\t")[:5]
-    last_start = int(last_start)
-    last_end = int(last_end)
-    last_score = int(last_score)
-    for line in intervals:
-        data = line[:-1].split("\t")
-        contig, start, end, interval_id, score = data[:5]
-        start = int(start)
-        end = int(end)
-        score = int(score)
-        if (contig == last_contig) and ((last_end + dist) >= start):
-            if method == "mean":
-                newscore = (score + last_score) / 2
-            elif method == "length_weighted_mean":
-                length1 = end - start
-                length2 = last_end - last_start
-                newscore = (((score * length1) + (last_score * length2)) /
-                            (length1 + length2))
-            elif method == "max":
-                newscore = max(last_score, score)
-            last_end = end
-            last_score = newscore
-        else:
-            merged.write(
-                "%(last_contig)s\t%(last_start)i\t%(last_end)i\t%(last_id)s\t%(last_score)s\n" % locals())
-            data = line[:-1].split("\t")
-            last_contig, last_start, last_end, last_id, last_score = data[:5]
-            last_start = int(last_start)
-            last_end = int(last_end)
-            last_score = int(last_score)
-    intervals.close()
-    merged.close()
-
-
-def intersectBedFiles(infiles, outfile):
-    '''merge :term:`bed` formatted *infiles* by intersection
-    and write to *outfile*.
-
-    Only intervals that overlap in all files are retained.
-    Interval coordinates are given by the first file in *infiles*.
-
-    Bed files are normalized (overlapping intervals within
-    a file are merged) before intersection.
-
-    Intervals are renumbered starting from 1.
-    '''
-
-    if len(infiles) == 1:
-
-        shutil.copyfile(infiles[0], outfile)
-
-    elif len(infiles) == 2:
-
-        if P.isEmpty(infiles[0]) or P.isEmpty(infiles[1]):
-            P.touch(outfile)
-        else:
-            statement = '''
-        intersectBed -u -a %s -b %s
-        | cut -f 1,2,3,4,5
-        | awk 'BEGIN { OFS="\\t"; } {$4=++a; print;}'
-        | bgzip > %%(outfile)s
-        ''' % (infiles[0], infiles[1])
-            P.run()
-
-    else:
-
-        tmpfile = P.getTempFilename(".")
-
-        # need to merge incrementally
-        fn = infiles[0]
-        if P.isEmpty(infiles[0]):
-            P.touch(outfile)
-            return
-
-        statement = '''mergeBed -i %(fn)s > %(tmpfile)s'''
-        P.run()
-
-        for fn in infiles[1:]:
-            if P.isEmpty(infiles[0]):
-                P.touch(outfile)
-                os.unlink(tmpfile)
-                return
-
-            statement = '''mergeBed -i %(fn)s | intersectBed -u -a %(tmpfile)s -b stdin > %(tmpfile)s.tmp; mv %(tmpfile)s.tmp %(tmpfile)s'''
-            P.run()
-
-        statement = '''cat %(tmpfile)s
-        | cut -f 1,2,3,4,5
-        | awk 'BEGIN { OFS="\\t"; } {$4=++a; print;}'
-        | bgzip
-        > %(outfile)s '''
-        P.run()
-
-        os.unlink(tmpfile)
-
-
-def subtractBedFiles(infile, subtractfile, outfile):
-    '''subtract intervals in *subtractfile* from *infile*
-    and store in *outfile*.
-    '''
-
-    if P.isEmpty(subtractfile):
-        shutil.copyfile(infile, outfile)
-        return
-    elif P.isEmpty(infile):
-        P.touch(outfile)
-        return
-
-    statement = '''
-    intersectBed -v -a %(infile)s -b %(subtractfile)s
-    | cut -f 1,2,3,4,5
-    | awk 'BEGIN { OFS="\\t"; } {$4=++a; print;}'
-    | bgzip > %(outfile)s ; tabix -p bed %(outfile)s
-    '''
-
-    P.run()
-
-############################################################
-############################################################
-############################################################
 
 
 def summarizeMACS(infiles, outfile):
@@ -1055,7 +794,7 @@ def runMACS(infile, outfile,
     -t %(infile)s
     --diag
     --verbose=10
-    --set-name=%(outfile)s
+    --name=%(outfile)s
     --format=BAM
     %(options)s
     %(macs_options)s
@@ -1197,19 +936,20 @@ def bedGraphToBigwig(infile, contigsfile, outfile, remove=True):
         raise OSError("bedgraph file %s does not exist" % infile)
 
     if not os.path.exists(contigsfile):
-        raise OSError("contig size file %s does not exist" % infile)
+        raise OSError("contig size file %s does not exist" % contigsfile)
 
     statement = '''
          bedGraphToBigWig %(infile)s %(contigsfile)s %(outfile)s
     '''
     P.run()
 
-    if os.path.exists(outfile) and not P.isEmpty(outfile):
+    if os.path.exists(outfile) and not IOTools.isEmpty(outfile):
         os.remove(infile)
 
 
 def runMACS2(infile, outfile,
              controlfile=None,
+             contigsfile=None,
              force_single_end=False,
              tagsize=None):
     '''run MACS for peak detection from BAM files.
@@ -1254,7 +994,7 @@ def runMACS2(infile, outfile,
     %(format_options)s
     --treatment %(infile)s
     --verbose=10
-    --set-name=%(outfile)s
+    --name=%(outfile)s
     --qvalue=%(macs2_max_qvalue)s
     --bdg
     --SPMR
@@ -1269,8 +1009,8 @@ def runMACS2(infile, outfile,
         bedfile = outfile + "_" + suffix + ".bed"
         if os.path.exists(bedfile):
             statement = '''
-                 bgzip -f %(bedfile)s
-                 tabix -f-p bed %(bedfile)s.gz
+                 bgzip -f %(bedfile)s;
+                 tabix -f -p bed %(bedfile)s.gz
             '''
         P.run()
 
@@ -1279,13 +1019,11 @@ def runMACS2(infile, outfile,
     # compressing only saves 60%
     if os.path.exists(outfile + "_treat_pileup.bdg"):
         bedGraphToBigwig(outfile + "_treat_pileup.bdg",
-                         os.path.join(PARAMS["annotations_dir"],
-                                      "contigs.tsv"),
+                         contigsfile,
                          outfile + "_treat_pileup.bw")
     if os.path.exists(outfile + "_control_lambda.bdg"):
         bedGraphToBigwig(outfile + "_control_lambda.bdg",
-                         os.path.join(PARAMS["annotations_dir"],
-                                      "contigs.tsv"),
+                         contigsfile,
                          outfile + "_control_lambda.bw")
 
     # index and compress peak file
@@ -1400,8 +1138,12 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
         return
 
     exportdir = os.path.join(PARAMS['exportdir'], 'macs')
-    if not os.path.exists(exportdir):
+    try:
         os.mkdir(exportdir)
+    except OSError:
+        # skip if directory exists
+        pass
+
     ###############################################################
     # create plot by calling R
     if os.path.exists(filename_r):
@@ -1458,13 +1200,12 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
     ###############################################################
     # load peaks
     shift = getPeakShiftFromMacs(infile)
-    assert shift is not None, "could not determine peak shift from MACS file %s" % infile
+    assert shift is not None, \
+        "could not determine peak shift from MACS file %s" % infile
 
     E.info("%s: found peak shift of %i" % (track, shift))
 
     offset = shift * 2
-
-    to_cluster = True
 
     headers = ",".join((
         "contig", "start", "end",
@@ -1472,28 +1213,29 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
         "pvalue", "fold", "qvalue",
         "macs_summit", "macs_nprobes"))
 
-    tablename = P.toTable(outfile) + "_peaks"
-
     if controlfile:
-        control = "--control-bam-file=%(controlfile)s --control-offset=%(shift)i" % locals()
+        control = "--control-bam-file=%(controlfile)s "
+        "--control-offset=%(shift)i" % locals()
     else:
         control = ""
 
+    load_statement = P.build_load_statement(
+        P.toTable(outfile) + "_peaks",
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
-                           --counter=peaks
-                           --bam-file=%(bamfile)s
-                           --offset=%(shift)i
-                           %(control)s
-                           --output-all-fields
-                           --output-bed-headers=%(headers)s
-                           --log=%(outfile)s
-                < %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                       --add-index=contig,start
-                       --add-index=interval_id
-                       --table=%(tablename)s
-                       --allow-empty-file
-                > %(outfile)s'''
+    --counter=peaks
+    --bam-file=%(bamfile)s
+    --offset=%(shift)i
+    %(control)s
+    --output-all-fields
+    --output-bed-headers=%(headers)s
+    --log=%(outfile)s
+    < %(tmpfilename)s
+    | %(load_statement)s
+    > %(outfile)s'''
 
     P.run()
 
@@ -1508,26 +1250,26 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
             "Height",
             "SummitPosition"))
 
-        tablename = P.toTable(outfile) + "_summits"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_summits",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         # add a peak identifier and remove header
         statement = '''
-                    awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
-                    < %(filename_subpeaks)s
-                    | python %(scriptsdir)s/bed2table.py
-                               --counter=peaks
-                               --bam-file=%(bamfile)s
-                               --offset=%(shift)i
-                               %(control)s
-                               --output-all-fields
-                               --output-bed-headers=%(headers)s
-                               --log=%(outfile)s
-                    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                           --add-index=contig,start
-                           --add-index=interval_id
-                           --table=%(tablename)s
-                           --allow-empty-file
-                    > %(outfile)s'''
+        awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
+        < %(filename_subpeaks)s
+        | python %(scriptsdir)s/bed2table.py
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
 
         P.run()
 
@@ -1535,13 +1277,14 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
     # load diagnostic data
     if os.path.exists(filename_diag):
 
-        tablename = P.toTable(outfile) + "_diagnostics"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_diagnostics",
+            options="--map=fc:str")
+
         statement = '''
         cat %(filename_diag)s
         | sed "s/FC range.*/fc\\tnpeaks\\tp90\\tp80\\tp70\\tp60\\tp50\\tp40\\tp30\\tp20/"
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                  --map=fc:str
-                  --table=%(tablename)s
+        | %(load_statement)s
         >> %(outfile)s
         '''
         P.run()
@@ -1582,11 +1325,12 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
         P.touch(outfile)
         return
 
-    # Jethro: os.mkdir can't create nested directories
-    # AH: use os.makedirs
     exportdir = os.path.join(PARAMS['exportdir'], 'macs2')
-    if not os.path.exists(exportdir):
+    try:
         os.makedirs(exportdir)
+    except OSError:
+        # skip if already exists
+        pass
 
     ###############################################################
     # create plot by calling R
@@ -1653,36 +1397,34 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
 
     offset = shift * 2
 
-    to_cluster = True
-
     headers = ",".join((
         "contig", "start", "end",
         "interval_id",
         "pvalue", "fold", "qvalue",
         "macs_nprobes"))
 
-    tablename = P.toTable(outfile) + "_peaks"
-
     if controlfile:
         control = "--control-bam-file=%(controlfile)s --control-offset=%(shift)i" % locals()
     else:
         control = ""
 
+    load_statement = P.build_load_statement(
+        P.toTable(outfile) + "_peaks",
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
-                           --counter=peaks
-                           --bam-file=%(bamfile)s
-                           --offset=%(shift)i
-                           %(control)s
-                           --output-all-fields
-                           --output-bed-headers=%(headers)s
-                           --log=%(outfile)s
-                < %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                       --add-index=contig,start
-                       --add-index=interval_id
-                       --table=%(tablename)s
-                       --allow-empty-file
-                > %(outfile)s'''
+    --counter=peaks
+    --bam-file=%(bamfile)s
+    --offset=%(shift)i
+    %(control)s
+    --output-all-fields
+    --output-bed-headers=%(headers)s
+    --log=%(outfile)s
+    < %(tmpfilename)s
+    | %(load_statement)s
+    > %(outfile)s'''
 
     P.run()
 
@@ -1697,26 +1439,26 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
             "Height",
             "SummitPosition"))
 
-        tablename = P.toTable(outfile) + "_summits"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_summits",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         # add a peak identifier and remove header
         statement = '''
-                    zcat %(filename_subpeaks)s
-                    | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
-                    | python %(scriptsdir)s/bed2table.py
-                               --counter=peaks
-                               --bam-file=%(bamfile)s
-                               --offset=%(shift)i
-                               %(control)s
-                               --output-all-fields
-                               --output-bed-headers=%(headers)s
-                               --log=%(outfile)s
-                    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                           --add-index=contig,start
-                           --add-index=interval_id
-                           --table=%(tablename)s
-                           --allow-empty-file
-                    > %(outfile)s'''
+        zcat %(filename_subpeaks)s
+        | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
+        | python %(scriptsdir)s/bed2table.py
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
 
         P.run()
 
@@ -1728,26 +1470,26 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
             "interval_id",
             "Height"))
 
-        tablename = P.toTable(outfile) + "_regions"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_regions",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         # add a peak identifier and remove header
         statement = '''
-                    cat %(filename_broadpeaks)s
-                    | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4)}'
-                    | python %(scriptsdir)s/bed2table.py
-                               --counter=peaks
-                               --bam-file=%(bamfile)s
-                               --offset=%(shift)i
-                               %(control)s
-                               --output-all-fields
-                               --output-bed-headers=%(headers)s
-                               --log=%(outfile)s
-                    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                           --add-index=contig,start
-                           --add-index=interval_id
-                           --table=%(tablename)s
-                           --allow-empty-file
-                    > %(outfile)s'''
+        cat %(filename_broadpeaks)s
+        | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4)}'
+        | python %(scriptsdir)s/bed2table.py
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
 
         P.run()
 
@@ -1789,7 +1531,7 @@ def loadZinba(infile, outfile, bamfile,
     #######################################################################
     if not os.path.exists(infilename):
         E.warn("could not find %s" % infilename)
-    elif P.isEmpty(infile):
+    elif IOTools.isEmpty(infile):
         E.warn("no data in %s" % infilename)
     else:
 
@@ -1806,13 +1548,17 @@ def loadZinba(infile, outfile, bamfile,
                        "--control-offset=%(offset)i" % locals())
 
         # Steve - Guessing these are actually "peak calls"
-        tablename = P.toTable(outfile) + "_peaks"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_peaks",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         headers = "contig,start,end,interval_id,sig,maxloc,maxval,median,qvalue"
 
         statement = '''cat %(infilename)s
-                    | python %(scriptsdir)s/csv_cut.py
-                         Chrom Start Stop Sig Maxloc Max Median qValue
+        | python %(scriptsdir)s/csv_cut.py
+        Chrom Start Stop Sig Maxloc Max Median qValue
         | awk -v FS='\\t' -v OFS='\\t' \
         '/Chrom/ {next; } \
         {$4=sprintf("%%i\\t%%s", ++a, $4); print}'
@@ -1824,16 +1570,16 @@ def loadZinba(infile, outfile, bamfile,
         --output-all-fields
         --output-bed-headers=%(headers)s
         --log=%(outfile)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-        --add-index=contig,start
-        --add-index=interval_id
-        --table=%(tablename)s
-        --allow-empty-file
+        | %(load_statement)s
         > %(outfile)s'''
 
         P.run()
 
-        tablename = P.toTable(outfile) + "_summits"
+        load_statement = P.build_load_statement(
+            P.toTable(outfile) + "_summits",
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
 
         statement = '''cat %(infilename)s
         | python %(scriptsdir)s/csv_cut.py Chrom pStart pStop Sig Maxloc Max Median qValue
@@ -1848,11 +1594,7 @@ def loadZinba(infile, outfile, bamfile,
         --output-all-fields
         --output-bed-headers=%(headers)s
         --log=%(outfile)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-        --add-index=contig,start
-        --add-index=interval_id
-        --table=%(tablename)s
-        --allow-empty-file
+        | %(load_statement)s
         > %(outfile)s'''
 
         P.run()
@@ -1931,10 +1673,9 @@ def runSICER(infile,
 ############################################################
 
 
-def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
+def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow",
+              fragment_size=None):
     '''load Sicer results.'''
-
-    to_cluster = True
 
     # build filename of input bedfile
     track = P.snip(os.path.basename(infile), ".sicer")
@@ -1942,7 +1683,7 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
     window = PARAMS["sicer_" + mode + "_window_size"]
     gap = PARAMS["sicer_" + mode + "_gap_size"]
     fdr = "%8.6f" % PARAMS["sicer_fdr_threshold"]
-    offset = PARAMS["sicer_fragment_size"]
+    offset = fragment_size
 
     # taking the file islands-summary-FDR, which contains
     # 'summary file of significant islands with requirement of FDR=0.01'
@@ -1958,6 +1699,11 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
         control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
 
     tablename = P.toTable(outfile) + "_regions"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
 
     headers = "contig,start,end,interval_id,chip_reads,control_reads,pvalue,fold,fdr"
 
@@ -1973,11 +1719,7 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow"):
     --output-all-fields
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
@@ -2073,14 +1815,17 @@ def runPeakRanger(infile, outfile, controlfile):
     '''run peak ranger
     '''
 
-    job_options = "-l mem_free=8G"
+    job_memory = "8G"
 
     assert controlfile is not None, "peakranger requires a control"
 
     statement = '''peakranger ranger
-              --output-section <( python %(scriptsdir)s/bam2bam.py -v 0 --method=set-sequence < %(infile)s)
-              --control <( python %(scriptsdir)s/bam2bam.py -v 0 --method=set-sequence < %(controlfile)s)
-              --output-section %(outfile)s
+              --data <( python %(scriptsdir)s/bam2bam.py -v 0
+                --method=set-sequence < %(infile)s)
+
+              --control <( python %(scriptsdir)s/bam2bam.py -v 0
+                --method=set-sequence < %(controlfile)s)
+              --output %(outfile)s
               --format bam
               --pval %(peakranger_pvalue_threshold)f
               --FDR %(peakranger_fdr_threshold)f
@@ -2116,6 +1861,13 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
     bedfile = infile + "_region.bed"
     headers = "contig,start,end,interval_id,qvalue,strand"
     tablename = P.toTable(outfile) + "_" + table_suffix
+
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
     --counter=peaks
     --bam-file=%(bamfile)s
@@ -2125,17 +1877,19 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
     < <( grep -v "fdrFailed" %(bedfile)s )
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_statement)s
     > %(outfile)s'''
     P.run()
 
     bedfile = infile + "_summit.bed"
     headers = "contig,start,end,interval_id,qvalue,strand"
     tablename = P.toTable(outfile) + "_summits"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''python %(scriptsdir)s/bed2table.py
     --counter=peaks
     --bam-file=%(bamfile)s
@@ -2145,11 +1899,7 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
     < <( grep -v "fdrFailed" %(bedfile)s )
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()
@@ -2236,18 +1986,18 @@ def runPeakRangerCCAT(infile, outfile, controlfile):
     assert controlfile is not None, "peakranger requires a control"
 
     statement = '''peakranger ccat
-              --output-section %(infile)s
+              --data %(infile)s
               --control %(controlfile)s
-              --output-section %(outfile)s
+              --output %(outfile)s
               --format bam
-              --FDR %(peakranger_fdr_threshold)f
-              --ext_length %(peakranger_extension_length)i
+              --FDR %(ccat_fdr_threshold)f
+              --ext_length %(ccat_extension_length)i
               --win_size %(ccat_winsize)i
               --win_step %(ccat_winstep)i
               --min_count %(ccat_mincount)i
               --min_score %(ccat_minscore)i
-              --thread %(peakranger_threads)i
-              %(peakranger_options)s
+              --thread %(ccat_threads)i
+              %(ccat_options)s
               >& %(outfile)s
     '''
 
@@ -2321,22 +2071,24 @@ def loadSPP(infile, outfile, bamfile, controlfile=None):
     bedfile = infile + ".narrowpeak.txt"
     headers = "contig,start,end,interval_id,peakval1,qvalue,peakpos"
     tablename = P.toTable(outfile) + "_peaks"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%i\\n", $1,$2,$3,++a,$7,$9,$1+$10);}'
-                < %(bedfile)s
-                | python %(scriptsdir)s/bed2table.py
-                           --counter=peaks
-                           --bam-file=%(bamfile)s
-                           --offset=%(offset)i
-                           %(control)s
-                           --output-all-fields
-                           --output-bed-headers=%(headers)s
-                           --log=%(outfile)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-                       --add-index=contig,start
-                       --add-index=interval_id
-                       --table=%(tablename)s
-                       --allow-empty-file
-                > %(outfile)s'''
+    < %(bedfile)s
+    | python %(scriptsdir)s/bed2table.py
+    --counter=peaks
+    --bam-file=%(bamfile)s
+    --offset=%(offset)i
+    %(control)s
+    --output-all-fields
+    --output-bed-headers=%(headers)s
+    --log=%(outfile)s
+    | %(load_statement)s
+    > %(outfile)s'''
 
     #
     #  TODO - spp does calculate summit positions, these should be loaded
@@ -2384,7 +2136,8 @@ def summarizeSPP(infiles, outfile):
 
                 elif line.startswith("done. read"):
                     reads.append(
-                        re.match("done. read (\d+) fragments", line).groups()[0])
+                        re.match("done. read (\d+) fragments",
+                                 line).groups()[0])
 
                 elif line.startswith("shift\t"):
                     shift = int(re.match("shift\t(\d+)\n", line).groups()[0])
@@ -2397,10 +2150,30 @@ def summarizeSPP(infiles, outfile):
                     npeaks = int(
                         re.match("detected_peaks\t(\d+)\n", line).groups()[0])
 
-        outf.write("\t".join(map(str, (track, files[0], reads[0], files[1], reads[1],
-                                       shift, fdr, threshold, npeaks))) + "\n")
+        outf.write("\t".join(map(str, (
+            track, files[0], reads[0], files[1], reads[1],
+            shift, fdr, threshold, npeaks))) + "\n")
 
     outf.close()
+
+
+def estimateSPPQualityMetrics(infile, track, controlfile, outfile):
+    '''estimate ChIP-Seq quality metrics using SPP'''
+
+    job_options = "-l mem_free=4G"
+
+    statement = '''
+    Rscript %(pipeline_rdir)s/run_spp.R -c=%(infile)s -i=%(controlfile)s -rf \
+           -savp -out=%(outfile)s
+    >& %(outfile)s.log'''
+
+    P.run()
+
+    if os.path.exists(track + ".pdf"):
+        dest = os.path.join(PARAMS["exportdir"], "quality", track + ".pdf")
+        if os.path.exists(dest):
+            os.unlink(dest)
+        shutil.move(track + ".pdf", dest)
 
 
 def createGenomeWindows(genome, outfile, windows):
@@ -2446,9 +2219,9 @@ def normalizeFileSize(sample_file, input_file, sample_outfile, input_outfile):
         input_nreads += 1
 
     if input_nreads > sample_nreads:
-        P.info("INPUT bam has %s reads, SAMPLE bam has %s reads"
+        E.info("INPUT bam has %s reads, SAMPLE bam has %s reads"
                % (input_nreads, sample_nreads))
-        P.info("INPUT being downsampled to match SAMPLE")
+        E.info("INPUT being downsampled to match SAMPLE")
         input_outfile = normalize(input_file,
                                   input_nreads,
                                   input_outfile,
@@ -2459,9 +2232,9 @@ def normalizeFileSize(sample_file, input_file, sample_outfile, input_outfile):
         return sample_outfile, input_outfile
 
     elif sample_nreads > input_nreads:
-        P.info("SAMPLE bam has %s reads, INPUT bam has %s reads"
+        E.info("SAMPLE bam has %s reads, INPUT bam has %s reads"
                % (sample_nreads, input_nreads))
-        P.info("SAMPLE being downsampled to match INPUT")
+        E.info("SAMPLE being downsampled to match INPUT")
         sample_outfile = normalize(sample_file,
                                    sample_nreads,
                                    sample_outfile,
@@ -2536,7 +2309,7 @@ def removeEmptyBins(infile, outfile):
 
 def createBroadPeakBedgraphFile(infiles, outfile, params):
     tmpdir = P.getTempDir("/scratch")
-    P.info("Creating tempdir: %s" % tmpdir)
+    E.info("Creating tempdir: %s" % tmpdir)
     sample_bed = P.getTempFilename(tmpdir)
     sample_bedgraph = P.getTempFilename(tmpdir)
     input_bed = P.getTempFilename(tmpdir)
@@ -2547,7 +2320,7 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
 
     if remove_background == "true":
         sample_file, windows_file, input_file = infiles
-        P.info("Background removal:"
+        E.info("Background removal:"
                " Input reads will be deducted from sample reads\n"
                "Normalizing size of bamfiles by down-sampling larger file")
 
@@ -2557,14 +2330,14 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                                     input_file,
                                                     sample_norm,
                                                     input_norm)
-        P.info("Created normalized SAMPLE bam:\t %s "
+        E.info("Created normalized SAMPLE bam:\t %s "
                "\nCreated normalized INPUT bam:\t %s"
                % (sample_norm, input_norm))
 
-        P.info("Creating bed file from SAMPLE bam file")
+        E.info("Creating bed file from SAMPLE bam file")
         sample_bed = buildBedFile(sample_norm, sample_bed)
 
-        P.info("Created SAMPLE bed file:\t %s \nCreating SAMPLE bedgraph file.\n"
+        E.info("Created SAMPLE bed file:\t %s \nCreating SAMPLE bedgraph file.\n"
                "Reads must have coverage >= %s*bin width in order to be binned"
                % (sample_bed, overlap))
         sample_bedgraph = createBedgraphFile(sample_bed,
@@ -2572,11 +2345,11 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                              windows_file,
                                              overlap)
 
-        P.info("Created SAMPLE bedgraph file:\t %s\nCreating INPUT bed file"
+        E.info("Created SAMPLE bedgraph file:\t %s\nCreating INPUT bed file"
                % sample_bedgraph)
         input_bed = buildBedFile(input_norm, input_bed)
 
-        P.info("Created INPUT bed file:\t %s \nCreating INPUT bedgraph file\n"
+        E.info("Created INPUT bed file:\t %s \nCreating INPUT bedgraph file\n"
                "Reads must have coverage >= %s*bin width in order to be binned"
                % (input_bed, overlap))
         input_bedgraph = createBedgraphFile(input_bed,
@@ -2584,7 +2357,7 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                             windows_file,
                                             overlap)
 
-        P.info("Created INPUT bedgraph file:\t %s "
+        E.info("Created INPUT bedgraph file:\t %s "
                "\nSubtracting INPUT bedgraph from SAMPLE bedgraph"
                % input_bedgraph)
         bgremoved_bedgraph = removeBackground(sample_bedgraph,
@@ -2592,23 +2365,23 @@ def createBroadPeakBedgraphFile(infiles, outfile, params):
                                               bgremoved_bedgraph)
         removeEmptyBins(bgremoved_bedgraph, outfile)
 
-        P.info("Created SAMPLE bedgraph with INPUT removed:\t %s" % outfile)
+        E.info("Created SAMPLE bedgraph with INPUT removed:\t %s" % outfile)
         shutil.rmtree(os.path.abspath(tmpdir))
 
     else:
         sample_file, windowsfile = infiles
-        P.info("Background ignored: bedgraph file does not account for INPUT")
-        P.info("Creating bed file from SAMPLE bam file")
+        E.info("Background ignored: bedgraph file does not account for INPUT")
+        E.info("Creating bed file from SAMPLE bam file")
         sample_bed = buildBedFile(sample_file, sample_bed)
 
-        P.info("Created SAMPLE bed file:\n %s \nCreating SAMPLE bedgraph file"
+        E.info("Created SAMPLE bed file:\n %s \nCreating SAMPLE bedgraph file"
                % sample_bed)
         sample_bedgraph = createBedgraphFile(sample_bed,
                                              sample_bedgraph,
                                              windows_file,
                                              overlap)
         removeEmptyBins(sample_bedgraph, outfile)
-        P.info("Created SAMPLE bedgraph (without accounting for INPUT):\n"
+        E.info("Created SAMPLE bedgraph (without accounting for INPUT):\n"
                "%s" % outfile)
 
         shutil.rmtree(os.path.abspath(tmpdir))
@@ -2674,12 +2447,12 @@ def makeIntervalCorrelation(infiles, outfile, field, reference):
     '''compute correlation of interval properties between sets
     '''
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
 
     tracks, idx = [], []
     for infile in infiles:
         track = P.snip(infile, ".bed.gz")
-        tablename = "%s_intervals" % P.quote(track)
+        tablename = "%s_intervals" % P.tablequote(track)
         cc = dbhandle.cursor()
         statement = "SELECT contig, start, end, "
         "%(field)s FROM %(tablename)s" % locals()
@@ -2862,19 +2635,11 @@ def loadIntervalsFromBed(bedfile, track, outfile,
 
     tmpfile.close()
 
-    tmpfilename = tmpfile.name
-    tablename = "%s_intervals" % track.asTable()
+    P.load(tmpfile.name,
+           outfile,
+           tablename="%s_intervals" % track.asTable(),
+           options="--add-index=interval-id --allow-empty-file")
 
-    statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=interval_id
-              --table=%(tablename)s
-    < %(tmpfilename)s
-    > %(outfile)s
-    '''
-
-    P.run()
     os.unlink(tmpfile.name)
 
     E.info("%s\n" % str(c))
@@ -2966,6 +2731,12 @@ def loadScripture(infile, outfile, bamfile, controlfile=None):
 
     headers = "contig,start,end,interval_id,score,pvalue,score2,score3,score4"
     tablename = P.toTable(outfile) + "_peaks"
+    load_statement = P.build_load_statement(
+        tablename,
+        options="--add-index=contig,start "
+        "--add-index=interval_id "
+        "--allow-empty-file")
+
     statement = '''zcat %(bedfile)s
     | awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%f\\t%%f\\t%%f\\n", $1,$2,$3,++a,$5,$7,$8,$9,$10);}'
     | python %(scriptsdir)s/bed2table.py
@@ -2976,11 +2747,7 @@ def loadScripture(infile, outfile, bamfile, controlfile=None):
     --output-all-fields
     --output-bed-headers=%(headers)s
     --log=%(outfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-    --add-index=contig,start
-    --add-index=interval_id
-    --table=%(tablename)s
-    --allow-empty-file
+    | %(load_statement)s
     > %(outfile)s'''
 
     P.run()

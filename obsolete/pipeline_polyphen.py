@@ -236,7 +236,7 @@ def buildBenchmarkInput(infile, outfile):
 
     tmpfile = P.getTempFile()
 
-    dbhandle = sqlite3.connect(PARAMS["database"])
+    dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
     statement = '''
     SELECT DISTINCT transcript_id, protein_id FROM peptide_info

@@ -97,13 +97,13 @@ categories.
 
 .. report:: Mapping.PairedMappingSummary
    :render: table
-   :slices: pairs_proper_unique_alignments,pairs_unmapped,pairs_incomplete,pairs_not_proper_unique_alignments,pairs_other,pairs_proper_duplicate,pairs_proper_multimapping
+   :slices: pairs_proper_unique,pairs_unmapped,pairs_incomplete,pairs_not_proper_unique,pairs_other,pairs_proper_duplicate,pairs_proper_multimapping
 
    Mapping results in terms of pairs
 
 .. report:: Mapping.PairedMappingSummary
    :render: stacked-bar-plot
-   :slices: pairs_proper_unique_alignments,pairs_unmapped,pairs_incomplete,pairs_not_proper_unique_alignments,pairs_other,pairs_proper_duplicate,pairs_proper_multimapping
+   :slices: pairs_proper_unique,pairs_unmapped,pairs_incomplete,pairs_not_proper_unique,pairs_other,pairs_proper_duplicate,pairs_proper_multimapping
    :split-at: 10
    :layout: column-3
 

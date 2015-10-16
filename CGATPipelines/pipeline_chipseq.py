@@ -328,7 +328,7 @@ def connect():
     This method also attaches to helper databases.
     '''
 
-    dbh = sqlite3.connect(PARAMS["database"])
+    dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
         PARAMS["annotations_database"])
     cc = dbh.cursor()
@@ -921,7 +921,7 @@ def subtractUnstimulated(infiles, outfile):
 @transform((combineExperiment,
             combineCondition,
             subtractUnstimulated) +
-           P.asTuple(PARAMS["tracks_extra"]),
+           tuple(P.asList(PARAMS["tracks_extra"])),
            suffix(".bed.gz"),
            "_bed.load")
 def loadIntervalsFromBed(infile, outfile):
@@ -947,12 +947,16 @@ def loadIntervalsFromBed(infile, outfile):
 
     tmpfile = P.getTempFile(".")
 
-    headers = ("AvgVal", "DisttoStart", "GeneList", "Length", "PeakCenter", "PeakVal", "Position",
-               "interval_id", "nCpGs", "nGenes", "nPeaks", "nProbes", "nPromoters", "contig", "start", "end")
+    headers = ("AvgVal", "DisttoStart", "GeneList", "Length",
+               "PeakCenter", "PeakVal", "Position",
+               "interval_id", "nCpGs", "nGenes", "nPeaks", "nProbes",
+               "nPromoters", "contig", "start", "end")
 
     tmpfile.write("\t".join(headers) + "\n")
 
-    avgval, contig, disttostart, end, genelist, length, peakcenter, peakval, position, start, interval_id, ncpgs, ngenes, npeaks, nprobes, npromoters = \
+    (avgval, contig, disttostart, end, genelist, length,
+     peakcenter, peakval, position, start, interval_id, ncpgs,
+     ngenes, npeaks, nprobes, npromoters) = \
         0, "", 0, 0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 
     samfiles, offsets = [], []
@@ -1023,29 +1027,31 @@ def loadIntervalsFromBed(infile, outfile):
                     bed.contig, bed.start, bed.end, samfiles, offsets)
 
             # nreads can be 0 if the intervals overlap only slightly
-            # and due to the binning, no reads are actually in the overlap region.
-            # However, most of these intervals should be small and have already be deleted via
-            # the merge_min_interval_length cutoff.
-            # do not output intervals without reads.
+            # and due to the binning, no reads are actually in the
+            # overlap region.  However, most of these intervals should
+            # be small and have already be deleted via the
+            # merge_min_interval_length cutoff.  do not output
+            # intervals without reads.
             if nprobes == 0:
                 c.skipped_reads += 1
 
         else:
-            npeaks, peakcenter, length, avgval, peakval, nprobes = (1,
-                                                                    bed.start +
-                                                                    (bed.end -
-                                                                     bed.start) // 2,
-                                                                    bed.end -
-                                                                    bed.start,
-                                                                    1,
-                                                                    1,
-                                                                    1)
+            npeaks, peakcenter, length, avgval, peakval, nprobes = \
+                (1,
+                 bed.start +
+                 (bed.end - bed.start) // 2,
+                 bed.end - bed.start,
+                 1,
+                 1,
+                 1)
 
         c.output += 1
-        tmpfile.write("\t".join(map(str, (avgval, disttostart, genelist, length,
-                                          peakcenter, peakval, position, bed.name,
-                                          ncpgs, ngenes, npeaks, nprobes, npromoters,
-                                          bed.contig, bed.start, bed.end))) + "\n")
+        tmpfile.write("\t".join(
+            map(str,
+                (avgval, disttostart, genelist, length,
+                 peakcenter, peakval, position, bed.name,
+                 ncpgs, ngenes, npeaks, nprobes, npromoters,
+                 bed.contig, bed.start, bed.end))) + "\n")
 
     if c.output == 0:
         E.warn("%s - no aggregate intervals")
@@ -1216,9 +1222,8 @@ def buildPeakShapeTable(infile, outfile):
 def peakCoverage(infiles, outfile):
     '''uses coverageBed to count the total number of reads under peaks'''
 
-    to_cluster = True
     bamfile, bedfile = infiles
-    if P.isEmpty(bedfile):
+    if IOTools.isEmpty(bedfile):
         P.touch(outfile)
     else:
         statement = '''coverageBed -abam %(bamfile)s -b %(bedfile)s | gzip > %(outfile)s '''
@@ -1521,7 +1526,7 @@ def makeReproducibility(infiles, outfile):
     data = []
     for replicate in infiles:
         cc = dbhandle.cursor()
-        tablename = "%s_intervals" % P.quote(P.snip(replicate, ".bed.gz"))
+        tablename = "%s_intervals" % P.tablequote(P.snip(replicate, ".bed.gz"))
         statement = "SELECT contig, start, end, peakval FROM %(tablename)s" % locals(
         )
         cc.execute(statement)
