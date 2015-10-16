@@ -828,7 +828,7 @@ def annotateVariantsSNPsift(infile, outfile):
     job_threads = PARAMS["annotation_threads"]
     track = P.snip(os.path.basename(infile), ".vqsr.vcf")
     dbNSFP = PARAMS["annotation_snpsift_dbnsfp"]
-    thousand_genomes = PARAMS["annotation_thousand_genomes"]
+    clinvar = PARAMS["annotation_clinvar"]
     exac = PARAMS["annotation_exac"]
     # The following statement is not fully implemented yet
     # statement = '''SnpSift.sh geneSets -v
@@ -837,7 +837,7 @@ def annotateVariantsSNPsift(infile, outfile):
 
     statement = '''SnpSift.sh dbnsfp -v -db %(dbNSFP)s %(infile)s
                     > variants/%(track)s_temp1.vcf; checkpoint;
-                    SnpSift.sh annotate %(thousand_genomes)s
+                    SnpSift.sh annotate %(clinvar)s
                     variants/%(track)s_temp1.vcf > %(track)s_temp2.vcf;
                     checkpoint; SnpSift.sh annotate -info AC_Adj,AN_Adj,AF 
                     %(exac)s %(track)s_temp2.vcf > %(outfile)s; 
@@ -1247,10 +1247,10 @@ def phasing(infiles, outfile):
            r"variants/all_samples.rbp.vcf")
 def readbackedphasing(infiles, outfile):
     '''phase variants with ReadBackedPhasing'''
-    job_options = getGATKOptions()
+    job_memory = "32G"
     infile, bamlist = infiles
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
-    statement = '''GenomeAnalysisTK -T ReadBackedPhasing
+    statement = '''GenomeAnalysisTK -T ReadBackedPhasing -nt 4
                    -R %(genome)s
                    -I %(bamlist)s
                    -V %(infile)s

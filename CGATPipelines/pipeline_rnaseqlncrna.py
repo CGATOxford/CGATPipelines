@@ -204,7 +204,7 @@ P.getParameters(
 PARAMS = P.PARAMS
 
 PARAMS.update(P.peekParameters(
-    PARAMS["annotations_dir"],
+    PARAMS["annotations_annotations_dir"],
     "pipeline_annotations.py",
     prefix="annotations_",
     update_interface=True))
