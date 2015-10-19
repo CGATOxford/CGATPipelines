@@ -435,6 +435,7 @@ def buildMaskGtf(infile, outfile):
 
     outf.close()
 
+
 # Docs for this function linked to PipelineGeneset; please look over there.
 @P.add_doc(PipelineGeneset.loadGeneStats)
 @transform("*.gtf.gz",
