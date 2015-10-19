@@ -1000,6 +1000,7 @@ def downloadTranscriptInformation(infile, outfile):
         "status": "gene_status",
         "transcript_status": "transcript_status",
         "external_gene_name": "gene_name",
+        "transcript_tsl": "transcript_support"
     }
 
     data = Biomart.biomart_iterator(
@@ -1146,7 +1147,9 @@ def buildCDNAFasta(infile, outfile):
 
 
 @follows(mkdir('ensembl.dir'))
-@merge(buildCDSTranscripts, PARAMS["interface_cds_fasta"])
+@files((buildCDSTranscripts,
+        buildPeptideFasta,),
+       PARAMS["interface_cds_fasta"])
 def buildCDSFasta(infile, outfile):
     '''build cds sequences from peptide and cds file.
 

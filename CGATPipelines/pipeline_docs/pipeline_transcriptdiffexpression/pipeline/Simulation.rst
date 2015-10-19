@@ -2,21 +2,21 @@
 Simulation Results
 ==================
 
-The transcripts expression is quantified here using a tool called
-Kallisto.  Like all RNA-Seq quantification methods, Kallisto is
-expected to show poorer accuracy of quantification for transcripts
-which have little unique sequence. To identify and flag these
-transcripts, we perform a simulation here where we generate a known
-number of reads per transcript (a ground truth) and compare this to
-the estimated counts from Kallisto. By repeating this multiple times
-(default x30) we can calculate the correlation between the ground
-truth and the estimated counts across the simulations. Samples with
-poor correlation are flagged in the results table as these could
-generate false positives in the differential testing analysis. In
-addition, we can compare the total estimated counts across all
-simulations to the total ground truth to identify transcripts where
-the counts are systematically under or over-estimated. These
-transcripts are also flagged.
+The transcripts expression may be quantified here using one or more of
+Kallisto, Sailfish or Salmon.  Like all RNA-Seq quantification
+methods, these tools are expected to show poorer accuracy of
+quantification for transcripts which have little unique sequence. To
+identify and flag these transcripts, we perform a simulation here
+where we generate a known number of reads per transcript (a ground
+truth) and compare this to the estimated counts. By repeating this
+multiple times (default x30) we can calculate the correlation between
+the ground truth and the estimated counts across the
+simulations. Samples with poor correlation are flagged in the results
+table as these could generate false positives in the differential
+testing analysis. In addition, we can compare the total estimated
+counts across all simulations to the total ground truth to identify
+transcripts where the counts are systematically under or
+over-estimated. These transcripts are also flagged.
 
 
 Ground Truth vs. Estimated Counts
@@ -30,6 +30,7 @@ absolute fold-difference between the ground truth and estimate is
 greater than 1.5-fold, the transcript is flagged.
 
 .. report:: Simulations.simulationCorrelations
+   :groupby: track
    :render: r-ggplot
    :statement: aes(read_count, est_counts) +
 	       geom_point(size=1, alpha=0.5,
@@ -44,7 +45,7 @@ greater than 1.5-fold, the transcript is flagged.
 	       legend.text=element_text(size=15),
 	       aspect.ratio=1) +
 	       scale_colour_discrete(
-	       name="Kallisto\naccuracy", labels=c("Poor", "Good")) +
+	       name="Accuracy", labels=c("Poor", "Good")) +
 	       xlab("Ground truth") +
 	       ylab("Estimated counts") +
 	       geom_abline(col="grey40", size=0.5) +
@@ -75,6 +76,7 @@ fraction of all 31nt kmers which are unique to the transcript, i.e not
 found in any other transcript.
 
 .. report:: Simulations.simulationCorrelations
+   :groupby: track
    :render: r-ggplot
    :statement: aes(as.factor(fraction_bin), as.numeric(as.character(log2diff_thres))) +
 	       geom_jitter(alpha=0.3,
@@ -113,6 +115,7 @@ less than 3 % unique kmers are flagged.
     Correlation vs Fraction Unique Kmers
 
 .. report:: Simulations.simulationCorrelations
+   :groupby: track
    :render: r-ggplot
    :statement: aes(as.factor(fraction_bin), as.numeric(as.character(cor))) +
 	       geom_jitter(size=0.5, alpha=0.3, col="grey15",
@@ -135,6 +138,7 @@ less than 3 % unique kmers are flagged.
 
 
 .. report:: Simulations.simulationCorrelations
+   :groupby: track
    :render: r-ggplot
    :statement: aes(as.factor(fraction_bin), as.numeric(as.character(cor))) +
 	       geom_jitter(size=1, alpha=0.25, col="grey30",

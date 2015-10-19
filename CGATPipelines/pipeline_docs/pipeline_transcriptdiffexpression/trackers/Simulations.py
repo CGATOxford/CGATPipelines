@@ -21,11 +21,13 @@ class imagesTracker(TrackerImages):
 
 class simulationCorrelations(IsoformTracker):
 
+    pattern = "(\S+)_simulation_correlations$"
+    
     def __call__(self, track, slice=None):
 
         statement = '''
         SELECT read_count, est_counts, fraction_bin, cor, log2diff,
-        log2diff_thres FROM simulation_correlations
+        log2diff_thres FROM %(track)s_simulation_correlations
         '''
 
         return self.getAll(statement)
@@ -33,13 +35,15 @@ class simulationCorrelations(IsoformTracker):
 
 class simulationCorrelationsSummaryFold(IsoformTracker):
 
+    pattern = "(\S+)_simulation_correlations$"
+
     def __call__(self, track, slice=None):
 
         statement = '''
         select
         total(CASE WHEN abs(log2diff) >0.585 THEN 1 ELSE 0 END) AS 'flagged',
         total(CASE WHEN abs(log2diff) <=0.585 THEN 1 ELSE 0 END) AS 'passed'
-        FROM simulation_correlations
+        FROM %(track)s_simulation_correlations
         '''
 
         return self.getAll(statement)
@@ -47,13 +51,15 @@ class simulationCorrelationsSummaryFold(IsoformTracker):
 
 class simulationCorrelationsSummaryKmers(IsoformTracker):
 
+    pattern = "(\S+)_simulation_correlations$"
+
     def __call__(self, track, slice=None):
 
         statement = '''
         select
         total(CASE WHEN fraction_unique <0.03 THEN 1 ELSE 0 END) AS 'flaged',
         total(CASE WHEN fraction_unique >=0.03 THEN 1 ELSE 0 END) AS 'passed'
-        FROM simulation_correlations
+        FROM %(track)s_simulation_correlations
         '''
 
         return self.getAll(statement)
