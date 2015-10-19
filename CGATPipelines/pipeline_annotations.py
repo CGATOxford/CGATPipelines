@@ -18,7 +18,7 @@ part is the reconciliation of different data sources in terms
 of chromosome names.
 
 Common to all annotations in this pipeline is that they are genomic -
-i.e. they are genomic intervals are relate to genomic intervals. Thus,
+i.e. they are genomic intervals or relate to genomic intervals. Thus,
 annotations are tied to a particular version of a genome. This pipeline
 follows two principal releases: the UCSC_ genome assembly version and an
 ENSEMBL_ geneset version.
@@ -636,8 +636,25 @@ def connectToUCSC():
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_contigs'])
 def buildContigSizes(infile, outfile):
-    '''output contig sizes.
     '''
+    Get contig sizes from indexed genome :term:`fasta` files and
+    outputs to a text file.
+
+    Parameters
+    ----------
+    infile : str
+      infile is constructed from the `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile : str
+      outfile is a text format file that contains two columns, matched
+      contig name and contig size (in nucleotides).  The output file
+      name is defined in `PARAMS: interface_contigs`.
+
+    '''
+
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs = IOTools.openFile(outfile, "w")
@@ -652,7 +669,22 @@ def buildContigSizes(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_contigs_bed'])
 def buildContigBed(infile, outfile):
-    '''output bed file with contigs
+    '''
+    Gets the contig sizes and co-ordinates from an indexed genome :term:`fasta`
+    file and outputs them to :term:`BED` format
+
+    Parameters
+    ----------
+    infile : str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile : str
+      :term:`BED` format file containing contig name, value (0) and contig size
+      in nucleotides.  The output file name is defined in
+      `PARAMS: interface_contigs_bed`
     '''
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
@@ -670,10 +702,28 @@ def buildContigBed(infile, outfile):
         PARAMS['interface_gaps_bed'],
         ))
 def buildUngappedContigBed(infile, outfiles):
-    '''output bed file with contigs.
-
-    Genomic regions with gaps are excluded.
     '''
+    Constructs :term:`BED` format files containing both gapped and ungapped
+    contig sizes from an index genome :term:`fasta` file.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    assembly_gaps_min_size: int
+      `PARAMS` - the minimum size (in nucleotides) for an assembly gap
+
+    Returns
+    -------
+    outfiles: list
+      two separate :term:`BED` format output files containing the contig sizes
+      for contigs with and without gaps.  The names are defined
+      in the `PARAMS` `interface_contigs_ungapped_bed` and
+      `interface_gaps_bed` parameters.
+    '''
+
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs_nogap = IOTools.openFile(outfiles[0], "w")
@@ -721,7 +771,22 @@ def buildUngappedContigBed(infile, outfiles):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS["interface_genome_tsv"])
 def buildGenomeInformation(infile, outfile):
-    '''compute genome composition information.'''
+    '''
+    Compute genome composition information, such as length
+    and CpG density.  Uses the CGAT script `fasta2table`.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from ``PARAMS`` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    Returns
+    -------
+    outfile: str
+      a text file table of contigs, length and CpG density.
+      The output files is GZIP compressed
+    '''
 
     statement = '''
     cat %(infile)s
@@ -734,6 +799,7 @@ def buildGenomeInformation(infile, outfile):
     P.run()
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildGenomeInformation, suffix(".tsv.gz"), ".load")
 def loadGenomeInformation(infile, outfile):
@@ -750,7 +816,36 @@ def loadGenomeInformation(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fasta",
        PARAMS["interface_gc_segmentation_bed"])
 def buildGenomeGCSegmentation(infile, outfile):
-    '''segment the genome into windows according to G+C content.'''
+    '''
+    Segments the genome into isochores - windows according to G+C
+    content.  Uses `CGAT` script `fasta2bed` to generate fixed-width
+    windows with their G+C content as a score.  This is then used
+    as the input for `bed2bed` which merges together adjacent or
+    overlapping intervals with the same number of bases into bins
+    based on their score; in this case G+C content.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    segmentation_window_size: int
+      `PARAMS` - window size to segment the genome into
+
+    segmentation_num_bins: str
+      `PARAMS` - the number of score bins to create for interval merging
+
+    segmentation_methods: str
+      `PARAMS` - method to use for merging intervals. See `bed2bed`
+      documentation for details.
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing genome segments with similar G+C
+      content.  Output file format is `BGZIP` compressed.
+    '''
 
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
@@ -774,7 +869,28 @@ def buildGenomeGCSegmentation(infile, outfile):
                     PARAMS["genome"]) + ".fasta",
        "assembly.dir/gcprofile.bed.gz")
 def runGenomeGCProfile(infile, outfile):
-    '''segment the genome into windows according to G+C content.'''
+    '''
+    Uses a HMM to profile the genome based on G+C content
+    and segment into windows (isochores).
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from ``PARAMS`` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    segmentation_min_length: int
+      `PARAMS` - minimum length for GCProfile segmentation
+
+    segmentation_halting_parameter: int
+      `PARAMS` - GCProfile halting parameter
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing predicted genome
+      isochores.  Outfile is `BGZIP` compressed.
+    '''
 
     # on some cgat109 I got libstc++ error:
     # error while loading shared libraries: libstdc++.so.5
@@ -797,7 +913,28 @@ def runGenomeGCProfile(infile, outfile):
 
 @merge(runGenomeGCProfile, PARAMS["interface_gc_profile_bed"])
 def buildGenomeGCProfile(infile, outfile):
-    '''aggregate windows with similar G+C content into bins.
+    '''
+    Aggregate predicted isochores with similar G+C content into
+    bins.
+
+    Parameters
+    ----------
+    infile: str
+      output from GCProfile in :term:`BED` format. Infile is
+      `BGZIP` compressed
+
+    segmentation_num_bins: str
+      `PARAMS` - the number of score bins to create for interval merging
+
+    segmentation_methods: str
+      `PARAMS` - method to use for merging intervals. See `bed2bed`
+      documentation for details.
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing genome segments with similar G+C
+      content.  Output file format is `BGZIP` compressed.
     '''
     statement = '''
     zcat %(infile)s
@@ -814,7 +951,22 @@ def buildGenomeGCProfile(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_cpg_bed'])
 def buildCpGBed(infile, outfile):
-    '''build bed file with CpG locations.'''
+    '''
+    Output a :term:`BED` file that contains the location of all CpGs
+    in the input genome using `CGAT` script `fasta2bed`.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile: str
+      A :term:`BED` format file containing location of CpGs across the
+      genome.  The BED file is then indexed using tabix
+    '''
 
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
@@ -1292,8 +1444,10 @@ def buildTranscriptRegions(infile, outfile):
 
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=transcript_id
+    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gff2bed.py --is-gtf
+    --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """
@@ -1803,16 +1957,53 @@ if PARAMS["genome"].startswith("hg"):
     @follows(mkdir('gwas.dir'))
     @merge(None, "gwas.dir/gwascatalog.txt")
     def downloadGWASCatalog(infile, outfile):
-        '''download GWAS catalog.'''
+        '''
+        Download the GWAS catalog data for the human genome
+
+        Parameters
+        ----------
+        infile: None
+          an unused variable required by Ruffus
+
+        Returns
+        -------
+        outfile: str
+          an `excel` file containing the human genome GWAS catalog
+        '''
 
         if os.path.exists(outfile):
             os.remove(outfile)
+            # MM: this is hard-coded - the URL can (and has) changed, so
+            # this should be defined in the pipeline config file
         statement = '''wget http://www.genome.gov/admin/gwascatalog.txt
         -O %(outfile)s'''
         P.run()
 
     @merge(downloadGWASCatalog, PARAMS["interface_gwas_catalog_bed"])
     def buildGWASCatalogTracks(infile, outfile):
+        '''
+        Convert the GWAS catalog entries to :term:`BED` format.
+
+        Parameters
+        ----------
+        infile: str
+          an `excel` format file of GWAS catalog entries
+
+        genome_dir: str
+          PARAMS - directory containing the indexed :term:`FASTA` genome
+          files
+
+        genome: str
+          PARAMS - indexed genome build to use
+
+        gwas_extension: int
+          PARAMS - size in bp to extend region around each GWAS catalog entry
+
+        Returns
+        -------
+        outfile: str
+          :term:`BED` format file of GWAS catalog entries
+        '''
 
         reader = csv.DictReader(IOTools.openFile(infile), dialect="excel-tab")
 
@@ -1883,7 +2074,21 @@ if PARAMS["genome"].startswith("hg"):
     @follows(mkdir('gwas.dir'))
     @merge(None, "gwas.dir/gwas_distild.log")
     def downloadDistiLD(infile, outfile):
-        '''download GWAS data from distild database.'''
+        '''
+        Download GWAS data from the DistiLD database.
+
+        Parameters
+        ----------
+        infile: None
+          an unused variable required by Ruffus
+
+        Returns
+        -------
+        outfile: str
+          two text files are output that contain SNP LD blocks with
+          gene annotations and SNP IDs, and SNP IDs with GWAS
+          associations and linked ICD10 codes
+        '''
 
         track = P.snip(outfile, ".log")
         of = track + "_snps.tsv.gz"
@@ -1906,7 +2111,28 @@ if PARAMS["genome"].startswith("hg"):
 
     @merge(downloadDistiLD, PARAMS["interface_gwas_distild_bed"])
     def buildDistiLDTracks(infile, outfile):
-        '''build bed tracks from DistiLD database.'''
+        '''
+        Build :term:`BED` tracks from entries in the DistiLD database
+        of disease/trait associations
+
+        Parameters
+        ----------
+        infile: str
+          the log file from the downloading DistiLD database files
+
+        genome_dir: str
+          PARAMS - directory containing the indexed :term:`FASTA` genome
+          files
+
+        genome: str
+          PARAMS - indexed genome build to use
+
+        Returns
+        -------
+        outfile: str
+          :term:`BED` format file containing disease associated SNPs
+          and their associated trait(s)
+        '''
 
         track = P.snip(infile, ".log")
         intervals = []
@@ -1962,6 +2188,7 @@ else:
 
 # ---------------------------------------------------------------
 # Ontologies
+@P.add_doc(PipelineGO.createGOFromENSEMBL)
 @follows(mkdir('ontologies.dir'))
 @files([(None, PARAMS["interface_go_ensembl"]), ])
 def createGO(infile, outfile):
@@ -1969,6 +2196,7 @@ def createGO(infile, outfile):
     PipelineGO.createGOFromENSEMBL(infile, outfile)
 
 
+@P.add_doc(PipelineGO.createGOSlimFromENSEMBL)
 @transform(createGO,
            regex("(.*)"),
            PARAMS["interface_goslim_ensembl"])
@@ -1977,16 +2205,19 @@ def createGOSlim(infile, outfile):
     PipelineGO.createGOSlimFromENSEMBL(infile, outfile)
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((createGO, createGOSlim),
            suffix(".tsv.gz"),
            r"\1_assignments.load")
 def loadGOAssignments(infile, outfile):
-    '''load GO assignments into database.'''
+    '''
+    Load GO assignments into database.'''
     P.load(infile, outfile,
            options="--add-index=gene_id --add-index=go_id")
 
 
+@P.add_doc(PipelineGO.buildGOPaths)
 @transform(createGO, suffix(".tsv.gz"), ".paths")
 def buildGOPaths(infile, outfile):
     '''compute a file with paths of each GO term to the ancestral node.'''
@@ -1994,6 +2225,7 @@ def buildGOPaths(infile, outfile):
     PipelineGO.buildGOPaths(infile, outfile)
 
 
+@P.add_doc(PipelineGO.buildGOTable)
 @transform(createGO, suffix(".tsv.gz"), ".desc.tsv")
 def buildGOTable(infile, outfile):
     '''build a simple table with GO descriptions in obo.'''
@@ -2001,6 +2233,7 @@ def buildGOTable(infile, outfile):
     PipelineGO.buildGOTable(infile, outfile)
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildGOTable, suffix(".tsv"), ".load")
 def loadGOTable(infile, outfile):
@@ -2008,6 +2241,7 @@ def loadGOTable(infile, outfile):
     P.load(infile, outfile)
 
 
+@P.add_doc(PipelineGO.createGOFromGeneOntology)
 @follows(mkdir('ontologies.dir'),
          downloadTranscriptInformation, loadGOAssignments)
 @files([(None, PARAMS["interface_go_geneontology"]), ])
@@ -2016,6 +2250,7 @@ def createGOFromGeneOntology(infile, outfile):
     PipelineGO.createGOFromGeneOntology(infile, outfile)
 
 
+@P.add_doc(PipelineGO.imputeGO)
 @transform(createGOFromGeneOntology,
            suffix(".tsv.gz"),
            add_inputs(buildGOPaths),
@@ -2027,6 +2262,7 @@ def imputeGO(infiles, outfile):
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
 
+@P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
 @files(None, PARAMS['interface_kegg'])
 def importKEGGAssignments(infile, outfile):
@@ -2042,6 +2278,7 @@ def importKEGGAssignments(infile, outfile):
     PipelineKEGG.importKEGGAssignments(outfile, mart, host, biomart_dataset)
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(importKEGGAssignments, suffix(".tsv.gz"), "_assignments.load")
 def loadKEGGAssignments(infile, outfile):
