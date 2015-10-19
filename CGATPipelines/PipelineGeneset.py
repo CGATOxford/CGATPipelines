@@ -395,6 +395,9 @@ def loadTranscriptInformation(infile, outfile,
 def buildCDNAFasta(infile, outfile):
     '''index an ENSEMBL cdna FASTA file
 
+    The descriptions in the fasta file are truncated at the
+    first space to contain only the sequence identifier.
+
     Arguments
     ---------
     infile : string
@@ -418,6 +421,9 @@ def buildCDNAFasta(infile, outfile):
 
 def buildPeptideFasta(infile, outfile):
     '''index an ENSEMBL peptide FASTA file
+
+    The descriptions in the fasta file are truncated at the
+    first space to contain only the sequence identifier.
 
     Arguments
     ---------
@@ -479,11 +485,11 @@ def loadPeptideSequences(infile, outfile):
 
 
 def buildCDSFasta(infile, outfile):
-    '''output CDS sequences
+    '''output CDS sequences.
 
-    It works by taking the CDNA and peptide sequence
-    of a particular transcript and aligning them in
-    order to remove any frameshifts.
+    This method works by taking the CDNA and peptide sequence of a
+    particular transcript and aligning them in order to remove any
+    frameshifts.
 
     .. note::
        This method is untested.
@@ -493,7 +499,8 @@ def buildCDSFasta(infile, outfile):
     infile : string
         ENSEMBL :term:`gtf` formatted file
     outfile : string
-        indexed file in :term:`fasta` format
+        indexed file in :term:`fasta` format with CDS sequences.
+
     '''
 
     dbname = outfile[:-len(".fasta")]
@@ -541,19 +548,23 @@ def buildCDSFasta(infile, outfile):
 
 
 def loadGeneStats(infile, outfile):
-    '''load gene statistics to database.
-    
+    """compute and load gene statistics to database.
+
+    Gene statistics are computed by :doc:`gtf2table` with the
+    following counters:
+
+    * length - gene/exon lengths
+    * position - gene position
+    * composition-na - gene nucleotide composition
+
     Parameters
     ----------
     infile : string
         A :term:`gtf` file which is output from :meth:`buildGenes`
-    
-    Returns
-    -------
     outfile : string
         A log file. The table name is derived from `outfile`.
-	e.g. bam_stats.load
-    '''
+        e.g. bam_stats.load
+    """
 
     load_statement = P.build_load_statement(
         P.toTable(outfile),
@@ -574,9 +585,10 @@ def loadGeneStats(infile, outfile):
 
 
 def buildExons(infile, outfile):
-    '''take exons from ENSEMBL gene set.
+    '''output exons from ENSEMBL gene set.
 
-    Remove all features from a :term:`gtf` file that are not ``exon``.
+    Remove all features from a :term:`gtf` file that are not of
+    feature ``exon``.
 
     Arguments
     ---------
@@ -598,7 +610,7 @@ def buildExons(infile, outfile):
 
 
 def buildCodingExons(infile, outfile):
-    '''take protein coding exons from ENSEMBL gene set.
+    '''output protein coding exons from ENSEMBL gene set.
 
     Remove all features from a :term:`gtf` file that are not ``exon``
     and are not protein-coding.
@@ -627,10 +639,10 @@ def buildCodingExons(infile, outfile):
 
 
 def buildNonCodingExons(infile, outfile):
-    '''take non-conding exons from ENSEMBL gene set.
+    '''output non-coding exons from ENSEMBL gene set.
 
-    Remove all features from a :term:`gtf` file that are not ``exon``
-    and that are protein-coding.
+    Remove all features from a :term:`gtf` file that are ``exon``
+    and that are not protein-coding.
 
     Arguments
     ---------
@@ -656,7 +668,7 @@ def buildNonCodingExons(infile, outfile):
 
 
 def buildLincRNAExons(infile, outfile):
-    """take LincRNA portion of ENSEMBL geneset.
+    """output LincRNA portion of ENSEMBL geneset.
 
     Take all features from a :term:`gtf` file that are of feature type
     ``exon`` and that are annotated as a lincrna biotype.
@@ -690,6 +702,9 @@ def buildCDS(infile, outfile):
     Take all features from a :term:`gtf` file that are of feature type
     ``CDS`` and that are annotated as protein-coding.
 
+    Note that only the coding parts of exons are output - UTR's are
+    removed.
+
     Arguments
     ---------
     infile : string
@@ -713,7 +728,7 @@ def buildCDS(infile, outfile):
 
 
 def loadTranscripts(infile, outfile):
-    '''load a GTF file into the database.
+    '''load transcripts from a GTF file into the database.
 
     The table will be indexed on ``gene_id`` and ``transcript_id``
 
@@ -731,7 +746,6 @@ def loadTranscripts(infile, outfile):
         "--add-index=transcript_id "
         "--allow-empty-file ")
 
-    # Jethro - some ensembl annotations contain no lincRNAs
     statement = '''
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2tsv.py
@@ -766,8 +780,10 @@ def loadTranscript2Gene(infile, outfile):
 def loadTranscriptStats(infile, outfile):
     '''compute and load transcript properties into database.
 
-    The method computes chromosomal coordinates, length and nucleotide
-    composition for each transcript.
+    The method calls :doc:`gtf2table` with the following counters:
+    * length - gene/exon lengths
+    * position - gene position
+    * composition-na - gene nucleotide composition
 
     Arguments
     ---------
@@ -792,7 +808,7 @@ def loadTranscriptStats(infile, outfile):
           --reporter=transcripts \
           --counter=position \
           --counter=length \
-          --counter=composition-na 
+          --counter=composition-na
     | %(load_statement)s
     > %(outfile)s'''
 
@@ -804,6 +820,12 @@ def loadProteinStats(infile, outfile):
 
     The method computes amino acid composition, length, and hash
     for each peptide sequence.
+
+    The method calls :doc:`fasta2table` with the following counters:
+
+    * length - protein sequence length
+    * hid - protein sequence hash identifier
+    * aa - protein sequence composition
 
     Arguments
     ---------
