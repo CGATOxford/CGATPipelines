@@ -81,3 +81,26 @@ def getCaller(decorators=0):
     mod = inspect.getmodule(frm[0])
     return mod
 
+
+def add_doc(value):
+    """add doc string of value to function that is decorated.
+
+    The original doc-string is added as the first paragraph(s)
+    inside the new doc-string.
+    """
+    def _doc(func):
+        if func.__doc__:
+            lines = value.__doc__.split("\n")
+            for x, line in enumerate(lines):
+                if line.strip() == "":
+                    break
+            # insert appropriate indentiation
+            # currently hard-coded, can be derived
+            # from doc string?
+            lines.insert(x+1, " " * 4 +
+                         func.__doc__ + "\n")
+            func.__doc__ = "\n".join(lines)
+        else:
+            func.__doc__ = value.__doc__
+        return func
+    return _doc
