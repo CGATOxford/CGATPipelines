@@ -1648,7 +1648,6 @@ def countTotalRepeatLength(infile, outfile):
 @files(((None, PARAMS["interface_allrepeats_gff"]), ))
 def importAllRepeatsFromUCSC(infile, outfile):
     """This task downloads all UCSC repeats types."""
-
     PipelineUCSC.getRepeatsFromUCSC(dbhandle=connectToUCSC(),
                                     repclasses=None,
                                     outfile=outfile)
@@ -1665,13 +1664,16 @@ def importAllRepeatsFromUCSC(infile, outfile):
                                    PARAMS["genome"] + ".fasta")),
            r"ucsc.dir/mapability_\1.bed.gz")
 def buildMapableRegions(infiles, outfile):
-    '''build bed files with mappable regions.
+    '''build :term:`bed` file with mapable regions.
 
-    Convert bigwig tracks with mappability information to a
-    bed-formatted file that contains only mappable regions of the
-    genome.
+    Convert :term:`bigwig` data with mapability information per
+    genomic position to a :term:`bed`-formatted file that lists the
+    mapable regions of the genome.
 
-    A mapable region is more permissive than a mapable position.
+    For the purpose of these tracks, a region is defined to be
+    un-mapable if its maximum mapability score is less than
+    0.5. Unmapable positions that are less than half the kmer size
+    away from the next mapable position are designated as mapable.
 
     This method assumes that files use the ``CRG Alignability
     tracks``.
@@ -1691,11 +1693,13 @@ def buildMapableRegions(infiles, outfile):
       of the ENCODE project, in the framework of the GEM (GEnome
       Multitool) project.
 
-    For the purpose of these tracks, a region is defined to be un-mapable
-    if its maximum mapability score is less than 0.5.
+    Arguments
+    ---------
+    infiles : list
+       Filenames in :term:`bigwig` format with mapable data.
+    outfile : string
+       Output filename in :term:`bed` format with mapable regions.
 
-    Unmapable regions that are less than half kmer size are mapable, as
-    reads from the left/right mapable positions will extend into the region.
     '''
 
     infile, fastafile = infiles
@@ -1760,15 +1764,27 @@ def buildMapableRegions(infiles, outfile):
 @transform(buildMapableRegions, suffix(".bed.gz"),
            ".filtered.bed.gz")
 def filterMapableRegions(infile, outfile):
-    '''remove small windows from a mapability track.
+    """remove small windows from a mapability track.
 
-    Too many fragmented regions will cause gat to fail as it
-    fragments the workspace into too many individual segments.
+    Too many fragmented regions will cause gat to fail as it fragments
+    the workspace in a GAT analysis into too many individual segments.
 
-    The filtering works by merging all segments that are
-    within mapability_merge_distance and removing all those
-    that are larger than mapabpility_min_segment_size
-    '''
+    The filtering works by merging all segments that are within
+    mapability_merge_distance and removing all those that are larger
+    than mapabpility_min_segment_size.
+
+    Arguments
+    ---------
+    infile : string
+       Input filename in :term:`bed` format.
+    outfile : string
+       Output filename in :term:`bed` format with mapable regions.
+    mapability_merge_distance : int
+       see :term:`PARAMS`
+    mapability_min_segment_size : int
+       see :term:`PARAMS`
+
+    """
 
     statement = '''
     mergeBed -i %(infile)s -d %(mapability_merge_distance)i
