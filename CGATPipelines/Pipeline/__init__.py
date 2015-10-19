@@ -397,7 +397,15 @@ def _pickle_args(args, kwargs):
     return (submit_args, args_file)
 
 
+def add_doc(value):
+    def _doc(func):
+        func.__doc__ = value.__doc__
+        return func
+    return _doc
+
+
 __all__ = [
+    "add_doc",
     # backwards incompatibility
     "clone",
     "touch",
