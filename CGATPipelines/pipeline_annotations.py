@@ -570,7 +570,9 @@ import re
 import os
 import glob
 import collections
-from ruffus import *
+from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
+    suffix, regex, add_inputs
+
 from bx.bbi.bigwig_file import BigWigFile
 import sqlite3
 import CGAT.Experiment as E
@@ -889,11 +891,11 @@ def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadGeneInformation(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.loadGeneStats.__doc__)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(mkdir('ensembl.dir'))
 @files(buildFlatGeneSet, "ensembl.dir/gene_stats.load")
 def loadGeneStats(infile, outfile):
-    '''load the transcript set.'''
     PipelineGeneset.loadGeneStats(infile, outfile)
 
 
