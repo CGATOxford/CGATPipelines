@@ -1,3 +1,26 @@
+##########################################################################
+#
+#   MRC FGU Computational Genomics Analysis & Training Programme
+#
+#   $Id$
+#
+#   Copyright (C) 2014 David Sims
+#
+#   This program is free software; you can redistribute it and/or
+#   modify it under the terms of the GNU General Public License
+#   as published by the Free Software Foundation; either version 2
+#   of the License, or (at your option) any later version.
+#
+#   This program is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with this program; if not, write to the Free Software
+#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+##########################################################################
+
 """========================================
 RNA-Seq Differential expression pipeline
 ========================================
@@ -10,9 +33,9 @@ RNA-Seq Differential expression pipeline
 The RNA-Seq differential expression pipeline performs differential
 expression analysis. It requires three inputs:
 
-   1 one or more genesets in :term:`gtf` formatted files
-   2 mapped reads in :term:`bam` formatted files
-   3 design files as :term:`tsv`-separated format
+   1. one or more genesets in :term:`gtf` formatted files
+   2. mapped reads in :term:`bam` formatted files
+   3. design files as :term:`tsv`-separated format
 
 This pipeline works on a single genome.
 
@@ -268,6 +291,9 @@ ChangeLog
             changed workflow. Multiple counters are applied and
             differential expression is computed on all.
 
+15.10.2015  Charlotte George, Sebastian Luna-Valero
+            SCRUM Oct 2015. Updating documentation.
+
 Requirements:
 
 
@@ -346,7 +372,7 @@ GENESETS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 
 
 def connect():
-    '''connect to database.
+    '''Connect to database (sqlite by default)
 
     This method also attaches to helper databases.
     '''
@@ -370,10 +396,28 @@ TARGETS_FPKM = [(("%s.gtf.gz" % x.asFile(), "%s.bam" % y.asFile()),
 @files(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset_mask.gtf")
 def buildMaskGtf(infile, outfile):
-    '''This takes ensembl annotations (geneset_all.gtf.gz) and writes out
-    all entries that have a 'source' match to "rRNA" or 'contig' match
-    to "chrM". for use with cufflinks
+    '''creates a gtf for cufflinks containing the transcripts you do not want to build transcript models of
 
+    This takes ensembl annotations (geneset_all.gtf.gz) and writes out
+    all entries that have a 'source' match to "rRNA" or 'contig' match
+    to "chrM" for use as a mask with cufflinks (see cufflinks manual for benefits 
+    of mask file http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html).
+    
+    Parameters
+    ----------
+    infile : string
+    	:term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
+    
+    annotations_interface_table_gene_info : string
+	:term:`PARAMS` gene_info table in annotations database - set in pipeline.ini in annotations directory
+
+    annotations_interface_table_gene_stats : string
+	:term:`PARAMS` gene_stats table in annotations database - set in pipeline.ini in annotations directory
+	
+    outfile : string
+    	A :term:`gtf` file for use as "mask file" for cufflinks.
+	This is created by filtering infile for certain transcripts e.g. rRNA or chrM transcripts
+	and writing them to outfile
     '''
     dbh = connect()
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
@@ -403,10 +447,12 @@ def buildMaskGtf(infile, outfile):
     outf.close()
 
 
+@P.add_doc(PipelineGeneset.loadGeneStats)
 @transform("*.gtf.gz",
            suffix(".gtf.gz"),
            "_geneinfo.load")
 def loadGeneSetGeneInformation(infile, outfile):
+    # Docs for this function linked to PipelineGeneset; please look there.
     PipelineGeneset.loadGeneStats(infile, outfile)
 
 

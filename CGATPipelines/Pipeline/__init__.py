@@ -237,7 +237,6 @@ import Execution as Execution
 import Control as Control
 import Database as Database
 import Files as Files
-import Utils as Utils
 import Parameters as Parameters
 
 # broadcast parameters and config object, take from
@@ -397,15 +396,7 @@ def _pickle_args(args, kwargs):
     return (submit_args, args_file)
 
 
-def add_doc(value):
-    def _doc(func):
-        func.__doc__ = value.__doc__
-        return func
-    return _doc
-
-
 __all__ = [
-    "add_doc",
     # backwards incompatibility
     "clone",
     "touch",
@@ -431,6 +422,7 @@ __all__ = [
     "getDatabaseName",
     "importFromIterator",
     # Utils.py
+    "add_doc",
     "isTest",
     "getCallerLocals",
     "getCaller",
