@@ -116,7 +116,7 @@ def annotateGenome(infile, outfile,
 
 def annotateGeneStructure(infile, outfile,
                           only_proteincoding=False):
-    '''annotate genomic regions with gene structure.
+    """annotate genomic regions with gene structure.
 
     The method applies the following filters to an ENSEMBL gene set:
 
@@ -144,7 +144,7 @@ def annotateGeneStructure(infile, outfile,
     only_proteincoding : bool
        If True, only consider protein coding genes.
 
-    '''
+    """
 
     if only_proteincoding:
         filter_cmd = """python %(scriptsdir)s/gtf2gtf.py
@@ -1328,6 +1328,9 @@ def buildGenomicContext(infiles, outfile, distance=10):
     The function also adds the RNA and repeats annotations from the UCSC.
     The annotations can be partially or fully overlapping.
 
+    The annotations can be partially or fully overlapping. Adjacent
+    features (less than 10 bp apart) of the same type are merged.
+
     Arguments
     ---------
     infiles : list
@@ -1347,6 +1350,7 @@ def buildGenomicContext(infiles, outfile, distance=10):
        Output filename in :term:`bed` format.
     distance : int
        Merge adajcent features of the same type within this distance.
+
     '''
 
     repeats_gff, rna_gff, annotations_gtf, geneset_flat_gff, \
