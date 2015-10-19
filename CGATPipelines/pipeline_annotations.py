@@ -1,12 +1,6 @@
-
 """===================
 Annotation pipeline
 ===================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The annotation pipeline imports various third party annotations
 or creates them for use in other pipelines.
