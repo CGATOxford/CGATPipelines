@@ -18,7 +18,7 @@ part is the reconciliation of different data sources in terms
 of chromosome names.
 
 Common to all annotations in this pipeline is that they are genomic -
-i.e. they are genomic intervals are relate to genomic intervals. Thus,
+i.e. they are genomic intervals or relate to genomic intervals. Thus,
 annotations are tied to a particular version of a genome. This pipeline
 follows two principal releases: the UCSC_ genome assembly version and an
 ENSEMBL_ geneset version.
@@ -634,8 +634,25 @@ def connectToUCSC():
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_contigs'])
 def buildContigSizes(infile, outfile):
-    '''output contig sizes.
     '''
+    Get contig sizes from indexed genome :term:`fasta` files and
+    outputs to a text file.
+
+    Parameters
+    ----------
+    infile : str
+      infile is constructed from the `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile : str
+      outfile is a text format file that contains two columns, matched
+      contig name and contig size (in nucleotides).  The output file
+      name is defined in `PARAMS: interface_contigs`.
+
+    '''
+
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs = IOTools.openFile(outfile, "w")
@@ -650,7 +667,22 @@ def buildContigSizes(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_contigs_bed'])
 def buildContigBed(infile, outfile):
-    '''output bed file with contigs
+    '''
+    Gets the contig sizes and co-ordinates from an indexed genome :term:`fasta`
+    file and outputs them to :term:`BED` format
+
+    Parameters
+    ----------
+    infile : str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile : str
+      :term:`BED` format file containing contig name, value (0) and contig size
+      in nucleotides.  The output file name is defined in
+      `PARAMS: interface_contigs_bed`
     '''
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
@@ -668,10 +700,28 @@ def buildContigBed(infile, outfile):
         PARAMS['interface_gaps_bed'],
         ))
 def buildUngappedContigBed(infile, outfiles):
-    '''output bed file with contigs.
-
-    Genomic regions with gaps are excluded.
     '''
+    Constructs :term:`BED` format files containing both gapped and ungapped
+    contig sizes from an index genome :term:`fasta` file.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    assembly_gaps_min_size: int, `PARAMS`
+      the minimum size (in nucleotides) for an assembly gap
+
+    Returns
+    -------
+    outfiles: list
+      two separate :term:`BED` format output files containing the contig sizes
+      for contigs with and without gaps.  The names are defined
+      in the `PARAMS` `interface_contigs_ungapped_bed` and
+      `interface_gaps_bed` parameters.
+    '''
+
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs_nogap = IOTools.openFile(outfiles[0], "w")
@@ -719,7 +769,22 @@ def buildUngappedContigBed(infile, outfiles):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS["interface_genome_tsv"])
 def buildGenomeInformation(infile, outfile):
-    '''compute genome composition information.'''
+    '''
+    Compute genome composition information, such as length
+    and CpG density.  Uses the CGAT script `fasta2table`.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from ``PARAMS`` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    Returns
+    -------
+    outfile: str
+      a text file table of contigs, length and CpG density.
+      The output files is GZIP compressed
+    '''
 
     statement = '''
     cat %(infile)s
@@ -731,7 +796,7 @@ def buildGenomeInformation(infile, outfile):
     '''
     P.run()
 
-
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildGenomeInformation, suffix(".tsv.gz"), ".load")
 def loadGenomeInformation(infile, outfile):
@@ -748,7 +813,36 @@ def loadGenomeInformation(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fasta",
        PARAMS["interface_gc_segmentation_bed"])
 def buildGenomeGCSegmentation(infile, outfile):
-    '''segment the genome into windows according to G+C content.'''
+    '''
+    Segments the genome into isochores - windows according to G+C
+    content.  Uses `CGAT` script `fasta2bed` to generate fixed-width
+    windows with their G+C content as a score.  This is then used
+    as the input for `bed2bed` which merges together adjacent or
+    overlapping intervals with the same number of bases into bins
+    based on their score; in this case G+C content.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from ``PARAMS`` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    segmentation_window_size: int, PARAM
+      window size to segment the genome into
+
+    segmentation_num_bins: str, PARAM
+      the number of score bins to create for interval merging
+
+    segmentation_methods: str, PARAM
+      method to use for merging intervals. See `bed2bed` documentation
+      for details.
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing genome segments with similar G+C
+      content.  Output file format is `BGZIP` compressed.
+    '''
 
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
@@ -772,7 +866,28 @@ def buildGenomeGCSegmentation(infile, outfile):
                     PARAMS["genome"]) + ".fasta",
        "assembly.dir/gcprofile.bed.gz")
 def runGenomeGCProfile(infile, outfile):
-    '''segment the genome into windows according to G+C content.'''
+    '''
+    Uses a HMM to profile the genome based on G+C content
+    and segment into windows (isochores).
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from ``PARAMS`` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    segmentation_min_length: int, PARAM
+      minimum length for GCProfile segmentation
+
+    segmentation_halting_parameter: int, PARAM
+      GCProfile halting parameter
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing predicted genome
+      isochores.  Outfile is `BGZIP` compressed.
+    '''
 
     # on some cgat109 I got libstc++ error:
     # error while loading shared libraries: libstdc++.so.5
@@ -795,7 +910,28 @@ def runGenomeGCProfile(infile, outfile):
 
 @merge(runGenomeGCProfile, PARAMS["interface_gc_profile_bed"])
 def buildGenomeGCProfile(infile, outfile):
-    '''aggregate windows with similar G+C content into bins.
+    '''
+    Aggregate predicted isochores with similar G+C content into
+    bins.
+
+    Parameters
+    ----------
+    infile: str
+      output from GCProfile in :term:`BED` format. Infile is
+      `BGZIP` compressed
+
+    segmentation_num_bins: str, PARAM
+      the number of score bins to create for interval merging
+
+    segmentation_methods: str, PARAM
+      method to use for merging intervals. See `bed2bed` documentation
+      for details.
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing genome segments with similar G+C
+      content.  Output file format is `BGZIP` compressed.      
     '''
     statement = '''
     zcat %(infile)s
@@ -812,7 +948,9 @@ def buildGenomeGCProfile(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_cpg_bed'])
 def buildCpGBed(infile, outfile):
-    '''build bed file with CpG locations.'''
+    '''
+
+    build bed file with CpG locations.'''
 
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
