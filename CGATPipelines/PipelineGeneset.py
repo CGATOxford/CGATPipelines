@@ -542,11 +542,17 @@ def buildCDSFasta(infile, outfile):
 
 def loadGeneStats(infile, outfile):
     '''load gene statistics to database.
-
+    
+    Parameters
+    ----------
     infile : string
-        Output from :meth:`buildGenes`
+        A :term:`gtf` file which is output from :meth:`buildGenes`
+    
+    Returns
+    -------
     outfile : string
-        Logfile. The table name is derived from `outfile`.
+        A log file. The table name is derived from `outfile`.
+	e.g. bam_stats.load
     '''
 
     load_statement = P.build_load_statement(
