@@ -798,6 +798,7 @@ def buildGenomeInformation(infile, outfile):
     '''
     P.run()
 
+
 @P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildGenomeInformation, suffix(".tsv.gz"), ".load")
@@ -836,8 +837,8 @@ def buildGenomeGCSegmentation(infile, outfile):
       `PARAMS` - the number of score bins to create for interval merging
 
     segmentation_methods: str
-      `PARAMS` - method to use for merging intervals. See `bed2bed` documentation
-      for details.
+      `PARAMS` - method to use for merging intervals. See `bed2bed`
+      documentation for details.
 
     Returns
     -------
@@ -926,14 +927,14 @@ def buildGenomeGCProfile(infile, outfile):
       `PARAMS` - the number of score bins to create for interval merging
 
     segmentation_methods: str
-      `PARAMS` - method to use for merging intervals. See `bed2bed` documentation
-      for details.
+      `PARAMS` - method to use for merging intervals. See `bed2bed`
+      documentation for details.
 
     Returns
     -------
     outfile: str
       :term:`BED` format file containing genome segments with similar G+C
-      content.  Output file format is `BGZIP` compressed.      
+      content.  Output file format is `BGZIP` compressed.
     '''
     statement = '''
     zcat %(infile)s
@@ -1443,8 +1444,10 @@ def buildTranscriptRegions(infile, outfile):
 
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=transcript_id
+    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gff2bed.py --is-gtf
+    --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """
@@ -1956,7 +1959,7 @@ if PARAMS["genome"].startswith("hg"):
     def downloadGWASCatalog(infile, outfile):
         '''
         Download the GWAS catalog data for the human genome
-        
+
         Parameters
         ----------
         infile: None
@@ -2123,7 +2126,7 @@ if PARAMS["genome"].startswith("hg"):
 
         genome: str
           PARAMS - indexed genome build to use
-        
+
         Returns
         -------
         outfile: str
