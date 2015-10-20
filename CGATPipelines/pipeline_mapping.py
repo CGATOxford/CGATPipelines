@@ -386,8 +386,8 @@ def identifyProteinCodingGenes(outfile):
 def buildCodingGeneSet(infiles, outfile):
     '''build a gene set with only protein coding transcripts.
 
-    Retain the genes in the gene_tsv file in the outfile geneset.  The
-    gene set will contain all transcripts of protein coding genes,
+    Retain the genes from the gene_tsv file in the outfile geneset.
+    The gene set will contain all transcripts of protein coding genes,
     including processed transcripts. The gene set includes UTR and
     CDS.
 
@@ -441,11 +441,11 @@ def buildIntronGeneModels(infiles, outfile):
 
     Parameters
     ----------
-    infiles : list of str
-       infile :term:`str`
-          Input filename in :term:`gtf` format
-       genes_tsv :term:`str`
-          Input filename in :term:`tsv` format
+    infiles : list
+    infiles[0] : str
+       Input filename in :term:`gtf` format
+    infiles[1] : str
+       Input filename in :term:`tsv` format
 
     outfile: str
        Output filename in :term:`gtf` format
@@ -487,11 +487,11 @@ def buildIntronGeneModels(infiles, outfile):
     P.run()
 
 
+@P.add_doc(PipelineGeneset.loadTranscript2Gene)
 @active_if(SPLICED_MAPPING)
 @transform(buildCodingGeneSet,
            suffix(".gtf.gz"),
            "_transcript2gene.load")
-@P.add_doc(PipelineGeneset.loadTranscript2Gene)
 def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadTranscript2Gene(infile, outfile)
 
@@ -508,9 +508,8 @@ def buildCodingExons(infile, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`gtf` format
-
     outfile: str
        Output filename in :term:`gtf` format
 
@@ -547,7 +546,7 @@ def buildReferenceTranscriptome(infile, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`gtf` format
     outfile: str
        Output filename in :term:`fasta` format
@@ -615,7 +614,7 @@ def buildJunctions(infile, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`gtf` format
     outfile: str
        Output filename
@@ -666,7 +665,7 @@ def buildGSNAPSpliceSites(infile, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`gtf` format
     outfile: str
        Output filename
@@ -1274,12 +1273,13 @@ def mapReadsWithSTAR(infile, outfile):
 @merge(mapReadsWithSTAR, "star_stats.tsv")
 def buildSTARStats(infiles, outfile):
     '''Compile statistics from STAR run
+
     Concatenates log files from STAR runs and reformats them as a tab
     delimited table.
 
     Parameters
     ----------
-    infiles: list
+    infile: list
         :term:`bam` files generated with STAR.
     outfile: str
         :term: `tsv` file containing statistics about STAR run
@@ -1769,9 +1769,9 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
         '''merge BAM files from the same experiment using user-defined regex
 
         For the mapping stages it is beneficial to perform mapping
-        seperately for each sequence read infile(s) so that the
-        consistency can be checked. However, for downstream tasks, the
-        merged :term:`bam` alignment file are required.
+        seperately for each sequence read infile(s) per sample so that
+        the consistency can be checked. However, for downstream tasks,
+        the merged :term:`bam` alignment files are required.
 
         Parameters
         ----------
@@ -1935,12 +1935,14 @@ def buildBAMStats(infiles, outfile):
     Parameters
     ----------
     infiles : list
-       bamfile : :term:`str`
-          Input filename in :term:`bam` format
-       readsfile : term:`str`
-          Input filename with number of reads per sample
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str
+       Input filename with number of reads per sample
+
     outfile : str
        Output filename with read stats
+
     annotations_interface_rna_gtf : str
         :term:`PARMS`. :term:`gtf` format file with repetitive rna
     '''
@@ -2029,18 +2031,18 @@ def buildExonValidation(infiles, outfile):
     '''Compare the alignments to the exon models to quantify exon
     overrun/underrun
 
-    Expect that reads should not extend beyond known exons.
+    Expectation is that reads should not extend beyond known exons.
 
     Parameters
     ----------
     infiles : list
-       infile :term:`str`
-          Input filename in :term:`bam` format
-       exons :term:`str`
-          Input filename in :term:`gtf` format
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str
+       Input filename in :term:`gtf` format
+
     outfile : str
        Output filename in :term:`gtf` format with exon validation stats
-
     '''
 
     infile, exons = infiles
@@ -2072,7 +2074,7 @@ def loadExonValidation(infiles, outfile):
 
     Parameters
     ----------
-    infiles : list of str
+    infiles : list
        Input filenames with exon validation stats
     outfile : str
        Output filename
@@ -2102,12 +2104,14 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     Parameters
     ----------
     infiles : list of str
-       infile :term:`str`
-          Input filename in :term:`bam` format
-       geneset :term:`str`
-          Input filename in :term:`gtf` format
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str
+       Input filename in :term:`gtf` format
+
     outfile : str
        Output filename in :term:`tsv` format
+
 
     .. note::
        In paired-end data sets each mate will be counted. Thus
@@ -2148,7 +2152,7 @@ def loadTranscriptLevelReadCounts(infile, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`tsv` format
     outfile : str
        Output filename, the table name is derived from `outfile`
@@ -2239,7 +2243,7 @@ def loadReadCounts(infiles, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`tsv` format
     outfile : str
        Output filename, the table name is derived from `outfile`
@@ -2279,10 +2283,11 @@ def buildTranscriptProfiles(infiles, outfile):
     Parameters
     ----------
     infiles : list of str
-       bamfile :term:`str`
-          Input filename in :term:`bam` format
-       gtffile :term:`str`
-          Input filename in :term:`gtf` format
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str`
+       Input filename in :term:`gtf` format
+
     outfile : str
        Output filename in :term:`tsv` format
     '''
@@ -2320,12 +2325,14 @@ def buildBigWig(infile, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`bam` format
     outfile : str
        Output filename in :term:`bigwig` format
+
     annotations_interface_contigs : str
-       :term:`Input filename in :term:`bed` format
+       :term:`PARAMS`
+       Input filename in :term:`bed` format
 
     '''
 
@@ -2372,7 +2379,7 @@ def loadBigWigStats(infiles, outfile):
     
     Parameters
     ----------
-    infiles : list of str
+    infiles : list
        Input filenames in :term:`bigwig` format
     outfile : string
         Output filename, the table name is derived from `outfile`.
@@ -2411,7 +2418,7 @@ def buildBed(infile, outfile):
 
     Parameters
     ----------
-    infiles : str
+    infile : str
        Input filename in :term:`bam` format
     outfile : str
        Output filename in :term:`bed` format
@@ -2438,7 +2445,7 @@ def buildIGVSampleInformation(infiles, outfile):
     Parameters
     ----------
     infiles : str
-       Input filename in :term:`bigwig` format
+       Input filenames in :term:`bigwig` format
     outfile : str
        Output filename in :term:`tsv` format
     '''
