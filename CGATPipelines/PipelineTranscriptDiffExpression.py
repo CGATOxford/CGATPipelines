@@ -50,7 +50,7 @@ def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
     res.plotMA(contrast, outfile_prefix)
     res.plotVolcano(contrast, outfile_prefix)
 
-    res.table.to_csv(outfile, sep="\t")
+    res.table.to_csv(outfile, sep="\t", index=False)
 
 
 @cluster_runnable
@@ -102,3 +102,28 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
 
         log.write("plot heatmap: %s\n" % heatmap_outfile)
         counts_highExp.heatmap(heatmap_outfile)
+
+
+@cluster_runnable
+def identifyLowConfidenceTranscripts(infile, outfile):
+    ''' identify transcripts which cannot be confidently quantified in
+    the simulation '''
+
+    df = pd.read_table(infile, sep="\t", index_col=0)
+
+    with IOTools.openFile(outfile, "w") as outf:
+
+        outf.write("%s\t%s\n" % ("transcript_id", "reason"))
+
+        # identify transcript with low fraction of kmers - these show
+        # poorer correlation between ground truth and esimated counts
+        low_fraction = df[df['fraction_bin'] < 0.03].index.tolist()
+
+        for transcript in low_fraction:
+            outf.write("%s\t%s\n" % (transcript, "low_kmers"))
+
+        # identify transcript with poor accuracy of quantification
+        low_accuracy = df[[abs(x) > 0.585 for x in
+                           df['log2diff']]].index.tolist()
+        for transcript in low_accuracy:
+            outf.write("%s\t%s\n" % (transcript, "poor_accuracy"))

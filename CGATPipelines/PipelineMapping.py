@@ -1102,6 +1102,50 @@ class Sailfish(Mapper):
         return statement
 
 
+class Salmon(Mapper):
+    '''run Salmon to quantify transcript abundance from fastq files'''
+
+    def __init__(self, compress=True, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.compress = compress
+
+    def mapper(self, infiles, outfile):
+
+        statement = ['''salmon quant -i %%(index)s''' % locals()]
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+            input_file = '''-r %s ''' % " ".join(
+                ["<(zcat %s)" % x[0] for x in infiles])
+
+        elif nfiles == 2:
+
+            input_file = '''-1 %s -2 %s''' % (
+                " ".join(["<(zcat %s)" % x[0] for x in infiles]),
+                " ".join(["<(zcat %s)" % x[1] for x in infiles]))
+
+        else:
+            # is this the correct error type?
+            raise ValueError("incorrect number of input files")
+
+        outdir = os.path.dirname(os.path.abspath(outfile))
+
+        statement.append('''
+        -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
+        --threads %%(job_threads)s %%(salmon_options)s;''' % locals())
+
+        statement = " ".join(statement)
+
+        return statement
+
+
 class Kallisto(Mapper):
 
     '''run Kallisto to quantify transcript abundance from fastq files'''
@@ -1110,6 +1154,8 @@ class Kallisto(Mapper):
         '''build mapping statement on infiles'''
 
         tmpdir = os.path.join(self.tmpdir_fastq + "kallisto")
+
+        logfile = outfile + ".log"
 
         num_files = [len(x) for x in infiles]
 
@@ -1129,11 +1175,16 @@ class Kallisto(Mapper):
         else:
             raise ValueError("incorrect number of input files")
 
+        outdir = os.path.dirname(outfile)
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
         # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
         kallisto quant %%(kallisto_options)s
         --bootstrap-samples=%%(bootstrap)s
-        -i %%(index)s -o %(tmpdir)s %(infiles)s;''' % locals()
+        -i %%(index)s -o %(tmpdir)s %(infiles)s
+        > %(logfile)s &> %(logfile)s ;''' % locals()
 
         self.tmpdir = tmpdir
 
@@ -1142,12 +1193,10 @@ class Kallisto(Mapper):
     def postprocess(self, infiles, outfile):
         '''move outfiles from tmpdir to final location'''
 
-        directory = os.path.dirname(os.path.abspath(outfile))
         tmpdir = self.tmpdir
 
         statement = ('''
-        mkdir %(directory)s;
-        mv %(tmpdir)s/abundance.h5 %(outfile)s;
+        mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
 
         return statement

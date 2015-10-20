@@ -736,6 +736,20 @@ def addTreatmentMeans(infile, outfile):
 
 
 @transform(addTreatmentMeans,
+           suffix(".tsv"),
+           ".load")
+def loadCoveredCpGs(infile, outfile):
+    dbh = connect()
+    tablename = P.toTable(outfile)
+
+    statement = '''cat %(infile)s |
+                python %%(scriptsdir)s/csv2db.py
+                --table %(tablename)s --retry --ignore-empty
+                 > %(outfile)s''' % locals()
+    P.run()
+
+
+@transform(addTreatmentMeans,
            regex("methylation.dir/(\S+)_covered_with_means.tsv"),
            r"plots.dir/\1_summary_plots")
 def makeSummaryPlots(infile, outfile):
@@ -1044,7 +1058,8 @@ def startSummary():
          mergeCoverage,
          plotReadBias,
          power,
-         M3D)
+         M3D,
+         loadCoveredCpGs)
 def full():
     pass
 

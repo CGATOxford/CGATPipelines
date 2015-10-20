@@ -318,7 +318,7 @@ def peekParameters(workingdir,
     # patch for the "config" target - use default
     # pipeline directory if directory is not specified
     # working dir is set to "?!"
-    if "config" in sys.argv or "check" in sys.argv and workingdir == "?!":
+    if "config" in sys.argv or "check" in sys.argv or "clone" in sys.argv and workingdir == "?!":
         workingdir = os.path.join(PARAMS.get("pipelinedir"),
                                   IOTools.snip(pipeline, ".py"))
 
