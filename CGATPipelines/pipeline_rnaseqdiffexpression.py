@@ -1000,6 +1000,7 @@ def loadDESeq(infile, outfile):
            tablename=P.toTable(outfile) + "_gene_diff",
            options="--allow-empty-file --add-index=test_id")
 
+
 @P.add_doc(PipelineRnaseq.buildExpressionStats)
 @follows(loadGeneSetGeneInformation)
 @merge(loadDESeq, "deseq_stats.tsv")
@@ -1116,6 +1117,7 @@ def loadEdgeR(infile, outfile):
            outfile,
            tablename=P.toTable(outfile) + "_gene_diff",
            options="--allow-empty-file --add-index=test_id")
+
 
 @P.add_doc(PipelineRnaseq.buildExpressionStats)
 @follows(loadGeneSetGeneInformation)
