@@ -396,28 +396,33 @@ TARGETS_FPKM = [(("%s.gtf.gz" % x.asFile(), "%s.bam" % y.asFile()),
 @files(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset_mask.gtf")
 def buildMaskGtf(infile, outfile):
-    '''creates a gtf for cufflinks containing the transcripts you do not want to build transcript models of
+    '''creates a gtf for cufflinks containing the transcripts you do not want
+    to build transcript models of
 
     This takes ensembl annotations (geneset_all.gtf.gz) and writes out
     all entries that have a 'source' match to "rRNA" or 'contig' match
-    to "chrM" for use as a mask with cufflinks (see cufflinks manual for benefits 
-    of mask file http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html).
-    
+    to "chrM" for use as a mask with cufflinks (see cufflinks manual for
+    benefits of mask file
+    http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html).
+
     Parameters
     ----------
     infile : string
-    	:term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
-    
+        :term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
+
     annotations_interface_table_gene_info : string
-	:term:`PARAMS` gene_info table in annotations database - set in pipeline.ini in annotations directory
+        :term:`PARAMS` gene_info table in annotations database - set in
+        pipeline.ini in annotations directory
 
     annotations_interface_table_gene_stats : string
-	:term:`PARAMS` gene_stats table in annotations database - set in pipeline.ini in annotations directory
-	
+         :term:`PARAMS` gene_stats table in annotations database - set in
+         pipeline.ini in annotations directory
+
     outfile : string
-    	A :term:`gtf` file for use as "mask file" for cufflinks.
-	This is created by filtering infile for certain transcripts e.g. rRNA or chrM transcripts
-	and writing them to outfile
+        A :term:`gtf` file for use as "mask file" for cufflinks.
+        This is created by filtering infile for certain transcripts e.g. rRNA
+        or chrM transcripts
+        and writing them to outfile
     '''
     dbh = connect()
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
@@ -916,31 +921,38 @@ def runDESeq(infiles, outfile):
         filename of file containing tag counts in :term:`tsv` format
 
     deseq_fdr: float
+        :term:`PARAMS`
         minimum acceptable fdr for deseq
 
     deseq_fit_type: str
+        :term:`PARAMS`
         fit type to estimate dispersion with deseq.
         refer to
         https://bioconductor.org/packages/release/bioc/manuals/DESeq/man/DESeq.pdf
 
     deseq_dispersion_method: str
+        :term:`PARAMS`
         method to estimate dispersion with deseq
         refer to
         https://bioconductor.org/packages/release/bioc/manuals/DESeq/man/DESeq.pdf
 
     deseq_sharing_mode: str
+        :term:`PARAMS`
         determines which dispersion value is saved for each gene
         refer to
         https://bioconductor.org/packages/release/bioc/manuals/DESeq/man/DESeq.pdf
 
     tags_filter_min_counts_per_row: int
+        :term:`PARAMS`
         minimum number of total counts per row to pass filter for analysis
 
     tags_filter_min_counts_per_sample: int
+        :term:`PARAMS`
         minimum number of counts per sample to pass filter for analysis
 
     tags_filter_percentile_rowsums: int
-       remove n% of windows with lowest counts
+        :term:`PARAMS`
+        remove n% of windows with lowest counts
 
     outfile:
         filename for deseq results in :term: `tsv` format.
@@ -989,9 +1001,20 @@ def loadDESeq(infile, outfile):
            options="--allow-empty-file --add-index=test_id")
 
 
+@P.add_doc(PipelineRnaseq.buildExpressionStats)
 @follows(loadGeneSetGeneInformation)
 @merge(loadDESeq, "deseq_stats.tsv")
 def buildDESeqStats(infiles, outfile):
+    '''
+    Parameters
+    ----------
+    infiles: list
+        list of filenames for files containing deseq results formatted into
+        :term:`tsv` files
+
+    outfile: str
+        file to write compiled deseq results
+    '''
     PipelineRnaseq.buildExpressionStats(
         connect(),
         outfile,
@@ -1003,6 +1026,16 @@ def buildDESeqStats(infiles, outfile):
            suffix(".tsv"),
            ".load")
 def loadDESeqStats(infile, outfile):
+    '''
+    Loads compiled deseq stats into a database table - deseq_stats
+
+    Parameters
+    ----------
+    infile: str
+        term:`tsv` file containing deseq stats
+    outfile: str
+        .load logfile for database load
+    '''
     P.load(infile, outfile)
 
 
@@ -1014,7 +1047,38 @@ def loadDESeqStats(infile, outfile):
          formatter("(.*).tsv.gz$"),
          "edger.dir/{basename[0][0]}.{basename[1][0]}.gz")
 def runEdgeR(infiles, outfile):
-    '''perform differential expression analysis using edger.'''
+    '''Perform differential expression analysis using edger.
+
+    Parameters
+    ----------
+    infiles: list
+        list of input filenames
+
+    infiles[0]: str
+        Filename with experimental design in :term:`tsv` format
+
+    infiles[1]: str
+        filename of file containing tag counts in :term:`tsv` format
+
+    edger_fdr: float
+        :term:`PARAMS`
+        minimum acceptable fdr for edger
+
+    tags_filter_min_counts_per_row: int
+        :term:`PARAMS`
+        minimum number of total counts per row to pass filter for analysis
+
+    tags_filter_min_counts_per_sample: int
+        :term:`PARAMS`
+        minimum number of counts per sample to pass filter for analysis
+
+    tags_filter_percentile_rowsums: int
+        :term:`PARAMS`
+        remove n% of windows with lowest counts
+
+    outfile:
+        filename for edger results in :term: `tsv` format
+    '''
 
     design_file, count_file = infiles
     track = P.snip(outfile, ".tsv.gz")
@@ -1036,7 +1100,17 @@ def runEdgeR(infiles, outfile):
 
 @transform(runEdgeR, suffix(".tsv.gz"), "_edger.load")
 def loadEdgeR(infile, outfile):
-    '''load differential expression results.
+    '''
+    Load differential expression results generated by EdgeR into database
+    table named <track>_gene_diff, where track is the prefix of the deseq
+    output file.
+
+    Parameters
+    ----------
+    infile: str
+        output file in :term:`tsv` format from edgeR analysis
+    outfile: str
+        .load database load logfile
     '''
     # add gene level follow convention "<level>_diff"
     P.load(infile,
@@ -1045,9 +1119,20 @@ def loadEdgeR(infile, outfile):
            options="--allow-empty-file --add-index=test_id")
 
 
+@P.add_doc(PipelineRnaseq.buildExpressionStats)
 @follows(loadGeneSetGeneInformation)
 @merge(loadEdgeR, "edger_stats.tsv")
 def buildEdgeRStats(infiles, outfile):
+    '''
+    Parameters
+    ----------
+    infiles: list
+        list of filenames for files containing edgeR results formatted into
+        :term:`tsv` files
+
+    outfile: str
+        file to write compiled edgeR results
+    '''
     PipelineRnaseq.buildExpressionStats(
         connect(),
         outfile,
@@ -1059,6 +1144,16 @@ def buildEdgeRStats(infiles, outfile):
            suffix(".tsv"),
            ".load")
 def loadEdgeRStats(infile, outfile):
+    '''
+    Loads compiled edgeR stats into a database table - edger_stats
+
+    Parameters
+    ----------
+    infile: str
+        term:`tsv` file containing edger stats
+    outfile: str
+        .load logfile for database load
+    '''
     P.load(infile, outfile)
 
 
@@ -1075,10 +1170,44 @@ def loadEdgeRStats(infile, outfile):
          formatter("(.*).tsv.gz$"),
          "deseq2.dir/{basename[0][0]}.{basename[1][0]}.gz")
 def runDESeq2(infiles, outfile):
-    """
-    Perform differential expression analysis using DESeq2.
-    """
+    '''Perform differential expression analysis using Deseq2.
 
+    Parameters
+    ----------
+    infiles: list
+        list of input filenames
+
+    infiles[0]: str
+        Filename with experimental design in :term:`tsv` format
+
+    infiles[1]: str
+        filename of file containing tag counts in :term:`tsv` format
+
+    deseq2_model: str
+        :term:`PARAMS`
+        model to pass to deseq2, see
+        https://bioconductor.org/packages/release/bioc/html/DESeq2.html
+
+    deseq2_contrasts: str
+        :term:`PARAMS`
+        contrasts to return in pairwise tests in deseq2, see
+        https://bioconductor.org/packages/release/bioc/html/DESeq2.html
+
+    tags_filter_min_counts_per_row: int
+        :term:`PARAMS`
+        minimum number of total counts per row to pass filter for analysis
+
+    tags_filter_min_counts_per_sample: int
+        :term:`PARAMS`
+        minimum number of counts per sample to pass filter for analysis
+
+    deseq2_filter_percentile_rowsums: int
+        :term:`PARAMS`
+       remove n% of windows with lowest counts
+
+    outfile:
+        filename for deseq results in :term: `tsv` format.
+    '''
     design_file, count_file = infiles
     track = P.snip(outfile, ".tsv.gz")
 
@@ -1101,11 +1230,22 @@ def runDESeq2(infiles, outfile):
 
 @transform(runDESeq2, suffix(".tsv.gz"), "_deseq2.load")
 def loadDESeq2(infile, outfile):
-    """Generate globally adjusted pvalue for all contrasts in a design.
+    """
+    Generate globally adjusted pvalue for all contrasts in a design.
     To avoid confusion, drop the DESeq2 generated padj, which is for
     single contrast.  Load table NB. Empty pvalues are due to DESeq2's
     default outlier detection
 
+    Load differential expression results generated by Deseq into database
+    table named <track>_gene_diff, where track is the prefix of the deseq
+    output file.
+
+    Parameters
+    ----------
+    infile: str
+        output file in :term:`tsv` format from deseq2 analysis
+    outfile: str
+        .load database load logfile
     """
     # get R p.adjust
     rstats = importr("stats")
@@ -1154,7 +1294,7 @@ def runCuffdiff(infiles, outfile):
     infiles[0][1]: str
         Filename with geneset of interest in :term:`gtf format
     cuffdiff_include_mask: bool
-        :term:`PARAMS` if true, use mask file to exclude 
+        :term:`PARAMS` if true, use mask file to exclude
         highly expressed genes such as rRNA
     cuffdiff_options: str
         :term:`PARAMS`
@@ -1298,6 +1438,7 @@ def buildCuffdiffPlots(infile, outfile):
             R['dev.off']()
 
     P.touch(outfile)
+
 
 @P.add_doc(PipelineRnaseq.buildExpressionStats)
 @follows(loadGeneSetGeneInformation)
