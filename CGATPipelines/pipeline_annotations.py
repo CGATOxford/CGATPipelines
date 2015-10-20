@@ -1,12 +1,6 @@
-
 """===================
 Annotation pipeline
 ===================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The annotation pipeline imports various third party annotations
 or creates them for use in other pipelines.
@@ -18,7 +12,7 @@ part is the reconciliation of different data sources in terms
 of chromosome names.
 
 Common to all annotations in this pipeline is that they are genomic -
-i.e. they are genomic intervals are relate to genomic intervals. Thus,
+i.e. they are genomic intervals or relate to genomic intervals. Thus,
 annotations are tied to a particular version of a genome. This pipeline
 follows two principal releases: the UCSC_ genome assembly version and an
 ENSEMBL_ geneset version.
@@ -636,8 +630,25 @@ def connectToUCSC():
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_contigs'])
 def buildContigSizes(infile, outfile):
-    '''output contig sizes.
     '''
+    Get contig sizes from indexed genome :term:`fasta` files and
+    outputs to a text file.
+
+    Parameters
+    ----------
+    infile : str
+      infile is constructed from the `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile : str
+      outfile is a text format file that contains two columns, matched
+      contig name and contig size (in nucleotides).  The output file
+      name is defined in `PARAMS: interface_contigs`.
+
+    '''
+
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs = IOTools.openFile(outfile, "w")
@@ -652,7 +663,22 @@ def buildContigSizes(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_contigs_bed'])
 def buildContigBed(infile, outfile):
-    '''output bed file with contigs
+    '''
+    Gets the contig sizes and co-ordinates from an indexed genome :term:`fasta`
+    file and outputs them to :term:`BED` format
+
+    Parameters
+    ----------
+    infile : str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile : str
+      :term:`BED` format file containing contig name, value (0) and contig size
+      in nucleotides.  The output file name is defined in
+      `PARAMS: interface_contigs_bed`
     '''
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
@@ -670,10 +696,28 @@ def buildContigBed(infile, outfile):
         PARAMS['interface_gaps_bed'],
         ))
 def buildUngappedContigBed(infile, outfiles):
-    '''output bed file with contigs.
-
-    Genomic regions with gaps are excluded.
     '''
+    Constructs :term:`BED` format files containing both gapped and ungapped
+    contig sizes from an index genome :term:`fasta` file.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    assembly_gaps_min_size: int
+      `PARAMS` - the minimum size (in nucleotides) for an assembly gap
+
+    Returns
+    -------
+    outfiles: list
+      two separate :term:`BED` format output files containing the contig sizes
+      for contigs with and without gaps.  The names are defined
+      in the `PARAMS` `interface_contigs_ungapped_bed` and
+      `interface_gaps_bed` parameters.
+    '''
+
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs_nogap = IOTools.openFile(outfiles[0], "w")
@@ -721,7 +765,22 @@ def buildUngappedContigBed(infile, outfiles):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS["interface_genome_tsv"])
 def buildGenomeInformation(infile, outfile):
-    '''compute genome composition information.'''
+    '''
+    Compute genome composition information, such as length
+    and CpG density.  Uses the CGAT script `fasta2table`.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from ``PARAMS`` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    Returns
+    -------
+    outfile: str
+      a text file table of contigs, length and CpG density.
+      The output files is GZIP compressed
+    '''
 
     statement = '''
     cat %(infile)s
@@ -734,6 +793,7 @@ def buildGenomeInformation(infile, outfile):
     P.run()
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildGenomeInformation, suffix(".tsv.gz"), ".load")
 def loadGenomeInformation(infile, outfile):
@@ -750,7 +810,36 @@ def loadGenomeInformation(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fasta",
        PARAMS["interface_gc_segmentation_bed"])
 def buildGenomeGCSegmentation(infile, outfile):
-    '''segment the genome into windows according to G+C content.'''
+    '''
+    Segments the genome into isochores - windows according to G+C
+    content.  Uses `CGAT` script `fasta2bed` to generate fixed-width
+    windows with their G+C content as a score.  This is then used
+    as the input for `bed2bed` which merges together adjacent or
+    overlapping intervals with the same number of bases into bins
+    based on their score; in this case G+C content.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    segmentation_window_size: int
+      `PARAMS` - window size to segment the genome into
+
+    segmentation_num_bins: str
+      `PARAMS` - the number of score bins to create for interval merging
+
+    segmentation_methods: str
+      `PARAMS` - method to use for merging intervals. See `bed2bed`
+      documentation for details.
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing genome segments with similar G+C
+      content.  Output file format is `BGZIP` compressed.
+    '''
 
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
@@ -774,7 +863,28 @@ def buildGenomeGCSegmentation(infile, outfile):
                     PARAMS["genome"]) + ".fasta",
        "assembly.dir/gcprofile.bed.gz")
 def runGenomeGCProfile(infile, outfile):
-    '''segment the genome into windows according to G+C content.'''
+    '''
+    Uses a HMM to profile the genome based on G+C content
+    and segment into windows (isochores).
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from ``PARAMS`` variable to retrieve
+      the ``genome`` :term:`fasta` file
+
+    segmentation_min_length: int
+      `PARAMS` - minimum length for GCProfile segmentation
+
+    segmentation_halting_parameter: int
+      `PARAMS` - GCProfile halting parameter
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing predicted genome
+      isochores.  Outfile is `BGZIP` compressed.
+    '''
 
     # on some cgat109 I got libstc++ error:
     # error while loading shared libraries: libstdc++.so.5
@@ -797,7 +907,28 @@ def runGenomeGCProfile(infile, outfile):
 
 @merge(runGenomeGCProfile, PARAMS["interface_gc_profile_bed"])
 def buildGenomeGCProfile(infile, outfile):
-    '''aggregate windows with similar G+C content into bins.
+    '''
+    Aggregate predicted isochores with similar G+C content into
+    bins.
+
+    Parameters
+    ----------
+    infile: str
+      output from GCProfile in :term:`BED` format. Infile is
+      `BGZIP` compressed
+
+    segmentation_num_bins: str
+      `PARAMS` - the number of score bins to create for interval merging
+
+    segmentation_methods: str
+      `PARAMS` - method to use for merging intervals. See `bed2bed`
+      documentation for details.
+
+    Returns
+    -------
+    outfile: str
+      :term:`BED` format file containing genome segments with similar G+C
+      content.  Output file format is `BGZIP` compressed.
     '''
     statement = '''
     zcat %(infile)s
@@ -814,7 +945,22 @@ def buildGenomeGCProfile(infile, outfile):
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_cpg_bed'])
 def buildCpGBed(infile, outfile):
-    '''build bed file with CpG locations.'''
+    '''
+    Output a :term:`BED` file that contains the location of all CpGs
+    in the input genome using `CGAT` script `fasta2bed`.
+
+    Parameters
+    ----------
+    infile: str
+      infiles is constructed from `PARAMS` variable to retrieve
+      the `genome` :term:`fasta` file
+
+    Returns
+    -------
+    outfile: str
+      A :term:`BED` format file containing location of CpGs across the
+      genome.  The BED file is then indexed using tabix
+    '''
 
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
@@ -838,9 +984,23 @@ def buildCpGBed(infile, outfile):
 @follows(mkdir('ensembl.dir'))
 @files(PARAMS["ensembl_filename_gtf"], PARAMS['interface_geneset_all_gtf'])
 def buildGeneSet(infile, outfile):
-    '''build a gene set - firstly, reconciles chromosome names by removing
-       those that do not occur in the specified genome assembly;
-       secondly, removes chromosome names specified in pipeline.ini
+    '''output sanitized ENSEMBL geneset.
+
+    This method outputs an ENSEMBL gene set after some sanitizing steps:
+
+    1. Chromosome names are changed to the UCSC convention.
+    2. Transcripts that are not part of the chosen genome assembly
+       are removed.
+    3. Chromosomes that match the regular expression specified in
+       the configuration file are removed.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       geneset in :term:`gtf` format.
+
     '''
 
     statement = ['''zcat %(infile)s
@@ -871,18 +1031,13 @@ def buildGeneSet(infile, outfile):
     P.run()
 
 
+@P.add_doc(PipelineGeneset.buildFlatGeneSet)
 @files(buildGeneSet, PARAMS['interface_geneset_flat_gtf'])
 def buildFlatGeneSet(infile, outfile):
-    '''build a flattened gene set.
-
-    All transcripts in a gene are merged into a single transcript
-    merging overlapping exons into a single exon.
-
-    *infile* is an ENSEMBL gtf file.
-    '''
     PipelineGeneset.buildFlatGeneSet(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.loadGeneInformation)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(mkdir('ensembl.dir'))
 @files(PARAMS["ensembl_filename_gtf"], "ensembl.dir/gene_info.load")
@@ -891,7 +1046,7 @@ def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadGeneInformation(infile, outfile)
 
 
-@P.add_doc(PipelineGeneset.loadGeneStats.__doc__)
+@P.add_doc(PipelineGeneset.loadGeneStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(mkdir('ensembl.dir'))
 @files(buildFlatGeneSet, "ensembl.dir/gene_stats.load")
@@ -899,53 +1054,38 @@ def loadGeneStats(infile, outfile):
     PipelineGeneset.loadGeneStats(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.buildCDS)
 @files(buildGeneSet,
        PARAMS["interface_geneset_cds_gtf"])
 def buildCDSTranscripts(infile, outfile):
-    '''build a collection of transcripts from the protein-coding
-    section of the ENSEMBL gene set.
-
-    Only CDS parts of exons are output - UTR's are removed.
-    '''
     PipelineGeneset.buildCDS(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.buildExons)
 @files(buildGeneSet,
        PARAMS["interface_geneset_exons_gtf"])
 def buildExonTranscripts(infile, outfile):
-    '''build a collection of transcripts from the protein-coding
-    section of the ENSEMBL gene set. '''
     PipelineGeneset.buildExons(infile, outfile)
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
-@files(buildExonTranscripts, "ensembl.dir/transcript_stats.load")
-def loadExonStats(infile, outfile):
-    '''load the transcript set stats.'''
-    PipelineGeneset.loadTranscriptStats(infile, outfile)
-
-
+@P.add_doc(PipelineGeneset.buildCodingExons)
 @files(buildGeneSet,
        PARAMS["interface_geneset_coding_exons_gtf"])
 def buildCodingExonTranscripts(infile, outfile):
-    '''build a collection of transcripts from the protein-coding
-    section of the ENSEMBL gene set. '''
     PipelineGeneset.buildCodingExons(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.buildNonCodingExons)
 @files(buildGeneSet,
        PARAMS["interface_geneset_noncoding_exons_gtf"])
 def buildNonCodingExonTranscripts(infile, outfile):
-    '''build a collection of transcripts from the protein-coding
-    section of the ENSEMBL gene set. '''
     PipelineGeneset.buildNonCodingExons(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.buildLincRNAExons)
 @files(buildGeneSet,
        PARAMS["interface_geneset_lincrna_exons_gtf"])
 def buildLincRNAExonTranscripts(infile, outfile):
-    '''build a collection of transcripts from the lincRNA
-    section of the ENSEMBL gene set. '''
     # Jethro - some ensembl annotations contain no lincRNAs
     try:
         PipelineGeneset.buildLincRNAExons(infile, outfile)
@@ -956,20 +1096,22 @@ def buildLincRNAExonTranscripts(infile, outfile):
             raise Exception("Failed to create %s" % outfile)
 
 
+@P.add_doc(PipelineGeneset.loadTranscripts)
 @transform((buildCDSTranscripts,
             buildCodingExonTranscripts,
             buildNonCodingExonTranscripts,
             buildLincRNAExonTranscripts),
            suffix(".gtf.gz"), "_gtf.load")
 def loadTranscripts(infile, outfile):
-    '''load the transcript set.'''
     PipelineGeneset.loadTranscripts(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.loadTranscriptStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
-@files(buildCDSTranscripts, "ensembl.dir/cds_stats.load")
-def loadCDSStats(infile, outfile):
-    '''load the transcript set stats.'''
+@files(
+    (buildExonTranscripts, "ensembl.dir/transcript_stats.load"),
+    (buildCDSTranscripts, "ensembl.dir/cds_stats.load"))
+def loadTranscriptStats(infile, outfile):
     PipelineGeneset.loadTranscriptStats(infile, outfile)
 
 
@@ -977,7 +1119,44 @@ def loadCDSStats(infile, outfile):
 @follows(mkdir('ensembl.dir'))
 @files(buildGeneSet, "ensembl.dir/transcript_info.load")
 def downloadTranscriptInformation(infile, outfile):
-    '''load transcript information.'''
+    '''download information on transcripts from biomart and upload
+    into database.
+
+    This method downloads information on transcripts from the
+    :term:`biomart` database and uploads it into the pipelines
+    database. The columns in the mart are mapped to the following
+    columns:
+
+    * ensembl_gene_id: gene_id
+    * ensembl_transcript_id: transcript_id
+    * ensembl_peptide_id: protein_id
+    * gene_biotype: gene_biotype
+    * transcript_biotype: transcript_biotype
+    * source: source
+    * status: gene_status
+    * transcript_status: transcript_status
+    * external_gene_name: gene_name
+
+    Only transcripts within the mart and within the supplied
+    gene set are uploaded.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with logging information. The table name
+       is derived from outfile.
+    ensembl_biomart_mart : PARAMS
+       Biomart mart to use.
+    ensembl_biomart_dataset : PARAMS
+       Biomart dataset to use.
+    ensembl_biomart_host : PARAMS
+       Biomart host to use.
+    genome : PARAMS
+       Genome assembly to use. Used add missing columns
+       in mart to output table.
+    '''
 
     tablename = P.toTable(outfile)
 
@@ -1045,18 +1224,12 @@ def downloadTranscriptInformation(infile, outfile):
     for gene_name, counts in l:
         E.info("ambiguous mapping: %s->%i" % (gene_name, counts))
 
-    # adding final column back into transcript_info for dmelanogaster genomes
-    if PARAMS["genome"].startswith("dm"):
+    # adding final column back into transcript_info for Drosohila and yeast
+    if PARAMS["genome"].startswith("dm") or PARAMS["genome"].startswith("sac"):
         Database.executewait(
             dbh,
             '''ALTER TABLE %(tablename)s ADD COLUMN uniprot_name NULL''' %
             locals())
-
-    # adding final column back into transcript_info for scerevisiae genomes
-    if PARAMS["genome"].startswith("sac"):
-        Database.executewait(
-            dbh,
-            '''ALTER TABLE transcript_info ADD COLUMN uniprot_name NULL''')
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
@@ -1064,7 +1237,32 @@ def downloadTranscriptInformation(infile, outfile):
 @files(PARAMS["ensembl_filename_gtf"],
        "ensembl.dir/ensembl_to_entrez.load")
 def downloadEntrezToEnsembl(infile, outfile):
-    '''load table to convert from ENSEMBL gene ids to entrez gene ids'''
+    '''download entrez gene identifiers from biomart and upload into
+    database.
+
+    This method downloads entrez transcript identifiers from the
+    :term:`biomart` database and uploads it into the pipelines
+    database. The columns in the mart are mapped to the following
+    columns:
+
+    * ensembl_gene_id: gene_id
+    * entrezgene: entrez_id
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with logging information. The table name
+       is derived from outfile.
+    ensembl_biomart_mart : PARAMS
+       Biomart mart to use.
+    ensembl_biomart_dataset : PARAMS
+       Biomart dataset to use.
+    ensembl_biomart_host : PARAMS
+       Biomart host to use.
+
+    '''
 
     tablename = P.toTable(outfile)
 
@@ -1074,8 +1272,9 @@ def downloadEntrezToEnsembl(infile, outfile):
 
     data = Biomart.biomart_iterator(
         columns.keys(),
-        biomart="ensembl",
-        dataset=PARAMS["ensembl_biomart_dataset"])
+        biomart=PARAMS["ensembl_biomart_mart"],
+        dataset=PARAMS["ensembl_biomart_dataset"],
+        host=PARAMS["ensembl_biomart_host"])
 
     P.importFromIterator(
         outfile,
@@ -1090,7 +1289,32 @@ def downloadEntrezToEnsembl(infile, outfile):
 @files(PARAMS["ensembl_filename_gtf"],
        "ensembl.dir/transcript_synonyms.load")
 def downloadTranscriptSynonyms(infile, outfile):
-    '''load table with synonyms for transcript identifiers.'''
+    """download transcript synonyms from biomart and upload into database.
+
+    This method downloads entrez transcript identifiers from the
+    :term:`biomart` database and uploads it into the pipelines
+    database. The columns in the mart are mapped to the following
+    columns:
+
+    * ensembl_transcript_id: transcript_id
+    * external_transcript_name: transcript_name
+    * refseq_mrna: refseq_id
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with logging information. The table name
+       is derived from outfile.
+    ensembl_biomart_mart : PARAMS
+       Biomart mart to use.
+    ensembl_biomart_dataset : PARAMS
+       Biomart dataset to use.
+    ensembl_biomart_host : PARAMS
+       Biomart host to use.
+
+    """
 
     tablename = P.toTable(outfile)
 
@@ -1117,53 +1341,58 @@ def downloadTranscriptSynonyms(infile, outfile):
             "transcript_id", "transcript_name", "refseq_id"))
 
 
+@P.add_doc(PipelineGeneset.buildPeptideFasta)
 @follows(mkdir('ensembl.dir'))
 @files(((PARAMS["ensembl_filename_pep"],
          PARAMS["interface_peptides_fasta"]), ))
 def buildPeptideFasta(infile, outfile):
-    '''load ENSEMBL peptide file
-
-    *infile* is an ENSEMBL .pep.all.fa.gz file.
-    '''
     PipelineGeneset.buildPeptideFasta(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.buildCDNAFasta)
 @follows(mkdir('ensembl.dir'))
 @files(((PARAMS["ensembl_filename_cdna"],
          PARAMS["interface_cdna_fasta"]), ))
 def buildCDNAFasta(infile, outfile):
-    '''load ENSEMBL peptide file
-
-    *infile* is an ENSEMBL .cdna.all.fa.gz file.
-    '''
     PipelineGeneset.buildCDNAFasta(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.buildCDSFasta)
 @follows(mkdir('ensembl.dir'))
 @merge(buildCDSTranscripts, PARAMS["interface_cds_fasta"])
 def buildCDSFasta(infile, outfile):
-    '''build cds sequences from peptide and cds file.
-
-    *infile* is an ENSEMBL .cdna.all.fa.gz file.
-    '''
-
     PipelineGeneset.buildCDSFasta(infile, outfile)
 
 
+@P.add_doc(PipelineGeneset.loadProteinStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(mkdir('ensembl.dir'))
 @files(PARAMS["ensembl_filename_pep"],
        "ensembl.dir/protein_stats.load")
 def loadProteinStats(infile, outfile):
     '''load the transcript set.'''
-
     PipelineGeneset.loadProteinStats(infile, outfile)
 
 
 @merge((loadProteinStats, downloadTranscriptInformation),
        "ensembl.dir/seleno.list")
 def buildSelenoList(infile, outfile):
-    '''export a list of seleno cysteine transcripts.'''
+    """export a table of seleno cysteine transcripts.
+
+    Selenocysteine containing transcripts are identified by checking
+    if their protein sequence contains ``U``.
+
+    The table contains a single column ``transcript_id`` with ENSEMBL
+    transcript identifiers as values.
+
+    Arguments
+    ---------
+    infiles : list
+       Unused.
+    outfile : string
+       Output filename in :term:`tsv` format.
+
+    """
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''
@@ -1190,11 +1419,29 @@ def buildSelenoList(infile, outfile):
            regex('.*geneset_(.*)_exons.gtf.gz'),
            r'geneset.dir/\1_transript_region.bed.gz')
 def buildTranscriptRegions(infile, outfile):
-    '''Bed file of regions spanning a whole transcript.'''
+    """export a table of seleno cysteine transcripts.
+
+    Selenocysteine containing transcripts are identified by checking
+    if their protein sequence contains ``U``.
+
+    The table contains a single column ``transcript_id`` with ENSEMBL
+    transcript identifiers as values.
+
+    Arguments
+    ---------
+    infiles : list
+       Unused.
+    outfile : string
+       Output filename in :term:`tsv` format.
+
+    """
+
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=transcript_id
+    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/gff2bed.py --is-gtf
+    --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """
@@ -1207,7 +1454,21 @@ def buildTranscriptRegions(infile, outfile):
            regex('.*geneset_(.*)_exons.gtf.gz'),
            r'geneset.dir/\1_gene_region.bed.gz')
 def buildGeneRegions(infile, outfile):
-    '''Bed file of regions spanning whole genes.'''
+    """build a :term:`bed` file of regions spanning whole gene models.
+
+    This method outputs a single interval spanning the genomic region
+    that covers all transcripts within a particular gene.
+
+    The name column of the :term:`bed` file is set to the `gene_id`.
+
+    Arguments
+    ---------
+    infile : string
+       Input filename with geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with genomic regions in :term:`bed` format.
+
+    """
     statement = """
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --with-utr
@@ -1225,9 +1486,24 @@ def buildGeneRegions(infile, outfile):
            regex('.*geneset_(.*)_exons.gtf.gz'),
            r'geneset.dir/\1_transript_tss.bed.gz')
 def buildTranscriptTSS(infile, outfile):
-    '''annotate transcription start sites from reference gene set.
+    """build a :term:`bed` file with transcription start sites.
 
-    Similar to promotors, except that the witdth is set to 1. '''
+    This method outputs all transcription start sites within a
+    geneset. The trancription start site is derived from the most
+    upstream coordinate of each transcript.
+
+    The name column of the :term:`bed` file is set to the
+    `transcript_id`.
+
+    Arguments
+    ---------
+    infile : list
+       Input filename with geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with genomic regions in :term:`bed` format.
+
+    """
+
     statement = """
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
@@ -1248,9 +1524,24 @@ def buildTranscriptTSS(infile, outfile):
            regex('.*geneset_(.*)_exons.gtf.gz'),
            r'geneset.dir/\1_transript_tts.bed.gz')
 def buildTranscriptTTS(infile, outfile):
-    '''annotate transcription start sites from reference gene set.
+    """build a :term:`bed` file with transcription termination sites.
 
-    Similar to promotors, except that the witdth is set to 1. '''
+    This method outputs all transcription start sites within a
+    geneset. The trancription start site is derived from the most
+    downstream coordinate of each transcript.
+
+    The name column of the :term:`bed` file is set to the
+    `transcript_id`.
+
+    Arguments
+    ---------
+    infile : string
+       Input filename with geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with genomic regions in :term:`bed` format.
+
+    """
+
     statement = """
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
@@ -1271,7 +1562,24 @@ def buildTranscriptTTS(infile, outfile):
            regex('.*geneset_(.*)_exons.gtf.gz'),
            r'geneset.dir/\1_gene_tss.bed.gz')
 def buildGeneTSS(infile, outfile):
-    '''annotate transcription termination sites from reference gene set. '''
+    """build a :term:`bed` file with transcription start sites per gene.
+
+    This method outputs a single transcription start sites for each
+    gene within a geneset. The trancription start site is derived from
+    the most upstream coordinate of each gene.
+
+    The name column of the :term:`bed` file is set to the
+    `gene_id`.
+
+    Arguments
+    ---------
+    infile : string
+       Input filename with geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with genomic regions in :term:`bed` format.
+
+    """
+
     statement = """gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --with-utr
     --log=%(outfile)s.log
@@ -1290,7 +1598,23 @@ def buildGeneTSS(infile, outfile):
            regex('.*geneset_(.*)_exons.gtf.gz'),
            r'geneset.dir/\1_gene_tts.bed.gz')
 def buildGeneTTS(infile, outfile):
-    '''annotate transcription termination sites from reference gene set. '''
+    """build a :term:`bed` file with transcription termination sites per gene.
+
+    This method outputs a single transcription start sites for each
+    gene within a geneset. The trancription start site is derived from
+    the most downstream coordinate of each gene.
+
+    The name column of the :term:`bed` file is set to the
+    `gene_id`.
+
+    Arguments
+    ---------
+    infile : string
+       Input filename with geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with genomic regions in :term:`bed` format.
+
+    """
     statement = """gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --with-utr
     --log=%(outfile)s.log
@@ -1309,9 +1633,24 @@ def buildGeneTTS(infile, outfile):
            regex('.*geneset_(.*)_exons.gtf.gz'),
            r'geneset.dir/\1_gene_tssinterval.bed.gz')
 def buildGeneTSSInterval(infile, outfile):
-    '''create a single interval that encompasses all annotated TSSs
-    for a given gene
-    '''
+    """build a :term:`bed` file with intervals that cover all transcription
+    start sites within a gene.
+
+    This method outputs for each gene the smallest genomic region that covers
+    all the transcription start sites within that gene.
+
+    The name column of the :term:`bed` file is set to the
+    `gene_id`.
+
+    Arguments
+    ---------
+    infile : string
+       Input filename with geneset in :term:`gtf` format.
+    outfile : string
+       Output filename with genomic regions in :term:`bed` format.
+
+    """
+
     statement = """
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
@@ -1328,7 +1667,8 @@ def buildGeneTSSInterval(infile, outfile):
     --method=merge-transcripts
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2bed.py
-    --is-gtf --set-name=transcript_id
+    --is-gtf
+    --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """
@@ -1340,8 +1680,16 @@ def buildGeneTSSInterval(infile, outfile):
            add_inputs(buildContigSizes),
            r'\1_intergenic.bed.gz')
 def buildIntergenicRegions(infiles, outfile):
-    ''' Genomic regions not associated with genes.
-    '''
+    """build a :term:`bed` file with regions not overlapping any genes.
+
+    Arguments
+    ---------
+    infiles : list
+       - Input filename with geneset in :term:`gtf` format.
+       - Input filename with chromosome sizes in :term:`tsv` format.
+    outfile : string
+       Output filename with genomic regions in :term:`bed` format.
+    """
 
     infile, contigs = infiles
 
@@ -1354,36 +1702,33 @@ def buildIntergenicRegions(infiles, outfile):
 
 # ---------------------------------------------------------------
 # UCSC derived annotations
+@P.add_doc(PipelineUCSC.getRepeatsFromUCSC)
 @follows(mkdir('ucsc.dir'))
 @files(((None, PARAMS["interface_rna_gff"]), ))
 def importRNAAnnotationFromUCSC(infile, outfile):
-    '''import repetetive RNA from a UCSC formatted file.
-
-    The repetetive RNA are taken from the repeat-masker track.
-
-    The results are stored as a :term:`gff` formatted file.
-    '''
-
-    repclasses = P.asList(PARAMS["ucsc_rnatypes"])
-    dbhandle = connectToUCSC()
+    """This task downloads UCSC repetetive RNA types.
+    """
     PipelineUCSC.getRepeatsFromUCSC(
-        dbhandle, repclasses, outfile,
+        dbhandle=connectToUCSC(),
+        repclasses=P.asList(PARAMS["ucsc_rnatypes"]),
+        outfile=outfile,
         remove_contigs_regex=PARAMS["ensembl_remove_contigs"])
 
 
+@P.add_doc(PipelineUCSC.getRepeatsFromUCSC)
 @follows(mkdir('ucsc.dir'))
 @files(((None, PARAMS["interface_repeats_gff"]), ))
 def importRepeatsFromUCSC(infile, outfile):
-    '''import repeats from a UCSC formatted file.
+    """This task downloads UCSC repeats types as identified
+    in the configuration file.
+    """
+    PipelineUCSC.getRepeatsFromUCSC(
+        dbhandle=connectToUCSC(),
+        repclasses=P.asList(PARAMS["ucsc_repeattypes"]),
+        outfile=outfile)
 
-    The repeats are stored as a :term:`gff` formatted file.
-    '''
 
-    repclasses = P.asList(PARAMS["ucsc_repeattypes"])
-    dbhandle = connectToUCSC()
-    PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
-
-
+@P.add_doc(PipelineUCSC.getCpGIslandsFromUCSC)
 @follows(mkdir('ucsc.dir'))
 @files(((None, PARAMS["interface_cpgislands_bed"]), ))
 def importCpGIslandsFromUCSC(infile, outfile):
@@ -1391,16 +1736,28 @@ def importCpGIslandsFromUCSC(infile, outfile):
 
     The repeats are stored as a :term:`bed` formatted file.
     '''
-
-    dbhandle = connectToUCSC()
-    PipelineUCSC.getCpGIslandsFromUCSC(dbhandle, outfile)
+    PipelineUCSC.getCpGIslandsFromUCSC(
+        dbhandle=connectToUCSC(),
+        outfile=outfile)
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(importRepeatsFromUCSC, suffix(".gff.gz"), ".gff.gz.load")
 def loadRepeats(infile, outfile):
-    '''load total repeats length'''
+    """load genomic locations of repeats into database.
 
+    This method loads the genomic coordinates (contig, start, end)
+    and the repeat name into the database.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename in :term:`gff` with repeat annotations.
+    outfile : string
+        Output filename with logging information. The table name is
+        derived from outfile.
+
+    """
     load_statement = P.build_load_statement(
         tablename="repeats",
         options="--add-index=class "
@@ -1417,7 +1774,11 @@ def loadRepeats(infile, outfile):
 
 @transform(loadRepeats, suffix(".gff.gz.load"), ".counts.load")
 def countTotalRepeatLength(infile, outfile):
-    ''' Count total repeat length and add to database '''
+    """compute genomic coverage per repeat class and load into database.
+
+    This method computes the bases covered by each repeat class and
+    uploads it into the database.
+    """
     dbhandle = sqlite3.connect(PARAMS["database_name"])
     cc = dbhandle.cursor()
     statement = """DROP TABLE IF EXISTS repeat_length"""
@@ -1430,17 +1791,14 @@ def countTotalRepeatLength(infile, outfile):
     P.touch(outfile)
 
 
-@follows(mkdir('uscs.dir'))
+@P.add_doc(PipelineUCSC.getRepeatsFromUCSC)
+@follows(mkdir('ucsc.dir'))
 @files(((None, PARAMS["interface_allrepeats_gff"]), ))
 def importAllRepeatsFromUCSC(infile, outfile):
-    '''import repeats from a UCSC formatted file.
-
-    The repeats are stored as a :term:`gff` formatted file.
-    '''
-
-    repclasses = None
-    dbhandle = connectToUCSC()
-    PipelineUCSC.getRepeatsFromUCSC(dbhandle, repclasses, outfile)
+    """This task downloads all UCSC repeats types."""
+    PipelineUCSC.getRepeatsFromUCSC(dbhandle=connectToUCSC(),
+                                    repclasses=None,
+                                    outfile=outfile)
 
 
 @follows(mkdir('ucsc.dir'))
@@ -1454,13 +1812,16 @@ def importAllRepeatsFromUCSC(infile, outfile):
                                    PARAMS["genome"] + ".fasta")),
            r"ucsc.dir/mapability_\1.bed.gz")
 def buildMapableRegions(infiles, outfile):
-    '''build bed files with mappable regions.
+    '''build :term:`bed` file with mapable regions.
 
-    Convert bigwig tracks with mappability information to a
-    bed-formatted file that contains only mappable regions of the
-    genome.
+    Convert :term:`bigwig` data with mapability information per
+    genomic position to a :term:`bed`-formatted file that lists the
+    mapable regions of the genome.
 
-    A mapable region is more permissive than a mapable position.
+    For the purpose of these tracks, a region is defined to be
+    un-mapable if its maximum mapability score is less than
+    0.5. Unmapable positions that are less than half the kmer size
+    away from the next mapable position are designated as mapable.
 
     This method assumes that files use the ``CRG Alignability
     tracks``.
@@ -1480,11 +1841,13 @@ def buildMapableRegions(infiles, outfile):
       of the ENCODE project, in the framework of the GEM (GEnome
       Multitool) project.
 
-    For the purpose of these tracks, a region is defined to be un-mapable
-    if its maximum mapability score is less than 0.5.
+    Arguments
+    ---------
+    infiles : list
+       Filenames in :term:`bigwig` format with mapable data.
+    outfile : string
+       Output filename in :term:`bed` format with mapable regions.
 
-    Unmapable regions that are less than half kmer size are mapable, as
-    reads from the left/right mapable positions will extend into the region.
     '''
 
     infile, fastafile = infiles
@@ -1549,15 +1912,27 @@ def buildMapableRegions(infiles, outfile):
 @transform(buildMapableRegions, suffix(".bed.gz"),
            ".filtered.bed.gz")
 def filterMapableRegions(infile, outfile):
-    '''remove small windows from a mapability track.
+    """remove small windows from a mapability track.
 
-    Too many fragmented regions will cause gat to fail as it
-    fragments the workspace into too many individual segments.
+    Too many fragmented regions will cause gat to fail as it fragments
+    the workspace in a GAT analysis into too many individual segments.
 
-    The filtering works by merging all segments that are
-    within mapability_merge_distance and removing all those
-    that are larger than mapabpility_min_segment_size
-    '''
+    The filtering works by merging all segments that are within
+    mapability_merge_distance and removing all those that are larger
+    than mapabpility_min_segment_size.
+
+    Arguments
+    ---------
+    infile : string
+       Input filename in :term:`bed` format.
+    outfile : string
+       Output filename in :term:`bed` format with mapable regions.
+    mapability_merge_distance : int
+       see :term:`PARAMS`
+    mapability_min_segment_size : int
+       see :term:`PARAMS`
+
+    """
 
     statement = '''
     mergeBed -i %(infile)s -d %(mapability_merge_distance)i
@@ -1576,16 +1951,53 @@ if PARAMS["genome"].startswith("hg"):
     @follows(mkdir('gwas.dir'))
     @merge(None, "gwas.dir/gwascatalog.txt")
     def downloadGWASCatalog(infile, outfile):
-        '''download GWAS catalog.'''
+        '''
+        Download the GWAS catalog data for the human genome
+
+        Parameters
+        ----------
+        infile: None
+          an unused variable required by Ruffus
+
+        Returns
+        -------
+        outfile: str
+          an `excel` file containing the human genome GWAS catalog
+        '''
 
         if os.path.exists(outfile):
             os.remove(outfile)
+            # MM: this is hard-coded - the URL can (and has) changed, so
+            # this should be defined in the pipeline config file
         statement = '''wget http://www.genome.gov/admin/gwascatalog.txt
         -O %(outfile)s'''
         P.run()
 
     @merge(downloadGWASCatalog, PARAMS["interface_gwas_catalog_bed"])
     def buildGWASCatalogTracks(infile, outfile):
+        '''
+        Convert the GWAS catalog entries to :term:`BED` format.
+
+        Parameters
+        ----------
+        infile: str
+          an `excel` format file of GWAS catalog entries
+
+        genome_dir: str
+          PARAMS - directory containing the indexed :term:`FASTA` genome
+          files
+
+        genome: str
+          PARAMS - indexed genome build to use
+
+        gwas_extension: int
+          PARAMS - size in bp to extend region around each GWAS catalog entry
+
+        Returns
+        -------
+        outfile: str
+          :term:`BED` format file of GWAS catalog entries
+        '''
 
         reader = csv.DictReader(IOTools.openFile(infile), dialect="excel-tab")
 
@@ -1656,7 +2068,21 @@ if PARAMS["genome"].startswith("hg"):
     @follows(mkdir('gwas.dir'))
     @merge(None, "gwas.dir/gwas_distild.log")
     def downloadDistiLD(infile, outfile):
-        '''download GWAS data from distild database.'''
+        '''
+        Download GWAS data from the DistiLD database.
+
+        Parameters
+        ----------
+        infile: None
+          an unused variable required by Ruffus
+
+        Returns
+        -------
+        outfile: str
+          two text files are output that contain SNP LD blocks with
+          gene annotations and SNP IDs, and SNP IDs with GWAS
+          associations and linked ICD10 codes
+        '''
 
         track = P.snip(outfile, ".log")
         of = track + "_snps.tsv.gz"
@@ -1679,7 +2105,28 @@ if PARAMS["genome"].startswith("hg"):
 
     @merge(downloadDistiLD, PARAMS["interface_gwas_distild_bed"])
     def buildDistiLDTracks(infile, outfile):
-        '''build bed tracks from DistiLD database.'''
+        '''
+        Build :term:`BED` tracks from entries in the DistiLD database
+        of disease/trait associations
+
+        Parameters
+        ----------
+        infile: str
+          the log file from the downloading DistiLD database files
+
+        genome_dir: str
+          PARAMS - directory containing the indexed :term:`FASTA` genome
+          files
+
+        genome: str
+          PARAMS - indexed genome build to use
+
+        Returns
+        -------
+        outfile: str
+          :term:`BED` format file containing disease associated SNPs
+          and their associated trait(s)
+        '''
 
         track = P.snip(infile, ".log")
         intervals = []
@@ -1735,6 +2182,7 @@ else:
 
 # ---------------------------------------------------------------
 # Ontologies
+@P.add_doc(PipelineGO.createGOFromENSEMBL)
 @follows(mkdir('ontologies.dir'))
 @files([(None, PARAMS["interface_go_ensembl"]), ])
 def createGO(infile, outfile):
@@ -1742,6 +2190,7 @@ def createGO(infile, outfile):
     PipelineGO.createGOFromENSEMBL(infile, outfile)
 
 
+@P.add_doc(PipelineGO.createGOSlimFromENSEMBL)
 @transform(createGO,
            regex("(.*)"),
            PARAMS["interface_goslim_ensembl"])
@@ -1750,16 +2199,19 @@ def createGOSlim(infile, outfile):
     PipelineGO.createGOSlimFromENSEMBL(infile, outfile)
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((createGO, createGOSlim),
            suffix(".tsv.gz"),
            r"\1_assignments.load")
 def loadGOAssignments(infile, outfile):
-    '''load GO assignments into database.'''
+    '''
+    Load GO assignments into database.'''
     P.load(infile, outfile,
            options="--add-index=gene_id --add-index=go_id")
 
 
+@P.add_doc(PipelineGO.buildGOPaths)
 @transform(createGO, suffix(".tsv.gz"), ".paths")
 def buildGOPaths(infile, outfile):
     '''compute a file with paths of each GO term to the ancestral node.'''
@@ -1767,6 +2219,7 @@ def buildGOPaths(infile, outfile):
     PipelineGO.buildGOPaths(infile, outfile)
 
 
+@P.add_doc(PipelineGO.buildGOTable)
 @transform(createGO, suffix(".tsv.gz"), ".desc.tsv")
 def buildGOTable(infile, outfile):
     '''build a simple table with GO descriptions in obo.'''
@@ -1774,6 +2227,7 @@ def buildGOTable(infile, outfile):
     PipelineGO.buildGOTable(infile, outfile)
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildGOTable, suffix(".tsv"), ".load")
 def loadGOTable(infile, outfile):
@@ -1781,6 +2235,7 @@ def loadGOTable(infile, outfile):
     P.load(infile, outfile)
 
 
+@P.add_doc(PipelineGO.createGOFromGeneOntology)
 @follows(mkdir('ontologies.dir'),
          downloadTranscriptInformation, loadGOAssignments)
 @files([(None, PARAMS["interface_go_geneontology"]), ])
@@ -1789,6 +2244,7 @@ def createGOFromGeneOntology(infile, outfile):
     PipelineGO.createGOFromGeneOntology(infile, outfile)
 
 
+@P.add_doc(PipelineGO.imputeGO)
 @transform(createGOFromGeneOntology,
            suffix(".tsv.gz"),
            add_inputs(buildGOPaths),
@@ -1800,6 +2256,7 @@ def imputeGO(infiles, outfile):
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
 
+@P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
 @files(None, PARAMS['interface_kegg'])
 def importKEGGAssignments(infile, outfile):
@@ -1815,6 +2272,7 @@ def importKEGGAssignments(infile, outfile):
     PipelineKEGG.importKEGGAssignments(outfile, mart, host, biomart_dataset)
 
 
+@P.add_doc(P.load)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(importKEGGAssignments, suffix(".tsv.gz"), "_assignments.load")
 def loadKEGGAssignments(infile, outfile):
@@ -1824,40 +2282,29 @@ def loadKEGGAssignments(infile, outfile):
 
 # ---------------------------------------------------------------
 # Enrichment analysis
+@P.add_doc(PipelineGeneset.annotateGenome)
 @follows(mkdir('enrichment.dir'))
 @files(buildGeneSet, PARAMS['interface_annotation_gff'])
 def annotateGenome(infile, outfile):
-    '''annotate genomic regions with reference gene set.
+    """This task only considers protein coding genes as
+    processed_transcripts tend to cover larger genomic regions and
+    often overlap between adjacent protein coding genes.
 
-    Only considers protein coding genes.
-    Processed_transcripts tend to cover larger genomic regions
-    and often overlap between adjacent protein coding genes.
-
-    In case of overlapping genes, only take the longest
-    (in genomic coordinates).
-
-    Genes not on UCSC contigs are removed.
-    '''
+    """
     PipelineGeneset.annotateGenome(infile,
                                    outfile,
                                    only_proteincoding=True)
 
 
+@P.add_doc(PipelineGeneset.annotateGeneStructure)
 @follows(mkdir('enrichment.dir'))
 @files(buildGeneSet, PARAMS['interface_genestructure_gff'])
 def annotateGeneStructure(infile, outfile):
-    '''annotate genome with gene structures.
+    """This task only considers protein coding genes as
+    processed_transcripts tend to cover larger genomic regions and
+    often overlap between adjacent protein coding genes.
 
-    Only considers protein coding genes.
-
-    Processed_transcripts tend to cover larger genomic regions
-    and often overlap between adjacent protein coding genes.
-
-    In case of overlapping genes, only take the longest
-    (in genomic coordinates).
-
-    Genes not on UCSC contigs are removed.
-    '''
+    """
     PipelineGeneset.annotateGeneStructure(infile,
                                           outfile,
                                           only_proteincoding=True)
@@ -1866,8 +2313,22 @@ def annotateGeneStructure(infile, outfile):
 @follows(mkdir('enrichment.dir'))
 @merge(buildFlatGeneSet, PARAMS["interface_territories_gff"])
 def buildGeneTerritories(infile, outfile):
-    '''build gene territories from protein coding genes.'''
+    """build gene territories from protein coding genes.
 
+    The territory of a gene is defined as the region of the
+    gene extended by a certain radius on either end. If the
+    gene territories of two genes overlap, they are resolved
+    at the mid-point between the two adjacent genes.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    enrichment_territories_radius : int
+       see :term:`PARAMS`
+    """
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
@@ -1881,12 +2342,14 @@ def buildGeneTerritories(infile, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=position
     | python %(scriptsdir)s/gtf2gff.py
-          --genome-file=%(genome_dir)s/%(genome)s
-          --log=%(outfile)s.log
-          --territory-extension=%(enrichment_territories_radius)s
-          --method=territories
+    --genome-file=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
+    --territory-extension=%(enrichment_territories_radius)s
+    --method=territories
     | python %(scriptsdir)s/gtf2gtf.py
-    --method=filter --filter-method=longest-gene --log=%(outfile)s.log
+    --method=filter
+    --filter-method=longest-gene
+    --log=%(outfile)s.log
     | gzip
     > %(outfile)s '''
 
@@ -1896,8 +2359,21 @@ def buildGeneTerritories(infile, outfile):
 @follows(mkdir('enrichment.dir'))
 @merge(buildFlatGeneSet, PARAMS["interface_tssterritories_gff"])
 def buildTSSTerritories(infile, outfile):
-    '''build gene territories from protein coding genes.'''
+    """build TSS territories from protein coding genes.
 
+    The tss territory of a gene is defined as a region centered aronud
+    the TSS. If the territories of two genes overlap, they are
+    resolved at the mid-point between the two adjacent genes.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    enrichment_territories_radius : int
+       see :term:`PARAMS`
+    """
     statement = '''
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
@@ -1910,10 +2386,10 @@ def buildTSSTerritories(infile, outfile):
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=position
     | python %(scriptsdir)s/gtf2gff.py
-          --genome-file=%(genome_dir)s/%(genome)s
-          --log=%(outfile)s.log
-          --territory-extension=%(enrichment_territories_radius)s
-          --method=tss-territories
+    --genome-file=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
+    --territory-extension=%(enrichment_territories_radius)s
+    --method=tss-territories
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=gene+transcript --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
@@ -1927,7 +2403,31 @@ def buildTSSTerritories(infile, outfile):
 @follows(mkdir('enrichment.dir'))
 @merge(buildFlatGeneSet, PARAMS["interface_greatdomains_gff"])
 def buildGREATRegulatoryDomains(infile, outfile):
-    '''build gene territories from protein coding genes.'''
+    """build GREAT regulatory domains.
+
+    Each TSS in a gene is associated with a basal region. The basal
+    region is then extended upstream to the basal region of the
+    closest gene, but at most by a certain radius. In the case of
+    overlapping genes, the extension is towards the next
+    non-overlapping gene.
+
+    This is the "basal plus extension" rule in GREAT. Commonly used
+    are 5+1 with 1 Mb extension.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    enrichment_great_radius : int
+       see :term:`PARAMS`
+    enrichment_great_upstream : int
+       see :term:`PARAMS`
+    enrichment_great_downstream : int
+       see :term:`PARAMS`
+
+    """
 
     statement = '''
     zcat %(infile)s
@@ -1951,6 +2451,7 @@ def buildGREATRegulatoryDomains(infile, outfile):
     P.run()
 
 
+@P.add_doc(PipelineGeneset.buildGenomicContext)
 @follows(mkdir('enrichment.dir'))
 @merge((importRepeatsFromUCSC,
         importRNAAnnotationFromUCSC,
@@ -1961,23 +2462,24 @@ def buildGREATRegulatoryDomains(infile, outfile):
         ),
        PARAMS["interface_genomic_context_bed"])
 def buildGenomicContext(infiles, outfile):
-    '''build a file with genomic context.
-
-    The output is a bed formatted file, annotating genomic segments
-    according to whether they are any of the ENSEMBL annotations.
-
-    It also adds the RNA and repeats annotations from the UCSC.
-
-    The annotations can be partially or fully overlapping.
-
-    Adjacent features (less than 10 bp apart) of the same type are merged.
-    '''
     PipelineGeneset.buildGenomicContext(infiles, outfile)
 
 
 @transform(buildGenomicContext, suffix(".bed.gz"), ".tsv")
 def buildGenomicContextStats(infile, outfile):
-    '''analysis overlap of genomic contexts.'''
+    """compute overlap between annotations in a :term:`bed` file.
+
+    This method splits a :term:`bed` formatted file by its fourth
+    column, the feature name. It then computes the individual :term:`bed`
+    formatted files with :doc:`diff_bed`.
+
+    Arguments
+    ---------
+    infiles : string
+        Input filename of :term:`bed` formatted file with annotations.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
 
     tmpdir = P.getTempDir(".")
 
@@ -2000,46 +2502,33 @@ def buildGenomicContextStats(infile, outfile):
     shutil.rmtree(tmpdir)
 
 
+@P.add_doc(PipelineGeneset.buildGenomicFunctionalAnnotation)
 @follows(mkdir('enrichment.dir'))
 @merge((buildGeneTerritories, loadGOAssignments),
        (PARAMS["interface_genomic_function_bed"],
         PARAMS["interface_genomic_function_tsv"],
         ))
 def buildGenomicFunctionalAnnotation(infiles, outfiles):
-    '''output a bed file with genomic regions with functional annotations.
-
-    Each bed entry is a gene territory. Bed entries are labeled
-    by functional annotations associated with a gene.
-
-    Ambiguities in territories are resolved by outputting
-    annotations for all genes within a territory.
-
-    The output file contains annotations for both GO and GOSlim. These
-    are prefixed by ``go:`` and ``goslim:``.
-    '''
-
-    territories_file = infiles[0]
-
-    dbh = connect()
-
     PipelineGeneset.buildGenomicFunctionalAnnotation(
-        territories_file, dbh, outfiles)
+        territories_file=infiles[0],
+        dbh=connect(),
+        outfiles=outfiles)
 
 
+@P.add_doc(PipelineGeneset.buildPseudogenes)
 @files((buildGeneSet,
         buildPeptideFasta),
        PARAMS["interface_pseudogenes_gtf"])
 def buildPseudogenes(infile, outfile):
-    '''build set of pseudogenes.'''
     dbh = connect()
     PipelineGeneset.buildPseudogenes(infile, outfile, dbh)
 
 
+@P.add_doc(PipelineGeneset.buildNUMTs)
 @follows(mkdir('geneset.dir'))
 @files((None,),
        PARAMS["interface_numts_gtf"])
 def buildNUMTs(infile, outfile):
-    '''build list of NUMTs.'''
     PipelineGeneset.buildNUMTs(infile, outfile)
 
 # --------------------------------------------
@@ -2129,7 +2618,16 @@ if 0:
            suffix(".gff.gz"),
            ".gffsummary.tsv.gz")
 def buildGFFSummary(infile, outfile):
-    '''summarize genomic coverage of gff file.'''
+    """summarize genomic coverage of a :term:`gff` formatted file.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gff` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2coverage.py
     --genome-file=%(genome_dir)s/%(genome)s
@@ -2142,7 +2640,18 @@ def buildGFFSummary(infile, outfile):
            suffix(".bed.gz"),
            ".bedsummary.tsv.gz")
 def buildBedSummary(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize genomic coverage of a :term:`bed` formatted file.
+
+    The coverage is computed per contig.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`bed` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/bed2stats.py
     --aggregate-by=contig
@@ -2156,7 +2665,19 @@ def buildBedSummary(infile, outfile):
            suffix(".bed.gz"),
            ".bednamesummary.tsv.gz")
 def buildBedNameSummary(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize genomic coverage of a :term:`bed` formatted file.
+
+    The coverage is computed per annotation (column 4) in the
+    :term:`bed` file.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`bed` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/bed2stats.py
     --aggregate-by=name
@@ -2170,7 +2691,16 @@ def buildBedNameSummary(infile, outfile):
            suffix(".gtf.gz"),
            ".gtfsummary.tsv.gz")
 def buildGTFSummary(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize genomic coverage of a :term:`gtf` formatted file.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gtf` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
+
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2coverage.py
     --genome-file=%(genome_dir)s/%(genome)s
@@ -2183,7 +2713,17 @@ def buildGTFSummary(infile, outfile):
            suffix(".gtf.gz"),
            ".gtfstats.tsv.gz")
 def buildGTFStats(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize stats of a :term:`gtf` formatted file.
+
+    The statistics are number of genes, transcripts, etc.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gtf` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2stats.py
     --is-gtf
@@ -2196,7 +2736,18 @@ def buildGTFStats(infile, outfile):
            suffix(".gff.gz"),
            ".gffstats.tsv.gz")
 def buildGFFStats(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize stats of a :term:`gff` formatted file.
+
+    The statistics are number of contigs, strands
+    features and sources.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gff` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2stats.py
     | gzip > %(outfile)s
@@ -2206,6 +2757,7 @@ def buildGFFStats(infile, outfile):
 
 @merge(buildGTFStats, 'gtf_stats.load')
 def loadGTFStats(infiles, outfile):
+    """load summary data into database."""
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename="(.*).tsv.gz",
                          options="--allow-empty")
@@ -2213,6 +2765,7 @@ def loadGTFStats(infiles, outfile):
 
 @merge(buildGFFStats, 'gff_stats.load')
 def loadGFFStats(infiles, outfile):
+    """load summary data into database."""
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename="(.*).tsv.gz",
                          options="--allow-empty")
@@ -2225,6 +2778,7 @@ def loadGFFStats(infiles, outfile):
            suffix(".tsv.gz"),
            ".load")
 def loadIntervalSummary(infile, outfile):
+    """load summary data into database."""
     P.load(infile, outfile, options='--allow-empty-file')
 
 
@@ -2237,6 +2791,7 @@ def loadIntervalSummary(infile, outfile):
          buildGenomeGCProfile,
          buildCpGBed)
 def assembly():
+    """convenience target : assembly derived annotations"""
     pass
 
 
@@ -2244,8 +2799,7 @@ def assembly():
          loadTranscripts,
          downloadTranscriptInformation,
          loadGeneStats,
-         loadCDSStats,
-         loadExonStats,
+         loadTranscriptStats,
          loadGeneInformation,
          downloadEntrezToEnsembl,
          downloadTranscriptSynonyms,
@@ -2257,6 +2811,7 @@ def assembly():
          buildSelenoList,
          )
 def ensembl():
+    """convenience target : ENSEMBL geneset derived annotations"""
     pass
 
 
@@ -2264,6 +2819,7 @@ def ensembl():
          buildCDSFasta,
          buildCDNAFasta)
 def fasta():
+    """convenience target : sequence collections"""
     pass
 
 
@@ -2276,6 +2832,7 @@ def fasta():
          buildGeneTSSInterval,
          buildIntergenicRegions)
 def geneset():
+    """convenience target : geneset derived annotations"""
     pass
 
 
@@ -2285,6 +2842,7 @@ def geneset():
          loadRepeats,
          countTotalRepeatLength)
 def ucsc():
+    """convenience target : UCSC derived annotations"""
     pass
 
 
@@ -2296,6 +2854,7 @@ def ucsc():
          annotateGeneStructure,
          annotateGenome)
 def annotations():
+    """convenience target : gene based annotations"""
     pass
 
 
@@ -2305,17 +2864,20 @@ def annotations():
          buildGenomicContextStats,
          buildGenomicFunctionalAnnotation)
 def enrichment():
+    """convenience target : annotations for enrichment analysis"""
     pass
 
 
 @follows(loadGOAssignments,
          loadKEGGAssignments)
 def ontologies():
+    """convenience target : ontology information"""
     pass
 
 
 @follows(_gwas)
 def gwas():
+    """convenience target : import GWAS data"""
     pass
 
 
@@ -2323,7 +2885,7 @@ def gwas():
          loadGFFStats,
          loadIntervalSummary)
 def summary():
-    '''summary targets.'''
+    '''convenience target : summary'''
     pass
 
 
