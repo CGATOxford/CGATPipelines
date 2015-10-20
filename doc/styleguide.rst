@@ -124,33 +124,38 @@ The pipeline tasks(functions) use the NumPy style guide
 with input Parameters and Returns values.  This sets the minimum standard
 for all pipelines.
 
-The doc-string should start with a short 1-to-2 line description of the task
-purpose.  A more verbose description can then followed if necessary to explain
-and perhaps justify the tasks function and implementation.  These should be
-separated by a blank line to denote a section break.
+The doc-string should start with a short description of the task
+purpose (1 or 2 lines).  A more verbose description can then follow if
+necessary to explain and justify the tasks function and
+implementation.  These should be separated by a blank line to denote a
+section break.
 
-Task doc-strings then contain two sub-headers; ``Parameters`` and ``Returns``.
-``Parameters`` describes the input file, what format it is in, for example
-:term:`gtf` or :term:`bed`.  Each entry in the ``Parameters`` section has a
-type, which is the Python data structure/type to expect, e.g. `list`, `int` or
-`str`.
+Task doc-strings always contain the sub-header ``Parameters`` with 
+descriptions of the input file, output file and parameters. Each entry in
+the ``Parameters`` section has a type, which is the Python data
+structure/type to expect, e.g. `list`, `int` or `str`. In addition,
+for files, the format should be specified in the description where
+appropriate, for example :term:`gtf` or :term:`bed`. If there are
+multiple input or output files, each should be described on a separate
+line.
+
 Additional ``Parameters`` that are derived from the pipeline config file,
 and thus are accessed from the :term:`PARAMS` dictionary should be denoted
 in their description by a preceding :term:`PARAMS`.  The description should be
 sufficient to give the user the required information to understand the purpose
 and implementation of the task.
 
-The ``Returns`` sub-section describes the output of the task, rather than
-explicit return values.  The type of these should always be set, and in most
-cases this will be `str`.  These should describe the format of the file,
-e.g. :term:`BED` or :term:`tsv`, and a short description of their contents.
-If multiple files are output, each should be described on a separate line.
+Optional sub-sections include ``Returns`` where a function returns a
+python object. A ``Notes`` sub-section may also be included with
+additional information but notes are usually better rendered using the
+Sphinx directive ``.. note::`` (see example)
+
 
 For example::
 
   def mapMyReads(infiles, outfile):
 
-      Map my reads with a short read aligner
+      '''Map my reads with a short read aligner
 
 
       Use MyAligner to map my special short reads against my special reference
@@ -170,8 +175,11 @@ For example::
       mapper_memory: str
         ``PARAMS`` - the amount of memory to assign per thread for mapping reads
 
-
-      Returns
-      -------
       outfile: str
         A :term:`BAM` file of reads aligned to a reference genome
+
+	
+      .. note::
+          Colour space mapping is not implemented
+
+      '''
