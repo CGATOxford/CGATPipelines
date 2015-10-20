@@ -659,18 +659,73 @@ def countReads(infile, outfile):
            add_inputs(buildJunctions, buildReferenceTranscriptome),
            r"tophat.dir/\1.tophat.bam")
 def mapReadsWithTophat(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    """
+    Map reads using Tophat (spliced reads).
 
-    A list with known splice junctions is supplied.
+    Parameters
+    ----------
 
-    If tophat fails with an error such as::
+    infiles: list
+        contains 3 filenames -
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
 
-       Error: segment-based junction search failed with err =-6
-       what():  std::bad_alloc
+    infiles[1]: str
+        :term:`fasta` filename, suffix .fa
+        reference transcriptome
 
-    it means that it ran out of memory.
+    infiles[2]: str
+        filename with suffix .junctions containing a list of known
+        splice junctions.
 
-    '''
+    tophat_threads: int
+        :term:`PARAMS`
+        number of threads with which to run tophat
+
+    tophat_options: str
+        :term:`PARAMS`
+        string containing options to pass to tophat
+
+    tophat_memory: str
+        :term:`PARAMS`
+        memory required for tophat job
+
+    tophat_executable: str
+        :term:`PARAMS`
+        path to tophat executable
+
+    tophat_library_type
+        :term:`PARAMS`
+        fr-unstranded, fr-firststrand or fr-secondstrand see
+        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+
+    tophat_include_reference_transcriptome: bool
+        :term:`PARAMS`
+        if set, map to reference transcriptome
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
+
+    .. note::
+       If tophat fails with an error such as::
+
+          Error: segment-based junction search failed with err =-6
+          what():  std::bad_alloc
+
+       it means that it ran out of memory.
+
+    """
+
     job_threads = PARAMS["tophat_threads"]
 
     if "--butterfly-search" in PARAMS["tophat_options"]:
@@ -705,16 +760,74 @@ def mapReadsWithTophat(infiles, outfile):
            add_inputs(buildJunctions, buildReferenceTranscriptome),
            r"tophat2.dir/\1.tophat2.bam")
 def mapReadsWithTophat2(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+     Map reads using Tophat2 (spliced reads).
 
-    A list with known splice junctions is supplied.
+    Parameters
+    ----------
 
-    If tophat fails with an error such as::
+    infiles: list
+        contains 3 filenames -
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
 
-       Error: segment-based junction search failed with err =-6
-       what():  std::bad_alloc
+    infiles[1]: str
+        :term:`fasta` filename, suffix .fa
+        reference transcriptome
 
-    it means that it ran out of memory.
+    infiles[2]: str
+        filename with suffix .junctions containing a list of known
+        splice junctions.
+
+    tophat2_threads: int
+        :term:`PARAMS`
+        number of threads with which to run tophat2
+
+    tophat2_options: str
+        :term:`PARAMS`
+        string containing options to pass to tophat2
+
+    tophat2_memory: str
+        :term:`PARAMS`
+        memory required for tophat2 job
+
+    tophat2_executable: str
+        :term:`PARAMS`
+        path to tophat2 executable
+
+    tophat2_library_type
+        :term:`PARAMS`
+        fr-unstranded, fr-firststrand or fr-secondstrand see
+        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+
+    tophat2_include_reference_transcriptome: bool
+        :term:`PARAMS`
+        if set, map to reference transcriptome
+
+    tophat2_mate_inner_dist: int
+        :term:`PARAMS`
+        insert length (2 * read length)
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
+
+    .. note::
+       If tophat fails with an error such as::
+
+          Error: segment-based junction search failed with err =-6
+          what():  std::bad_alloc
+
+       it means that it ran out of memory.
 
     '''
     job_threads = PARAMS["tophat2_threads"]
@@ -755,10 +868,54 @@ def mapReadsWithTophat2(infiles, outfile):
            add_inputs(buildJunctions),
            r"hisat.dir/\1.hisat.bam")
 def mapReadsWithHisat(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+    Map reads using Hisat  (spliced reads).
 
-    A list with known splice junctions is supplied.
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
 
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        filename with suffix .junctions containing a list of known
+        splice junctions.
+
+    hisat_threads: int
+        :term:`PARAMS`
+        number of threads with which to run hisat
+
+    hisat_memory: str
+        :term:`PARAMS`
+        memory required for hisat job
+
+    hisat_executable: str
+        :term:`PARAMS`
+        path to hisat executable
+
+    hisat_library_type: str
+        :term:`PARAMS`
+        hisat rna-strandess parameter, see
+        https://ccb.jhu.edu/software/hisat/manual.shtml#command-line
+
+    hisat_options: str
+        options string for hisat, see
+        https://ccb.jhu.edu/software/hisat/manual.shtml#command-line
+
+    hisat_index_dir: str
+        path to directory containing hisat indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
+    .. note::
     If hisat fails with an error such as::
 
        Error: segment-based junction search failed with err =-6
@@ -767,6 +924,7 @@ def mapReadsWithHisat(infiles, outfile):
     it means that it ran out of memory.
 
     '''
+
     job_threads = PARAMS["hisat_threads"]
     job_memory = PARAMS["hisat_memory"]
 
@@ -873,8 +1031,50 @@ def loadTophatStats(infile, outfile):
            add_inputs(buildGSNAPSpliceSites),
            r"gsnap.dir/\1.gsnap.bam")
 def mapReadsWithGSNAP(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+    Maps reads using GSNAP (mRNA and EST sequences).
 
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        filename of type iit containing all known splice sites
+
+    gsnap_memory: str
+        :term:`PARAMS`
+        memory required for gsnap job
+
+    gsnap_node_threads: int
+        :term:`PARAMS`
+        number of threads to use on the node
+
+    gsnap_worker_threads: int
+        :term:`PARAMS`
+        --nthreads option for GSNAP described in
+        http://research-pub.gene.com/gmap/src/README
+        this number of threads plus 2 will be used
+
+    gsnap_options: str
+        :term:`PARAMS`
+        string containing command line options for GSNAP,
+        details at http://research-pub.gene.com/gmap/src/README
+
+    gsnap_executable: str
+        :term:`PARAMS`
+        path to gsnap executable
+
+    gsnap_mapping_genome: str
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
     '''
 
     infile, infile_splices = infiles
@@ -901,7 +1101,45 @@ def mapReadsWithGSNAP(infiles, outfile):
            SEQUENCEFILES_REGEX,
            r"star.dir/\1.star.bam")
 def mapReadsWithSTAR(infile, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+    Maps reads using STAR (spliced reads).
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    star_memory: str
+        :term:`PARAMS`
+        memory required for STAR job
+
+    star_threads: int
+        :term:`PARAMS`
+        number of threads with which to run STAR
+
+    star_genome: str
+        :term:`PARAMS`
+        path to genome if using a splice junction database sjdb
+
+    genome: str
+        :term:`PARAMS`
+        path to genome if not using a splice junction database
+
+    star_executable: str
+        :term:`PARAMS`
+        path to star executable
+
+    star_index_dir: str
+        :term:`PARAMS`
+        path to directory containing star indices.
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
 
     '''
 
@@ -961,7 +1199,44 @@ def loadSTARStats(infile, outfile):
            add_inputs(buildReferenceTranscriptome),
            r"transcriptome.dir/\1.trans.bam")
 def mapReadsWithBowtieAgainstTranscriptome(infiles, outfile):
-    '''map reads using bowtie against transcriptome data.
+    '''
+    Map reads using bowtie against transcriptome data.
+
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        :term:`fasta` file containing reference genome
+
+    bowtie_threads: int
+        :term:`PARAMS`
+        number of threads with which to run bowtie
+
+    bowtie_memory: str
+        :term:`PARAMS`
+        memory required for bowtie job
+
+    bowtie_executable: str
+        :term:`PARAMS`
+        path to bowtie executable
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
     '''
 
     # Mapping will permit up to one mismatches. This is sufficient
@@ -994,7 +1269,48 @@ def mapReadsWithBowtieAgainstTranscriptome(infiles, outfile):
                             PARAMS["genome"] + ".fa")),
            r"bowtie.dir/\1.bowtie.bam")
 def mapReadsWithBowtie(infiles, outfile):
-    '''map reads with bowtie. For bowtie2 set executable apppropriately.'''
+    '''
+    Map reads with bowtie (short reads).
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        :term:`fasta` file containing reference genome
+
+    bowtie_threads: int
+        :term:`PARAMS`
+        number of threads with which to run bowtie
+
+    bowtie_memory: str
+        :term:`PARAMS`
+        memory required for bowtie job
+
+    bowtie_executable: str
+        :term:`PARAMS`
+        path to bowtie executable
+
+    bowtie_options: str
+        :term:`PARAMS`
+        string containing command line options for bowtie - refer
+        to http://bowtie-bio.sourceforge.net/index.shtml
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["bowtie_threads"]
     job_memory = PARAMS["bowtie_memory"]
@@ -1016,7 +1332,44 @@ def mapReadsWithBowtie(infiles, outfile):
                             PARAMS["genome"] + ".fa")),
            r"bowtie2.dir/\1.bowtie2.bam")
 def mapReadsWithBowtie2(infiles, outfile):
-    '''map reads with bowtie. For bowtie2 set executable apppropriately.'''
+    '''
+    Map reads with bowtie2.
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        :term:`fasta` file containing reference genome
+
+    bowtie2_threads: int
+        :term:`PARAMS`
+        number of threads with which to run bowtie2
+
+    bowtie2_memory: str
+        :term:`PARAMS`
+        memory required for bowtie2 job
+
+    bowtie2_executable: str
+        :term:`PARAMS`
+        path to bowtie2 executable
+
+    bowtie2_options: str
+        :term:`PARAMS`
+        string containing command line options for bowtie2 -
+        refer to http://bowtie-bio.sourceforge.net/bowtie2/index.shtml
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["bowtie2_threads"]
     job_memory = PARAMS["bowtie2_memory"]
@@ -1035,7 +1388,66 @@ def mapReadsWithBowtie2(infiles, outfile):
            SEQUENCEFILES_REGEX,
            r"bwa.dir/\1.bwa.bam")
 def mapReadsWithBWA(infile, outfile):
-    '''map reads with bwa'''
+    '''
+    Map reads with bwa
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    bwa_threads: int
+        :term:`PARAMS`
+        number of threads with which to run BWA
+
+    bwa_memory: str
+        :term:`PARAMS`
+        memory required for BWA job
+
+    bwa_algorithm: str
+        :term:`PARAMS`
+        two options - 'aln' or 'mem' - refer to
+        http://bio-bwa.sourceforge.net/bwa.shtml
+
+    bwa_set_nh: str
+        :term:`PARAMS`
+        sets the NH tag    which specifies multiple hits in sam format
+        otherwise not set by bwa
+
+    bwa_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bwa indices
+
+    bwa_aln_options: str
+        :term:`PARAMS`
+        string containing parameters for bwa if run using the
+        'aln' algorithm - refer to
+        http://bio-bwa.sourceforge.net/bwa.shtml
+
+    bwa_samse_options: str
+        :term:`PARAMS`
+        string containing single end read options for bwa - refer
+        to http://bio-bwa.sourceforge.net/bwa.shtml
+
+    bwa_mem_options: str
+        :term:`PARAMS`
+        string containing parameters for bwa if run using the
+        'mem' algorithm    - refer to
+        http://bio-bwa.sourceforge.net/bwa.shtml
+
+    remove_non_unique
+        :term:`PARAMS`
+        If true, a filtering step is included in postprocess, which removes
+        reads that have more than 1 best hit
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["bwa_threads"]
     job_memory = PARAMS["bwa_memory"]
@@ -1062,7 +1474,42 @@ def mapReadsWithBWA(infile, outfile):
            SEQUENCEFILES_REGEX,
            r"stampy.dir/\1.stampy.bam")
 def mapReadsWithStampy(infile, outfile):
-    '''map reads with stampy'''
+
+    '''
+    Map reads with stampy
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    genome
+        :term:`PARAMS`
+        path to reference genome
+
+    stampy_threads: int
+        :term:`PARAMS`
+        number of threads with which to run Stampy
+
+    stampy_memory: str
+        :term:`PARAMS`
+        memory required for stampy job
+
+    stampy_index_dir: str
+        :term:`PARAMS`
+        path to directory containing stampy indices
+
+    bwa_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bwa indices
+
+    strip_sequence: bool
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["stampy_threads"]
     job_memory = PARAMS["stampy_memory"]
@@ -1083,7 +1530,45 @@ def mapReadsWithStampy(infile, outfile):
            SEQUENCEFILES_REGEX,
            r"butter.dir/\1.butter.bam")
 def mapReadsWithButter(infile, outfile):
-    '''map reads with butter'''
+    '''
+    Map reads with butter
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    butter_threads: int
+        :term:`PARAMS`
+        number of threads with which to run butter
+
+    butter_memory: str
+        :term:`PARAMS`
+        memory required for butter job
+
+    butter_options: str
+        :term:`PARAMS`
+        string containing command line options to pass to Butter -
+        refer to https://github.com/MikeAxtell/butter
+
+    butter_index_dir: str
+        :term:`PARAMS`
+        path to directory containing butter indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    butter_set_nh: str
+        :term:`PARAMS`
+        sets the NH tag    which specifies multiple hits in sam format
+        otherwise not set by butter
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
+
     # easier to check whether infiles are paired reads here
     if infile.endswith(".sra"):
         outdir = P.getTempDir()
