@@ -116,7 +116,7 @@ def annotateGenome(infile, outfile,
 
 def annotateGeneStructure(infile, outfile,
                           only_proteincoding=False):
-    '''annotate genomic regions with gene structure.
+    """annotate genomic regions with gene structure.
 
     The method applies the following filters to an ENSEMBL gene set:
 
@@ -144,7 +144,7 @@ def annotateGeneStructure(infile, outfile,
     only_proteincoding : bool
        If True, only consider protein coding genes.
 
-    '''
+    """
 
     if only_proteincoding:
         filter_cmd = """python %(scriptsdir)s/gtf2gtf.py
@@ -502,10 +502,11 @@ def buildCDSFasta(infile, outfile):
         indexed file in :term:`fasta` format with CDS sequences.
 
     '''
+    infile_cdnas, infile_peptides_fasta = infiles
 
     dbname = outfile[:-len(".fasta")]
 
-    statement = '''gunzip < %(infile)s
+    statement = '''gunzip < %(infile_cdnas)s
     | python %(scriptsdir)s/gff2fasta.py
         --is-gtf
         --genome=%(genome_dir)s/%(genome)s
@@ -533,7 +534,7 @@ def buildCDSFasta(infile, outfile):
 
     statement = '''
     python %(scriptsdir)s/peptides2cds.py
-           --peptides-fasta-file=%(infile_peptides)s
+           --peptides-fasta-file=%(infile_peptides_fasta)s
            --cdnas=%(infile_cdnas)s
            --map=%(tmpfilename)s
            --output-format=fasta
@@ -751,6 +752,28 @@ def loadTranscripts(infile, outfile):
     | python %(scriptsdir)s/gtf2tsv.py
     | %(load_statement)s
     > %(outfile)s'''
+    P.run()
+
+
+def loadGeneCoordinates(infile, outfile):
+    '''merge transcripts to generate the genomic coordinates per gene
+    and load '''
+
+    # TS. remove transcript_id column as this is now meaningless
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=gene_id "
+        "--ignore-column=transcript_id "
+        "--allow-empty-file ")
+
+    statement = '''
+    gunzip < %(infile)s
+    | python %(scriptsdir)s/gtf2gtf.py
+    -m merge-transcripts --with-utr
+    | python %(scriptsdir)s/gtf2tsv.py
+    | %(load_statement)s
+    > %(outfile)s'''
+
     P.run()
 
 
@@ -1328,6 +1351,9 @@ def buildGenomicContext(infiles, outfile, distance=10):
     The function also adds the RNA and repeats annotations from the UCSC.
     The annotations can be partially or fully overlapping.
 
+    The annotations can be partially or fully overlapping. Adjacent
+    features (less than 10 bp apart) of the same type are merged.
+
     Arguments
     ---------
     infiles : list
@@ -1347,6 +1373,7 @@ def buildGenomicContext(infiles, outfile, distance=10):
        Output filename in :term:`bed` format.
     distance : int
        Merge adajcent features of the same type within this distance.
+
     '''
 
     repeats_gff, rna_gff, annotations_gtf, geneset_flat_gff, \

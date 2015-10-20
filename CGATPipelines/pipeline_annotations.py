@@ -1,12 +1,6 @@
-
 """===================
 Annotation pipeline
 ===================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The annotation pipeline imports various third party annotations
 or creates them for use in other pipelines.
@@ -1112,6 +1106,14 @@ def loadTranscripts(infile, outfile):
     PipelineGeneset.loadTranscripts(infile, outfile)
 
 
+@transform(buildGeneSet,
+           suffix(".gtf.gz"),
+           "_gtf_genome_coordinates.load")
+def loadGeneCoordinates(infile, outfile):
+    '''load the coordinates for each gene'''
+    PipelineGeneset.loadGeneCoordinates(infile, outfile)
+
+
 @P.add_doc(PipelineGeneset.loadTranscriptStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(
@@ -1179,6 +1181,7 @@ def downloadTranscriptInformation(infile, outfile):
         "status": "gene_status",
         "transcript_status": "transcript_status",
         "external_gene_name": "gene_name",
+        "transcript_tsl": "transcript_support"
     }
 
     data = Biomart.biomart_iterator(
@@ -1365,7 +1368,9 @@ def buildCDNAFasta(infile, outfile):
 
 @P.add_doc(PipelineGeneset.buildCDSFasta)
 @follows(mkdir('ensembl.dir'))
-@merge(buildCDSTranscripts, PARAMS["interface_cds_fasta"])
+@files((buildCDSTranscripts,
+        buildPeptideFasta,),
+       PARAMS["interface_cds_fasta"])
 def buildCDSFasta(infile, outfile):
     PipelineGeneset.buildCDSFasta(infile, outfile)
 
@@ -2288,40 +2293,29 @@ def loadKEGGAssignments(infile, outfile):
 
 # ---------------------------------------------------------------
 # Enrichment analysis
+@P.add_doc(PipelineGeneset.annotateGenome)
 @follows(mkdir('enrichment.dir'))
 @files(buildGeneSet, PARAMS['interface_annotation_gff'])
 def annotateGenome(infile, outfile):
-    '''annotate genomic regions with reference gene set.
+    """This task only considers protein coding genes as
+    processed_transcripts tend to cover larger genomic regions and
+    often overlap between adjacent protein coding genes.
 
-    Only considers protein coding genes.
-    Processed_transcripts tend to cover larger genomic regions
-    and often overlap between adjacent protein coding genes.
-
-    In case of overlapping genes, only take the longest
-    (in genomic coordinates).
-
-    Genes not on UCSC contigs are removed.
-    '''
+    """
     PipelineGeneset.annotateGenome(infile,
                                    outfile,
                                    only_proteincoding=True)
 
 
+@P.add_doc(PipelineGeneset.annotateGeneStructure)
 @follows(mkdir('enrichment.dir'))
 @files(buildGeneSet, PARAMS['interface_genestructure_gff'])
 def annotateGeneStructure(infile, outfile):
-    '''annotate genome with gene structures.
+    """This task only considers protein coding genes as
+    processed_transcripts tend to cover larger genomic regions and
+    often overlap between adjacent protein coding genes.
 
-    Only considers protein coding genes.
-
-    Processed_transcripts tend to cover larger genomic regions
-    and often overlap between adjacent protein coding genes.
-
-    In case of overlapping genes, only take the longest
-    (in genomic coordinates).
-
-    Genes not on UCSC contigs are removed.
-    '''
+    """
     PipelineGeneset.annotateGeneStructure(infile,
                                           outfile,
                                           only_proteincoding=True)
@@ -2330,8 +2324,22 @@ def annotateGeneStructure(infile, outfile):
 @follows(mkdir('enrichment.dir'))
 @merge(buildFlatGeneSet, PARAMS["interface_territories_gff"])
 def buildGeneTerritories(infile, outfile):
-    '''build gene territories from protein coding genes.'''
+    """build gene territories from protein coding genes.
 
+    The territory of a gene is defined as the region of the
+    gene extended by a certain radius on either end. If the
+    gene territories of two genes overlap, they are resolved
+    at the mid-point between the two adjacent genes.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    enrichment_territories_radius : int
+       see :term:`PARAMS`
+    """
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
@@ -2345,12 +2353,14 @@ def buildGeneTerritories(infile, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=position
     | python %(scriptsdir)s/gtf2gff.py
-          --genome-file=%(genome_dir)s/%(genome)s
-          --log=%(outfile)s.log
-          --territory-extension=%(enrichment_territories_radius)s
-          --method=territories
+    --genome-file=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
+    --territory-extension=%(enrichment_territories_radius)s
+    --method=territories
     | python %(scriptsdir)s/gtf2gtf.py
-    --method=filter --filter-method=longest-gene --log=%(outfile)s.log
+    --method=filter
+    --filter-method=longest-gene
+    --log=%(outfile)s.log
     | gzip
     > %(outfile)s '''
 
@@ -2360,8 +2370,21 @@ def buildGeneTerritories(infile, outfile):
 @follows(mkdir('enrichment.dir'))
 @merge(buildFlatGeneSet, PARAMS["interface_tssterritories_gff"])
 def buildTSSTerritories(infile, outfile):
-    '''build gene territories from protein coding genes.'''
+    """build TSS territories from protein coding genes.
 
+    The tss territory of a gene is defined as a region centered aronud
+    the TSS. If the territories of two genes overlap, they are
+    resolved at the mid-point between the two adjacent genes.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    enrichment_territories_radius : int
+       see :term:`PARAMS`
+    """
     statement = '''
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
@@ -2374,10 +2397,10 @@ def buildTSSTerritories(infile, outfile):
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=position
     | python %(scriptsdir)s/gtf2gff.py
-          --genome-file=%(genome_dir)s/%(genome)s
-          --log=%(outfile)s.log
-          --territory-extension=%(enrichment_territories_radius)s
-          --method=tss-territories
+    --genome-file=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
+    --territory-extension=%(enrichment_territories_radius)s
+    --method=tss-territories
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=gene+transcript --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
@@ -2391,7 +2414,31 @@ def buildTSSTerritories(infile, outfile):
 @follows(mkdir('enrichment.dir'))
 @merge(buildFlatGeneSet, PARAMS["interface_greatdomains_gff"])
 def buildGREATRegulatoryDomains(infile, outfile):
-    '''build gene territories from protein coding genes.'''
+    """build GREAT regulatory domains.
+
+    Each TSS in a gene is associated with a basal region. The basal
+    region is then extended upstream to the basal region of the
+    closest gene, but at most by a certain radius. In the case of
+    overlapping genes, the extension is towards the next
+    non-overlapping gene.
+
+    This is the "basal plus extension" rule in GREAT. Commonly used
+    are 5+1 with 1 Mb extension.
+
+    Arguments
+    ---------
+    infile : string
+       ENSEMBL geneset in :term:`gtf` format.
+    outfile : string
+       Output filename in :term:`gff` format.
+    enrichment_great_radius : int
+       see :term:`PARAMS`
+    enrichment_great_upstream : int
+       see :term:`PARAMS`
+    enrichment_great_downstream : int
+       see :term:`PARAMS`
+
+    """
 
     statement = '''
     zcat %(infile)s
@@ -2415,6 +2462,7 @@ def buildGREATRegulatoryDomains(infile, outfile):
     P.run()
 
 
+@P.add_doc(PipelineGeneset.buildGenomicContext)
 @follows(mkdir('enrichment.dir'))
 @merge((importRepeatsFromUCSC,
         importRNAAnnotationFromUCSC,
@@ -2425,23 +2473,24 @@ def buildGREATRegulatoryDomains(infile, outfile):
         ),
        PARAMS["interface_genomic_context_bed"])
 def buildGenomicContext(infiles, outfile):
-    '''build a file with genomic context.
-
-    The output is a bed formatted file, annotating genomic segments
-    according to whether they are any of the ENSEMBL annotations.
-
-    It also adds the RNA and repeats annotations from the UCSC.
-
-    The annotations can be partially or fully overlapping.
-
-    Adjacent features (less than 10 bp apart) of the same type are merged.
-    '''
     PipelineGeneset.buildGenomicContext(infiles, outfile)
 
 
 @transform(buildGenomicContext, suffix(".bed.gz"), ".tsv")
 def buildGenomicContextStats(infile, outfile):
-    '''analysis overlap of genomic contexts.'''
+    """compute overlap between annotations in a :term:`bed` file.
+
+    This method splits a :term:`bed` formatted file by its fourth
+    column, the feature name. It then computes the individual :term:`bed`
+    formatted files with :doc:`diff_bed`.
+
+    Arguments
+    ---------
+    infiles : string
+        Input filename of :term:`bed` formatted file with annotations.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
 
     tmpdir = P.getTempDir(".")
 
@@ -2464,46 +2513,33 @@ def buildGenomicContextStats(infile, outfile):
     shutil.rmtree(tmpdir)
 
 
+@P.add_doc(PipelineGeneset.buildGenomicFunctionalAnnotation)
 @follows(mkdir('enrichment.dir'))
 @merge((buildGeneTerritories, loadGOAssignments),
        (PARAMS["interface_genomic_function_bed"],
         PARAMS["interface_genomic_function_tsv"],
         ))
 def buildGenomicFunctionalAnnotation(infiles, outfiles):
-    '''output a bed file with genomic regions with functional annotations.
-
-    Each bed entry is a gene territory. Bed entries are labeled
-    by functional annotations associated with a gene.
-
-    Ambiguities in territories are resolved by outputting
-    annotations for all genes within a territory.
-
-    The output file contains annotations for both GO and GOSlim. These
-    are prefixed by ``go:`` and ``goslim:``.
-    '''
-
-    territories_file = infiles[0]
-
-    dbh = connect()
-
     PipelineGeneset.buildGenomicFunctionalAnnotation(
-        territories_file, dbh, outfiles)
+        territories_file=infiles[0],
+        dbh=connect(),
+        outfiles=outfiles)
 
 
+@P.add_doc(PipelineGeneset.buildPseudogenes)
 @files((buildGeneSet,
         buildPeptideFasta),
        PARAMS["interface_pseudogenes_gtf"])
 def buildPseudogenes(infile, outfile):
-    '''build set of pseudogenes.'''
     dbh = connect()
     PipelineGeneset.buildPseudogenes(infile, outfile, dbh)
 
 
+@P.add_doc(PipelineGeneset.buildNUMTs)
 @follows(mkdir('geneset.dir'))
 @files((None,),
        PARAMS["interface_numts_gtf"])
 def buildNUMTs(infile, outfile):
-    '''build list of NUMTs.'''
     PipelineGeneset.buildNUMTs(infile, outfile)
 
 # --------------------------------------------
@@ -2593,7 +2629,16 @@ if 0:
            suffix(".gff.gz"),
            ".gffsummary.tsv.gz")
 def buildGFFSummary(infile, outfile):
-    '''summarize genomic coverage of gff file.'''
+    """summarize genomic coverage of a :term:`gff` formatted file.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gff` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2coverage.py
     --genome-file=%(genome_dir)s/%(genome)s
@@ -2606,7 +2651,18 @@ def buildGFFSummary(infile, outfile):
            suffix(".bed.gz"),
            ".bedsummary.tsv.gz")
 def buildBedSummary(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize genomic coverage of a :term:`bed` formatted file.
+
+    The coverage is computed per contig.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`bed` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/bed2stats.py
     --aggregate-by=contig
@@ -2620,7 +2676,19 @@ def buildBedSummary(infile, outfile):
            suffix(".bed.gz"),
            ".bednamesummary.tsv.gz")
 def buildBedNameSummary(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize genomic coverage of a :term:`bed` formatted file.
+
+    The coverage is computed per annotation (column 4) in the
+    :term:`bed` file.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`bed` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/bed2stats.py
     --aggregate-by=name
@@ -2634,7 +2702,16 @@ def buildBedNameSummary(infile, outfile):
            suffix(".gtf.gz"),
            ".gtfsummary.tsv.gz")
 def buildGTFSummary(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize genomic coverage of a :term:`gtf` formatted file.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gtf` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
+
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2coverage.py
     --genome-file=%(genome_dir)s/%(genome)s
@@ -2647,7 +2724,17 @@ def buildGTFSummary(infile, outfile):
            suffix(".gtf.gz"),
            ".gtfstats.tsv.gz")
 def buildGTFStats(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize stats of a :term:`gtf` formatted file.
+
+    The statistics are number of genes, transcripts, etc.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gtf` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2stats.py
     --is-gtf
@@ -2660,7 +2747,18 @@ def buildGTFStats(infile, outfile):
            suffix(".gff.gz"),
            ".gffstats.tsv.gz")
 def buildGFFStats(infile, outfile):
-    '''summarize genomic coverage of bed file.'''
+    """summarize stats of a :term:`gff` formatted file.
+
+    The statistics are number of contigs, strands
+    features and sources.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename of :term:`gff` formatted file.
+    outfile : string
+        Output filename in :term:`tsv` format.
+    """
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2stats.py
     | gzip > %(outfile)s
@@ -2670,6 +2768,7 @@ def buildGFFStats(infile, outfile):
 
 @merge(buildGTFStats, 'gtf_stats.load')
 def loadGTFStats(infiles, outfile):
+    """load summary data into database."""
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename="(.*).tsv.gz",
                          options="--allow-empty")
@@ -2677,6 +2776,7 @@ def loadGTFStats(infiles, outfile):
 
 @merge(buildGFFStats, 'gff_stats.load')
 def loadGFFStats(infiles, outfile):
+    """load summary data into database."""
     P.concatenateAndLoad(infiles, outfile,
                          regex_filename="(.*).tsv.gz",
                          options="--allow-empty")
@@ -2689,6 +2789,7 @@ def loadGFFStats(infiles, outfile):
            suffix(".tsv.gz"),
            ".load")
 def loadIntervalSummary(infile, outfile):
+    """load summary data into database."""
     P.load(infile, outfile, options='--allow-empty-file')
 
 
@@ -2701,6 +2802,7 @@ def loadIntervalSummary(infile, outfile):
          buildGenomeGCProfile,
          buildCpGBed)
 def assembly():
+    """convenience target : assembly derived annotations"""
     pass
 
 
@@ -2710,6 +2812,7 @@ def assembly():
          loadGeneStats,
          loadTranscriptStats,
          loadGeneInformation,
+         loadGeneCoordinates,
          downloadEntrezToEnsembl,
          downloadTranscriptSynonyms,
          buildExonTranscripts,
@@ -2720,6 +2823,7 @@ def assembly():
          buildSelenoList,
          )
 def ensembl():
+    """convenience target : ENSEMBL geneset derived annotations"""
     pass
 
 
@@ -2727,6 +2831,7 @@ def ensembl():
          buildCDSFasta,
          buildCDNAFasta)
 def fasta():
+    """convenience target : sequence collections"""
     pass
 
 
@@ -2739,6 +2844,7 @@ def fasta():
          buildGeneTSSInterval,
          buildIntergenicRegions)
 def geneset():
+    """convenience target : geneset derived annotations"""
     pass
 
 
@@ -2748,6 +2854,7 @@ def geneset():
          loadRepeats,
          countTotalRepeatLength)
 def ucsc():
+    """convenience target : UCSC derived annotations"""
     pass
 
 
@@ -2759,6 +2866,7 @@ def ucsc():
          annotateGeneStructure,
          annotateGenome)
 def annotations():
+    """convenience target : gene based annotations"""
     pass
 
 
@@ -2768,17 +2876,20 @@ def annotations():
          buildGenomicContextStats,
          buildGenomicFunctionalAnnotation)
 def enrichment():
+    """convenience target : annotations for enrichment analysis"""
     pass
 
 
 @follows(loadGOAssignments,
          loadKEGGAssignments)
 def ontologies():
+    """convenience target : ontology information"""
     pass
 
 
 @follows(_gwas)
 def gwas():
+    """convenience target : import GWAS data"""
     pass
 
 
@@ -2786,7 +2897,7 @@ def gwas():
          loadGFFStats,
          loadIntervalSummary)
 def summary():
-    '''summary targets.'''
+    '''convenience target : summary'''
     pass
 
 

@@ -36,6 +36,7 @@ import CGAT.Experiment as E
 from CGAT.IOTools import touchFile, snip
 
 from CGATPipelines.Pipeline.Execution import buildStatement, run
+from CGATPipelines.Pipeline.Files import getTempFile
 
 # Set from Pipeline.py
 PARAMS = {}
@@ -643,7 +644,7 @@ def importFromIterator(
         List of column names to add indices on.
     '''
 
-    tmpfile = P.getTempFile(".")
+    tmpfile = getTempFile(".")
 
     if columns:
         keys, values = zip(*columns.items())
@@ -665,7 +666,7 @@ def importFromIterator(
     else:
         indices = ""
 
-    P.load(tmpfile.name,
+    load(tmpfile.name,
            outfile,
            tablename=tablename,
            options=indices)
