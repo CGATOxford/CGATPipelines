@@ -130,8 +130,8 @@ necessary to explain and justify the tasks function and
 implementation.  These should be separated by a blank line to denote a
 section break.
 
-Task doc-strings always contain the sub-headers ``Parameters`` which
-describes the input file, output file and parameters. Each entry in
+Task doc-strings always contain the sub-header ``Parameters`` with 
+descriptions of the input file, output file and parameters. Each entry in
 the ``Parameters`` section has a type, which is the Python data
 structure/type to expect, e.g. `list`, `int` or `str`. In addition,
 for files, the format should be specified in the description where
