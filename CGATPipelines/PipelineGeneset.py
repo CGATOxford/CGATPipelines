@@ -478,7 +478,7 @@ def loadPeptideSequences(infile, outfile):
     P.run()
 
 
-def buildCDSFasta(infile, outfile):
+def buildCDSFasta(infiles, outfile):
     '''output CDS sequences
 
     It works by taking the CDNA and peptide sequence
@@ -495,10 +495,11 @@ def buildCDSFasta(infile, outfile):
     outfile : string
         indexed file in :term:`fasta` format
     '''
+    infile_cdnas, infile_peptides_fasta = infiles
 
     dbname = outfile[:-len(".fasta")]
 
-    statement = '''gunzip < %(infile)s
+    statement = '''gunzip < %(infile_cdnas)s
     | python %(scriptsdir)s/gff2fasta.py
         --is-gtf
         --genome=%(genome_dir)s/%(genome)s
@@ -526,7 +527,7 @@ def buildCDSFasta(infile, outfile):
 
     statement = '''
     python %(scriptsdir)s/peptides2cds.py
-           --peptides-fasta-file=%(infile_peptides)s
+           --peptides-fasta-file=%(infile_peptides_fasta)s
            --cdnas=%(infile_cdnas)s
            --map=%(tmpfilename)s
            --output-format=fasta

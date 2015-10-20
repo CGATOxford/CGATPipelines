@@ -1100,6 +1100,50 @@ class Sailfish(Mapper):
         return statement
 
 
+class Salmon(Mapper):
+    '''run Salmon to quantify transcript abundance from fastq files'''
+
+    def __init__(self, compress=True, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.compress = compress
+
+    def mapper(self, infiles, outfile):
+
+        statement = ['''salmon quant -i %%(index)s''' % locals()]
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+            input_file = '''-r %s ''' % " ".join(
+                ["<(zcat %s)" % x[0] for x in infiles])
+
+        elif nfiles == 2:
+
+            input_file = '''-1 %s -2 %s''' % (
+                " ".join(["<(zcat %s)" % x[0] for x in infiles]),
+                " ".join(["<(zcat %s)" % x[1] for x in infiles]))
+
+        else:
+            # is this the correct error type?
+            raise ValueError("incorrect number of input files")
+
+        outdir = os.path.dirname(os.path.abspath(outfile))
+
+        statement.append('''
+        -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
+        --threads %%(job_threads)s %%(salmon_options)s;''' % locals())
+
+        statement = " ".join(statement)
+
+        return statement
+
+
 class Kallisto(Mapper):
 
     '''run Kallisto to quantify transcript abundance from fastq files'''
