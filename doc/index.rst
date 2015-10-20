@@ -81,6 +81,7 @@ Documentation
    PipelinesBackground.rst
    Reference.rst
    Release.rst
+   styleguide.rst
 
 For information on how to contribute to the pipeline collection,
 please see the `CGAT code collection
