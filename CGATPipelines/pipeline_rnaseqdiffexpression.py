@@ -1088,7 +1088,37 @@ def loadDESeq2(infile, outfile):
          add_inputs("*.bam"),
          r"cuffdiff.dir/{design[0][0]}.{geneset[1][0]}.fpkm.tsv.gz")
 def runCuffdiff(infiles, outfile):
-    '''perform differential expression analysis using cuffdiff.'''
+    '''
+    Runs cuffdiff to perform differential expression analysis.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of input files
+    infiles[0]: list
+        list of filenames
+    infiles[0][0]: str
+        Filename with experimental design in :term:`tsv` format
+    infiles[0][1]: str
+        Filename with geneset of interest in :term:`gtf format
+    cuffdiff_include_mask: bool
+        :term:`PARAMS` if true, use mask file to exclude 
+        highly expressed genes such as rRNA
+    cuffdiff_options: str
+        :term:`PARAMS`
+        options to pass on to cuffdiff
+    cuffdiff_threads: int
+        :term:`PARAMS`
+         number of threads to use when running cuffdiff
+    cuffdiff_memory: str
+        :term:`PARAMS`
+         memory to reserve for cuffdiff
+    cuffdiff_fdr: float
+        :term:`PARAMS`
+    outfile: str
+        Output filename to write FPKM counts.
+        The output is :term:`tsv` formatted.
+    '''
 
     design_file, geneset_file = infiles[0]
     bamfiles = infiles[1:]
@@ -1112,20 +1142,20 @@ def runCuffdiff(infiles, outfile):
                                mask_file=mask_file)
 
 
+@P.add_doc(PipelineRnaseq.loadCuffdiff)
 @transform(runCuffdiff,
            suffix(".tsv.gz"),
            "_cuffdiff.load")
 def loadCuffdiff(infile, outfile):
-    '''load results from differential expression analysis and produce
-    summary plots.
+    '''
 
-    Note: converts from ln(fold change) to log2 fold change.
-
-    The cuffdiff output is parsed.
-
-    Pairwise comparisons in which one gene is not expressed (fpkm <
-    fpkm_silent) are set to status 'NOCALL'. These transcripts might
-    nevertheless be significant.
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`tsv` formatted file containing FPKM counts
+        generated using cuffdiff
+    outfile: str
+        .load file containing log for database load
 
     '''
     PipelineRnaseq.loadCuffdiff(connect(), infile, outfile)
@@ -1136,14 +1166,24 @@ def loadCuffdiff(infile, outfile):
            suffix(".load"),
            ".plots")
 def buildCuffdiffPlots(infile, outfile):
-    '''create summaries of cufflinks results (including some diagnostic plots)
+    '''
+    Creates plots  of cufflinks results showing fold change against
+    expression level
 
     Plots are created in the <exportdir>/cuffdiff directory.
 
     Plots are:
 
     <geneset>_<method>_<level>_<track1>_vs_<track2>_significance.png
-        fold change against expression level
+
+    Parameters
+    ----------
+    infile: str
+        .load filename from loading data to the cuffdiff database tables
+
+    outfile: str
+        filename of .plots logfile for plotting
+
     '''
     ###########################################
     ###########################################
@@ -1207,11 +1247,20 @@ def buildCuffdiffPlots(infile, outfile):
 
     P.touch(outfile)
 
-
+@P.add_doc(PipelineRnaseq.buildExpressionStats)
 @follows(loadGeneSetGeneInformation)
 @merge(loadCuffdiff,
        "cuffdiff_stats.tsv")
 def buildCuffdiffStats(infiles, outfile):
+    '''
+    Parameters
+    ----------
+    infiles: list
+        list of output files from different levels of cuffdiff analysis
+        (gene, isoform, tss etc.)
+    outfile:
+        :term:`tsv` file containing complied cuffdiff results
+    '''
     PipelineRnaseq.buildExpressionStats(
         connect(),
         outfile,
@@ -1223,7 +1272,16 @@ def buildCuffdiffStats(infiles, outfile):
            suffix(".tsv"),
            ".load")
 def loadCuffdiffStats(infile, outfile):
-    '''import cuffdiff results.'''
+    '''Loads a table - cuffdiff_stats - into a database containing cuffdiff
+    statistics
+
+    Parameters
+    ----------
+    infile:
+        :term:`tsv` filename containing compiled cuffdiff statistics
+    outfile:
+        .load logfile for database load
+    '''
     P.load(infile, outfile)
 
 
