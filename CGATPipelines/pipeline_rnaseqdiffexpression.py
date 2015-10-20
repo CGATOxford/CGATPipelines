@@ -396,17 +396,28 @@ TARGETS_FPKM = [(("%s.gtf.gz" % x.asFile(), "%s.bam" % y.asFile()),
 @files(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset_mask.gtf")
 def buildMaskGtf(infile, outfile):
-    '''This takes ensembl annotations (geneset_all.gtf.gz) and writes out
-    all entries that have a 'source' match to "rRNA" or 'contig' match
-    to "chrM" for use with cufflinks.
+    '''creates a gtf for cufflinks containing the transcripts you do not want to build transcript models of
 
+    This takes ensembl annotations (geneset_all.gtf.gz) and writes out
+    all entries that have a 'source' match to "rRNA" or 'contig' match
+    to "chrM" for use as a mask with cufflinks (see cufflinks manual for benefits 
+    of mask file http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html).
+    
     Parameters
     ----------
-    infile : :term:`gtf` file
-             gtf of ensembl annotations e.g. geneset_all.gtf.gz
-    outfile : :term:`gtf` file
-             the mask file for use with cufflinks. This is created by filtering
-             infile for certain transcripts e.g. rRNA or chrM transcripts
+    infile : string
+    	:term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
+    
+    annotations_interface_table_gene_info : string
+	:term:`PARAMS` gene_info table in annotations database - set in pipeline.ini in annotations directory
+
+    annotations_interface_table_gene_stats : string
+	:term:`PARAMS` gene_stats table in annotations database - set in pipeline.ini in annotations directory
+	
+    outfile : string
+    	A :term:`gtf` file for use as "mask file" for cufflinks.
+	This is created by filtering infile for certain transcripts e.g. rRNA or chrM transcripts
+	and writing them to outfile
     '''
     dbh = connect()
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
@@ -436,12 +447,12 @@ def buildMaskGtf(infile, outfile):
     outf.close()
 
 
-# Docs for this function linked to PipelineGeneset; please look over there.
 @P.add_doc(PipelineGeneset.loadGeneStats)
 @transform("*.gtf.gz",
            suffix(".gtf.gz"),
            "_geneinfo.load")
 def loadGeneSetGeneInformation(infile, outfile):
+    # Docs for this function linked to PipelineGeneset; please look there.
     PipelineGeneset.loadGeneStats(infile, outfile)
 
 
