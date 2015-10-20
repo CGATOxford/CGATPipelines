@@ -30,7 +30,7 @@ Pipeline transcriptdiffexpression
 :Tags: Python
 
 
-Overview 
+Overview
 ========
 RNA-Seq differential expression analysis can, broadly speaking, be
 performed at two levels. Gene-level and transcript-level.
@@ -337,7 +337,8 @@ if PARAMS["geneset_auto_generate"]:
 
         dbh = connect()
 
-        table = os.path.basename(PARAMS["annotations_interface_table_transcript_info"])
+        table = os.path.basename(
+            PARAMS["annotations_interface_table_transcript_info"])
 
         where_cmd = "WHERE (%s)" % " OR ".join(
             ["gene_biotype = '%s'" % x for x in
@@ -457,9 +458,8 @@ def buildKallistoIndex(infile, outfile):
 def buildSalmonIndex(infile, outfile):
     ''' build a salmon index'''
 
-    
     statement = '''
-    salmon index %(salmon_index_options)s -t %(infile)s -i %(outfile)s 
+    salmon index %(salmon_index_options)s -t %(infile)s -i %(outfile)s
     '''
 
     P.run()
@@ -490,6 +490,7 @@ def countKmers(infile, outfile):
     --kmer-size=%(kallisto_kmer)s -L %(outfile)s.log > %(outfile)s '''
 
     P.run()
+
 
 @mkdir("simulation.dir")
 @follows(buildReferenceTranscriptome)
