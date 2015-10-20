@@ -946,8 +946,37 @@ def mapReadsWithHisat(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @merge(mapReadsWithTophat, "tophat_stats.tsv")
 def buildTophatStats(infiles, outfile):
+    '''
+    Build stats about tophat runs.
 
+    Uses the log files from tophat mapping runs to build a table showing
+    counts for various statistics for each input file.
+    These statistics are: reads in, reads removed, reads out, junctions loaded,
+    junctions found, possible splices.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`bam` files containing mapped reads
+
+    paired_end: bool
+        :term:`PARAMS` if true, reads are paired end.
+
+    outfile: str
+        :term:`tsv` file to write the stats about the run
+
+    '''
     def _select(lines, pattern):
+        '''
+        Looks for a pattern in each line of the bam file
+
+        Parameters
+        ----------
+        lines: list
+            readlines object from log file from the tophat run
+        pattern: str
+            regex specifying the pattern to search for.
+        '''
         x = re.compile(pattern)
         for line in lines:
             r = x.search(line)
@@ -1021,6 +1050,16 @@ def buildTophatStats(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @transform(buildTophatStats, suffix(".tsv"), ".load")
 def loadTophatStats(infile, outfile):
+    '''
+    Loads statistics about a tophat run from a tsv file to a database.
+    These statistics are: reads in, reads removed, reads out, junctions loaded,
+    junctions found, possible splices.
+
+    Parameters
+    ----------
+    infile: term:`tsv` file containing a table of tophat statistics.
+    outfile: database load
+    '''
     P.load(infile, outfile)
 
 
