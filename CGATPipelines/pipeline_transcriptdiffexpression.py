@@ -457,9 +457,9 @@ def buildKallistoIndex(infile, outfile):
 def buildSalmonIndex(infile, outfile):
     ''' build a salmon index'''
 
-    # --type=fmd 
+    
     statement = '''
-    salmon index -t %(infile)s -i %(outfile)s 
+    salmon index %(salmon_index_options)s -t %(infile)s -i %(outfile)s 
     '''
 
     P.run()
