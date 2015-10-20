@@ -396,28 +396,33 @@ TARGETS_FPKM = [(("%s.gtf.gz" % x.asFile(), "%s.bam" % y.asFile()),
 @files(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset_mask.gtf")
 def buildMaskGtf(infile, outfile):
-    '''creates a gtf for cufflinks containing the transcripts you do not want to build transcript models of
+    '''creates a gtf for cufflinks containing the transcripts you do not want
+    to build transcript models of
 
     This takes ensembl annotations (geneset_all.gtf.gz) and writes out
     all entries that have a 'source' match to "rRNA" or 'contig' match
-    to "chrM" for use as a mask with cufflinks (see cufflinks manual for benefits 
-    of mask file http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html).
-    
+    to "chrM" for use as a mask with cufflinks (see cufflinks manual for
+    benefits of mask file
+    http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html).
+
     Parameters
     ----------
     infile : string
-    	:term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
-    
+        :term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
+
     annotations_interface_table_gene_info : string
-	:term:`PARAMS` gene_info table in annotations database - set in pipeline.ini in annotations directory
+        :term:`PARAMS` gene_info table in annotations database - set in
+        pipeline.ini in annotations directory
 
     annotations_interface_table_gene_stats : string
-	:term:`PARAMS` gene_stats table in annotations database - set in pipeline.ini in annotations directory
-	
+         :term:`PARAMS` gene_stats table in annotations database - set in
+         pipeline.ini in annotations directory
+
     outfile : string
-    	A :term:`gtf` file for use as "mask file" for cufflinks.
-	This is created by filtering infile for certain transcripts e.g. rRNA or chrM transcripts
-	and writing them to outfile
+        A :term:`gtf` file for use as "mask file" for cufflinks.
+        This is created by filtering infile for certain transcripts e.g. rRNA
+        or chrM transcripts
+        and writing them to outfile
     '''
     dbh = connect()
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
@@ -992,6 +997,16 @@ def loadDESeq(infile, outfile):
 @follows(loadGeneSetGeneInformation)
 @merge(loadDESeq, "deseq_stats.tsv")
 def buildDESeqStats(infiles, outfile):
+    '''
+    Parameters
+    ----------
+    infiles: list
+        list of filenames for files containing deseq results formatted into
+        :term:`tsv` files
+
+    outfile: str
+        file to write compiled deseq results
+    '''
     PipelineRnaseq.buildExpressionStats(
         connect(),
         outfile,
@@ -1154,7 +1169,7 @@ def runCuffdiff(infiles, outfile):
     infiles[0][1]: str
         Filename with geneset of interest in :term:`gtf format
     cuffdiff_include_mask: bool
-        :term:`PARAMS` if true, use mask file to exclude 
+        :term:`PARAMS` if true, use mask file to exclude
         highly expressed genes such as rRNA
     cuffdiff_options: str
         :term:`PARAMS`
@@ -1298,6 +1313,7 @@ def buildCuffdiffPlots(infile, outfile):
             R['dev.off']()
 
     P.touch(outfile)
+
 
 @P.add_doc(PipelineRnaseq.buildExpressionStats)
 @follows(loadGeneSetGeneInformation)

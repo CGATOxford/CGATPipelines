@@ -1361,4 +1361,3 @@ def plotGeneLevelReadExtension(infile, outfile):
 
     P.touch(outfile)
 
-
