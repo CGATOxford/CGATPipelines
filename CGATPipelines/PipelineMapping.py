@@ -1339,16 +1339,12 @@ class BWA(Mapper):
 
         Parameters
         ----------
-        infiles: list
-            contains 1 filename
-
-        infiles[0]: str
-            :term:`fastq` filename
-            input fastq file containing unmapped reads
+        infile: str
+            filename of reads file
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         outfile: str
-            :term:`bam` filename
-            output file to incorporate into the statement
+            :term:`bam` filename containing the mapped reads in bam format.
 
         Returns
         -------
@@ -1953,9 +1949,11 @@ class Tophat(Mapper):
         ----------
         infiles: list
             contains three filenames -
+
         infiles[0]: str
             :term:`fastq` filename
-            input fastq file containing unmapped reads
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         infiles[1]: str
             :term:`fasta` filename
@@ -2303,9 +2301,10 @@ class Hisat(Mapper):
         ----------
         infiles: list
             contains two filenames
+
         infiles[0]: str
-            :term:`fastq` filename
-            input fastq file containing unmapped reads
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         infiles[1]: str
             junction filename
@@ -2463,8 +2462,8 @@ class GSNAP(Mapper):
             contains 2 filenames
 
         infiles[0]: str
-            :term:`fastq` filename
-            input fastq file containing unmapped reads
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         infiles[1]: str
             filename of type iit containing all known splice sites
@@ -2619,8 +2618,8 @@ class STAR(Mapper):
             contains 1 filename
 
         infiles[0]: str
-            :term:`fastq` filename
-            input fastq file containing unmapped reads
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         outfile: str
             :term:`bam` filename
@@ -2806,8 +2805,8 @@ class Bowtie(Mapper):
             contains 2 filenames
 
         infiles[0]: str
-            :term:`fastq` filename
-            input fastq file containing unmapped reads
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         infiles[1]: str
             :term:`fasta` file containing reference genome
@@ -2890,7 +2889,6 @@ class BowtieTranscripts(Mapper):
         infiles[0]: str
             :term:`fastq` filename
             input fastq file containing unmapped reads
-
 
         infiles[1]: str
             :term:`fasta` file containing reference genome
@@ -2996,8 +2994,8 @@ class BowtieTranscripts(Mapper):
             contains 2 filenames
 
         infiles[0]: str
-            :term:`fastq` filename
-            input fastq file containing unmapped reads
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         infiles[1]: str
             :term:`fasta` file containing reference genome
@@ -3056,8 +3054,8 @@ class BowtieJunctions(BowtieTranscripts):
             contains 2 filenames
 
         infiles[0]: str
-            :term:`fastq` filename
-            input fastq file containing unmapped reads
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
 
         infiles[1]: str
             :term:`fasta` file containing reference genome

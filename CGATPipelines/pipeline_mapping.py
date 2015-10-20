@@ -393,13 +393,14 @@ def buildCodingGeneSet(infiles, outfile):
 
     Parameters
     ----------
-    infiles : list of str
-       infile :term:`str`
-          Input filename in :term:`gtf` format
-       genes_ts :term:`str`
-          Input filename in :term:`tsv` format
+    infiles : list
+    infile: str
+       Input filename in :term:`gtf` format
 
-    outfile : str
+    genes_ts: str
+       Input filename in :term:`tsv` format
+
+    outfile: str
        Output filename in :term:`gtf` format
 
     '''
@@ -490,6 +491,7 @@ def buildIntronGeneModels(infiles, outfile):
 @transform(buildCodingGeneSet,
            suffix(".gtf.gz"),
            "_transcript2gene.load")
+@P.add_doc(PipelineGeneset.loadTranscript2Gene)
 def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadTranscript2Gene(infile, outfile)
 
@@ -712,7 +714,7 @@ SEQUENCEFILES_REGEX = regex(
            SEQUENCEFILES_REGEX,
            r"nreads.dir/\1.nreads")
 def countReads(infile, outfile):
-    '''count number of reads in input files.'''
+    '''Count number of reads in input files.'''
     m = PipelineMapping.Counter()
     statement = m.build((infile,), outfile)
     P.run()
@@ -1123,14 +1125,15 @@ def buildTophatStats(infiles, outfile):
 @transform(buildTophatStats, suffix(".tsv"), ".load")
 def loadTophatStats(infile, outfile):
     '''
-    Loads statistics about a tophat run from a tsv file to a database.
-    These statistics are: reads in, reads removed, reads out, junctions loaded,
-    junctions found, possible splices.
+    Loads statistics about a tophat run from a tsv file to a database table -
+    tophat_stats.
+    The columns are track, reads in, reads removed, reads out, junctions loaded
+    , junctions found, possible splices.
 
     Parameters
     ----------
     infile: term:`tsv` file containing a table of tophat statistics.
-    outfile: database load
+    outfile: .load file
     '''
     P.load(infile, outfile)
 
@@ -1270,7 +1273,17 @@ def mapReadsWithSTAR(infile, outfile):
 @active_if(SPLICED_MAPPING)
 @merge(mapReadsWithSTAR, "star_stats.tsv")
 def buildSTARStats(infiles, outfile):
-    '''load stats from STAR run.'''
+    '''Compile statistics from STAR run
+    Concatenates log files from STAR runs and reformats them as a tab
+    delimited table.
+
+    Parameters
+    ----------
+    infiles: list
+        :term:`bam` files generated with STAR.
+    outfile: str
+        :term: `tsv` file containing statistics about STAR run
+    '''
 
     data = collections.defaultdict(list)
     for infile in infiles:
@@ -1299,7 +1312,15 @@ def buildSTARStats(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @transform(buildSTARStats, suffix(".tsv"), ".load")
 def loadSTARStats(infile, outfile):
-    '''load stats from STAR run.'''
+    '''
+    Loads statistics about a star run from a tsv file to a database table -
+    star_stats.
+
+    Parameters
+    ----------
+    infile: term:`tsv` file containing a table of tophat statistics.
+    outfile: .load file logging database loading
+    '''
     P.load(infile, outfile)
 
 
