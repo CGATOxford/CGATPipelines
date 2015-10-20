@@ -939,7 +939,7 @@ def buildUTRExtension(infile, outfile):
         Output of :func:`buildGeneLevelReadExtension`
     outfile : string
         Output filename
-    
+
     '''
 
     # the bin size , see gtf2table - can be cleaned from column names
