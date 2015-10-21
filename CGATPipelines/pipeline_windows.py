@@ -174,12 +174,32 @@ def connect():
     return dbh
 
 
+@P.add_doc(PipelineWindows.convertReadsToIntervals)
 @follows(mkdir("tags.dir"))
 @transform('*.bam',
            regex("(.*).bam"),
            r"tags.dir/\1.bed.gz")
 def prepareTags(infile, outfile):
-    '''prepare tag files from bam files for counting.
+    '''
+    Parameters
+    ----------
+    infile: str
+        Filename of input file in :term:`bam` format
+    outfile: str
+        Filename of output file in :term:`bed` format.
+    filtering_quality : int
+        :term:`PARAMS`
+        If set, remove reads with a quality score below given threshold.
+    filtering_dedup : bool
+        :term:`PARAMS`
+        If True, deduplicate data.
+    filtering_dedup_method : string
+        :term:`PARAMS`
+        Deduplication method. Possible options are ``picard`` and
+        ``samtools``.
+    filtering_nonunique : bool
+        :term:`PARAMS`
+        If True, remove non-uniquely matching reads.
     '''
     PipelineWindows.convertReadsToIntervals(
         infile,
@@ -190,19 +210,29 @@ def prepareTags(infile, outfile):
         filtering_nonunique=PARAMS.get('filtering_nonunique', False))
 
 
+@P.add_doc(PipelineWindows.countTags)
 @transform(prepareTags, suffix(".bed.gz"), ".tsv")
 def countTags(infile, outfile):
-    '''count the tags in each sample.'''
     PipelineWindows.countTags(infile, outfile)
 
 
 @merge(countTags, "tag_counts.load")
 def loadTagCounts(infiles, outfile):
-    '''load tag counts into database.'''
+    '''Load tag counts representing read counts from bed files into database
+       as table tag_counts
+
+       Parameters
+       ----------
+       infiles: list
+           filenames of :term:`tsv` formatted files containing tag counts
+       outfile: str
+           filename of database loading logfile.
+       '''
     P.mergeAndLoad(infiles, outfile, columns=(0, 2),
                    suffix=".tsv")
 
 
+@P.add_doc(PipelineMappingQC.loadPicardDuplicateStats)
 @merge(prepareTags, "picard_duplicates.load")
 def loadPicardDuplicateStats(infiles, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.
@@ -217,6 +247,22 @@ def loadPicardDuplicateStats(infiles, outfile):
            r"background.dir/\1.bed.gz")
 def buildBackgroundWindows(infile, outfile):
     '''compute regions with high background count in input
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bigwig` file showing coverage in input
+
+    genome_dir: str
+        :term:`PARAMS`
+        path to indexed genome
+
+    filtering_background_density: int
+        :term:`PARAMS`
+        regions above this threshold are classed as high background counts
+        and are removed.
+
+    outfile: str
+        filename of output :term:`bed` file showing high coverage regions
     '''
 
     job_memory = "16G"
