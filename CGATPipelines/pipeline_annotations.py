@@ -1106,6 +1106,14 @@ def loadTranscripts(infile, outfile):
     PipelineGeneset.loadTranscripts(infile, outfile)
 
 
+@transform(buildGeneSet,
+           suffix(".gtf.gz"),
+           "_gtf_genome_coordinates.load")
+def loadGeneCoordinates(infile, outfile):
+    '''load the coordinates for each gene'''
+    PipelineGeneset.loadGeneCoordinates(infile, outfile)
+
+
 @P.add_doc(PipelineGeneset.loadTranscriptStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(
@@ -1173,6 +1181,7 @@ def downloadTranscriptInformation(infile, outfile):
         "status": "gene_status",
         "transcript_status": "transcript_status",
         "external_gene_name": "gene_name",
+        "transcript_tsl": "transcript_support"
     }
 
     data = Biomart.biomart_iterator(
@@ -1359,7 +1368,9 @@ def buildCDNAFasta(infile, outfile):
 
 @P.add_doc(PipelineGeneset.buildCDSFasta)
 @follows(mkdir('ensembl.dir'))
-@merge(buildCDSTranscripts, PARAMS["interface_cds_fasta"])
+@files((buildCDSTranscripts,
+        buildPeptideFasta,),
+       PARAMS["interface_cds_fasta"])
 def buildCDSFasta(infile, outfile):
     PipelineGeneset.buildCDSFasta(infile, outfile)
 
@@ -2801,6 +2812,7 @@ def assembly():
          loadGeneStats,
          loadTranscriptStats,
          loadGeneInformation,
+         loadGeneCoordinates,
          downloadEntrezToEnsembl,
          downloadTranscriptSynonyms,
          buildExonTranscripts,

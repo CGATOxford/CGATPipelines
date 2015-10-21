@@ -502,10 +502,11 @@ def buildCDSFasta(infile, outfile):
         indexed file in :term:`fasta` format with CDS sequences.
 
     '''
+    infile_cdnas, infile_peptides_fasta = infiles
 
     dbname = outfile[:-len(".fasta")]
 
-    statement = '''gunzip < %(infile)s
+    statement = '''gunzip < %(infile_cdnas)s
     | python %(scriptsdir)s/gff2fasta.py
         --is-gtf
         --genome=%(genome_dir)s/%(genome)s
@@ -533,7 +534,7 @@ def buildCDSFasta(infile, outfile):
 
     statement = '''
     python %(scriptsdir)s/peptides2cds.py
-           --peptides-fasta-file=%(infile_peptides)s
+           --peptides-fasta-file=%(infile_peptides_fasta)s
            --cdnas=%(infile_cdnas)s
            --map=%(tmpfilename)s
            --output-format=fasta
@@ -751,6 +752,28 @@ def loadTranscripts(infile, outfile):
     | python %(scriptsdir)s/gtf2tsv.py
     | %(load_statement)s
     > %(outfile)s'''
+    P.run()
+
+
+def loadGeneCoordinates(infile, outfile):
+    '''merge transcripts to generate the genomic coordinates per gene
+    and load '''
+
+    # TS. remove transcript_id column as this is now meaningless
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=gene_id "
+        "--ignore-column=transcript_id "
+        "--allow-empty-file ")
+
+    statement = '''
+    gunzip < %(infile)s
+    | python %(scriptsdir)s/gtf2gtf.py
+    -m merge-transcripts --with-utr
+    | python %(scriptsdir)s/gtf2tsv.py
+    | %(load_statement)s
+    > %(outfile)s'''
+
     P.run()
 
 

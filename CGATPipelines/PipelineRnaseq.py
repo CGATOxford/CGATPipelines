@@ -549,12 +549,13 @@ def buildExpressionStats(
 
 
 def loadCuffdiff(dbhandle, infile, outfile, min_fpkm=1.0):
-    '''load results from cuffdiff analysis.
+    '''load results from cuffdiff analysis to database
 
-    This functions parses and loads of a cuffdiff differential
-    expression analysis and produces summary plots.
+    This functions parses and loads the results of a cuffdiff differential
+    expression analysis.
+    Parsing is performed by the parseCuffdiff function.
 
-    Multiple table will be created as cuffdiff outputs information
+    Multiple tables will be created as cuffdiff outputs information
     on gene, isoform, tss, etc. levels.
 
     The method converts from ln(fold change) to log2 fold change.
@@ -751,8 +752,6 @@ def parseCuffdiff(infile, min_fpkm=1.0):
     ---------
     infile : string
         Input filename, output from cuffdiff
-    outfile : string
-        Output filename in :term:`tsv` format.
     min_fpkm : float
         Minimum fpkm. Genes with an fpkm lower than this will
         be set to status `NOCALL`.
@@ -820,12 +819,12 @@ def runCuffdiff(bamfiles,
     designfile : string
         Filename with experimental design in :term:`tsv` format.
     geneset_file : string
-        Filename with geneset.
+        Filename with geneset of interest in :term:`gtf format.
     outfile : string
         Output filename. The output is :term:`tsv` formatted.
     cuffdiff_options : string
         Options to pass on to cuffdiff
-    job_treads : int
+    job_threads : int
         Number of threads to use.
     job_memory : string
         Memory to reserve.
@@ -979,7 +978,7 @@ def buildUTRExtension(infile, outfile):
         Output of :func:`buildGeneLevelReadExtension`
     outfile : string
         Output filename
-    
+
     '''
 
     # the bin size , see gtf2table - can be cleaned from column names
@@ -1400,5 +1399,4 @@ def plotGeneLevelReadExtension(infile, outfile):
         R['dev.off']()
 
     P.touch(outfile)
-
 

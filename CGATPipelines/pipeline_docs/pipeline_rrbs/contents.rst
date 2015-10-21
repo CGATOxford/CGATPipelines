@@ -13,6 +13,6 @@ Contents:
    qc.rst
    exploratoryDataAnalysis.rst
    regions.rst
-
+   tables.rst
 
 
