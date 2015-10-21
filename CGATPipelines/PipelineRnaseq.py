@@ -174,14 +174,45 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
 def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
     '''run cufflinks to estimate expression levels.
 
+    See cufflinks manuals for full explanation of infiles/outfiles/options 
+    http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html
+
     Arguments
     ---------
     gtffile : string
         Filename of geneset in :term:`gtf` format.
+
     bamfile : string
-        Filename of reads in :term:`gtf` format.
-    outfile : outfile
-        Output filename in :term:`gtf` format.
+        Filename of reads in :term:`bam` format.
+
+    genome_dir : string
+	:term:`PARAMS` - genome directory containing fasta file. This is 
+	specified in pipeline_ini    
+
+    cufflinks_library_type : string
+	:term:`PARAMS` - cufflinks library type option. This is 
+	specified in pipeline_ini  
+
+    cufflinks_options : string
+	:term:`PARAMS` - cufflinks options (see manual). These are
+	specified in pipeline_ini  
+
+    outfile : string
+	defines naming of 3 output files for each input file 
+
+	1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format 
+	produced by cufflinks (see manual). Contains the assembled gene 
+	isoforms. 
+	This is the file used for the downstream file analysis
+
+	2.outfile.fpkm_tracking.gz: renamed outfile.isoforms.fpkm_tracking file 
+	from cufflinks - contains estimated isoform-level
+	expression values in "FPKM Tracking Format". 
+
+	3.outfile.genes_tracking.gz: renamed outfile.genes.fpkm_tracking.gz from 
+	cufflinks - contains estimated gene-level 
+	expression values in "FPKM Tracking Format". 
+    
     job_threads : int
         Number of threads to use
     '''
@@ -225,16 +256,23 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
 
 
 def loadCufflinks(infile, outfile):
-    '''load cufflinks expression levels
+    '''load cufflinks expression levels into database
 
+	Takes cufflinks output and loads into database for later report building
+	For each input file it generates two tables in a sqlite database:
+	
+	1. outfile_fpkm: contains information from infile.fpkm_tracking.gz
+	2. outfile_genefpkm : contains information from infile.genes_tracking.gz
+    
     Arguments
     ---------
     infile : string
         Cufflinks output. This is used to find
-        auxiliary files.
+        auxiliary files: specifically infile.genes_tracking.gz and
+	infile.fpkm_tracking.gz
     outfile : string
-        Output filename wicg logging information. The table name
-        is derived from `outfile`.
+        Output filename used to create logging information in `.load` files.
+	Also used to create "_fpkm" and "_genefpkm" tables in database. 
     '''
 
     track = P.snip(outfile, ".load")
@@ -259,6 +297,7 @@ def mergeCufflinksFPKM(infiles, outfile, genesets,
                        tracking="genes_tracking",
                        identifier="gene_id"):
     '''build aggregate table with cufflinks FPKM values.
+
 
     Arguments
     ---------
