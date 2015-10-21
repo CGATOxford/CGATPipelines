@@ -518,6 +518,7 @@ def mergeCufflinksIsoformFPKM(infiles, outfile):
         identifier="transcript_id",
         tracking="fpkm_tracking")
 
+
 #########################################################################
 #########################################################################
 #########################################################################
@@ -932,12 +933,10 @@ def loadTranscriptLevelReadCounts(infile, outfile):
     ''' loads "tsv.gz" files from buildTranscriptLevelReadCounts into database
 	table 
  	
-	
 	For example - the output from buildTranscriptLevelReadCounts 
 	`Brain-F1-R1.refcoding.tsv.gz`  would be loaded into database as 
 	`Brain_F1_R1_refcoding` and a `Brain-F1-R1.refcoding.load file would be
 	created.
-
 
     Parameters
     ----------
@@ -949,7 +948,6 @@ def loadTranscriptLevelReadCounts(infile, outfile):
 	names the `.load` file in the transcript_counts.dir 
 	that details the information loaded into the database '''
 	
-
     P.load(infile, outfile, options="--add-index=transcript_id")
 
 
@@ -988,8 +986,8 @@ def buildFeatureCounts(infiles, outfile):
     featurecounts_strand : int
 	:term:`PARAMS` - see feature counts --help for details of how to set 
     featurecounts_options : string
-	:term:`PARAMS` - options for running feature counts, set using pipeline.ini
-	See feature counts --help for details of how to set 
+	:term:`PARAMS` - options for running feature counts, set using 
+        pipeline.ini See feature counts --help for details of how to set 
     outfile : string
 	used to denote output files from feature counts. Three output files are 
 	produced for each input :term:`bam` - :term:`gtf` pair. These are:
@@ -1013,17 +1011,17 @@ def buildFeatureCounts(infiles, outfile):
          regex("featurecounts.dir/([^.]+)\.([^.]+).tsv.gz"),
          r"featurecounts.dir/\2.featurecounts.tsv.gz")
 def aggregateFeatureCounts(infiles, outfile):
-    ''' build a matrix of counts with genes and tracks dimensions.
+    ''' Build a matrix of counts with genes and tracks dimensions.
     
     Uses `combine_tables.py` to combine all the `tsv.gz` files output from 
-    buildFeatureCounts into a single :term:`tsv` file named "featurecounts.tsv.gz". 
-    A `.log` file is also produced. 
+    buildFeatureCounts into a single :term:`tsv` file named
+    "featurecounts.tsv.gz". A `.log` file is also produced. 
 
     .. note::
 	This uses column 7 as counts This is a possible source of bugs, the
         column position has changed before.
 
-    Paramters
+    Parameters
     ---------
     infiles : list
 	a list of `tsv.gz` files from the feature_counts.dir that were the 
@@ -1031,8 +1029,6 @@ def aggregateFeatureCounts(infiles, outfile):
     outfile : string
 	a filename denoting the file containing a matrix of counts with genes as
 	rows and tracks as the columns - this is a `tsv.gz` file	'''
-
-
 
     infiles = " ".join(infiles)
     statement = '''python %(scriptsdir)s/combine_tables.py
@@ -1053,9 +1049,9 @@ def aggregateFeatureCounts(infiles, outfile):
            suffix(".tsv.gz"),
            ".load")
 def loadFeatureCounts(infile, outfile):
-    '''load aggregated feature counts into database
+    '''Load aggregated feature counts into database.
 
-    load the aggregted feature counts of all tracks into a database table. 
+    Load the aggregted feature counts of all tracks into a database table. 
     For example "refcoding.featurecounts.tsv.gz" will be table 
     "refcoding_featurecounts" in database.
 
@@ -1073,9 +1069,9 @@ def loadFeatureCounts(infile, outfile):
 @merge(buildFeatureCounts,
        "featurecounts_summary.load")
 def loadFeatureCountsSummary(infiles, outfile):
-    '''load feature counts summary data into table.
+    '''Load feature counts summary data into table.
 
-    merge and load the summary files produced by "feature counts" into a 
+    Merge and load the summary files produced by "feature counts" into a 
     "featurecounts_summary" database table.
 
     Parameters
@@ -1105,22 +1101,21 @@ def summarizeCounts(infile, outfile):
     Parameters
     ----------
     infile : string
-        filename of aggregated "feature counts" counts (e.g. `featurecounts.tsv.gz`)
+        filename of aggregated "feature counts" counts 
+        (e.g. `featurecounts.tsv.gz`)
     infile : string
 	filename of aggregated "gtf2table.py" counts (e.g. `genecounts.tsv.gz`)
     outfile : string
 	filenames of output files detailing summary statistics 
 
     	* `output_file.stats_max_counts.tsv.gz`: details max counts and frequency
-    	* `output_file.stats_correlation.tsv`: summary of correlations between 
-	samples
+    	* `output_file.stats_correlation.tsv`: summary of correlations between samples
     	* `output_file.stats_scatter.png`: scatterplots and correlations
     	* `output_file.stats_heatmap.svg`: heatmap of sample clustering
     	* `output_file.stats_pca.svg`: principal component plot
    	* `output_file.stats_mds.svg`: multidimensional scaling plot
     	* `output_file.stats.tsv.gz.log`: log file 
-    	* `output_file.stats.tsv.gz`: summarises row statitics for matrix in 
-	`tsv.gz` input file
+    	* `output_file.stats.tsv.gz`: summarises row statitics for matrix in `tsv.gz` input file
     '''
 
     prefix = P.snip(outfile, ".tsv.gz")
@@ -1163,15 +1158,13 @@ def summarizeCountsPerDesign(infiles, outfile):
 	filenames of output files detailing summary statistics 
 
     	* `output_file.stats_max_counts.tsv.gz`: details max counts and frequency
-    	* `output_file.stats_correlation.tsv`: summary of correlations between 
-	samples
+    	* `output_file.stats_correlation.tsv`: summary of correlations between samples
     	* `output_file.stats_scatter.png`: scatterplots and correlations
     	* `output_file.stats_heatmap.svg`: heatmap of sample clustering
     	* `output_file.stats_pca.svg`: principal component plot
    	* `output_file.stats_mds.svg`: multidimensional scaling plot
     	* `output_file.stats.tsv.gz.log`: log file 
-    	* `output_file.stats.tsv.gz`: summarises row statitics for matrix in 
-	`tsv.gz` input file   '''
+    	* `output_file.stats.tsv.gz`: summarises row statitics for matrix in `tsv.gz` input file   '''
 
     design_file, counts_file = infiles
     prefix = P.snip(outfile, ".tsv")
@@ -1190,7 +1183,8 @@ def summarizeCountsPerDesign(infiles, outfile):
            suffix(".stats.tsv"),
            "_stats.load")
 def loadTagCountSummary(infile, outfile):
-    '''loads summary of summarizeCounts and summarizeCountsPerDesign into database.
+    '''loads summary of summarizeCounts and summarizeCountsPerDesign into 
+    database.
 
     takes filename of ".stats.tsv" files in designs.dir and loads `_correlation`
     and `_stats` tables into database 
@@ -1204,8 +1198,8 @@ def loadTagCountSummary(infile, outfile):
 
 	* _correlation.load file
 	* _stats.load file
-	*`_correlation` database table
-	*`_stats` database table
+	* `_correlation` database table
+	* `_stats` database table
 '''
     P.load(infile, outfile)
     P.load(P.snip(infile, ".tsv") + "_correlation.tsv",
@@ -1284,7 +1278,6 @@ def runDESeq(infiles, outfile):
     outfile:
         filename for deseq results in :term: `tsv` format.
     '''
-
     design_file, count_file = infiles
 
     track = P.snip(outfile, ".tsv.gz")
@@ -1471,13 +1464,12 @@ def buildEdgeRStats(infiles, outfile):
            suffix(".tsv"),
            ".load")
 def loadEdgeRStats(infile, outfile):
-    '''
-    Loads compiled edgeR stats into a database table - edger_stats
+    '''Loads compiled EdgeR stats into a database table - edger_stats
 
     Parameters
     ----------
     infile: str
-        term:`tsv` file containing edger stats
+        term:`tsv` file containing EdgeR stats
     outfile: str
         .load logfile for database load
     '''
@@ -1607,8 +1599,7 @@ def loadDESeq2(infile, outfile):
          add_inputs("*.bam"),
          r"cuffdiff.dir/{design[0][0]}.{geneset[1][0]}.fpkm.tsv.gz")
 def runCuffdiff(infiles, outfile):
-    '''
-    Runs cuffdiff to perform differential expression analysis.
+    ''' Runs cuffdiff to perform differential expression analysis.
 
     Parameters
     ----------
@@ -1638,7 +1629,6 @@ def runCuffdiff(infiles, outfile):
         Output filename to write FPKM counts.
         The output is :term:`tsv` formatted.
     '''
-
     design_file, geneset_file = infiles[0]
     bamfiles = infiles[1:]
 
@@ -1675,7 +1665,8 @@ def loadCuffdiff(infile, outfile):
         generated using cuffdiff
     outfile: str
         .load file containing log for database load
-
+    
+    see PipelineRnaSeq loadCuffdiff module for further details
     '''
     PipelineRnaseq.loadCuffdiff(connect(), infile, outfile)
 
@@ -1702,8 +1693,7 @@ def buildCuffdiffPlots(infile, outfile):
 
     outfile: str
         filename of .plots logfile for plotting
-
-    '''
+'''
     ###########################################
     ###########################################
     # create diagnostic plots
@@ -1812,6 +1802,7 @@ def expression():
     ''' collect outputs from cufflinks'''
     pass
 
+
 mapToTargets = {'cuffdiff': loadCuffdiffStats,
                 'deseq': loadDESeqStats,
                 'edger': loadEdgeRStats,
@@ -1831,7 +1822,18 @@ def diff_expression():
 @follows(diff_expression)
 @merge("*_stats.tsv", "de_stats.load")
 def loadDEStats(infiles, outfile):
-    '''load DE stats into table.'''
+    '''load DE stats into table. 
+	
+    concatenates and loads `<track>_stats.tsv` files into database table named
+    `de_stats` to show overall summary of DE results.
+
+    Parameters
+    ----------
+
+    infiles : list
+	list of `<track>_stats.tsv files`
+    outfile : string
+	`de_stats.load` filename '''
     P.concatenateAndLoad(infiles, outfile,
                          missing_value=0,
                          regex_filename="(.*)_stats.tsv")
@@ -1845,8 +1847,25 @@ def loadDEStats(infiles, outfile):
          formatter("(.*).tsv.gz$"),
          "tagplots.dir/{basename[0][0]}.{basename[1][0]}.log")
 def plotTagStats(infiles, outfile):
-    '''perform differential expression analysis using deseq.'''
+    '''plot of tag counts using runExpression.py .
 
+    plot stats from "feature counts" and "gtf2table.py" :term:`tsv` files
+    
+    plots generated in `tagplots.dir` 
+
+    Parameters
+    ----------
+
+    infiles : list 
+	list of filenames of design files and list of filenames of :term:`tsv.gz'
+	files from aggregateGeneLevelReadCounts or aggregateFeatureCounts 
+    outfile : string
+	filename for naming of several output files in format
+	<design>.<geneset>.<countmethod>.log These include:
+	* `outfile.tsv.log` - log file
+	* `outfile.log.boxplots.png` - boxplot of value vs samples
+	* `outfile.log.densities.png - desity plot of density vs value for each sample
+'''
     design_file, counts_file = infiles
 
     statement = '''
@@ -1858,6 +1877,7 @@ def plotTagStats(infiles, outfile):
     > %(outfile)s
     '''
     P.run()
+
 
 mapToQCTargets = {'cuffdiff': runCuffdiff,
                   'deseq': runDESeq,
@@ -1871,7 +1891,26 @@ QCTARGETS = [mapToQCTargets[x] for x in P.asList(PARAMS["methods"])]
            suffix(".tsv.gz"),
            ".plots")
 def plotDETagStats(infile, outfile):
-    '''plot differential expression stats'''
+    '''plot differential expression stats using `runExpression.py`
+
+    Takes :Term:`tsv` files output from EdgeR, DeSeq and cuffdiff and uses 
+    `runExpression.py` to produce density plots and box plots of differential 
+    expression in `edger.dir`, `deseq.dir` and `cuffdif.dir` directories
+
+    Parameters
+    ----------
+    infile : string
+	filename `<track>.tsv.gz` :term:`tsv` file 
+
+    outfile : string
+	filename <design>.<geneset>.<genecounts/featurecounts> used to name 
+	several output files for each DE program:
+	* outfile.densities_tags_control.png - denisty plot
+	* outfile.densities_tags_treatment.png - denisty plot
+	* outfile.boxplot_tags_control.png - boxplot
+	* outfile.boxplot_tags_treatment.png - boxplot
+	* outfile.plot - log file for plots
+'''
 
     job_memory = "8G"
 
@@ -1890,11 +1929,13 @@ def plotDETagStats(infile, outfile):
          loadTagCountSummary,
          loadDEStats)
 def qc():
+    ''' collects all DE related tasks'''
     pass
 
 
 @follows(expression, diff_expression, qc)
 def full():
+    ''' collects DE tasks and cufflinks transcript build'''
     pass
 
 
