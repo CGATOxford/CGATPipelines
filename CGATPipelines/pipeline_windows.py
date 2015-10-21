@@ -81,29 +81,13 @@ Configuration
 
 Input
 -----
-
-Reads are imported by placing files or linking to files in the
-:term:`working directory`.
+The input is mapped reads in bam files in the working directory or
+linked from the working directory.
 
 The default file format assumes the following convention:
 
-   <sample>-<condition>-<replicate>.<suffix>
+   <sample>-<condition>-<replicate>.bam
 
-``sample`` and ``condition`` make up an :term:`experiment`, while
-``replicate`` denotes the :term:`replicate` within an
-:term:`experiment`. The ``suffix`` determines the file type.  The
-following suffixes/file types are possible:
-
-sra
-   Short-Read Archive format. Reads will be extracted using the
-   :file:`fastq-dump` tool.
-
-fastq.gz
-   Single-end reads in fastq format.
-
-fastq.1.gz, fastq2.2.gz
-   Paired-end reads in fastq format. The two
-   fastq files must be sorted by read-pair.
 
 .. note::
 
