@@ -201,14 +201,13 @@ REGEX_FORMATS = regex(r"(\S+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 # bias analysis
 ####################################################
 
-
+@follows(mkdir("index.dir"))
 @transform(PARAMS["sailfish_transcripts"],
            regex("(\S+)"),
-           "index/transcriptome.sfi")
+           "index.dir/transcripts.sailfish.index")
 def indexForSailfish(infile, outfile):
     '''create a sailfish index'''
 
-    outdir = P.snip(outfile, "/transcriptome.sfi")
     kmer = int(PARAMS["sailfish_kmer_size"])
     tmp = P.getTempFilename()
 
@@ -218,31 +217,28 @@ def indexForSailfish(infile, outfile):
     else:
         statement = '''sailfish index -t %(infile)s'''
 
-    statement += ''' -k %(kmer)i -o %(outdir)s;
+    statement += ''' -k %(kmer)i -o %(outfile)s;
                     checkpoint; rm -f %(tmp)s'''
 
     P.run()
 
 
-@follows(indexForSailfish, mkdir("quantification"))
+@follows(indexForSailfish, mkdir("quant.dir"))
 @transform(INPUT_FORMATS,
            REGEX_FORMATS,
            add_inputs(indexForSailfish),
-           r"quantification/\1/\1_quant.sf")
+           r"quant.dir/\1/quant.sf")
 def runSailfish(infiles, outfile):
     '''quantify abundance'''
 
     job_threads = PARAMS["sailfish_threads"]
+    job_memory = PARAMS["sailfish_memory"]
 
     infile, index = infiles
-    index = P.snip(index, "/transcriptome.sfi")
 
-    sample = P.snip(os.path.basename(outfile), "_quant.sf")
-    outdir = "quantification/%(sample)s" % locals()
+    outdir = os.path.basename(outfile)
 
-    m = PipelineMapping.Sailfish(strand=PARAMS["sailfish_strandedness"],
-                                 orient=PARAMS["sailfish_orientation"],
-                                 threads=PARAMS["sailfish_threads"])
+    m = PipelineMapping.Sailfish()
     statement = m.build((infile,), outfile)
 
     P.run()
@@ -258,7 +254,7 @@ if PARAMS["sailfish"]:
         --use-file-prefix -v 0| gzip > %(outfile)s'''
         P.run()
 else:
-    @follows(mkdir("quantification"))
+    @follows(mkdir("quant.dir"))
     @originate("abundance_estimates.tsv.gz")
     def mergeResults(outfile):
         infile = PARAMS["abundance_file"]

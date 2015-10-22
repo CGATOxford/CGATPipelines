@@ -445,6 +445,8 @@ def buildReferenceTranscriptome(infile, outfile):
 def buildKallistoIndex(infile, outfile):
     ''' build a kallisto index'''
 
+    job_memory = "2G"
+
     statement = '''
     kallisto index -i %(outfile)s -k %(kallisto_kmer)s %(infile)s
     '''
@@ -458,6 +460,8 @@ def buildKallistoIndex(infile, outfile):
 def buildSalmonIndex(infile, outfile):
     ''' build a salmon index'''
 
+    job_memory = "2G"
+
     statement = '''
     salmon index %(salmon_index_options)s -t %(infile)s -i %(outfile)s
     '''
@@ -465,9 +469,27 @@ def buildSalmonIndex(infile, outfile):
     P.run()
 
 
+@transform(buildReferenceTranscriptome,
+           suffix(".fa"),
+           ".sailfish.index")
+def buildSailfishIndex(infile, outfile):
+    ''' build a salmon index'''
+
+    #sailfish indexing is more memory intensive than Salmon/Kallisto
+    job_memory = "6G"
+
+    statement = '''
+    sailfish index --transcripts=%(infile)s --out=%(outfile)s
+    %(sailfish_index_options)s
+    '''
+
+    P.run()
+
+
 @follows(mkdir("index.dir"),
          buildKallistoIndex,
-         buildSalmonIndex)
+         buildSalmonIndex,
+         buildSailfishIndex)
 def index():
     pass
 
@@ -634,6 +656,31 @@ def quantifyWithSalmonSimulation(infiles, outfile):
     P.run()
 
 
+@mkdir("simulation.dir/quant.dir/sailfish")
+@transform(simulateRNASeqReads,
+           regex("simulation.dir/simulated_reads_(\d+).fastq.1.gz"),
+           add_inputs(buildSailfishIndex),
+           r"simulation.dir/quant.dir/sailfish/simulated_reads_\1/quant.sf")
+def quantifyWithSailfishSimulation(infiles, outfile):
+    # TS more elegant way to parse infiles and index?
+    infiles, index = infiles
+    infile, counts = infiles
+
+    job_threads = PARAMS["sailfish_threads"]
+    job_memory = "10G"
+
+    sailfish_options = PARAMS["sailfish_options"]
+    sailfish_libtype = "ISF"
+
+    # single bootstrap should be fine for our purposes
+    bootstrap = 1
+
+    m = PipelineMapping.Sailfish()
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+
 @transform(quantifyWithSalmonSimulation,
            regex("(\S+)/quant.sf"),
            r"\1/abundance.tsv")
@@ -655,13 +702,32 @@ def extractSalmonCountSimulation(infile, outfile):
                     outf.write(line)
 
 
+@transform(quantifyWithSailfishSimulation,
+           regex("(\S+)/quant.sf"),
+           r"\1/abundance.tsv")
+def extractSailfishCountSimulation(infile, outfile):
+    ''' rename columns and remove comment to keep file format the same
+    as kallisto'''
+
+    # note: this expects column order to stay the same
+
+    with IOTools.openFile(infile, "r") as inf:
+        lines = inf.readlines()
+
+        with IOTools.openFile(outfile, "w") as outf:
+            outf.write("%s\n" % "\t".join(
+                ("target_id", "length", "tpm", "est_counts")))
+
+            for line in lines:
+                if not line.startswith("# "):
+                    outf.write(line)
+
 # define simulation targets
 SIMTARGETS = []
 
-mapToSimulationTargets = {'kallisto': (quantifyWithKallistoSimulation,
-                                       extractKallistoCountSimulation),
-                          'salmon': (quantifyWithSalmonSimulation,
-                                     extractSalmonCountSimulation)}
+mapToSimulationTargets = {'kallisto': (extractKallistoCountSimulation, ),
+                          'salmon': (extractSalmonCountSimulation, ),
+                          'sailfish': (extractSailfishCountSimulation, )}
 
 for x in P.asList(PARAMS["quantifiers"]):
     SIMTARGETS.extend(mapToSimulationTargets[x])
@@ -876,11 +942,39 @@ def quantifyWithSalmon():
 
     P.run()
 
+
+@mkdir("quant.dir/sailfish")
+@collate(SEQUENCEFILES,
+         SEQUENCEFILES_REGEX,
+         add_inputs(buildSailfishIndex),
+         SEQUENCEFILES_SALMON_OUTPUT)
+def quantifyWithSailfish():
+    # TS more elegant way to parse infiles and index?
+    infile = [x[0] for x in infiles]
+    index = infiles[0][1]
+
+    # job_threads = PARAMS["salmon_threads"]
+    job_threads = 1
+    job_memory = "6G"
+
+    sailfish_options = PARAMS["sailfish_options"]
+    sailfish_libtype = PARAMS["sailfish_libtype"]
+
+    # single bootstrap should be fine for our purposes
+    bootstrap = 1
+
+    m = PipelineMapping.Sailfish()
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+
 # define quantifier targets
 QUANTTARGETS = []
 
 mapToQuantificationTargets = {'kallisto': (quantifyWithKallisto,),
-                              'salmon': (quantifyWithSalmon,)}
+                              'salmon': (quantifyWithSalmon,),
+                              'sailfish': (quantifyWithSailfish,)}
 
 for x in P.asList(PARAMS["quantifiers"]):
     QUANTTARGETS.extend(mapToQuantificationTargets[x])
