@@ -174,12 +174,32 @@ def connect():
     return dbh
 
 
+# @P.add_doc(PipelineWindows.convertReadsToIntervals)
 @follows(mkdir("tags.dir"))
 @transform('*.bam',
            regex("(.*).bam"),
            r"tags.dir/\1.bed.gz")
 def prepareTags(infile, outfile):
-    '''prepare tag files from bam files for counting.
+    '''
+    Parameters
+    ----------
+    infile: str
+        Filename of input file in :term:`bam` format
+    outfile: str
+        Filename of output file in :term:`bed` format.
+    filtering_quality : int
+        :term:`PARAMS`
+        If set, remove reads with a quality score below given threshold.
+    filtering_dedup : bool
+        :term:`PARAMS`
+        If True, deduplicate data.
+    filtering_dedup_method : string
+        :term:`PARAMS`
+        Deduplication method. Possible options are ``picard`` and
+        ``samtools``.
+    filtering_nonunique : bool
+        :term:`PARAMS`
+        If True, remove non-uniquely matching reads.
     '''
     PipelineWindows.convertReadsToIntervals(
         infile,
@@ -190,22 +210,33 @@ def prepareTags(infile, outfile):
         filtering_nonunique=PARAMS.get('filtering_nonunique', False))
 
 
+# @P.add_doc(PipelineWindows.countTags)
 @transform(prepareTags, suffix(".bed.gz"), ".tsv")
 def countTags(infile, outfile):
-    '''count the tags in each sample.'''
     PipelineWindows.countTags(infile, outfile)
 
 
 @merge(countTags, "tag_counts.load")
 def loadTagCounts(infiles, outfile):
-    '''load tag counts into database.'''
+    '''Load tag counts representing read counts from bed files into database
+       as table tag_counts
+
+       Parameters
+       ----------
+       infiles: list
+           filenames of :term:`tsv` formatted files containing tag counts
+       outfile: str
+           filename of database loading logfile.
+       '''
     P.mergeAndLoad(infiles, outfile, columns=(0, 2),
                    suffix=".tsv")
 
 
+# @P.add_doc(PipelineMappingQC.loadPicardDuplicateStats)
 @merge(prepareTags, "picard_duplicates.load")
 def loadPicardDuplicateStats(infiles, outfile):
-    '''Merge Picard duplicate stats into single table and load into SQLite.
+    '''Merge Picard duplicate stats into single table and load into SQLite
+    table picard_duplicates.
     '''
     PipelineMappingQC.loadPicardDuplicateStats(
         infiles, outfile, pipeline_suffix=".bed.gz")
@@ -216,7 +247,26 @@ def loadPicardDuplicateStats(infiles, outfile):
            regex("(.*).bw"),
            r"background.dir/\1.bed.gz")
 def buildBackgroundWindows(infile, outfile):
-    '''compute regions with high background count in input
+    '''compute regions with high background count in each input (untreated)
+    bigwig file.  Bigwigs can be generated with pipeline_mapping or
+    bam2bigwig.py.
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bigwig` file showing coverage in input
+
+    genome_dir: str
+        :term:`PARAMS`
+        path to indexed genome
+
+    filtering_background_density: int
+        :term:`PARAMS`
+        regions above this threshold are classed as high background counts
+        and are removed.
+
+    outfile: str
+        filename of output :term:`bed` file showing high coverage regions
     '''
 
     job_memory = "16G"
@@ -241,7 +291,22 @@ def buildBackgroundWindows(infile, outfile):
 
 @merge(buildBackgroundWindows, "background.dir/background.bed.gz")
 def mergeBackgroundWindows(infiles, outfile):
-    '''build a single bed file of regions with elevated background.'''
+    '''Build a single bed file of regions with elevated background by
+    merging different input samples / runs.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`bed` formatted files containing
+        regions of elevated background.
+
+    filtering_background_extension: int
+        :term:`PARAMS`
+        number of bases to extend elevated regions from read mapping positions.
+
+    outfile: str:
+        filename for combined :term:`bed` file
+    '''
 
     if len(infiles) == 0:
         # write a dummy file with a dummy chromosome
@@ -277,10 +342,23 @@ def mergeBackgroundWindows(infiles, outfile):
                PARAMS["annotations_interface_genomic_context_bed"])),
            "cpg_context.tsv.gz")
 def buildCpGAnnotation(infiles, outfile):
-    '''annotate the location of CpGs within the genome.'''
+    '''annotate the location of CpGs using a bed file showing
+    CpG regions and a bed file showing genomic context - counts the number of
+    CpGs overlapping different genome annotations.
 
+    Parameters
+    ----------
+    infiles: list
+       consists of
+    infiles[0]: str
+       :term:`bed` annotation file showing locations of CpGs
+    infiles[1]: str
+       :term:`bed` annotation file showing genomic context
+    outfile: str
+       :term:`tsv` formatted file showing how many CpGs overlap each genomic
+        annotation type.
+    '''
     cpg_bed, context_bed = infiles
-
     statement = '''
     python %(scriptsdir)s/bam_vs_bed.py
            --min-overlap=0.5 %(cpg_bed)s %(context_bed)s
@@ -292,15 +370,42 @@ def buildCpGAnnotation(infiles, outfile):
 
 @transform(buildCpGAnnotation, suffix(".tsv.gz"), ".load")
 def loadCpGAnnotation(infile, outfile):
-    '''load CpG annotations.'''
+    '''Load CpG genomic context data into database
+       as table cpg_context
+
+       Parameters
+       ----------
+       infile: str
+           filename of :term:`tsv` file containing CpG genomic context
+       outfile: str
+           filename of database loading logfile.
+       '''
     P.load(infile, outfile)
 
 
 @transform(prepareTags, suffix(".bed.gz"), ".covered.bed.gz")
 def buildCoverageBed(infile, outfile):
-    '''build bed file with regions covered by reads.
-
+    '''
+    Build a :term:`bed` file of regions covered by reads.
     Intervals containing only few tags (tiling_min_reads) are removed.
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bed` file containing tag counts
+
+    medips_extension: int
+        :term:`PARAMS`
+        reads are extended to represent the fragment size from the sonication
+        step of MEDIP analysis by this number of bases.
+
+    tiling_min_reads: int
+        :term:`PARAMS`
+        minimum number of reads to class a region as covered by reads
+
+    outfile: str
+        filename of output :term:`bed` file to show regions covered by more
+        than tiling_min_reads reads.
     '''
 
     statement = '''
@@ -319,7 +424,24 @@ def buildCoverageBed(infile, outfile):
 
 @transform(buildCoverageBed, suffix(".bed.gz"), ".tsv.gz")
 def buildCpGComposition(infile, outfile):
-    '''compute CpG density across regions covered by tags.
+    '''
+    Compute CpG density across regions covered by reads
+
+    Parameters
+    ----------
+    infile: str
+        filename of :terms:`bed` file showing regions covered by reads
+
+    genome_dir: str
+        :term:`PARAMS`
+        directory containing indexed reference genome
+
+    genome: str
+        :term:`PARAMS`
+        name of reference genome file
+
+    outfile: str
+        filename of :terms:`tsv` file to write the CpG density information
     '''
 
     statement = '''
@@ -335,7 +457,8 @@ def buildCpGComposition(infile, outfile):
 
 @merge(buildCoverageBed, "tags.dir/genomic.covered.tsv.gz")
 def buildReferenceCpGComposition(infiles, outfile):
-    '''compute CpG densities across reference windows across
+    '''
+    Compute CpG densities across reference windows across
     the genome.
 
     This will take the first file of the input and
@@ -344,6 +467,26 @@ def buildReferenceCpGComposition(infiles, outfile):
     Using fixed size windows across the genome results in
     a very discretized distribution compared to the other
     read coverage tracks which have intervals of different size.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of bed files of regions covered by reads
+
+    annotations_dir: str
+        :term:`PARAMS`
+        directory containing annotations info
+
+    annotations_interface_contigs: str
+        :term:`PARAMS`
+        filename of contig size annotation
+
+    annotations_interface_gaps_bed: str
+        :term:`PARAMS`
+        filename of annotation of gaps
+
+    outfile: str
+        filename to write the reference CpG composition in :term:`tsv` format
     '''
 
     infile = infiles[0]
@@ -374,7 +517,17 @@ def buildReferenceCpGComposition(infiles, outfile):
             buildReferenceCpGComposition),
            suffix(".tsv.gz"), ".cpghist.tsv.gz")
 def histogramCpGComposition(infile, outfile):
-    '''build histogram of CpG density in all regions covered by reads.'''
+    '''Build histogram of CpG density in all regions covered by reads.
+
+    Parameters
+    ----------
+    infile: tuple
+       filenames of CpG composition of regions covered by reads (infile[0])
+       and permuted reference version (infile[1])
+    outfile:
+       filename for histogram in :term:`tsv` format
+    '''
+
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/csv_cut.py pCpG
@@ -387,7 +540,18 @@ def histogramCpGComposition(infile, outfile):
 
 @merge(histogramCpGComposition, "pcpg_in_coveredregions.load")
 def loadCpgCompositionHistogram(infiles, outfile):
-    '''load histograms of CpG Density in regions covered by reads.'''
+    '''Load histograms of CpG Density in regions covered by reads into
+    database table - pcpg_in_coveredregions
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`tsv` formatted histograms showing CpG
+        composition
+    outfile: str
+        filename for database load logfile
+    '''
+
     P.mergeAndLoad(infiles, outfile,
                    regex="/(.*).cpghist.tsv.gz",
                    row_wise=False)
@@ -397,7 +561,17 @@ def loadCpgCompositionHistogram(infiles, outfile):
            suffix(".tsv.gz"),
            ".composition.load")
 def loadCpGComposition(infile, outfile):
-    '''load CpG Composition data.'''
+    '''Load CpG genomic composition data into database
+       as table genomic.covered.composition
+
+       Parameters
+       ----------
+       infile: tuple
+          filenames of CpG composition of regions covered by reads (infile[0])
+          and permuted reference version (infile[1])
+       outfile: str
+           filename of database loading logfile.
+       '''
     P.load(infile, outfile)
 
 
@@ -407,9 +581,21 @@ def loadCpGComposition(infile, outfile):
                                    PARAMS["annotations_interface_cpg_bed"])),
            ".cpg_coverage.gz")
 def buildCpGCoverage(infiles, outfile):
-    '''count number times certain CpG are covered by reads.
+    '''Count the number of times each CpG is covered by reads.
 
-    Reads are processed in the same way as by buildCoverageBed.
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        filename of bed file containing read counts
+    infiles[1]: str
+        filename of :term:`bed` file containing CpG annotation
+    outfile: str
+        filename for histogram showing how many times CpGs are covered by reads
+
+    ??Reads are processed in the same way as by buildCoverageBed.
+
     '''
 
     # coverageBed is inefficient. If bedfile and cpgfile
@@ -446,9 +632,31 @@ def gc():
 
 @merge((buildCoverageBed, mergeBackgroundWindows), "windows.bed.gz")
 def buildWindows(infiles, outfile):
-    '''build tiling windows according to parameter tiling_method.
+    '''Build tiling windows according to parameter tiling_method.  Windows in
+    background are removed.
 
-    Remove windows in background.
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        filename of :term:`bed` file showing regions covered by reads
+    infiles[1]: str
+        filename of :term:`bed` file showing regions in background (to remove)
+    tiling_method: str
+        :terms:`PARAMS`
+        can be fixwidth_overlap, fixwidth_nooverlap, varwidth, cpg or use
+        a bed file.
+    tiling_window_size: int
+        :terms:`PARAMS`
+        window size for fixed width windows
+    tiling_min_cpg: int
+        minimum number of CpGs for CpG tiling method
+    tiling_remove_contigs: str
+        patterns to match for contigs to remove
+    outfile: str
+        filename of :terms:`bed` file to show the windows
+
     '''
 
     tiling_method = PARAMS["tiling_method"]
@@ -519,7 +727,16 @@ def buildWindows(infiles, outfile):
            suffix(".bed.gz"),
            ".stats")
 def buildWindowStats(infile, outfile):
-    '''compute tiling window size statistics from bed file.'''
+    '''Compute tiling window size statistics from bed file.
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bed` file representing tiled genome
+
+    outfile: str
+        filename of :term:`tsv` file for window size statistics as histograms
+    '''
 
     statement = '''
     zcat %(infile)s
@@ -539,7 +756,17 @@ def buildWindowStats(infile, outfile):
            suffix(".stats"),
            "_stats.load")
 def loadWindowStats(infile, outfile):
-    '''load window statistics.'''
+    '''
+    Load window size histograms to database table - <track>_stats, where
+    track is the prefix of the input bam filename.
+
+    Parameters
+    ----------
+    infile: str
+        name of :term:`csv` file with window size histograms
+    outfile: str
+        filename of database load log file.
+    '''
     P.load(infile + ".hist.tsv", P.snip(infile, ".stats") + "_hist" + ".load")
     P.load(infile + ".stats.tsv", outfile)
 
@@ -548,8 +775,16 @@ def loadWindowStats(infile, outfile):
            suffix(".bed.gz"),
            ".composition.tsv.gz")
 def buildWindowComposition(infile, outfile):
-    '''compute tiling window size statistics from bed file.'''
+    '''
+    Compute length, cpg composition and genomic context of windows
 
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bed` file containing window positions
+    outfile: str
+        filename of :term:`tsv` formatted file to write statistics.
+    '''
     statement = '''
     zcat %(infile)s
     | python %(scriptsdir)s/bed2table.py
@@ -568,7 +803,21 @@ def buildWindowComposition(infile, outfile):
            suffix(".bed.gz"),
            ".bigbed")
 def buildBigBed(infile, outfile):
-    '''bed file with intervals that are covered by reads in any of the experiments.
+    '''
+    Builds a :term:`bigBed` file with intervals that are covered by reads in
+    each experiment.
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bed` file showing which intervals are covered by
+        reads
+
+    annotations_interface_contigs: str
+        filename of annotation of contig lengths
+
+    outfile: str
+        filename of :term:`bigbed` file to output the results
     '''
 
     tmpfile = P.getTempFilename()
@@ -589,13 +838,39 @@ def buildBigBed(infile, outfile):
         pass
 
 
+# @P.add_doc(PipelineWindows.countTagsWithinWindows
 @follows(mkdir("counts.dir"))
 @transform(prepareTags,
            regex(".*/(.*).bed.gz"),
            add_inputs(buildWindows),
            r"counts.dir/\1.counts.bed.gz")
 def countTagsWithinWindows(infiles, outfile):
-    '''build read counds for windows.'''
+    '''
+    Count the number of reads mapped to each window
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+
+    infiles[0]: str
+        filename of :term:`bed` format file containing read counts for
+        all sites
+
+    infiles[1]: str
+        filename of :term: `bed` format file containing window positions
+
+    tiling_counting_method: str
+        :term:`PARAMS`
+        can be "midpoint" or "nucleotide"
+        midpoint counts the number of reads overlapping the midpoint of the
+        window by at least one base
+        nucleotide counts the number of reads overlapping the window by at
+        least one base.
+
+    outfile: str
+        filename for :term:`bed` formatted file of read counts per window
+    '''
     bedfile, windowfile = infiles
     PipelineWindows.countTagsWithinWindows(
         bedfile,
@@ -605,10 +880,20 @@ def countTagsWithinWindows(infiles, outfile):
         job_memory=PARAMS['tiling_counting_memory'])
 
 
+# @P.add_doc(PipelineWindows.aggregateWindowsTagCounts)
 @merge(countTagsWithinWindows,
        r"counts.dir/windows_counts.tsv.gz")
 def aggregateWindowsTagCounts(infiles, outfile):
-    '''aggregate tag counts into a single file.
+    '''
+    Aggregate tag counts into a single file.
+
+    Parameters
+    ----------
+    infiles: list
+        filenames of all :term:`bed` formatted window read count files
+
+    outfile: str
+        output filename for compiled window read counts
     '''
 
     PipelineWindows.aggregateWindowsTagCounts(infiles,
@@ -616,6 +901,7 @@ def aggregateWindowsTagCounts(infiles, outfile):
                                               regex="(.*).counts.bed.gz")
 
 
+# @P.add_doc(PipelineWindows.countTagsWithinWindows)
 @follows(mkdir('contextstats.dir'))
 @transform(prepareTags,
            regex(".*/(.*).bed.gz"),
@@ -632,6 +918,20 @@ def countTagsWithinContext(infiles, outfile):
     least 50%. Long tags that map across several non-overlapping
     contexts might be dropped.
 
+    Parameters
+    ----------
+    infiles: str
+        list of filenames
+
+    infiles[0]: str
+        filename of :term:`bed` file containing tag counts
+
+    infiles[1]: str
+        filename of :term:`bed` file containing genomic context
+
+    outfile: str
+        filename for :term:`bed` formatted file of genomic context of tags
+
     '''
     tagfile, windowfile = infiles
     PipelineWindows.countTagsWithinWindows(tagfile,
@@ -641,10 +941,21 @@ def countTagsWithinContext(infiles, outfile):
                                            job_memory="4G")
 
 
+# @P.add_doc(PipelineWindows.aggregateWindowsTagCounts)
 @merge(countTagsWithinContext,
        r"contextstats.dir/context_counts.tsv.gz")
 def aggregateContextTagCounts(infiles, outfile):
-    '''aggregate tag counts into a single file.
+    '''Aggregate tag counts into a single file.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`bed` files containing tag counts for
+        genomic contexts
+    outfile: str
+        filename for :term:`tsv` formatted file showing tag counts for
+        genomic contexts for all samples.
+
     '''
     PipelineWindows.aggregateWindowsTagCounts(infiles,
                                               outfile,
@@ -655,7 +966,25 @@ def aggregateContextTagCounts(infiles, outfile):
            suffix(".tsv.gz"),
            "_normed.tsv.gz")
 def normalizeTagCounts(infile, outfile):
-    '''output a file with normalized counts.
+    '''
+    Normalises tag counts from different experiments to make them comparable.
+
+    Parameters
+    ----------
+    infile: str
+        filename of file containing tag counts across windwos for all
+        samples in :term:`tsv` format
+    tags_normalization_method: str
+        can be deseq-size factors, total-column, total-row, total-count
+        deseq-size-factors - use normalisation implemented in DEseq
+        total-column - divide counts by column total
+        total-row - divide counts by the value in a row called 'total'
+        total-count - normalised all values in column by the ratio of the
+        per column sum of counts and the average column count
+        across all rows.
+    outfile: str
+        :term:`tsv` filename to write the normalised tag counts.
+
     '''
     PipelineWindows.normalizeTagCounts(
         infile,
@@ -666,7 +995,18 @@ def normalizeTagCounts(infile, outfile):
 @transform((aggregateWindowsTagCounts, aggregateContextTagCounts),
            suffix(".tsv.gz"), ".load")
 def loadWindowsTagCounts(infile, outfile):
-    '''load a sample of window composition data for QC purposes.'''
+    '''
+    Load a sample of window composition data and context data
+    into a database for QC purposes - generates two tables,
+    context_counts and windows_counts.
+
+    Parameters
+    ----------
+    infile: str
+        filename of aggregated window or context tag counts
+    outfile: str
+        logfile for database load
+    '''
     P.load(infile, outfile, limit=10000, shuffle=True)
 
 
@@ -688,6 +1028,10 @@ def getInput(track):
         [bams]
         %=all.bam
 
+    Parameters
+    ----------
+    track: str
+        filename of bam file of interest
 
     '''
 
@@ -710,7 +1054,13 @@ def getInput(track):
 
 
 def mapTrack2Input(tracks):
-    '''given a list of tracks, return a dictionary mapping a track to its input
+    '''
+    Given a list of tracks, return a dictionary mapping a track to its input
+
+    Parameters
+    ----------
+    tracks: list
+        list of strings representing filenames of :term:`bam` file
     '''
 
     # select columns in foreground and background
@@ -744,9 +1094,16 @@ def mapTrack2Input(tracks):
            suffix(".load"),
            "_l2foldchange_input.tsv.gz")
 def buildWindowsFoldChangesPerInput(infile, outfile):
-    '''Compute fold changes for each sample compared to appropriate input.
-
+    '''
+    Compute fold changes for each sample compared to appropriate input.
     If no input is present, simply divide by average.
+
+    Parameters
+    ----------
+    infile: str
+        filename of log from database load of windows tag counts
+    outfile: str
+        filename of :term:`tsv` formatted file to write the fold change data
 
     '''
 
@@ -809,9 +1166,17 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
            suffix(".load"),
            "_l2foldchange_median.tsv.gz")
 def buildWindowsFoldChangesPerMedian(infile, outfile):
-    '''Compute l2fold changes for each sample compared to the median count
-    in sample.
+    '''
+    Compute l2fold changes for each sample compared to the median count
+    in the sample.
 
+    Parameters
+    ----------
+    infile: str
+        name of database load logfile for :term:`tsv` file of read counts
+        across windows
+    outfile: str
+        filename for :term:`tsv` formatted file to write the fold change data
     '''
 
     # get all data
@@ -847,7 +1212,18 @@ def buildWindowsFoldChangesPerMedian(infile, outfile):
 @transform((buildWindowsFoldChangesPerMedian, buildWindowsFoldChangesPerInput),
            suffix(".tsv.gz"), ".load")
 def loadWindowsFoldChanges(infile, outfile):
-    '''load fold change stats'''
+    '''
+    Load fold change stats compared to input and median to database tables -
+    <track>_l2foldchange_input and <track>_l2foldchange_median, where
+    track is the prefix of the input bam filename.
+
+    Parameters
+    ----------
+    infile: str
+        name of :term:`tsv` file with fold change information
+    outfile: str
+        filename of database load log file.
+    '''
     P.load(infile, outfile)
 
 
@@ -855,7 +1231,16 @@ def loadWindowsFoldChanges(infile, outfile):
            suffix(".tsv.gz"),
            "_stats.tsv")
 def summarizeAllWindowsTagCounts(infile, outfile):
-    '''perform summarization of read counts'''
+    '''
+    Perform summarization of all read counts
+
+    Parameters
+    ----------
+    infile: str
+        filenames of :term:`tsv` formatted window and context based tag counts
+    outfile: str
+        filename of :term:`tsv` formatted file to write summarised tag counts
+    '''
 
     prefix = P.snip(outfile, ".tsv")
     job_memory = "32G"
@@ -874,7 +1259,19 @@ def summarizeAllWindowsTagCounts(infile, outfile):
            add_inputs(aggregateWindowsTagCounts),
            r"counts.dir/\1_stats.tsv")
 def summarizeWindowsTagCounts(infiles, outfile):
-    '''perform summarization of read counts within experiments.
+    '''
+    Perform summarization of read counts within experiments.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        design file in :term:`tsv` format
+    infiles[1]: str
+        aggregated tag counts for windows in :term:`tsv` format
+    outfile: str
+        filename of output file for summary of read counts in each experiment
     '''
 
     design_file, counts_file = infiles
@@ -895,10 +1292,21 @@ def summarizeWindowsTagCounts(infiles, outfile):
            add_inputs(aggregateWindowsTagCounts),
            r"dump.dir/\1.tsv.gz")
 def dumpWindowsTagCounts(infiles, outfile):
-    '''output tag tables used for analysis.
-
-    This is for debugging purposes. The tables
+    '''
+    Output tag tables used for debugging purposes. The tables
     can be loaded into R for manual analysis.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        design file in :term:`tsv` format
+    infiles[1]: str
+        aggregated tag counts for windows in :term:`tsv` format
+    outfile: str
+        :term:`tsv` filename for tag table dump
+
     '''
     design_file, counts_file = infiles
 
@@ -915,13 +1323,28 @@ def dumpWindowsTagCounts(infiles, outfile):
 @transform((summarizeWindowsTagCounts, summarizeAllWindowsTagCounts),
            suffix("_stats.tsv"), "_stats.load")
 def loadTagCountSummary(infile, outfile):
-    '''load windows summary.'''
+    '''
+    Load summaries of tag counts across windows across experiments (tables
+    context_stats and windows_stats)
+    and within experiments (context_count_stats and windows_count_stats) into
+    the database.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`tsv` files contianing summarised tag
+        counts
+    outfile: str
+        filename of database load log file
+
+    '''
     P.load(infile, outfile)
     P.load(P.snip(infile, ".tsv") + "_correlation.tsv",
            P.snip(outfile, "_stats.load") + "_correlation.load",
            options="--first-column=track")
 
 
+# @P.add_doc(PipelineWindows.normalizeBed)
 @follows(buildWindows, countTagsWithinWindows)
 @transform((aggregateWindowsTagCounts,
             aggregateContextTagCounts),
@@ -929,8 +1352,15 @@ def loadTagCountSummary(infile, outfile):
            ".norm.tsv.gz")
 def normalizeBed(infile, outfile):
     '''
-    Normalize counts in bed file by total library size.
+    Normalize counts in a bed file by total library size.
     Return as bedGraph format
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`tsv` file containing tag counts within windows
+    outfile: str
+        filename of :term:`bedGraph` file to write results
     '''
 
     # normalize count column by total library size
@@ -950,6 +1380,7 @@ def normalizeBed(infile, outfile):
     P.run()
 
 
+# @P.add_doc(PipelineWindows.enrichmentVsInput)
 @follows(normalizeBed)
 @transform("counts.dir/*.norm.bedGraph.gz",
            regex("counts.dir/(.+)-(.+)-(.+)_Input.bwa.norm.bedGraph.gz"),
@@ -958,6 +1389,19 @@ def normalizeBed(infile, outfile):
 def enrichVsInput(infile, outfile):
     '''
     Calculate enrichment vs Input and output as bedGraph format
+
+    Parameters
+    ----------
+    infile: list
+        list of filenames
+    infile[0]: str
+        filename of normalised :term:`bedGraph` file showing counts in
+        the input
+    infile[1]: str
+        filename of normalised :term:`bedGraph` files showing
+        counts in each experiment
+    outfile: str
+        filename of output :term:`bedGraph` file
     '''
 
     tmpfile = P.getTempFilename(shared=True)
@@ -979,6 +1423,13 @@ def enrichVsInput(infile, outfile):
 def convertBed2BigWig(infile, outfile):
     '''
     Use UCSC tools to convert bedGraph -> bigwig
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bedGraph` formatted file
+    outfile: str
+        filename of :term:`bigwig` formatted file
     '''
 
     tmpfile = P.getTempFilename()
@@ -1001,6 +1452,13 @@ def plotHilbertCurves(infile, outfile):
     '''
     Use the BioC package `HilbertVis` to generate hilbert curves of bigwig
     files.  Generates one image file for each contig in the bigwig file.
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bigwig` formatted file
+    outfile: str
+        filename of hilbert plot
     '''
     statement = '''python %(scriptsdir)s/bigwig2hilbert.py -v 0
                           --log=%(infile)s.log
@@ -1013,13 +1471,21 @@ def plotHilbertCurves(infile, outfile):
 
 
 def loadMethylationData(infile, design_file):
-    '''load methylation data for deseq/edger analysis.
+    '''
+    Load methylation data for deseq/edger analysis.
 
     This method creates various R objects:
 
     countsTable : data frame with counts.
     groups : vector with groups
 
+    Parameters
+    ----------
+    infile: str
+        filename of counts table in :term:`tsv` format to convert to an R
+        object
+    design_file: str
+        filename of design file in :term:`tsv` format
     '''
 
     E.info("reading data")
@@ -1059,16 +1525,50 @@ def loadMethylationData(infile, design_file):
     return groups, pairs
 
 
+# @P.add_doc(PipelineWindows.runDE)
 @follows(mkdir("deseq.dir"), mkdir("deseq.dir/plots"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
            add_inputs(aggregateWindowsTagCounts),
            r"deseq.dir/\1.tsv.gz")
 def runDESeq(infiles, outfile):
-    '''estimate differential expression using DESeq.
+    '''
+    Estimate differential expression using DESeq.
 
     The final output is a table. It is slightly edited such that
     it contains a similar output and similar fdr compared to cuffdiff.
+
+    Parameters
+    ----------
+    infiles: list
+    infiles[0]: str
+        filename of design file in :term:`tsv` format
+    infiles[1]: str
+        filename of window tag count data in :term:`tsv` format
+    deseq_fit_type: str
+        :term:`PARAMS`
+        fit type to estimate dispersion with deseq, refer to
+        https://bioconductor.org/packages/release/bioc/manuals/DESeq/man/DESeq.pdf
+    deseq_dispersion_method: str
+        :term:`PARAMS`
+        method to estimate dispersion with deseq, refer to
+        https://bioconductor.org/packages/release/bioc/manuals/DESeq/man/DESeq.pdf
+    deseq_sharing_mode: str
+        :term:`PARAMS`
+        determines which dispersion value is saved for each gene, refer to
+        https://bioconductor.org/packages/release/bioc/manuals/DESeq/man/DESeq.pdf
+    tags_filter_min_counts_per_row: int
+        :term:`PARAMS`
+        minimum number of counts below which to filter rows
+    tags_filter_min_counts_per_sample: int
+        :term:`PARAMS`
+        minimum number of counts below which to filter samples
+    tags_filter_percentile_rowsums: int
+        :term:`PARAMS`
+        percentile filtering using the total number of counts per row, e.g.
+        20 removes 20% of windows with lowest counts.
+    outfile: str
+        filename of table to write deseq results in :term:`tsv` format
     '''
 
     spike_file = os.path.join("spike.dir", infiles[0]) + ".gz"
@@ -1091,7 +1591,15 @@ def runDESeq(infiles, outfile):
 
 @transform(runDESeq, suffix(".tsv.gz"), ".load")
 def loadDESeq(infile, outfile):
-    '''load DESeq per-chunk summary stats.'''
+    '''Load DESeq per-chunk summary stats into database table <track>.
+
+    Parameters
+    ----------
+    infile: str
+        filename of Deseq output in :term:`tsv` format
+    outfile: str
+        logfile of database load
+    '''
 
     prefix = P.snip(outfile, ".load")
 
@@ -1118,8 +1626,19 @@ def loadDESeq(infile, outfile):
            add_inputs(aggregateWindowsTagCounts),
            r"spike.dir/\1.tsv.gz")
 def buildSpikeIns(infiles, outfile):
-    '''build a table with counts to spike into the original count
+    '''Build a table with counts to spike into the original count
     data sets.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        design table in :term:`tsv` format
+    infiles[1]: str
+        filename of windows tag counts in :term:`tsv` format
+    outfile: str
+        filename of spike in file in :term:`tsv` format
     '''
 
     design_file, counts_file = infiles
@@ -1138,6 +1657,7 @@ def buildSpikeIns(infiles, outfile):
     P.run()
 
 
+# @P.add_doc(PipelineWindows.runDE)
 @follows(mkdir("edger.dir"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
@@ -1148,6 +1668,35 @@ def runEdgeR(infiles, outfile):
 
     This method applies a paired test. The analysis follows
     the example in chapter 11 of the EdgeR manual.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        design table in :term:`tsv` format
+    infiles[1]: str
+        filename of windows tag counts in :term:`tsv` format
+    edger_dispersion: float
+        :term:`PARAMS`
+        typical dispersion when there are no replicates, refer to
+        https://www.bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
+    edger_fdr: float
+        :term:`PARAMS`
+        false discovery rate threshold, refer to
+        https://www.bioconductor.org/packages/release/bioc/vignettes/edgeR/inst/doc/edgeRUsersGuide.pdf
+    tags_filter_min_counts_per_row: int
+        :term:`PARAMS`
+        minimum number of counts below which to filter rows
+    tags_filter_min_counts_per_sample: int
+        :term:`PARAMS`
+        minimum number of counts below which to filter samples
+    tags_filter_percentile_rowsums: int
+        :term:`PARAMS`
+        percentile filtering using the total number of counts per row, e.g.
+        20 removes 20% of windows with lowest counts.
+    outfile: str
+        filename of edger output file in :term:`tsv` format
     '''
 
     spike_file = os.path.join("spike.dir", infiles[0]) + ".gz"
@@ -1170,7 +1719,15 @@ def runEdgeR(infiles, outfile):
 
 @transform(runEdgeR, suffix(".tsv.gz"), ".load")
 def loadEdgeR(infile, outfile):
-    '''load EdgeR per-chunk summary stats.'''
+    '''load EdgeR per-chunk summary stats
+
+    Parameters
+    ----------
+    infile: str
+        filename of edger output in :term:`tsv` format
+    outfile: str
+        logfile of database load
+    '''
 
     prefix = P.snip(outfile, ".load")
 
@@ -1185,15 +1742,27 @@ def loadEdgeR(infile, outfile):
     P.touch(outfile)
 
 
+# @P.add_doc(PipelineWindows.outputRegionsOfInterest)
 @follows(mkdir("roi.dir"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
            add_inputs(aggregateWindowsTagCounts),
            r"roi.dir/\1.tsv.gz")
 def runFilterAnalysis(infiles, outfile):
-    '''output windows applying a filtering criterion.
+    '''
+    Output windows applying a filtering criterion.
+    Does not apply a threshold . (?)
 
-    Does not apply a threshold.
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        design table in :term:`tsv` format
+    infiles[1]: str
+        filename of windows tag counts in :term:`tsv` format
+    outfile: str
+        filename of filtering output file in :term:`tsv` format
     '''
     PipelineWindows.outputRegionsOfInterest(
         infiles[0],
@@ -1201,12 +1770,42 @@ def runFilterAnalysis(infiles, outfile):
         outfile)
 
 
+# @P.add_doc(PipelineWindows.runMEDIPSDMR)
 @follows(mkdir("medips.dir"))
 @transform("design*.tsv",
            regex("(.*).tsv"),
            r"medips.dir/\1.tsv.gz")
 def runMedipsDMR(infile, outfile):
-    '''run MEDIPS single file analysis
+    '''
+    Run MEDIPS single file analysis
+
+    Parameters
+    ----------
+    infile: str
+        filename of design file in :term:`tsv` format
+    medips_genome: str
+        :term:`PARAMS`
+        UCSC genome name using R naming convention e.g. Hsapiens.UCSC.hg19
+    medips_shift: str
+        :term:`PARAMS`
+        shift between windows to use in medips.
+        Tags represent the ends of fragments - shift towards the
+        3' direction to improve their representation of the binding site.
+        Tools are available to calculate this.
+    medips_extension: str
+        :term:`PARAMS`
+         extend reads to the length of sonicated fragments
+    medips_window_size: int
+        :term:`PARAMS`
+        window size to use for MEDIPS analysis
+    medips_fdr: float
+        :term:`PARAMS`
+        threshold for false discovery rate for MEDIPS
+    outfile: str
+        filename of :term:`tsv` formatted file to write the medips output
+        table
+
+
     '''
     PipelineWindows.runMEDIPSDMR(infile, outfile)
 
@@ -1227,13 +1826,25 @@ for x in METHODS:
          loadWindowsFoldChanges,
          *DIFFTARGETS)
 def diff_windows():
+    '''
+    Records when all differential expression analysis is complete
+    '''
     pass
 
 
 @transform(DIFFTARGETS, suffix(".gz"), ".cpg.tsv.gz")
 def computeWindowComposition(infile, outfile):
-    '''for the windows returned from differential analysis, compute CpG
+    '''
+    For the windows returned from differential analysis, compute CpG
     content for QC purposes.
+
+    Parameters
+    ----------
+    infile: str
+        output from differential expression with DEseq, EdgeR, filtering
+        and/or MEDIPS.
+    outfile: str
+        filename of :term:`tsv` formatted file to write cpg composition data.
     '''
 
     statement = '''
@@ -1253,7 +1864,18 @@ def computeWindowComposition(infile, outfile):
 
 @transform(computeWindowComposition, suffix(".tsv.gz"), ".load")
 def loadWindowComposition(infile, outfile):
-    '''load a sample of window composition data for QC purposes.'''
+    '''
+    Load a sample of window composition data for QC purposes in database
+    table <track_cpg> where track is the name of the differential expression
+    output file
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`tsv` formatted file containing cpg composition data.
+    outfile: str
+        filename of database load logfile
+    '''
     P.load(infile, outfile, limit=10000)
 
 
@@ -1261,13 +1883,21 @@ def loadWindowComposition(infile, outfile):
            suffix(".tsv.gz"),
            ".linear")
 def outputGWASFiles(infile, outfile):
-    '''output GWAS formatted files for viewing in the
+    '''
+    Output GWAS formatted files for viewing in the
     IGV genome browser. The output files contain
     chromosomal position and an associated P-Value.
 
     See here for acceptable file formats:
     http://www.broadinstitute.org/software/igv/GWAS
 
+    Parameters
+    ----------
+    infile: str
+        output from differential expression with DEseq, EdgeR, filtering
+        and/or MEDIPS.
+    outfile: str
+        filename of :term:`GWAS` formatted file to write data.
     '''
 
     statement = '''
@@ -1287,10 +1917,19 @@ def outputGWASFiles(infile, outfile):
            suffix(".tsv.gz"),
            ".merged.tsv.gz")
 def mergeDMRWindows(infile, outfile):
-    '''merge overlapping windows.
+    '''
+    Merge overlapping windows.
 
     Sample/control labels are by default inverted to reflect
     that unmethylated windows are of principal interest.
+
+    Parameters
+    ----------
+    infile: str
+        output from differential expression with DEseq, EdgeR, filtering
+        and/or MEDIPS.
+    outfile: str
+        filename of :term:`tsv` formatted file to write merged window data.
     '''
     # the other outfiles will be created automatically by
     # the script medip_merge_intervals
@@ -1313,15 +1952,35 @@ def mergeDMRWindows(infile, outfile):
     P.run()
 
 
+# @P.add_doc(PipelineWindows.buildSpikeResults)
 @transform(DIFFTARGETS, suffix(".gz"), ".power.gz")
 def buildSpikeResults(infile, outfile):
-    '''compute results of spike analysis.'''
+    '''
+    Compute results of spike analysis and put into a matrix.
+
+    Parameters
+    ----------
+    infile: str
+        output from differential expression with DEseq, EdgeR, filtering
+        and/or MEDIPS.
+    outfile: str
+        output filename in :term:`tsv` format for spike in results
+    '''
     PipelineWindows.buildSpikeResults(infile, outfile)
 
 
 @transform(buildSpikeResults, suffix('.tsv.power.gz'), '.power.load')
 def loadSpikeResults(infile, outfile):
-    '''load work results.'''
+    '''load spike in results to database table <track>.power where track
+    is differential expression output prefix.
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`tsv` formatted file containing spike in data
+    outfile: str
+        filename of database load logfile
+    '''
     method = P.snip(os.path.dirname(outfile), '.dir')
     tablename = P.toTable(outfile)
     tablename = '_'.join((tablename, method))
@@ -1330,20 +1989,44 @@ def loadSpikeResults(infile, outfile):
            tablename=tablename)
 
 
+# @P.add_doc(PipelineWindows.buildDMRStats)
 @transform(mergeDMRWindows, suffix(".merged.tsv.gz"), ".stats")
 def buildDMRStats(infile, outfile):
-    '''compute differential methylation stats.'''
+    '''Compute differential methylation stats - count the number of up/down,
+    2fold up/down etc. results
+
+    Parameters
+    ----------
+    infile: str
+        filename in :term:`tsv` format  with differential expression output
+    outfile: str
+        :term:`tsv`filename to write differential methylation stats
+
+    '''
     method = os.path.dirname(infile)
     method = P.snip(method, ".dir")
     PipelineWindows.buildDMRStats([infile], outfile, method=method)
 
 
+# @P.add_doc(PipelineWindows.plotDETagStats)
 @transform(mergeDMRWindows,
            suffix(".tsv.gz"),
            add_inputs(buildWindowComposition),
            ".plots")
 def plotDETagStats(infiles, outfile):
-    '''plot differential expression stats'''
+    '''Plot differential expression stats
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        filename of DMR analysis output in :term:`tsv` format
+    infiles[1]: str
+        filename of window composition table in :term:`tsv` format
+    outfile: str
+        output filename, dummy filename used to trigger next step in pipeline.
+    '''
 
     PipelineWindows.plotDETagStats(
         infiles[0], infiles[1], outfile,
@@ -1351,28 +2034,60 @@ def plotDETagStats(infiles, outfile):
         job_options="-l mem_free=16")
 
 
+# @P.add_doc(PipelineWindows.buildFDRStats)
 @transform(mergeDMRWindows, suffix(".merged.tsv.gz"), ".fdr")
 def buildFDRStats(infile, outfile):
-    '''compute differential methylation stats.'''
+    '''Compute differential methylation false discovery rate stats
+
+    Parameters
+    ----------
+    infile: str
+        filename of DMR analysis output in :term:`tsv` format
+    outfile: str
+        :term:`tsv`filename to write FDR stats
+
+    '''
     method = os.path.dirname(infile)
     method = P.snip(method, ".dir")
     PipelineWindows.buildFDRStats(infile, outfile, method=method)
 
 
+# @P.add_doc(PipelineWindows.outputAllWindows)
 @transform(mergeDMRWindows,
            suffix(".merged.tsv.gz"),
            ".mergedwindows.all.bed.gz")
 def outputAllWindows(infile, outfile):
-    '''output all bed windows.'''
+    '''output all windows as a bed file with the l2fold change as a score
+
+    Parameters
+    ----------
+    infile : string
+       Input filename in :term:`tsv` format. Typically the output
+       from :mod:`scripts/runExpression`.
+    outfile : string
+       Output filename in :term:`bed` format.
+
+    '''
     PipelineWindows.outputAllWindows(infile, outfile)
 
 
 @transform(outputAllWindows, suffix(".all.bed.gz"),
            (".top.bed.gz", ".bottom.bed.gz"))
 def outputTopWindows(infile, outfiles):
-    '''output bed file with largest/smallest l2fold changes.
-
+    '''
+    Output :term:`bed` file with largest/smallest l2fold changes.
     The resultant bed files are sorted by coordinate.
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`bed` file containing windows and l2fold changes
+    outfiles: list
+        list of filenames
+    outfiles[0]: str
+        filename of :term:`bed` file to write largest l2fold changes
+    outfiles[1]: str
+        filename of :term:`bed` file to write smallest l2fold changes
     '''
     outfile = outfiles[0]
 
@@ -1405,7 +2120,16 @@ def outputTopWindows(infile, outfiles):
            suffix(".merged.tsv.gz"),
            ".stats")
 def buildDMRWindowStats(infile, outfile):
-    '''compute window size statistics of DMR from bed file.'''
+    '''Compute window size statistics of DMR from bed file.
+
+    Parameters
+    ----------
+    infile: str
+        filename of DMR analysis output in :term:`tsv` format
+    outfile: str
+        filename in :term:`tsv` format to write window size statistics as
+        histograms
+    '''
 
     statement = '''
     zcat %(infile)s
@@ -1422,9 +2146,21 @@ def buildDMRWindowStats(infile, outfile):
     P.run()
 
 
+# @P.add_doc(PipelineWindows.buildDMRStats)
 @transform(runMedipsDMR, suffix(".tsv.gz"), ".stats")
 def buildMedipsStats(infile, outfile):
-    '''compute differential methylation stats.'''
+    '''Compute differential methylation stats for medips data
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`tsv` format file containing MEDIPs output
+    medips_fdr: float
+        :term:`PARAMS`
+        threshold false discovery rate for medips
+    outfile: str
+        filename of :term:`tsv` file to write medips DMR stats
+    '''
     method = os.path.dirname(infile)
     method = P.snip(method, ".dir")
     infiles = glob.glob(infile + "*_data.tsv.gz")
@@ -1436,7 +2172,15 @@ def buildMedipsStats(infile, outfile):
 
 @merge(buildDMRStats, "dmr_stats.load")
 def loadDMRStats(infiles, outfile):
-    '''load DMR stats into table.'''
+    '''load DMR stats into database table - dmr_stats
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`tsv` formatted file containing DMR stats
+    outfile: str
+        filename of database load logfile
+    '''
     P.concatenateAndLoad(infiles, outfile,
                          missing_value=0,
                          regex_filename=".*\/(.*).stats")
@@ -1473,10 +2217,15 @@ def loadDMRStats(infiles, outfile):
 @transform(mergeDMRWindows, regex("(.*)\.(.*).merged.gz"), r"\1_\2.bed.gz")
 def buildMRBed(infile, outfile):
     '''output bed6 file with methylated regions.
-
     All regions are output, even the insignificant ones.
-
     The score is the log fold change.
+
+    Parameters
+    ----------
+    infile: str
+        filename of DMR analysis output in :term:`tsv` format
+    outfile: str
+        filename of :term:`bed6` file to write methylated regions
     '''
 
     outf = IOTools.openFile(outfile, "w")
@@ -1503,7 +2252,16 @@ def buildMRBed(infile, outfile):
          regex("(.*).dir/(.*).merged.(.*).bed.gz"),
          r"overlaps.dir/method_\2_\3.overlap")
 def buildOverlapByMethod(infiles, outfile):
-    '''compute overlap between intervals.
+    '''Compute overlap between differential expression output using different
+    methods.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of DMR output files in :term:`bed` format
+    outfile: str
+        filename to write overlap information
+
     '''
 
     if os.path.exists(outfile):
@@ -1533,9 +2291,17 @@ def buildOverlapByMethod(infiles, outfile):
          regex("(.*).dir/(.*).merged.(.*).bed.gz"),
          r"overlaps.dir/\1_\3.overlap")
 def buildOverlapWithinMethod(infiles, outfile):
-    '''compute overlap between intervals.
-    '''
+    '''Compute overlap between differential expression output for different
+    files using the same method.
 
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of DMR output files in :term:`bed` format
+    outfile: str
+        filename to write overlap information
+
+    '''
     if os.path.exists(outfile):
         # note: update does not work due to quoting
         os.rename(outfile, outfile + ".orig")
@@ -1560,7 +2326,16 @@ def buildOverlapWithinMethod(infiles, outfile):
             buildOverlapWithinMethod),
            suffix(".overlap"), "_overlap.load")
 def loadOverlap(infile, outfile):
-    '''load overlap results.
+    '''Load results of overlap analyses within and between methods to database
+    table <track>_overlap where track is the prefix of the overlap analysis
+    filename
+
+    Parameters
+    ----------
+    infile: str
+        filename containing the results of an overlap analysis
+    outfile: str
+        database load logfile
     '''
     P.load(infile, outfile,
            tablename="overlap",
@@ -1570,6 +2345,9 @@ def loadOverlap(infile, outfile):
 @follows(loadDMRStats, loadSpikeResults,
          outputAllWindows, outputTopWindows)
 def dmr():
+    '''
+    Records when all DMR analysis in pipeline is complete.
+    '''
     pass
 
 
@@ -1579,9 +2357,17 @@ def dmr():
         "medips.dir/*.merged.*.bed.gz"),
        "dmr.bed.gz")
 def combineWindows(infiles, outfile):
-    '''build a file that contains all intervals
+    '''
+    Build a :term:`bed` file that contains all intervals
     detected as DMR windows. The name field will
     be set to the filename.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of DMR analysis results in :term:`bed` format
+    outfile: str
+        filename of :term:`bed` file to contain all DMR windows
     '''
 
     statement = []
@@ -1596,6 +2382,7 @@ def combineWindows(infiles, outfile):
     P.run(statement)
 
 
+# @P.add_doc(PipelineWindows.summarizeTagsWithinContext)
 @follows(mkdir('contextstats.dir'))
 @transform(prepareTags,
            regex(".*/(.*).bed.gz"),
@@ -1604,9 +2391,20 @@ def combineWindows(infiles, outfile):
                PARAMS["annotations_interface_genomic_context_bed"])),
            r"contextstats.dir/\1.contextstats.tsv.gz")
 def summarizeTagsWithinContext(infiles, outfile):
-    """count number of tags overlapping various genomic contexts.
-
+    """
+    Count number of tags overlapping various genomic contexts (by 50% of more).
     Counts are summarized for each category.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        filename of :term:`bed` file containing tag counts
+    infiles[1]: str
+        filename of :term:`bed` file containing genomic context
+    outfile: str
+        filename of :term:`tsv` file to write the context stats
     """
     PipelineWindows.summarizeTagsWithinContext(
         infiles[0],
@@ -1614,31 +2412,76 @@ def summarizeTagsWithinContext(infiles, outfile):
         outfile)
 
 
+# @P.add_doc(PipelineWindows.mergeSummarizedContextStats)
 @merge(summarizeTagsWithinContext, "contextstats.dir/contextstats.tsv.gz")
 def mergeSummarizedContextStats(infiles, outfile):
-    """load context mapping statistics."""
+    """Merge information on tags overlapping various genomic contexts from
+    different samples into :term:`tsv` file.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`tsv` formatted information about tags
+        overlapping genomic contexts for each sample
+    outfile: str
+        filename for :term:`tsv` formatted file to write merged context data
+    """
     PipelineWindows.mergeSummarizedContextStats(infiles, outfile)
 
 
+# @P.add_doc(PipelineWindows.loadSummarizedContextStats)
 @merge(summarizeTagsWithinContext, "context_stats.load")
 def loadSummarizedContextStats(infiles, outfile):
-    """load context mapping statistics."""
+    """Load context mapping statistics into database table context_stats
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`tsv` formatted information about tags
+        overlapping genomic contexts for each sample
+    outfile: str
+        database load logfile
+    """
     PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 
+# @P.add_doc(PipelineWindows.mergeSummarizedContextStats)
 @merge(summarizeTagsWithinContext,
        "contextstats.dir/contextstats_counts.tsv.gz")
 def mergeSummarizedContextStatsAsCounts(infiles, outfile):
-    """load context mapping statistics."""
+    '''Merge information on tags overlapping various genomic contexts from
+    different samples into :term:`tsv` file with samples as columns rather
+    than rows ready for normalisation.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`tsv` formatted information about tags
+        overlapping genomic contexts for each sample
+    outfile: str
+        filename for :term:`tsv` formatted file to write merged context data
+    '''
     PipelineWindows.mergeSummarizedContextStats(infiles, outfile,
                                                 samples_in_columns=True)
 
 
+# @P.add_doc(PipelineWindows.normalizeTagCounts)
 @transform(mergeSummarizedContextStatsAsCounts,
            suffix(".tsv.gz"),
            "_normed.tsv.gz")
 def normalizeSummarizedContextStats(infile, outfile):
-    """normalize context mapping statistics."""
+    """Normalize context mapping statistics by dividing by the row-wise total
+    (total across all samples)
+
+    Parameters
+    ----------
+    infile: str
+        filename of :term:`tsv` file with one sample per column summarising
+        information about tags overlapping different genomic contexts
+    outfile: str
+        filename of :term:`tsv` file to write the normalised context
+        statistics.
+    """
 
     PipelineWindows.normalizeTagCounts(
         infile,
@@ -1698,8 +2541,19 @@ def runMedipsQC(infile, outfile):
                PARAMS["annotations_interface_geneset_coding_exons_gtf"])),
            r"transcriptprofiles.dir/\1.transcriptprofile.tsv.gz")
 def buildTranscriptProfiles(infiles, outfile):
-    '''build a table with the overlap profile
-    with protein coding exons.
+    '''
+    Build a table with the overlap profile of tags with protein coding exons.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames
+    infiles[0]: str
+        filename of tag counts in :term:`tsv` format
+    infiles[1]: str
+        filename of annotation of exons in :term:`gtf` format
+    outfile: str
+        filename to write the overlap profile in :term:`tsv` format
     '''
 
     bedfile, gtffile = infiles
@@ -1756,7 +2610,7 @@ def buildTranscriptProfiles(infiles, outfile):
 
 @follows(loadTagContextOverlap, loadSummarizedContextStats)
 def context():
-    """context based analysis"""
+    """Indicates that the context_stats part of the pipeline is complete"""
     pass
 
 
