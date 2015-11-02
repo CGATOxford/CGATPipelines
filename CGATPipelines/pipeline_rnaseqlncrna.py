@@ -194,7 +194,7 @@ P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
      "pipeline.ini"],
-    defaults={"annotations_annotations_dir": "",
+    defaults={"annotations_dir": "",
               "genesets_abinitio_coding": "pruned.gtf.gz",
               "genesets_abinitio_lncrna": "pruned.gtf.gz",
               "genesets_reference": "reference.gtf.gz",
