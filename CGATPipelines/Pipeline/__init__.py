@@ -237,7 +237,6 @@ import Execution as Execution
 import Control as Control
 import Database as Database
 import Files as Files
-import Utils as Utils
 import Parameters as Parameters
 
 # broadcast parameters and config object, take from
@@ -397,6 +396,7 @@ __all__ = [
     "getDatabaseName",
     "importFromIterator",
     # Utils.py
+    "add_doc",
     "isTest",
     "getCallerLocals",
     "getCaller",
