@@ -169,7 +169,7 @@ Requirements
 
 The pipeline requires the results from
 :doc:`pipeline_annotations`. Set the configuration variable
-:py:data:`annotations_annotations_database` and :py:data:`annotations_dir`.
+:py:data:`annotations_database` and :py:data:`annotations_dir`.
 
 On top of the default CGAT setup, the pipeline requires the following
 software to be in the path:
@@ -375,7 +375,7 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_annotations_database"])
+        PARAMS["annotations_database"])
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
