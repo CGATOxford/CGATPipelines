@@ -96,8 +96,10 @@ def annotateGenome(infile, outfile,
     | grep "transcript_id"
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=gene+transcript
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-exons
-        --with-utr --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-exons
+    --mark-utr
+    --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py
     --method=filter --filter-method=longest-gene
         --log=%(outfile)s.log
@@ -769,7 +771,7 @@ def loadGeneCoordinates(infile, outfile):
     statement = '''
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py
-    -m merge-transcripts --with-utr
+    --method=merge-transcripts
     | python %(scriptsdir)s/gtf2tsv.py
     | %(load_statement)s
     > %(outfile)s'''

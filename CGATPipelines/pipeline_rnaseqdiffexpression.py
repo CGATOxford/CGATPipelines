@@ -602,8 +602,9 @@ def buildUnionIntersectionExons(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=intersect-transcripts
-    --with-utr --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=intersect-transcripts
+    --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2gff.py
     --is-gtf
     --method=crop-unique
