@@ -53,7 +53,7 @@ table containing expression estimates for all the genes/transcripts in
 the multi-fasta file. The order of the genes/transcripts must be
 exactly the same as the multi-fasta file and all genes/transcripts
 must be present and labelled exactly as in the multi-fasta file. The
-header should contain a "Transcript" column and a single column for
+header should contain a "Name" column and a single column for
 each sample, labelled with the same.
 
 Below is an example of a multi-fasta file and the corresponding
@@ -68,7 +68,7 @@ atacttatattcatattactacgcgattatcatctatcggcgcgattctacgacgata
 
 zcat abundance_estimates.tsv.gz
 
-Transcript      delta-N-1     delta-N-2
+Name      delta-N-1     delta-N-2
 dummygene1      1758.59       1543.52
 dummygene2      906.643       852.103
 
@@ -166,7 +166,6 @@ import glob
 import cStringIO
 import numpy
 import pandas
-from pandas import DataFrame
 from scipy.stats import linregress
 import itertools as iter
 
@@ -208,18 +207,9 @@ REGEX_FORMATS = regex(r"(\S+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 def indexForSailfish(infile, outfile):
     '''create a sailfish index'''
 
-    outdir = P.snip(outfile, "/transcriptome.sfi")
-    kmer = int(PARAMS["sailfish_kmer_size"])
-    tmp = P.getTempFilename()
-
-    if infile.endswith(".gz"):
-        statement = '''gunzip -c %(infile)s > %(tmp)s;
-                       checkpoint; sailfish index -t %(tmp)s'''
-    else:
-        statement = '''sailfish index -t %(infile)s'''
-
-    statement += ''' -k %(kmer)i -o %(outdir)s;
-                    checkpoint; rm -f %(tmp)s'''
+    statement = '''
+    sailfish index --transcripts=%(infile)s -k %(sailfish_kmer_size)i
+    --out=%(outfile)s '''
 
     P.run()
 
@@ -237,12 +227,12 @@ def runSailfish(infiles, outfile):
     infile, index = infiles
     index = P.snip(index, "/transcriptome.sfi")
 
-    sample = P.snip(os.path.basename(outfile), "_quant.sf")
-    outdir = "quantification/%(sample)s" % locals()
+    sailfish_bootstrap = 0
 
     m = PipelineMapping.Sailfish(strand=PARAMS["sailfish_strandedness"],
                                  orient=PARAMS["sailfish_orientation"],
                                  threads=PARAMS["sailfish_threads"])
+
     statement = m.build((infile,), outfile)
 
     P.run()
@@ -251,15 +241,33 @@ def runSailfish(infiles, outfile):
 if PARAMS["sailfish"]:
     @follows(runSailfish)
     @merge(runSailfish,
-           "abundance_estimates.tsv.gz")
+           "abundance_estimates.tsv")
     def mergeResults(infiles, outfile):
-        statement = '''python %(scriptsdir)s/combine_tables.py
-        --glob quantification/*/*quant.sf --columns 1 --take 7
-        --use-file-prefix -v 0| gzip > %(outfile)s'''
-        P.run()
+        ''' merge the TPM values per sample'''
+
+        sample_id = os.path.basename(os.path.dirname(infiles[0]))
+        df = pandas.read_table(
+            infiles[0], sep='\t', comment='#', header=0, index_col=0)
+        df.columns = ["Length", sample_id, "NumReads"]
+        df.index.name = "Name"
+        df.drop(["Length", "NumReads"], axis=1, inplace=True)
+
+        for infile in infiles[1:]:
+            sample_id = os.path.basename(os.path.dirname(infile))
+
+            tmp_df = pandas.read_table(
+                infile, sep='\t', comment='#', header=0, index_col=0)
+            tmp_df.columns = ["Length", sample_id, "NumReads"]
+            tmp_df.index.name = "Name"
+            tmp_df.drop(["Length", "NumReads"], axis=1, inplace=True)
+
+            df = pandas.merge(df, tmp_df, left_index=True, right_index=True)
+
+        df.to_csv(outfile, sep="\t")
 else:
-    @follows(mkdir("quantification"))
-    @originate("abundance_estimates.tsv.gz")
+    @follows(mkdir("quant.dir"))
+    @originate("abundance_estimates.tsv")
+
     def mergeResults(outfile):
         infile = PARAMS["abundance_file"]
         base = os.path.basename(infile)
@@ -290,8 +298,8 @@ def characteriseTranscripts(infile, outfile):
 @transform(characteriseTranscripts,
            regex("transcripts_attributes.tsv.gz"),
            add_inputs(mergeResults),
-           ["quantification/binned_means_correlation.tsv",
-            "quantification/binned_means_gradients.tsv"])
+           ["quant.dir/binned_means_correlation.tsv",
+            "quant.dir/binned_means_gradients.tsv"])
 def summariseBias(infiles, outfiles):
 
     transcripts, expression = infiles
@@ -299,7 +307,7 @@ def summariseBias(infiles, outfiles):
 
     atr = pandas.read_csv(transcripts, sep='\t',
                           compression="gzip", index_col="id")
-    exp = pandas.read_csv(expression, sep='\t', compression="gzip")
+    exp = pandas.read_csv(expression, sep='\t')
     atr = atr.rename(columns={'pGC': 'GC_Content'})
 
     def percentage(x):
@@ -318,12 +326,12 @@ def summariseBias(infiles, outfiles):
 
     log_exp = numpy.log2(exp.ix[:, 1:]+0.1)
 
-    log_exp["id"] = exp[["Transcript"]]
+    log_exp["id"] = exp[["Name"]]
     log_exp = log_exp.set_index("id")
 
     bias_factors = list(atr.columns)
     samples = list(exp.columns)
-    samples.remove("Transcript")
+    samples.remove("Name")
 
     merged = atr.merge(log_exp, left_index="id", right_index="id")
 
@@ -354,19 +362,18 @@ def summariseBias(infiles, outfiles):
     for factor in bias_factors:
         means_binned, corr_matrix, gradients = aggregate_by_factor(
             merged, factor, samples, PARAMS["bias_bin"], numpy.mean)
-        outfile_means = "%s%s%s" % ("quantification/means_binned_",
-                                    factor, ".tsv")
+        outfile_means = "quant.dir/means_binned_%s.tsv" % factor
         means_binned.to_csv(outfile_means, sep="\t",
                             index=False, float_format='%.4f')
         corr_matrices[factor] = list(corr_matrix[factor])
         gradient_lists[factor] = gradients
 
-    corr_matrix_df = DataFrame.from_dict(corr_matrices,
-                                         orient='columns', dtype=None)
+    corr_matrix_df = pandas.DataFrame.from_dict(
+        corr_matrices, orient='columns', dtype=None)
     corr_matrix_df["sample"] = sorted(samples)
 
-    gradient_df = DataFrame.from_dict(gradient_lists,
-                                      orient='columns', dtype=None)
+    gradient_df = pandas.DataFrame.from_dict(
+        gradient_lists, orient='columns', dtype=None)
     gradient_df["sample"] = sorted(samples)
 
     corr_matrix_df.to_csv(out_correlation, sep="\t",
@@ -378,11 +385,11 @@ def summariseBias(infiles, outfiles):
 
 @follows(summariseBias)
 @transform(summariseBias,
-           regex("quantification/(\S+).tsv"),
-           r"quantification/\1.load")
+           suffix(".tsv"),
+           ".load")
 def loadBiasSummary(infiles, outfiles):
-    for file in glob.glob("quantification/*.tsv"):
-        P.load(file, P.snip(file, ".tsv")+".load")
+    for inf in glob.glob("quant.dir/*.tsv"):
+        P.load(inf, inf.replace(".tsv", ".load"))
 
 #########################################################################
 
