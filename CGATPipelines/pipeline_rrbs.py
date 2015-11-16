@@ -166,6 +166,9 @@ import CGATPipelines.PipelineRrbs as RRBS
 import pandas as pd
 import CGATPipelines.PipelineTracks as PipelineTracks
 
+from rpy2.robjects import R
+import numpy as np
+import pandas.rpy.common as com
 ###################################################
 ###################################################
 ###################################################
@@ -486,6 +489,7 @@ def findCpGs(outfile):
 def mergeCoverage(infiles, outfile):
     cpgs_infile = infiles[-1]
     coverage_infiles = infiles[:-1]
+    # this should be replaced with a non-pandas based solution
     # very memory intensive! - find out why and re-code
     job_options = "-l mem_free=48G"
     job_threads = 2
@@ -500,9 +504,9 @@ def mergeCoverage(infiles, outfile):
            "_meth_cpgi.tsv")
 def addCpGIs(infiles, outfile):
     infile, CpGI = infiles
-    # TS:
-    # still memory intensive even after supplying data types for all columns!
-    # why is this?
+    # TS: still memory intensive even after supplying data types
+    # for all columns!
+    # this should be replaced with a non-pandas based solution
     job_memory = "40G"
     job_threads = 1
 
@@ -510,6 +514,23 @@ def addCpGIs(infiles, outfile):
                      left=['contig', 'position'],
                      right=['contig', 'position'],
                      submit=True, job_memory=job_memory)
+
+
+@P.add_doc(RRBS.calculateCoverage)
+@transform(addCpGIs,
+           suffix("_meth_cpgi.tsv"),
+           "_coverage.tsv")
+def calculateCoverage(infile, outfile):
+    RRBS.calculateCoverage(infile, outfile, submit=True, job_memory="2G")
+
+
+@P.add_doc(RRBS.plotCoverage)
+@transform(calculateCoverage,
+           suffix("_coverage.tsv"),
+           ["_coverage_bar.png",
+            "_coverage_pie.png"])
+def plotCoverage(infile, outfiles):
+    RRBS.plotCoverage(infile, outfiles, submit=True, job_memory="6G")
 
 
 # not currently in target full as table never queried from csvdb
@@ -749,6 +770,61 @@ def loadCoveredCpGs(infile, outfile):
     P.run()
 
 
+@follows(loadCoveredCpGs)
+@transform(addTreatmentMeans,
+           suffix(".tsv"),
+           "_frequency.tsv")
+def calculateMethylationFrequency(infile, outfile):
+    ''' bin methylation and plot frequency '''
+
+    select_cmd = """
+    PRAGMA table_info(cpgs_covered_with_means)
+    """ % locals()
+
+    dbh = connect()
+
+    df = pd.read_sql_query(select_cmd, dbh)
+    select_columns = [x for x in df['name'] if "perc" in x]
+    select_columns.append("cpgi")
+    select_columns = ",".join(select_columns)
+
+    select_cmd2 = """
+        SELECT %(select_columns)s from cpgs_covered_with_means
+        """ % locals()
+
+    df2 = pd.read_sql_query(select_cmd2, dbh)
+
+    def my_digitise(array):
+        return np.digitize(array, range(0, 100, 10))
+
+    df_binned = df2[[x for x in df2.columns if "perc" in x]].apply(
+        my_digitise, axis=1)
+
+    df_binned['cpgi'] = df2['cpgi']
+    df_binned_melted = pd.melt(df_binned, "cpgi")
+
+    agg = df_binned_melted.groupby(
+        ["variable", "cpgi", "value"]).size().reset_index()
+
+    agg['tissue'] = [x.split("_")[0] for x in agg['variable']]
+
+    agg['treatment_replicate'] = ["-".join((x.split("_")[1],
+                                            x.split("_")[2]))
+                                  for x in agg['variable']]
+
+    agg['value'] = ["[ %s - %s ]" % (str((x-1)*10), str(x*10))
+                    for x in agg['value']]
+
+    agg.to_csv(outfile, sep="\t", index=False)
+
+
+@transform(calculateMethylationFrequency,
+           suffix("_frequency.tsv"),
+           "_frequency.png")
+def plotMethylationFrequency(infile, outfile):
+    RRBS.plotMethFrequency(infile, outfile, job_memory="6G", submit=True)
+
+
 @transform(addTreatmentMeans,
            regex("methylation.dir/(\S+)_covered_with_means.tsv"),
            r"plots.dir/\1_summary_plots")
@@ -876,29 +952,6 @@ def clusterSpikeInsPowerAnalysis(infiles, outfile):
 
     RRBS.spikeInClustersAnalysis(infiles, outfile,
                                  submit=True, job_options=job_options)
-
-
-# @transform(clusterSpikeInsPowerAnalysis,
-#           suffix(".analysis.out"),
-#           ".M3D_plot_list.out")
-# def clusterSpikeInsPowerPlotM3D(infiles, outfile):
-#
-#    job_options = "-l mem_free=23G"
-#
-#    RRBS.spikeInClustersPlotM3D(infiles, outfile, groups=["Saline", "Dex"],
-#                                submit=True, job_options=job_options)
-# P.touch(outfile)
-#
-# @transform(generateClusterSpikeIns,
-#           suffix(".out"),
-#           ".Biseq_plot_list.out")
-# def clusterSpikeInsPowerPlotBiSeq(infiles, outfile):
-#
-#    job_options = "-l mem_free=48G -pe dedicated 8"
-#
-#    RRBS.spikeInClustersAnalysisBiSeq(infiles, outfile,
-#                                      submit=True, job_options=job_options)
-
 
 ########################################################################
 # to do: utilise farm.py to split task up
@@ -1059,7 +1112,9 @@ def startSummary():
          plotReadBias,
          power,
          M3D,
-         loadCoveredCpGs)
+         loadCoveredCpGs,
+         plotCoverage,
+         plotMethylationFrequency)
 def full():
     pass
 
