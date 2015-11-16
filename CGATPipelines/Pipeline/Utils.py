@@ -82,11 +82,17 @@ def getCaller(decorators=0):
     return mod
 
 
-def add_doc(value):
+def add_doc(value, replace=False):
     """add doc string of value to function that is decorated.
 
     The original doc-string is added as the first paragraph(s)
     inside the new doc-string.
+
+    Parameter
+    ---------
+
+    replace : bool
+       If True, replace documentation rather than appending
     """
     def _doc(func):
         if func.__doc__:
@@ -97,9 +103,12 @@ def add_doc(value):
             # insert appropriate indentiation
             # currently hard-coded, can be derived
             # from doc string?
-            lines.insert(x+1, " " * 4 +
-                         func.__doc__ + "\n")
-            func.__doc__ = "\n".join(lines)
+            if not replace:
+                lines.insert(x+1, " " * 4 +
+                             func.__doc__)
+                func.__doc__ = "\n".join(lines)
+            else:
+                func.__doc__ = value.__doc__
         else:
             func.__doc__ = value.__doc__
         return func

@@ -1482,7 +1482,8 @@ def buildGeneRegions(infile, outfile):
     """
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --with-utr
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-transcripts
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=gene_id
     --log=%(outfile)s.log
@@ -1592,7 +1593,8 @@ def buildGeneTSS(infile, outfile):
     """
 
     statement = """gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --with-utr
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-transcripts
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gff.py --method=promotors --promotor-size=1
     --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
@@ -1627,7 +1629,8 @@ def buildGeneTTS(infile, outfile):
 
     """
     statement = """gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --with-utr
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-transcripts
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gff.py --method=tts --promotor-size=1
     --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
@@ -2349,7 +2352,7 @@ def buildGeneTerritories(infile, outfile):
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=gene
     | python %(scriptsdir)s/gtf2gtf.py
-    --method=merge-transcripts --with-utr
+    --method=merge-transcripts
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=position
     | python %(scriptsdir)s/gtf2gff.py
