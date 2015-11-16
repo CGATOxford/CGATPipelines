@@ -200,15 +200,15 @@ REGEX_FORMATS = regex(r"(\S+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 # bias analysis
 ####################################################
 
-
+@follows(mkdir("index.dir"))
 @transform(PARAMS["sailfish_transcripts"],
            regex("(\S+)"),
-           "index/transcriptome.sfi")
+           "index.dir/transcripts.sailfish.index")
 def indexForSailfish(infile, outfile):
     '''create a sailfish index'''
 
     statement = '''
-    sailfish index --transcripts=%(infile)s -k %(sailfish_kmer_size)i
+    sailfish index --transcripts=%(infile)s
     --out=%(outfile)s '''
 
     P.run()
@@ -223,15 +223,15 @@ def runSailfish(infiles, outfile):
     '''quantify abundance'''
 
     job_threads = PARAMS["sailfish_threads"]
+    job_memory = PARAMS["sailfish_memory"]
 
     infile, index = infiles
-    index = P.snip(index, "/transcriptome.sfi")
 
-    sailfish_bootstrap = 0
+    sailfish_bootstrap = 1
+    sailfish_libtype = PARAMS["sailfish_libtype"]
+    sailfish_options = PARAMS["sailfish_options"]
 
-    m = PipelineMapping.Sailfish(strand=PARAMS["sailfish_strandedness"],
-                                 orient=PARAMS["sailfish_orientation"],
-                                 threads=PARAMS["sailfish_threads"])
+    m = PipelineMapping.Sailfish()
 
     statement = m.build((infile,), outfile)
 
@@ -267,7 +267,6 @@ if PARAMS["sailfish"]:
 else:
     @follows(mkdir("quant.dir"))
     @originate("abundance_estimates.tsv")
-
     def mergeResults(outfile):
         infile = PARAMS["abundance_file"]
         base = os.path.basename(infile)
