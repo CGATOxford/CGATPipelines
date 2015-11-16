@@ -378,7 +378,7 @@ if PARAMS["geneset_auto_generate"]:
 
         if PARAMS["geneset_random_removal"]:
             # TS:this section is for testing null random removal of transcripts
-            # perform random removal of transcripts 
+            # perform random removal of transcripts
             # remove the equivalent number as would be removed by
             # transcript support level filtering
             # note: in line with above, transcripts with tsl = NA are retained
@@ -438,14 +438,11 @@ if PARAMS["geneset_auto_generate"]:
                         n_high_support += count_above_threshold
                         if count_below_threshold > 0:
                             # randomly remove transcripts
-                            #print (transcript_ids, len(transcript_ids),
-                            #       count_below_threshold, count_above_threshold)
 
                             transcript_ids = np.random.choice(
                                 transcript_ids,
                                 size=len(transcript_ids) - count_below_threshold,
                                 replace=False)
-
 
                         # for some gene_ids, all transcripts may be removed!
                         if len(transcript_ids) > 0:
@@ -502,9 +499,6 @@ if PARAMS["geneset_auto_generate"]:
             with IOTools.openFile(outfile, "w") as outf:
                 outf.write("transcript_id\n")
                 outf.write("\n".join((x[0] for x in select)) + "\n")
-
-
-
 
     @transform(identifyTranscripts,
                regex("index.dir/transcript_ids.tsv"),
@@ -615,7 +609,7 @@ def buildSalmonIndex(infile, outfile):
 def buildSailfishIndex(infile, outfile):
     ''' build a sailfish index'''
 
-    #sailfish indexing is more memory intensive than Salmon/Kallisto
+    # sailfish indexing is more memory intensive than Salmon/Kallisto
     job_memory = "6G"
 
     statement = '''
@@ -761,7 +755,6 @@ def quantifyWithKallistoSimulation(infiles, outfile):
 
     m = PipelineMapping.Kallisto()
     statement = m.build((infile,), outfile)
-
 
     P.run()
 
@@ -1230,8 +1223,6 @@ def addTranscriptBiotypes(infile, outfile):
     transcript_id, transcript_biotype, gene_id, gene_name
     FROM annotations.%(table)s
     %(where_cmd)s""" % locals())
-
-
 
     df_annotations = pd.DataFrame.from_records(
         select, index="transcript_id",

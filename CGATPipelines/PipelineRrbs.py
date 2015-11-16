@@ -559,6 +559,7 @@ def plotMethFrequency(infile, outfile):
 
     plotMethFrequency(infile, outfile)
 
+
 @cluster_runnable
 def calculateM3DStat(infile, outfile, design,
                      pair=None, groups=None):

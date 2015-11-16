@@ -958,6 +958,7 @@ def clusterSpikeInsPowerAnalysis(infiles, outfile):
 # will need to write a new iterator function for farm.py
 # to keep clusters together
 
+
 @follows(mkdir("subframes.dir"))
 @split(subsetCpGsToCovered,
        "subframes.dir/cluster_subframe_*.tsv")
