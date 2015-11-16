@@ -1056,6 +1056,7 @@ class Sailfish(Mapper):
 
         statement.append('''
         -l %%(sailfish_libtype)s %(input_file)s -o %(outdir)s
+        --numBootstraps %%(sailfish_bootstrap)s
         --threads %%(job_threads)s %%(sailfish_options)s;''' % locals())
 
         statement = " ".join(statement)
@@ -1100,6 +1101,7 @@ class Salmon(Mapper):
 
         statement.append('''
         -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
+        --numBootstraps %%(salmon_bootstrap)s
         --threads %%(job_threads)s %%(salmon_options)s;''' % locals())
 
         statement = " ".join(statement)
@@ -1143,7 +1145,7 @@ class Kallisto(Mapper):
         # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
         kallisto quant %%(kallisto_options)s
-        --bootstrap-samples=%%(bootstrap)s
+        --bootstrap-samples=%%(kallisto_bootstrap)s
         -i %%(index)s -o %(tmpdir)s %(infiles)s
         > %(logfile)s &> %(logfile)s ;''' % locals()
 
