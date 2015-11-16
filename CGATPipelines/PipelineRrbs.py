@@ -386,7 +386,7 @@ def splitDataframeClusters(infile, prefix, suffix):
             count += 1
         else:
             if count >= size:
-                temp_cluster_df = df[first_pos:ix]
+                temp_cluster_df = df[first_pos:ix+1]
                 if n >= split_at:
                     identifier = splits*split_at
                     filename = "%(prefix)s%(identifier)i%(suffix)s" % locals()
@@ -414,6 +414,150 @@ def splitDataframeClusters(infile, prefix, suffix):
             filename, index=False, header=True, sep="\t",
             dtype={'position': int})
 
+
+@cluster_runnable
+def calculateCoverage(infile, outfile):
+    ''' calculate the coverage at CpG islands
+    and non-CpG Islands '''
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("\t".join(("coverage", "cpgi")) + "\n")
+
+        with IOTools.openFile(infile) as inf:
+
+            header = inf.next().strip().split("\t")
+            coverage_cols = ["meth" in x for x in header]
+            n_samples = sum(coverage_cols)/2
+            cpgi_col = header.index('cpgi')
+
+            line_n = 0
+            for line in inf:
+                if line_n % 1000000 == 0:
+                    E.info("parsed %i lines" % line_n)
+
+                line_n += 1
+                line = line.strip().split("\t")
+
+                cov_values = [line[x] for x in range(0, len(line))
+                              if coverage_cols[x]]
+
+                cov = np.nansum(np.genfromtxt(
+                    np.array(cov_values))) / n_samples
+
+                if line[cpgi_col] == "CpGIsland":
+                    cpgi = "CpGIsland"
+                else:
+                    cpgi = "Non-CpGIsland"
+
+                outf.write("\t".join(map(str, (cov, cpgi))) + "\n")
+
+
+@cluster_runnable
+def plotCoverage(infile, outfiles):
+    ''' plot the coverage at CpG islands
+    and non-CpG Islands '''
+
+    bar_plot, pie_plot = outfiles
+    binned_out = P.snip(bar_plot, "_bar.png") + "_binned.tsv"
+
+    plotCoverage = r('''
+    library(ggplot2)
+    library(plyr)
+    library(RColorBrewer)
+
+    function(infile, binned_out, bar_plot, pie_plot){
+
+    df = read.table(infile, sep="\t", header=TRUE)
+
+    df$binned = .bincode(
+        df$coverage, breaks = c(0,1,5,10,20,1000000), include.lowest=TRUE)
+
+    df$binned = factor(df$binned)
+
+    df$binned = revalue(df$binned,
+        c("1"="< 1", "2"="[ >1 - 5 ]", "3"="[ >5 - 10 ]",
+          "4"="[ >10 - 20 ]", "5"="> 20"))
+
+    write.table(df, binned_out, quote=FALSE, sep="\t", row.names=FALSE)
+
+    s_f = scale_fill_manual(name="Coverage", values=brewer.pal(5, "YlOrRd"))
+
+    x = xlab("")
+    y = ylab("Fraction")
+    l_txt = element_text(size=10)
+    m_txt = element_text(size=12)
+    t = theme(
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid  = element_blank(),
+        aspect.ratio=1)
+
+    t2 = theme(
+        axis.text.x=m_txt,
+        axis.text.y=l_txt,
+        axis.title.y=l_txt,
+        legend.title=l_txt,
+        legend.text=l_txt,
+        strip.text=l_txt,
+        aspect.ratio=1)
+
+    p = ggplot(df, aes(x=cpgi, fill=as.factor(binned))) +
+        geom_bar(position="fill", stat="bin") +
+        theme_bw() + s_f + x + t2 + y
+
+    ggsave(bar_plot, height=4, width=5)
+
+    p = ggplot(df, aes(factor(0), fill=as.factor(binned))) +
+        geom_bar(position="fill", stat="bin", width=1) +
+        coord_polar(theta = "y") +
+        facet_wrap(~cpgi) +
+        theme_bw() + s_f + x + t + y
+
+    ggsave(pie_plot, height=3, width=6)
+    }''')
+
+    plotCoverage(infile, binned_out, bar_plot, pie_plot)
+
+
+@cluster_runnable
+def plotMethFrequency(infile, outfile):
+
+    plotMethFrequency = r('''
+    function(infile, outfile){
+    library(ggplot2)
+    library(RColorBrewer)
+
+    df = read.table(infile, sep="\t", header=TRUE)
+
+    l_size = 20
+    l_txt = element_text(size = l_size)
+
+    p = ggplot(df, aes(x=treatment_replicate,
+                        y=X0, fill=value)) +
+    geom_bar(position="fill", stat="identity") +
+    facet_grid(tissue~cpgi) +
+    xlab("") +
+    ylab("Fraction") +
+    scale_fill_gradientn(values=c(0, 0.4, 0.5, 0.6, 1),
+#                     colours=c("cadetblue3", "grey95", "grey95", "grey95", "indianred3"))
+    scale_fill_manual(name="Methylation (%)",
+                      values = rev(colorRampPalette(
+                                       brewer.pal(9, "RdBu"))(11))) +
+    theme_bw() +
+    theme(
+    axis.text.x = element_text(angle=90, size=l_size, hjust=1, vjust=0.5),
+    axis.text.y = l_txt,
+    axis.title.y = l_txt,
+    aspect.ratio=1,
+    legend.text = l_txt,
+    legend.title = l_txt,
+    strip.text = l_txt)
+
+    ggsave(outfile, height=10, width=12)
+    }''')
+
+    plotMethFrequency(infile, outfile)
 
 @cluster_runnable
 def calculateM3DStat(infile, outfile, design,
@@ -497,6 +641,8 @@ def calculateM3DStat(infile, outfile, design,
 
 def M3Dstat2pvalue(df, columns, pair):
 
+    stats = importr('stats')
+
     def meltAndPivot(df, columns):
         melt = pd.melt(df, id_vars=columns)
         melt['value'] = melt['value'].astype(float)
@@ -550,12 +696,6 @@ def M3Dstat2pvalue(df, columns, pair):
 def calculateM3DSpikepvalue(infiles, outfile, design):
     '''takes a list of M3D stats files and a design dataframe and outputs
     p-values for each cluster for the pairwise comparison'''
-    # currently expects the first pair from the design table to be used
-    # to generate the M3D stats
-
-    # ***** this will no fail *****
-    # need to change call to M3D2pvalue to supply proper group labels as "pair"
-    # see calculateM3Dpvalue
 
     outfile_within = P.snip(outfile, "_between.tsv") + "_within.tsv"
 
@@ -568,7 +708,7 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
     # need to create list along the lines of:
     # ["Germline-Saline", "Germline-Dex"]
     # here, this is acheived by removing replicates from track names and
-    # outputting unique values
+    # outputting unique values - should use PipelineTracks.py
     pair = list(set([re.sub("-(\d+)", "", x)
                      for x in design_df_subset['track'].tolist()]))
 
@@ -613,19 +753,32 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
     text_theme_s = element_text(size=15)
     text_theme_xs = element_text(size=10)
     text_theme_s_x = element_text(size=15, angle=90)
+    axis_title_x = element_text(size=15, vjust=-2)
+    axis_title_y = element_text(size=15, vjust=2)
     text_theme_l = element_text(size=25)
-    plot_theme = theme(axis.title.x = text_theme,
-    axis.title.y = text_theme, axis.text.x = text_theme_s_x,
-    axis.text.y = text_theme_s, legend.text = text_theme_s,
-    legend.title = text_theme_s, title = text_theme_s)
+
+    plot_theme = theme(
+    axis.title.x = axis_title_x,
+    axis.title.y = axis_title_y,
+    axis.text.x = text_theme_s_x,
+    axis.text.y = text_theme,
+    legend.text = text_theme_s,
+    legend.title = text_theme_s,
+    title = text_theme_s,
+    aspect.ratio=1,
+    panel.grid.minor = element_blank())
 
     p = ggplot(agg,aes(x=as.numeric(change), y=as.numeric(as.character(size)),
-    fill=as.numeric(power))) + geom_tile() +
-    scale_fill_continuous(limits=c(0,1), name = "Power") +
-    scale_y_continuous(breaks=seq(1,8,1)) +
-    scale_x_continuous(breaks=seq(-60,80,20), limits=c(-60,80)) +
-    plot_theme + ylab("Size") + xlab("Change") +
-    ggtitle ("M3D  - power analysis")
+    fill=as.numeric(power))) +
+    geom_tile() +
+    scale_fill_continuous(limits=c(0,1), name = "Power",
+                          low="grey95", high="mediumpurple4") +
+    scale_y_continuous(breaks=seq(1,9,1)) +
+    scale_x_continuous(breaks=seq(-50,50,10), limits=c(-50,50)) +
+    theme_bw() +
+    plot_theme +
+    ylab("Size of spike-in region") +
+    xlab("Methylation change (%%)")
     ggsave(paste0('%(base)s',"_change_vs_size_power_heatmap.png"),
     plot = p, width = 5, height = 5)
 
@@ -633,9 +786,11 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
     y=as.numeric(power),col=factor(as.numeric(as.character(size))))) +
     geom_line(size=2) + scale_colour_discrete(name = "Size") +
     scale_y_continuous(breaks=seq(0,1,0.1)) +
-    scale_x_continuous(breaks=seq(-60,80,20), limits=c(-60,80)) +
-    plot_theme + xlab("Change") + ylab("Power") +
-    ggtitle ("M3D - power analysis")
+    scale_x_continuous(breaks=seq(-50,50,10), limits=c(-50,50)) +
+    theme_bw() +
+    plot_theme +
+    xlab("Methylation change (%%)") +
+    ylab("Power")
     ggsave(paste0('%(base)s',"_change_vs_size_power_lineplot.png"),
     plot = p, width = 5, height = 5)
 
@@ -656,10 +811,12 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
       merge$change = as.numeric(as.character(merge$change))
 
       p = ggplot(merge, aes(x=size, y=change, group=direction)) +
-      geom_line(size=3) + plot_theme +
-      scale_y_continuous(breaks=seq(-60,80,20), limits=c(-60,80)) +
-      scale_x_continuous(breaks=seq(1,8,1), limits=c(1,8)) +
+      geom_line(size=3) +
+      theme_bw() + plot_theme +
+      scale_y_continuous(breaks=seq(-50,50,10), limits=c(-50,50)) +
+      scale_x_continuous(breaks=seq(1,9,1), limits=c(1,8)) +
       xlab("Size") + ylab("Methylation difference") +
+
       ggtitle ("M3D - Mimimum methylation\n difference to reach 0.8 power")
       ggsave(paste0('%(base)s',"_powered.png"),
       plot = p, width = 5, height = 5)}}
@@ -1387,9 +1544,11 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
                   p = ggplot(agg_between,aes(y=as.numeric(change),
                   x=as.numeric(as.character(size)),fill=as.numeric(power))) +
                   geom_tile() +
-                  scale_fill_continuous(limits=c(0,1), name = "Power") +
+                  scale_fill_continuous(limits=c(0,1), name = "Power",
+                                        low="grey95", high="mediumpurple4") +
                   scale_x_continuous(breaks=seq(1,11,2)) +
                   scale_y_continuous(breaks=seq(-20,50,10), limits=c(-20,50)) +
+                  theme_bw() +
                   plot_theme + xlab("Size") + ylab("Change") + ggtitle ("M3D")
                   ggsave(paste0('%(base)s',"_change_vs_size_power_heatmap.png"),
                   plot = p, width = 5, height = 5)
@@ -1401,6 +1560,7 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
                   scale_colour_discrete(name = "Size") +
                   scale_y_continuous(breaks=seq(0,1,0.1)) +
                   scale_x_continuous(breaks=seq(-20,50,10), limits=c(-20,50)) +
+                  theme_bw() +
                   plot_theme + xlab("Change") + ylab("Power") + ggtitle ("M3D")
                   ggsave(paste0('%(base)s',"_change_vs_size_power_lineplot.png"),
                   plot = p, width = 5, height = 5)
@@ -1414,6 +1574,7 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
                   geom_tile() +
                   scale_fill_continuous(name = "Count") +
                   scale_x_continuous(breaks=seq(1,11,2)) +
+                  theme_bw() +
                   scale_y_continuous(breaks=seq(-20,50,10), limits=c(-20,50)) +
                   plot_theme + xlab("Size") + ylab("Change") + ggtitle ("M3D")
                   ggsave(paste0('%(base)s',"_change_vs_size_count.png"),
