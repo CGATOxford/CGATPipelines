@@ -327,9 +327,7 @@ GENESET = glob.glob("*.gtf.gz")
 
 if PARAMS["geneset_auto_generate"]:
 
-    # TS:
-    # to do: should we enable filtering by the transcript_biotype rather
-    # than gene_biotype?
+    # TS: move to module file?
     @mkdir("index.dir")
     @originate("index.dir/transcript_ids.tsv")
     def identifyTranscripts(outfile):
@@ -352,36 +350,155 @@ if PARAMS["geneset_auto_generate"]:
 
         if PARAMS["geneset_transcript_support"]:
 
-            # TS: TSL is not given for all transcripts. Filtering here
-            # will retain transcripts without TSL annotation
+            if PARAMS["geneset_random_removal"]:
+                # if using random removal we don't want to filter on
+                # transcript support here
+                pass
 
-            # TS: I'm using substr because the tsl values also describe
-            # the previous tsl and we only want the current tsl
-            support_cmd = " OR ".join(
-                ["substr(transcript_support,1,4) = 'tsl%s'" % x
-                 for x in range(1, PARAMS["geneset_transcript_support"] + 1)])
+            else:
+                # TS: TSL is not given for all transcripts. Filtering here
+                # will retain transcripts without TSL annotation
 
-            # ensembl transcript support not given (e.g "NA") for
-            # pseudogenes, single exon transcripts, HLA, T-cell
-            # receptor, Ig transcripts.  Do we want to keep these in?
-            na_support_cmd = "substr(transcript_support,1,2) = 'NA' "
+                # TS: I'm using substr because the tsl values also describe
+                # the previous tsl and we only want the current tsl
+                support_cmd = " OR ".join(
+                    ["substr(transcript_support,1,4) = 'tsl%s'" % x
+                     for x in range(1, PARAMS["geneset_transcript_support"] + 1)])
 
-            null_support_cmd = "transcript_support IS NULL"
+                # ensembl transcript support not given (e.g "NA") for
+                # pseudogenes, single exon transcripts, HLA, T-cell
+                # receptor, Ig transcripts.  Do we want to keep these in?
+                na_support_cmd = "substr(transcript_support,1,5) = 'tslNA' "
 
-            where_cmd += " AND (%s OR %s OR %s )" % (support_cmd,
-                                                     na_support_cmd,
-                                                     null_support_cmd)
+                null_support_cmd = "transcript_support IS NULL"
 
-        select_cmd = """ SELECT DISTINCT transcript_id
-        FROM annotations.%(table)s %(where_cmd)s""" % locals()
+                where_cmd += " AND (%s OR %s OR %s )" % (support_cmd,
+                                                         na_support_cmd,
+                                                         null_support_cmd)
 
-        print select_cmd
+        if PARAMS["geneset_random_removal"]:
+            # TS:this section is for testing null random removal of transcripts
+            # perform random removal of transcripts
+            # remove the equivalent number as would be removed by
+            # transcript support level filtering
+            # note: in line with above, transcripts with tsl = NA are retained
 
-        select = dbh.execute(select_cmd)
+            select_cmd = """ SELECT DISTINCT gene_id, transcript_id,
+            transcript_support FROM annotations.%(table)s %(where_cmd)s
+            """ % locals()
 
-        with IOTools.openFile(outfile, "w") as outf:
-            outf.write("transcript_id\n")
-            outf.write("\n".join((x[0] for x in select)) + "\n")
+            select = dbh.execute(select_cmd)
+
+            previous_gene = ""
+            transcript_ids = []
+            tsls = []
+
+            # TS: remove these counts when this section has been checked...
+            n_entries = 0
+            n_transcripts = 0
+            n_genes = 0
+            n_low_support = 0
+            n_high_support = 0
+            tsl_NA = 0
+            tsl_NULL = 0
+
+            with IOTools.openFile(outfile, "w") as outf:
+                outf.write("transcript_id\n")
+
+                for entry in select:
+
+                    n_entries += 1
+
+                    gene_id, transcript_id, tsl = entry
+
+                    if gene_id == previous_gene:
+                        n_transcripts += 1
+
+                        transcript_ids.append(transcript_id)
+
+                        # some transcripts do not have a tsl
+                        try:
+
+                            tsls.append(int(tsl.strip().split()[0].replace("tsl", "")))
+                        except:
+                            if tsl is None:
+                                tsl_NULL += 1
+                            else:
+                                if tsl.strip().split()[0] == "tslNA":
+                                    tsl_NA += 1
+
+                    else:
+                        count_below_threshold = len(
+                            [x for x in tsls if x >
+                             PARAMS["geneset_transcript_support"]])
+                        count_above_threshold = len(
+                            [x for x in tsls if x <=
+                             PARAMS["geneset_transcript_support"]])
+                        n_low_support += count_below_threshold
+                        n_high_support += count_above_threshold
+                        if count_below_threshold > 0:
+                            # randomly remove transcripts
+
+                            transcript_ids = np.random.choice(
+                                transcript_ids,
+                                size=len(transcript_ids) - count_below_threshold,
+                                replace=False)
+
+                        # for some gene_ids, all transcripts may be removed!
+                        if len(transcript_ids) > 0:
+                            outf.write("\n".join((x for x in transcript_ids)) + "\n")
+
+                        previous_gene = gene_id
+                        transcript_ids = [transcript_id]
+                        try:
+                            tsls = [int(tsl.strip().split()[0].replace("tsl", ""))]
+                        except:
+                            tsls = []
+                            if tsl is None:
+                                tsl_NULL += 1
+                            else:
+                                if tsl.strip().split()[0] == "tslNA":
+                                    tsl_NA += 1
+
+                        n_transcripts += 1
+                        n_genes += 1
+
+                # random select again for the last gene_id
+                count_below_threshold = len(
+                    [x for x in tsls if x >
+                     PARAMS["geneset_transcript_support"]])
+                count_above_threshold = len(
+                    [x for x in tsls if x <=
+                     PARAMS["geneset_transcript_support"]])
+                n_low_support += count_below_threshold
+                n_high_support += count_above_threshold
+
+                if count_below_threshold > 0:
+
+                    transcript_ids = np.random.choice(
+                        transcript_ids,
+                        size=len(transcript_ids)-count_below_threshold,
+                        replace=False)
+
+                if len(transcript_ids) > 0:
+                    outf.write("\n".join((x for x in transcript_ids)))
+
+            print ("# entries %i, # transcripts %i, # genes %i,"
+                   "# low support %i, # high support %i,"
+                   " # NA tsl %i, # NULL tsl %i" % (
+                       n_entries, n_transcripts, n_genes, n_low_support,
+                       n_high_support, tsl_NA, tsl_NULL))
+
+        else:
+            # select all distinct transcript_ids passing filters
+            select_cmd = """ SELECT DISTINCT transcript_id
+            FROM annotations.%(table)s %(where_cmd)s""" % locals()
+
+            select = dbh.execute(select_cmd)
+
+            with IOTools.openFile(outfile, "w") as outf:
+                outf.write("transcript_id\n")
+                outf.write("\n".join((x[0] for x in select)) + "\n")
 
     @transform(identifyTranscripts,
                regex("index.dir/transcript_ids.tsv"),
@@ -422,18 +539,35 @@ else:
 def buildReferenceTranscriptome(infile, outfile):
     ''' build reference transcriptome from geneset'''
 
-    gtf_file = P.snip(infile, ".gz")
+    genome_file = os.path.abspath(
+        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
+
+    statement = '''
+    zcat %(infile)s |
+    awk '$3 ~ /exon|five_prime_utr|three_prime_utr/'|
+    python /ifs/devel/toms/cgat/scripts/gff2fasta.py
+    --is-gtf --genome-file=%(genome_file)s --fold-at 60
+    > %(outfile)s;
+    samtools faidx %(outfile)s
+    '''
+    P.run()
+
+
+@transform(buildGeneSet,
+           suffix(".gtf.gz"),
+           ".pre_mRNA.fa")
+def buildReferencePreTranscriptome(infile, outfile):
+    ''' build a reference transcriptome for pre-mRNAs'''
 
     genome_file = os.path.abspath(
         os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
 
-    # sed statement replaces e.g ">1 transcript_id" with ">transcript_id"
     statement = '''
-    zcat %(infile)s
-    | awk '$3 ~ /exon|UTR/' > %(gtf_file)s;
-    gtf_to_fasta %(gtf_file)s %(genome_file)s %(outfile)s;
-    sed -i 's/>[0-9]\+ />/g' %(outfile)s;
-    checkpoint;
+    zcat %(infile)s |
+    awk '$3 == "transcript"'|
+    python /ifs/devel/toms/cgat/scripts/gff2fasta.py
+    --is-gtf --genome-file=%(genome_file)s --fold-at 60
+    > %(outfile)s;
     samtools faidx %(outfile)s
     '''
     P.run()
@@ -444,6 +578,8 @@ def buildReferenceTranscriptome(infile, outfile):
            ".kallisto.index")
 def buildKallistoIndex(infile, outfile):
     ''' build a kallisto index'''
+
+    job_memory = "2G"
 
     statement = '''
     kallisto index -i %(outfile)s -k %(kallisto_kmer)s %(infile)s
@@ -458,6 +594,8 @@ def buildKallistoIndex(infile, outfile):
 def buildSalmonIndex(infile, outfile):
     ''' build a salmon index'''
 
+    job_memory = "2G"
+
     statement = '''
     salmon index %(salmon_index_options)s -t %(infile)s -i %(outfile)s
     '''
@@ -465,9 +603,28 @@ def buildSalmonIndex(infile, outfile):
     P.run()
 
 
+@transform(buildReferenceTranscriptome,
+           suffix(".fa"),
+           ".sailfish.index")
+def buildSailfishIndex(infile, outfile):
+    ''' build a sailfish index'''
+
+    # sailfish indexing is more memory intensive than Salmon/Kallisto
+    job_memory = "6G"
+
+    statement = '''
+    sailfish index --transcripts=%(infile)s --out=%(outfile)s
+    %(sailfish_index_options)s
+    '''
+
+    P.run()
+
+
 @follows(mkdir("index.dir"),
+         buildReferencePreTranscriptome,
          buildKallistoIndex,
-         buildSalmonIndex)
+         buildSalmonIndex,
+         buildSailfishIndex)
 def index():
     pass
 
@@ -494,16 +651,19 @@ def countKmers(infile, outfile):
 
 @mkdir("simulation.dir")
 @follows(buildReferenceTranscriptome)
-@files([("index.dir/transcripts.fa",
+@files([(["index.dir/transcripts.fa",
+         "index.dir/transcripts.pre_mRNA.fa"],
          ("simulation.dir/simulated_reads_%i.fastq.1.gz" % x,
           "simulation.dir/simulated_read_counts_%i.tsv" % x))
         for x in range(0, PARAMS["simulation_iterations"])])
-def simulateRNASeqReads(infile, outfiles):
-    ''' simulate RNA-Seq reads from the transcripts fasta file '''
+def simulateRNASeqReads(infiles, outfiles):
+    ''' simulate RNA-Seq reads from the transcripts fasta file
+    and transcripts pre-mRNA fasta file'''
 
     # TS: to do: add option to learn parameters from real RNA-Seq data
     # TS: move to module file. the statement is complicated by
     # neccesity for random order for some simulations
+    infile, premrna_fasta = infiles
     outfile, outfile_counts = outfiles
 
     single_end_random_cmd = ""
@@ -551,6 +711,8 @@ def simulateRNASeqReads(infile, outfiles):
     statement = '''
     cat %(infile)s |
     python %(scriptsdir)s/fasta2fastq.py
+    --premrna-fraction=0.05
+    --infile-premrna-fasta=%(premrna_fasta)s
     --output-read-length=%(simulation_read_length)s
     --insert-length-mean=%(simulation_insert_mean)s
     --insert-length-sd=%(simulation_insert_sd)s
@@ -586,8 +748,10 @@ def quantifyWithKallistoSimulation(infiles, outfile):
 
     kallisto_options = PARAMS["kallisto_options"]
 
-    # single bootstrap should be fine for our purposes
-    bootstrap = 1
+    if PARAMS["simulation_bootstrap"]:
+        kallisto_bootstrap = PARAMS["kallisto_bootstrap"]
+    else:
+        kallisto_bootstrap = 0
 
     m = PipelineMapping.Kallisto()
     statement = m.build((infile,), outfile)
@@ -625,10 +789,39 @@ def quantifyWithSalmonSimulation(infiles, outfile):
     salmon_options = PARAMS["salmon_options"]
     salmon_libtype = "ISF"
 
-    # single bootstrap should be fine for our purposes
-    bootstrap = 1
+    if PARAMS["simulation_bootstrap"]:
+        salmon_bootstrap = PARAMS["salmon_bootstrap"]
+    else:
+        salmon_bootstrap = 0
 
     m = PipelineMapping.Salmon()
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+
+@mkdir("simulation.dir/quant.dir/sailfish")
+@transform(simulateRNASeqReads,
+           regex("simulation.dir/simulated_reads_(\d+).fastq.1.gz"),
+           add_inputs(buildSailfishIndex),
+           r"simulation.dir/quant.dir/sailfish/simulated_reads_\1/quant.sf")
+def quantifyWithSailfishSimulation(infiles, outfile):
+    # TS more elegant way to parse infiles and index?
+    infiles, index = infiles
+    infile, counts = infiles
+
+    job_threads = PARAMS["sailfish_threads"]
+    job_memory = "10G"
+
+    sailfish_options = PARAMS["sailfish_options"]
+    sailfish_libtype = "ISF"
+
+    if PARAMS["simulation_bootstrap"]:
+        sailfish_bootstrap = PARAMS["sailfish_bootstrap"]
+    else:
+        sailfish_bootstrap = 0
+
+    m = PipelineMapping.Sailfish()
     statement = m.build((infile,), outfile)
 
     P.run()
@@ -655,13 +848,32 @@ def extractSalmonCountSimulation(infile, outfile):
                     outf.write(line)
 
 
+@transform(quantifyWithSailfishSimulation,
+           regex("(\S+)/quant.sf"),
+           r"\1/abundance.tsv")
+def extractSailfishCountSimulation(infile, outfile):
+    ''' rename columns and remove comment to keep file format the same
+    as kallisto'''
+
+    # note: this expects column order to stay the same
+
+    with IOTools.openFile(infile, "r") as inf:
+        lines = inf.readlines()
+
+        with IOTools.openFile(outfile, "w") as outf:
+            outf.write("%s\n" % "\t".join(
+                ("target_id", "length", "tpm", "est_counts")))
+
+            for line in lines:
+                if not line.startswith("# "):
+                    outf.write(line)
+
 # define simulation targets
 SIMTARGETS = []
 
-mapToSimulationTargets = {'kallisto': (quantifyWithKallistoSimulation,
-                                       extractKallistoCountSimulation),
-                          'salmon': (quantifyWithSalmonSimulation,
-                                     extractSalmonCountSimulation)}
+mapToSimulationTargets = {'kallisto': (extractKallistoCountSimulation, ),
+                          'salmon': (extractSalmonCountSimulation, ),
+                          'sailfish': (extractSailfishCountSimulation, )}
 
 for x in P.asList(PARAMS["quantifiers"]):
     SIMTARGETS.extend(mapToSimulationTargets[x])
@@ -817,12 +1029,14 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
         PARAMS["merge_pattern_output"].strip())
     SEQUENCEFILES_SALMON_OUTPUT = r"quant.dir/salmon/%s/quant.sf" % (
         PARAMS["merge_pattern_output"].strip())
-
+    SEQUENCEFILES_SAILFISH_OUTPUT = r"quant.dir/sailfish/%s/quant.sf" % (
+        PARAMS["merge_pattern_output"].strip())
 else:
     SEQUENCEFILES_REGEX = regex(
         r".*/(\S+).(fastq.1.gz|fastq.gz|sra)")
     SEQUENCEFILES_KALLISTO_OUTPUT = r"quant.dir/kallisto/\1/abundance.h5"
     SEQUENCEFILES_SALMON_OUTPUT = r"quant.dir/salmon/\1/quant.sf"
+    SEQUENCEFILES_SAILFISH_OUTPUT = r"quant.dir/sailfish/\1/quant.sf"
 
 
 @mkdir("quant.dir/kallisto")
@@ -856,7 +1070,7 @@ def quantifyWithKallisto(infiles, outfile):
          SEQUENCEFILES_REGEX,
          add_inputs(buildSalmonIndex),
          SEQUENCEFILES_SALMON_OUTPUT)
-def quantifyWithSalmon():
+def quantifyWithSalmon(infiles, outfile):
     # TS more elegant way to parse infiles and index?
     infile = [x[0] for x in infiles]
     index = infiles[0][1]
@@ -868,19 +1082,45 @@ def quantifyWithSalmon():
     salmon_options = PARAMS["salmon_options"]
     salmon_libtype = PARAMS["salmon_libtype"]
 
-    # single bootstrap should be fine for our purposes
-    bootstrap = 1
+    bootstrap = PARAMS["salmon_bootstrap"]
 
     m = PipelineMapping.Salmon()
-    statement = m.build((infile,), outfile)
+    statement = m.build(infile, outfile)
 
     P.run()
+
+
+@mkdir("quant.dir/sailfish")
+@collate(SEQUENCEFILES,
+         SEQUENCEFILES_REGEX,
+         add_inputs(buildSailfishIndex),
+         SEQUENCEFILES_SAILFISH_OUTPUT)
+def quantifyWithSailfish(infiles, outfile):
+    # TS more elegant way to parse infiles and index?
+    infile = [x[0] for x in infiles]
+    index = infiles[0][1]
+
+    # job_threads = PARAMS["salmon_threads"]
+    job_threads = 1
+    job_memory = "6G"
+
+    sailfish_options = PARAMS["sailfish_options"]
+    sailfish_libtype = PARAMS["sailfish_libtype"]
+
+    bootstrap = PARAMS["sailfish_bootstrap"]
+
+    m = PipelineMapping.Sailfish()
+    statement = m.build(infile, outfile)
+
+    P.run()
+
 
 # define quantifier targets
 QUANTTARGETS = []
 
 mapToQuantificationTargets = {'kallisto': (quantifyWithKallisto,),
-                              'salmon': (quantifyWithSalmon,)}
+                              'salmon': (quantifyWithSalmon,),
+                              'sailfish': (quantifyWithSailfish,)}
 
 for x in P.asList(PARAMS["quantifiers"]):
     QUANTTARGETS.extend(mapToQuantificationTargets[x])
@@ -896,9 +1136,9 @@ def quantify():
 ###############################################################################
 
 
-@follows(quantify)
+@follows(*QUANTTARGETS)
 @mkdir("DEresults.dir")
-@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
+@subdivide(["%s.design.tsv" % x.asFile() for x in DESIGNS],
            regex("(\S+).design.tsv"),
            add_inputs(buildReferenceTranscriptome),
            [r"DEresults.dir/\1_results.tsv",
@@ -935,7 +1175,7 @@ def runSleuth(infiles, outfiles):
     for contrast in contrasts:
 
         TranscriptDiffExpression.runSleuth(
-            design, "quant.dir", model, contrast,
+            design, "quant.dir/kallisto", model, contrast,
             outfile, counts, tpm, PARAMS["sleuth_fdr"],
             submit=True, job_memory=job_memory)
 
@@ -965,8 +1205,18 @@ def addTranscriptBiotypes(infile, outfile):
     table = os.path.basename(
         PARAMS["annotations_interface_table_transcript_info"])
 
-    where_cmd = " OR ".join(["WHERE gene_biotype = '%s'" % x
-                             for x in PARAMS["geneset_biotypes"].split(",")])
+    if PARAMS["geneset_gene_biotypes"]:
+        where_cmd = "WHERE " + " OR ".join(
+            ["gene_biotype = '%s'" % x
+             for x in PARAMS["geneset_gene_biotypes"].split(",")])
+    else:
+        where_cmd = ""
+
+    print ("""
+    SELECT DISTINCT
+    transcript_id, transcript_biotype, gene_id, gene_name
+    FROM annotations.%(table)s
+    %(where_cmd)s""" % locals())
 
     select = dbh.execute("""
     SELECT DISTINCT
@@ -1023,8 +1273,7 @@ def expressionSummaryPlots(infiles, logfile):
 ###############################################################################
 
 
-@follows(quantify,
-         differentialExpression,
+@follows(differentialExpression,
          expressionSummaryPlots,
          simulation)
 def full():

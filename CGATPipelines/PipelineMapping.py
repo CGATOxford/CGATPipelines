@@ -1025,13 +1025,8 @@ class Sailfish(Mapper):
                  threads="", *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.compress = compress
-        self.strand = strand
-        self.orient = orient
-        self.threads = threads
 
     def mapper(self, infiles, outfile):
-
-        threads = self.threads
 
         statement = ['''sailfish quant -i %%(index)s''' % locals()]
 
@@ -1044,60 +1039,27 @@ class Sailfish(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            input_file = '''-r <(zcat %s)''' % infiles[0][0]
-            library = ['''"T=SE:''']
-            if self.strand == "sense":
-                strandedness = '''S=S"'''
-            elif self.strand == "antisense":
-                strandedness = '''S=A"'''
-            elif self.strand == "unknown":
-                strandedness = '''S=U"'''
-            library.append(strandedness)
+            input_file = '''-r %s ''' % " ".join(
+                ["<(zcat %s)" % x[0] for x in infiles])
 
         elif nfiles == 2:
-            infile1, infile2 = infiles[0]
-            input_file = '''-1 <(zcat %(infile1)s)
-                            -2 <(zcat %(infile2)s)''' % locals()
 
-            library = ['''"T=PE:''']
+            input_file = '''-1 %s -2 %s''' % (
+                " ".join(["<(zcat %s)" % x[0] for x in infiles]),
+                " ".join(["<(zcat %s)" % x[1] for x in infiles]))
 
-            if self.orient == "towards":
-                orientation = '''O=><:'''
-            elif self.orient == "away":
-                orientation = '''O=<>:'''
-            elif self.orient == "same":
-                orientation = '''O=>>:'''
-            library.append(orientation)
-
-            if self.strand == "sense":
-                strandedness = '''S=SA"'''
-            elif self.strand == "antisense":
-                strandedness = '''S=AS"'''
-            elif self.strand == "unknown":
-                strandedness = '''S=U"'''
-            library.append(strandedness)
         else:
             # is this the correct error type?
             raise ValueError("incorrect number of input files")
 
-        library = "".join(library)
+        outdir = os.path.dirname(os.path.abspath(outfile))
 
-        statement.append('''-l %(library)s %(input_file)s -o %%(outdir)s
-                             -f --threads %(threads)s;''' % locals())
+        statement.append('''
+        -l %%(sailfish_libtype)s %(input_file)s -o %(outdir)s
+        --numBootstraps %%(sailfish_bootstrap)s
+        --threads %%(job_threads)s %%(sailfish_options)s;''' % locals())
 
         statement = " ".join(statement)
-
-        return statement
-
-    def postprocess(self, infiles, outfile):
-        '''collect output data and postproces
-        Reformat header and rename outfile'''
-
-        statement = ('''sed -i "s/# Transcript/Transcript/g"
-                     %%(outdir)s/quant.sf;
-                     mv %%(outdir)s/quant.sf
-                     %%(outdir)s/%%(sample)s_quant.sf;'''
-                     % locals())
 
         return statement
 
@@ -1139,6 +1101,7 @@ class Salmon(Mapper):
 
         statement.append('''
         -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
+        --numBootstraps %%(salmon_bootstrap)s
         --threads %%(job_threads)s %%(salmon_options)s;''' % locals())
 
         statement = " ".join(statement)
@@ -1182,7 +1145,7 @@ class Kallisto(Mapper):
         # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
         kallisto quant %%(kallisto_options)s
-        --bootstrap-samples=%%(bootstrap)s
+        --bootstrap-samples=%%(kallisto_bootstrap)s
         -i %%(index)s -o %(tmpdir)s %(infiles)s
         > %(logfile)s &> %(logfile)s ;''' % locals()
 
