@@ -30,7 +30,8 @@ class SleuthResults(IsoformTracker):
         SELECT A.gene_name, A.gene_id, A.transcript_id, A.transcript_biotype,
         A.control_mean AS expression, A.fold, A.l2fold AS log2_fold,
         A.p_value, A.p_value_adj, A.significant, B.reason AS flagged
-        FROM %(track)s_DEresults AS A LEFT JOIN flagged_transcripts AS B
+        FROM %(track)s_DEresults AS A
+        LEFT JOIN kallisto_flagged_transcripts AS B
         ON A.transcript_id = B.transcript_id
         %(where)s
         ORDER BY A.significant DESC, A.fold DESC

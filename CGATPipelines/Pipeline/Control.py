@@ -524,7 +524,6 @@ class LoggingFilterRabbitMQ(logging.Filter):
         data['task_completed'] = task_completed
 
         key = "%s.%s.%s" % (self.project_name, self.pipeline_name, task_name)
-
         try:
             self.channel.basic_publish(exchange=self.exchange,
                                        routing_key=key,
@@ -572,7 +571,6 @@ class LoggingFilterRabbitMQ(logging.Filter):
 
         # filter ruffus logging messages
         if record.filename.endswith("task.py"):
-
             try:
                 before, task_name = record.msg.strip().split(" = ")
             except ValueError:

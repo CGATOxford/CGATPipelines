@@ -87,7 +87,7 @@ found in any other transcript.
 	       scale_size_manual(guide=FALSE, values=c(0.5, 1)) +
  	       scale_shape_discrete(guide=FALSE) + 
 	       scale_colour_manual(guide=FALSE, values = c("grey15","red")) + 
-	       stat_boxplot(geom ='errorbar', col="chartreuse3") +
+	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
 	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(axis.title.x=element_text(size=15),
@@ -121,7 +121,7 @@ less than 3 % unique kmers are flagged.
 	       geom_jitter(size=0.5, alpha=0.3, col="grey15",
                            position=position_jitter(width=0.3,
 			   height=0)) +
-	       stat_boxplot(geom ='errorbar', col="chartreuse3") +
+	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
 	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(
@@ -144,7 +144,7 @@ less than 3 % unique kmers are flagged.
 	       geom_jitter(size=1, alpha=0.25, col="grey30",
                            position=position_jitter(width=0.3,
 			   height=0)) +
-	       stat_boxplot(geom ='errorbar', col="chartreuse3") +
+	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
 	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(

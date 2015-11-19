@@ -157,6 +157,12 @@ def buildPicardDuplicateStats(infile, outfile):
     Record duplicate metrics using Picard and keep the dedupped .bam
     file.
 
+    Pair duplication is properly handled, including inter-chromosomal
+    cases. SE data is also handled.  These stats also contain a
+    histogram that estimates the return from additional sequecing.  No
+    marked bam files are retained (/dev/null...)  Note that picards
+    counts reads but they are in fact alignments.
+
     Arguments
     ---------
     infile : string
@@ -400,6 +406,13 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
 def loadPicardAlignmentStats(infiles, outfile):
     '''load all output from Picard's CollectMultipleMetrics into database.
 
+    Loads tables into database with prefix derived from outfile:
+       * [outfile]_alignment_summary_metric
+       * [outfile]_insert_size_metrics
+       * [outfile]_quality_by_cycle_metrics
+       * [outfile]_quality_distribution_metrics
+       * [outfile]_insert_size_metrics
+
     Arguments
     ---------
     infiles : string
@@ -425,6 +438,10 @@ def loadPicardAlignmentStats(infiles, outfile):
 
 def loadPicardDuplicationStats(infiles, outfiles):
     '''load picard duplicate filtering stats into database.
+
+    Loads two tables into the database
+       * picard_duplication_metrics
+       * picard_complexity_histogram
 
     Arguments
     ---------
@@ -554,7 +571,7 @@ def loadBAMStats(infiles, outfile):
     infiles : string
         Input files, output from :func:`buildBAMStats`.
     outfile : string
-        Output file in :term:`tsv` format.
+        Logfile. The table name will be derived from `outfile`.
     '''
 
     header = ",".join([P.snip(os.path.basename(x), ".readstats")

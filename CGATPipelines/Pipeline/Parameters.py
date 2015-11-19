@@ -114,6 +114,9 @@ HARDCODED_PARAMS = {
     """,
     # command to get tab-separated output from database
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
+    # DEPRECATED: options to use for csv2db upload
+    "csv2db_options": "--backend=sqlite --retry --map=gene_id:str "
+    "--map=contig:str --map=transcript_id:str",
     # database backend
     'database_backend': "sqlite",
     # database host

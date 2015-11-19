@@ -3539,10 +3539,11 @@ def buildUnionIntersectionExons(infile, outfile):
     Builds a single-segment bed file.
     '''
 
-    to_cluster = USECLUSTER
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=intersect-transcripts --with-utr --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=intersect-transcripts
+    --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2gff.py --is-gtf --method=crop-unique  --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2bed.py --is-gtf --log=%(outfile)s.log
     | sort -k1,1 -k2,2n
