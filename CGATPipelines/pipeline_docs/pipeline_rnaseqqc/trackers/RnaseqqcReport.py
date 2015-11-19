@@ -97,7 +97,7 @@ class SampleHeatmap(RnaseqqcTracker):
         
     def __call__(self, track, slice=None):
         statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
-                     "WHERE transcript != Transcript;")
+                     "WHERE transcript != 'Transcript';")
         df = pd.DataFrame.from_dict(self.getAll(statement))
         # insert clustering function here
 
