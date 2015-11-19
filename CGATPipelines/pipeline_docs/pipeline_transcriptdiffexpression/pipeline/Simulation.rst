@@ -7,32 +7,33 @@ Kallisto, Sailfish or Salmon.  Like all RNA-Seq quantification
 methods, these tools are expected to show poorer accuracy of
 quantification for transcripts which have little unique sequence. To
 identify and flag these transcripts, we perform a simulation here
-where we generate a known number of reads per transcript (a ground
-truth) and compare this to the estimated counts. By repeating this
-multiple times (default x30) we can calculate the correlation between
-the ground truth and the estimated counts across the
-simulations. Samples with poor correlation are flagged in the results
-table as these could generate false positives in the differential
-testing analysis. In addition, we can compare the total estimated
-counts across all simulations to the total ground truth to identify
-transcripts where the counts are systematically under or
-over-estimated. These transcripts are also flagged.
+where we generate a known number of transcripts (a ground truth),
+represented as transcripts per million transcript (TPM) and compare
+this to the estimated TPM. By repeating this multiple times (default
+x30) we can calculate the correlation between the ground truth and the
+estimated TPM across the simulations. Samples with poor correlation
+are flagged in the results table as these could generate false
+positives in the differential testing analysis. In addition, we can
+compare the total estimated TPM across all simulations to the total
+ground truth to identify transcripts where the TPM values are
+systematically under or over-estimated. These transcripts are also
+flagged.
 
 
-Ground Truth vs. Estimated Counts
-=================================
+Ground Truth TPM vs. Estimated TPM
+==================================
 
-These plots compare the sum of ground truths across all simulations to
-the sum of estimated counts. N.B The sum of ground truths is not the
-same for each transcript as the number of simulated reads per
-transcript is randomly sampled [0-100] for each simulation. Where the
-absolute fold-difference between the ground truth and estimate is
+These plots compare the sum of ground truth TPMs across all
+simulations to the sum of estimated TPMs. N.B The sum of ground truths
+is not the same for each transcript as the number of simulated copies
+per transcript is randomly sampled [0-10] for each simulation. Where
+the absolute fold-difference between the ground truth and estimate is
 greater than 1.5-fold, the transcript is flagged.
 
 .. report:: Simulations.simulationCorrelations
    :groupby: track
    :render: r-ggplot
-   :statement: aes(read_count, est_counts) +
+   :statement: aes(tpm, est_tpm) +
 	       geom_point(size=1, alpha=0.5,
 	       aes(col=abs(as.numeric(as.character(log2diff)))<0.585)) +
 	       theme_bw() +
@@ -47,18 +48,18 @@ greater than 1.5-fold, the transcript is flagged.
 	       scale_colour_discrete(
 	       name="Accuracy", labels=c("Poor", "Good")) +
 	       xlab("Ground truth") +
-	       ylab("Estimated counts") +
+	       ylab("Estimated TPM") +
 	       geom_abline(col="grey40", size=0.5) +
 	       geom_abline(intercept=0, slope=1.5, col="turquoise3",
                            size=0.5, linetype=2) +
 	       geom_abline(intercept=0, slope=0.66, col="turquoise3",
                            size=0.5, linetype=2)
 
-    Ground Truth vs. Estimated Counts
+    Ground Truth TPM vs. Estimated TPM
 
 
 Summary table for transcripts flagged by difference between ground
-truth and estimated counts
+truth and estimated TPM
 
 .. report:: Simulations.simulationCorrelationsSummaryFold
    :render: table
@@ -68,7 +69,7 @@ truth and estimated counts
 
 
 In the following plot, the log2 fold difference between the total
-ground truths and the total estimated counts is show at different
+ground truths and the total estimated TPM is show at different
 levels of transcript "uniqueness". Absolute log2 fold differences
 greater than 1 are plotted at -1 or 1 respectively and shown in
 red. The "uniqueness" of a transcript is quantified by identifying the
@@ -102,11 +103,11 @@ found in any other transcript.
    Full plot	   
 
 
-Correlation between ground truth and estimated counts
-=====================================================
+Correlation between ground truth TPM and estimated TPM
+======================================================
 
 These plots show the correlation between ground truth and estimated
-counts for each transcript against the "uniqueness" of the
+TPM for each transcript against the "uniqueness" of the
 transcript. The "uniqueness" of a transcript is quantified by
 identifying the fraction of all 31nt kmers which are unique to the
 transcript, i.e not found in any other transcript. Transcripts with

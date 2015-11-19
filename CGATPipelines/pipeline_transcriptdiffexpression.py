@@ -504,8 +504,7 @@ if PARAMS["geneset_auto_generate"]:
                regex("index.dir/transcript_ids.tsv"),
                "index.dir/transcripts.gtf.gz")
     def buildGeneSet(mapfile, outfile):
-        ''' build a gene set with only transcripts from transcripts which
-        pass filter '''
+        ''' build a gene set with only transcripts which pass filter '''
 
         geneset = PARAMS['annotations_interface_geneset_all_gtf']
 
@@ -546,8 +545,8 @@ def buildReferenceTranscriptome(infile, outfile):
     zcat %(infile)s |
     awk '$3 ~ /exon|five_prime_utr|three_prime_utr/'|
     python /ifs/devel/toms/cgat/scripts/gff2fasta.py
-    --is-gtf --genome-file=%(genome_file)s --fold-at 60
-    > %(outfile)s;
+    --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
+    --log=%(outfile)s.log > %(outfile)s;
     samtools faidx %(outfile)s
     '''
     P.run()
@@ -566,8 +565,8 @@ def buildReferencePreTranscriptome(infile, outfile):
     zcat %(infile)s |
     awk '$3 == "transcript"'|
     python /ifs/devel/toms/cgat/scripts/gff2fasta.py
-    --is-gtf --genome-file=%(genome_file)s --fold-at 60
-    > %(outfile)s;
+    --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
+    --log=%(outfile)s.log > %(outfile)s;
     samtools faidx %(outfile)s
     '''
     P.run()
@@ -650,7 +649,8 @@ def countKmers(infile, outfile):
 
 
 @mkdir("simulation.dir")
-@follows(buildReferenceTranscriptome)
+@follows(buildReferenceTranscriptome,
+         buildReferencePreTranscriptome)
 @files([(["index.dir/transcripts.fa",
          "index.dir/transcripts.pre_mRNA.fa"],
          ("simulation.dir/simulated_reads_%i.fastq.1.gz" % x,
@@ -711,13 +711,14 @@ def simulateRNASeqReads(infiles, outfiles):
     statement = '''
     cat %(infile)s |
     python %(scriptsdir)s/fasta2fastq.py
-    --premrna-fraction=0.05
+    --premrna-fraction=%(simulation_pre_mrna_fraction)s
     --infile-premrna-fasta=%(premrna_fasta)s
     --output-read-length=%(simulation_read_length)s
     --insert-length-mean=%(simulation_insert_mean)s
     --insert-length-sd=%(simulation_insert_sd)s
-    --reads-per-entry-min=%(simulation_min_reads_per_transcript)s
-    --reads-per-entry-max=%(simulation_max_reads_per_transcript)s
+    --counts-method=copies
+    --counts-min=%(simulation_counts_min)s
+    --counts-max=%(simulation_counts_max)s
     --sequence-error-phred=%(simulation_phred)s
     --output-counts=%(outfile_counts)s
     --output-quality-format=33 -L %(outfile)s.log
@@ -894,6 +895,7 @@ def mergeAbundanceCounts(infile, outfile, counts):
 
     df_abund = pd.read_table(infile, sep="\t", index_col=0)
     df_counts = pd.read_table(counts, sep="\t", index_col=0)
+    df_abund.columns = [x if x != "tpm" else "est_tpm" for x in df_abund.columns]
 
     df_merge = pd.merge(df_abund, df_counts, left_index=True, right_index=True)
     df_merge.index.name = "id"
@@ -930,7 +932,7 @@ def calculateCorrelations(infiles, outfile):
     # this is hacky, it's doing all against all correlations for the
     # two columns and subsetting
     df_agg = df_abund.groupby(level=0)[[
-        "est_counts", "read_count"]].corr().ix[0::2, 'read_count']
+        "est_tpm", "tpm"]].corr().ix[0::2, 'tpm']
 
     # drop the "read_count" level, make into dataframe and rename column
     df_agg.index = df_agg.index.droplevel(1)
@@ -943,11 +945,11 @@ def calculateCorrelations(infiles, outfile):
         np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, 1),
                     right=True))/100.0
 
-    df_abund_sum = df_abund.groupby(level=0)["est_counts", "read_count"].sum()
+    df_abund_sum = df_abund.groupby(level=0)["est_tpm", "tpm"].sum()
     df_final = pd.merge(df_final, df_abund_sum,
                         left_index=True, right_index=True)
-    df_final['log2diff'] = np.log2(df_final['est_counts'] /
-                                   df_final['read_count'])
+    df_final['log2diff'] = np.log2(df_final['est_tpm'] /
+                                   df_final['tpm'])
 
     df_final['log2diff_thres'] = [x if abs(x) < 1 else x/abs(x)
                                   for x in df_final['log2diff']]

@@ -26,7 +26,7 @@ class simulationCorrelations(IsoformTracker):
     def __call__(self, track, slice=None):
 
         statement = '''
-        SELECT read_count, est_counts, fraction_bin, cor, log2diff,
+        SELECT tpm, est_tpm, fraction_bin, cor, log2diff,
         log2diff_thres FROM %(track)s_simulation_correlations
         '''
 
