@@ -259,9 +259,9 @@ if PARAMS["sailfish"]:
             tmp_df.columns = ["Length", sample_id, "NumReads"]
             tmp_df.index.name = "Name"
             tmp_df.drop(["Length", "NumReads"], axis=1, inplace=True)
-
-            df = pandas.merge(df, tmp_df, left_index=True, right_index=True)
-
+            
+            df = pandas.concat([df, tmp_df], axis=1)
+            
         df.to_csv(outfile, sep="\t")
 else:
     @follows(mkdir("quant.dir"))
