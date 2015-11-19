@@ -605,7 +605,7 @@ def runDE(design_file,
           outdir,
           method="deseq",
           spike_file=None):
-    '''run DESeq or EdgeR through :mod:`scripts/runExpression.py`
+    '''run DESeq, DESeq2 or EdgeR through :mod:`scripts/runExpression.py`
 
     The job is split into smaller sections. The order of the input
     data is randomized in order to avoid any biases due to chromosomes
@@ -642,7 +642,8 @@ def runDE(design_file,
         --log=%(outfile)s.log
         '''
 
-    prefix = os.path.basename(outfile)
+    prefix = IOTools.snip(os.path.basename(outfile))
+    E.info(prefix)
 
     # the post-processing strips away the warning,
     # renames the qvalue column to old_qvalue
@@ -663,16 +664,19 @@ def runDE(design_file,
               --method=%(method)s
               --tags-tsv-file=-
               --design-tsv-file=%(design_file)s
-              --output-filename-pattern=%%DIR%%/%(prefix)s_
+              --output-filename-pattern=%%DIR%%%(prefix)s_
               --deseq-fit-type=%(deseq_fit_type)s
               --deseq-dispersion-method=%(deseq_dispersion_method)s
               --deseq-sharing-mode=%(deseq_sharing_mode)s
               --edger-dispersion=%(edger_dispersion)f
+              --deseq2-design-formula=%(deseq2_model)s
+              --deseq2-contrasts=%(deseq2_contrasts)s
               --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
               --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
               --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
               --log=%(outfile)s.log
-              --fdr=%(edger_fdr)f"
+              --fdr=%(edger_fdr)f
+              --deseq2-plot=0"
     | perl -p -e "s/qvalue/old_qvalue/"
     | python %(scriptsdir)s/table2table.py
     --log=%(outfile)s.log
@@ -682,6 +686,7 @@ def runDE(design_file,
     --fdr-add-column=qvalue
     | gzip
     > %(outfile)s '''
+    E.info(statement)
 
     P.run()
 
