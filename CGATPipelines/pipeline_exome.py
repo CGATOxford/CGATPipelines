@@ -1263,7 +1263,7 @@ def readbackedphasing(infiles, outfile):
 @follows(readbackedphasing)
 @transform("*.ped",
            regex(r"(\S*Multiplex\S+|\S*Trio\S+).ped"),
-           add_inputs(r"variants/all_samples.rbp.vcf", r"all_samples.ped"),
+           add_inputs(r"no_multiallelic_all_samples.rbp.vcf", r"all_samples.ped"),
            r"variants/\1.compound_hets.table")
 def compoundHets(infiles, outfile):
     '''Identify potentially pathogenic compound heterozygous variants
@@ -1275,7 +1275,6 @@ def compoundHets(infiles, outfile):
                    gemini comp_hets
                    --families %(family_id)s
                    --columns "chrom, start, end, ref, alt, codon_change, gene, qual, depth"
-                   --only-affected
                    --filter
                    "(impact_severity = 'HIGH' OR impact_severity = 'MED')
                    AND (in_esp = 0 OR aaf_esp_all < 0.01)
