@@ -2,6 +2,8 @@ import re
 import glob
 import pandas as pd
 import numpy as np
+from sklearn import manifold
+from sklearn.metrics import euclidean_distances
 import rpy2.robjects as ro
 from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
@@ -55,10 +57,10 @@ class SampleHeatmap(RnaseqqcTracker):
         return ("all")
 
     def getCurrentRDevice(self):
-        
+
         '''return the numerical device id of the
         current device'''
-            
+
         return R["dev.cur"]()[0]
 
     def hierarchicalClustering(self, dataframe):
@@ -94,7 +96,7 @@ class SampleHeatmap(RnaseqqcTracker):
         corr_frame = py_cor
 
         return corr_frame
-        
+
     def __call__(self, track, slice=None):
         statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
                      "WHERE transcript_id != 'Transcript';")
@@ -106,7 +108,7 @@ class SampleHeatmap(RnaseqqcTracker):
         mdf.index = set(df["sample_id"])
         r_cor = py2ri.py2ri_pandasdataframe(mdf)
         R.assign("cor.mat", r_cor)
-        
+
         R.x11()
         R('''suppressPackageStartupMessages(library(gplots))''')
         R('''suppressPackageStartupMessages(library(RColorBrewer))''')
@@ -116,6 +118,42 @@ class SampleHeatmap(RnaseqqcTracker):
 
         return odict((("Sum absolute covariance",
                        "#$rpl %i$#" % getCurrentRDevice()),))
+
+
+class sampleMDS(RnaseqqcTracker):
+    # to add:
+    # - parameterise dissimilarity so we can plot
+    #    euclidean & 1-cor(spearman's?)
+    # - JOIN with design table to get further aesthetics for plotting
+    #   E.g treatment, replicate, etc
+
+    table = "transcript_quantification"
+
+    def __call__(self, track,  slice=None):
+
+        # remove WHERE when table cleaned up to remove header rows
+        statement = (
+            "SELECT transcript_id, TPM, sample_id FROM %(table)s "
+            "where transcript_id != 'Transcript'")
+
+        # fetch data
+        df = pd.DataFrame.from_dict(self.getAll(statement))
+
+        df = df.pivot('transcript_id', 'sample_id')['TPM']
+
+        # calculate dissimilarities
+        similarities = euclidean_distances(df.transpose())
+
+        # run MDS
+        mds = manifold.MDS(n_components=2, max_iter=3000,
+                           eps=1e-9, dissimilarity="precomputed", n_jobs=1)
+        mds = mds.fit(similarities)
+        pos = pd.DataFrame(mds.embedding_)
+
+        pos.columns = ["MD1", "MD2"]
+        pos['sample'] = df.columns
+
+        return pos
 
 
 class CorrelationSummaryA(RnaseqqcTracker):
