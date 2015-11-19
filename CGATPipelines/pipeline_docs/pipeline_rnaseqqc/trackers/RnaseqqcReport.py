@@ -1,6 +1,10 @@
 import re
 import glob
 import pandas as pd
+import numpy as np
+import rpy2.robjects as ro
+from rpy2.robjects import r as R
+import rpy2.robjects.pandas2ri as py2ri
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -41,6 +45,77 @@ class RnaseqqcTracker(TrackerSQL):
 ##############################################################
 ##############################################################
 ##############################################################
+
+
+class SampleHeatmap(RnaseqqcTracker):
+    table = "transcript_quantification"
+    py2ri.activate()
+
+    def getTracks(self, subset=None):
+        return ("all")
+
+    def getCurrentRDevice(self):
+        
+        '''return the numerical device id of the
+        current device'''
+            
+        return R["dev.cur"]()[0]
+
+    def hierarchicalClustering(self, dataframe):
+        '''
+        Perform hierarchical clustering on a
+        dataframe of expression values
+
+        Arguments
+        ---------
+        dataframe: pandas.Core.DataFrame
+          a dataframe containing gene IDs, sample IDs
+          and gene expression values
+
+        Returns
+        -------
+        correlations: pandas.Core.DataFrame
+          a dataframe of a pair-wise correlation matrix
+          across samples.  Uses the Pearson correlation.
+        '''
+
+        # set sample_id to index
+        pivot = dataframe.pivot(index="sample_id",
+                                columns="transcript_id",
+                                values="TPM")
+        transpose = pivot.T
+        # why do I have to resort to R????
+        r_df = py2ri.py2ri_pandasdataframe(transpose)
+        R.assign("p.df", r_df)
+        R('''p.mat <- apply(p.df, 2, as.numeric)''')
+        R('''cor.df <- cor(p.mat)''')
+        r_cor = R["cor.df"]
+        py_cor = py2ri.ri2py_dataframe(r_cor)
+        corr_frame = py_cor
+
+        return corr_frame
+        
+    def __call__(self, track, slice=None):
+        statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
+                     "WHERE transcript != Transcript;")
+        df = pd.DataFrame.from_dict(self.getAll(statement))
+        # insert clustering function here
+
+        mdf = self.hierarchicalClustering(df)
+        mdf.columns = set(df["sample_id"])
+        mdf.index = set(df["sample_id"])
+        r_cor = py2ri.py2ri_pandasdataframe(mdf)
+        R.assign("cor.mat", r_cor)
+        
+        R.x11()
+        R('''suppressPackageStartupMessages(library(gplots))''')
+        R('''suppressPackageStartupMessages(library(RColorBrewer))''')
+        R('''hmcol <- colorRampPalette(c("#FFFF00", "#7A378B"))''')
+        R('''heatmap.2(as.matrix(cor.mat), trace="none",'''
+          '''col=hmcol)''')
+
+        return odict((("Sum absolute covariance",
+                       "#$rpl %i$#" % getCurrentRDevice()),))
 
 
 class CorrelationSummaryA(RnaseqqcTracker):

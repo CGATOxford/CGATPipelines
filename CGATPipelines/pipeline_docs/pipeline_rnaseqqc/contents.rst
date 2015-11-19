@@ -18,6 +18,7 @@ for the ReadQC Pipeline is below:
    pipeline/BiasAnalysisThird.rst
    pipeline/BiasAnalysisLinear.rst
    python/Trackers.rst
+   heatmap.rst
 
 .. automodule:: pipeline_rnaseqqc
    :members:
