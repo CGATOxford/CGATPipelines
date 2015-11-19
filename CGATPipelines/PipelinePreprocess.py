@@ -1,15 +1,9 @@
-'''
-PipelinePreprocess.py - Utility functions for processing short reads
+'''PipelinePreprocess.py - Tasks for processing short read data sets
 ====================================================================
 
-:Author: Tom smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-UPDATE: Processing reads is a common task before mapping. Different sequencing
-technologies and applications require different read processing.
-This module provides utility functions to abstract some of these variations
+Processing reads is a common task before mapping. Different sequencing
+technologies and applications require different read processing.  This
+module provides utility functions to abstract some of these variations
 
 The pipeline does not know what kind of data it gets (a directory
 might contain single end or paired end data or both).
@@ -32,8 +26,8 @@ Requirements:
 * trimgalore >= 0.3.3
 * flash >= 1.2.6
 
-Code
-====
+Reference
+---------
 
 '''
 
@@ -49,10 +43,27 @@ import CGAT.Sra as Sra
 
 
 def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
-    '''
-    Generate a .fasta file of adaptor sequences that are overrepresented
-    in the reads from a sample.
-    Requires cutadapt >= 1.7
+    '''Generate a .fasta file of adaptor sequences that are
+    overrepresented in the reads from a sample.
+
+    Requires cutadapt >= 1.7.
+
+    Arguments
+    ---------
+    infile : string
+        Input filename that has been QC'ed. The filename is used to
+        check if the input was a :term:`sra` file and guess the
+        number of tracks to check.
+    outfile : string
+        Output filename in :term:`fasta` format.
+    track : string
+        Track name, used to access FastQC results in database.
+    dbh : object
+        Database handle.
+    contaminants_file : string
+        Path of file containing contaminants used for screening by
+        Fastqc.
+
     '''
     tracks = [track]
 
@@ -66,7 +77,8 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     for t in tracks:
         table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
 
-        query = "SELECT Possible_Source, Sequence FROM %s_fastqc_Overrepresented_sequences;" % table
+        query = "SELECT Possible_Source, Sequence FROM "
+        "%s_fastqc_Overrepresented_sequences;" % table
 
         cc = dbh.cursor()
         try:
@@ -84,32 +96,71 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     with IOTools.openFile(contaminants_file, "r") as inf:
         known_contaminants = [l.split() for l in inf
                               if not l.startswith("#") and l.strip()]
-        known_contaminants = [(" ".join(x[:-1]), x[-1])
-                              for x in known_contaminants]
+        known_contaminants = {" ".join(x[:-1]): x[-1]
+                              for x in known_contaminants}
 
     # output the full sequence of the contaminant if found
-    # in the list of known contaminants, otherwise output
-    # the sequence reported by Fastqc.
-    with IOTools.openFile(outfile, "w") as outf:
+    # in the list of known contaminants, otherwise don't report!
 
+    matched_contaminants = set()
+    with IOTools.openFile(outfile, "w") as outf:
         for found_source, found_seq in found_contaminants:
-            found = False
-            for known_source, known_seq in known_contaminants:
-                # output complete contaminant sequence if known
-                # (partial or complete subsequence)
-                if found_seq in known_seq:
-                    found = True
-                    outf.write(">%s\n%s\n" % (known_source, known_seq))
-            if not found:
-                # output found sequence if not known
-                outf.write(">%s\n%s\n" % (found_source, found_seq))
+            possible_source = found_source.split(" (")[0]
+
+            if possible_source in known_contaminants:
+                matched_contaminants.update((possible_source,))
+            else:
+                pass
+
+        if len(matched_contaminants) > 0:
+            for match in matched_contaminants:
+                outf.write(">%s\n%s\n" % (match.replace(" ,", ""),
+                                          known_contaminants[match]))
 
 
 class MasterProcessor(Mapping.SequenceCollectionProcessor):
+    """Class for short-read processing tools.
 
-    '''Processes reads with tools specified.
-    All in a single statement to be send to the cluster.
-    '''
+    Processing tools take reads in :term:`fastq` or :term:`sra` formatted
+    file and outut one or more :term:`fastq` formatted file.
+
+    This class is a container for processing tools that will
+    be applied in sequence. The basic usage is::
+
+        m = MasterProcessor()
+        m.add(FastxTrimmer())
+        m.add(Trimmomatic())
+
+        statement = m.build(("Sample1.fastq.gz", ),
+                            "processed.dir/",
+                            "Sample1")
+        Pipeline.run()
+
+    Attributes
+    ----------
+    save : bool
+        If True, save intermediate files in the final output
+        directory. Otherwise, a temporary directory is used.
+    summarize : bool
+        If True, summarize the output after each step.
+    threads : int
+        Number of processing threads to use.
+    outdir : string
+        Output directory for intermediate files.
+    processors : list
+        List of processors that will be applied in sequence.
+
+    Arguments
+    ---------
+    save : bool
+        If True, save intermediate files in the final output
+        directory. Otherwise, a temporary directory is used.
+    summarize : bool
+        If True, summarize the output after each step.
+    threads : int
+        Number of processing threads to use.
+
+    """
 
     # compress temporary fastq files with gzip
     compress = False
@@ -134,7 +185,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
         self.processors.append(processor)
 
     def cleanup(self):
-        '''clean up.'''
+        '''return statement to clean up temporary files after processing.'''
         if self.save:
             statement = 'checkpoint;'
         else:
@@ -143,15 +194,29 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
         return statement
 
     def build(self, infile, output_prefix, track):
-        '''build a preprocessing statement
+        '''build a preprocessing statement.
+
+        This method iterates through all processing tools
+        that have been added and builds a single command line
+        statement executing them in sequence.
 
         Arguments
         ---------
+        infile : string
+            Input filename.
+        output_prefix : string
+            Output prefix to use for files created by a processing
+            statement.
         track : string
-            prefix for output files. The suffix ".fastq.gz" will
+            Prefix for output files. The suffix ".fastq.gz" will
             be appended for single-end data sets. For paired end
             data sets, two files will be created ending in
             ".fastq.1.gz" and ".fastq.2.gz"
+
+        Returns
+        -------
+        statement : string
+            A command line statement to be executed in a pipeline.
 
         '''
 
@@ -219,7 +284,27 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
 
 
 class ProcessTool(object):
-    '''defines class attributes for a sequence utility tool'''
+    '''defines class attributes for a sequence utility tool
+
+    Derived classes need to implement a :func:`ProcessTools.build`
+    method.
+
+    Attributes
+    ----------
+    processing_options : string
+        List of options to send to the processing tool. These
+        are tool specific.
+    threads : int
+        Number of threads to use.
+
+    Arguments
+    ---------
+    options : string
+        List of options to send to the processing tool. These
+        are tool specific.
+    threads : int
+        Number of threads to use.
+    '''
 
     def __init__(self, options, threads=1):
         self.processing_options = options
@@ -233,8 +318,30 @@ class ProcessTool(object):
         # returned
         return len(infiles)
 
+    def build(self, infiles, outfiles, output_prefix):
+        """build a command line statement executing the tool.
+
+        Arguments
+        ---------
+        infiles : list
+           List of input filenames in :term:`fastq` format.
+        outfiles : list
+           List of output filenames in :term:`fastq` format.
+        output_prefix : list
+           Prefix to add to PATH of additional output files created by
+           the tool.
+
+        .. note::
+            This method needs to overloaded by derived classes.
+
+        """
+
+        raise NotImplementedError(
+            "build() method needs to be implemented in derived class")
+
 
 class Trimgalore(ProcessTool):
+    """Read processing - run trimgalore"""
 
     prefix = 'trimgalore'
 
@@ -277,6 +384,7 @@ class Trimgalore(ProcessTool):
 
 
 class Sickle(ProcessTool):
+    """Read processing - run sickle"""
 
     prefix = "sickle"
 
@@ -317,6 +425,7 @@ class Sickle(ProcessTool):
 
 
 class Trimmomatic(ProcessTool):
+    """Read processing - run trimmomatic"""
 
     prefix = 'trimmomatic'
 
@@ -360,6 +469,7 @@ class Trimmomatic(ProcessTool):
 
 
 class FastxTrimmer(ProcessTool):
+    """Read processing - run fastxtrimmer"""
 
     prefix = "fastxtrimmer"
 
@@ -389,6 +499,7 @@ class FastxTrimmer(ProcessTool):
 
 
 class Cutadapt(ProcessTool):
+    """Read processing - run cutadapt"""
 
     prefix = "cutadapt"
 
@@ -410,6 +521,15 @@ class Cutadapt(ProcessTool):
 
 
 class Reconcile(ProcessTool):
+    """Read processing - reconcile read names in two :term:`fastq` files.
+
+    This method iterates through two :term:`fastq` files and removes
+    those entries that do not appear in both.
+
+    The :term:`fastq` files are expected to be sorted in the same
+    order.
+
+    """
 
     prefix = "reconcile"
 
@@ -428,6 +548,7 @@ class Reconcile(ProcessTool):
 
 
 class Flash(ProcessTool):
+    """Read processing - run flash"""
 
     prefix = "flash"
 

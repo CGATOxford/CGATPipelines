@@ -539,9 +539,10 @@ def runCPC(infile, outfile):
     run coding potential calculations on lncRNA geneset
     '''
     # farm.py is called from within cpc.sh
-    assert P.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
+    assert IOTools.which("farm.py"), \
+        "farm.py needs to be in $PATH for cpc to run"
     # Default cpc parameters don't work with later versions of blast
-    E.info("Running cpc with blast version:%s" % P.which("blastx"))
+    E.info("Running cpc with blast version:%s" % IOTools.which("blastx"))
 
     result_evidence = P.snip(outfile, ".result") + ".evidence"
     working_dir = "cpc"
@@ -1123,9 +1124,9 @@ def buildControlFasta(infile, outfile):
            r"\1/cpc/control_cpc.result")
 def runControlCPC(infile, outfile):
     # farm.py is called from within cpc.sh
-    assert P.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
+    assert IOTools.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
     # Default cpc parameters don't work with later versions of blast
-    E.info("Running cpc with blast version:%s" % P.which("blastx"))
+    E.info("Running cpc with blast version:%s" % IOTools.which("blastx"))
 
     result_evidence = P.snip(outfile, ".result") + ".evidence"
     working_dir = "lncRNA_control/cpc"

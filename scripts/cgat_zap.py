@@ -19,13 +19,10 @@ If a file is a link to another file, the link will be removed and an
 empty file created in its place. The empty file will receive the file
 properties of the file that was linked to.
 
-Options
--------
-
 Usage
 -----
 
-Example::
+To zap all :term:`bam` formatted files in the current directory, type::
 
    python cgat_zap.py *.bam
 

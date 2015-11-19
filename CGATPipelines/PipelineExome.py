@@ -1,29 +1,9 @@
 """
-======================================================
-PipelineExome.py - common tasks for Variant Calling
-======================================================
+PipelineExome.py - Tasks for variant calling
+============================================
 
-:Author: David Sims & Tom Smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-Purpose
--------
-
-
-Usage
------
-
-Type::
-
-   python <script_name>.py --help
-
-for command line help.
-
-Code
-----
-
+Reference
+---------
 
 """
 # Import modules
@@ -34,12 +14,10 @@ from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
 import pandas as pd
 import CGAT.CSV as csv
-import CGAT.IOTools as IOTools
 import CGAT.VCF as VCF
 import collections
 import re
 import urllib
-import copy
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
 
@@ -467,7 +445,7 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
         comp_dict = {"C": "G", "G": "C", "A": "T", "T": "A"}
         return comp_dict[base]
 
-    outfile1 = open(outfiles[0], "w")
+    outfile1 = IOTools.openFile(outfiles[0], "w")
     mutations = ["C:T", "C:A", "C:G", "A:C", "A:T", "A:G"]
 
     outfile1.write("%s\t%s\t%s\t%s\t%s\n" % ("patient_id", "base_change",
@@ -480,7 +458,7 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
         for comb in mutations:
             mut_dict[comb] = 0
 
-        with open(infile, "r") as f:
+        with IOTools.openFile(infile, "r") as f:
             for line in f.readlines():
                 # need to find location of control and tumor columns
                 if line.startswith('#CHROM'):
@@ -526,7 +504,7 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
                                                      [mutation]))
     outfile1.close()
 
-    outfile2 = open(outfiles[1], "w")
+    outfile2 = IOTools.openFile(outfiles[1], "w")
     outfile2.write("%s\t%s\n" % ("patient_id",
                                  "\t".join(mutations)))
     for infile in infiles:
