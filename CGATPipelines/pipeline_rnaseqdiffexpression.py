@@ -765,6 +765,32 @@ def aggregateFeatureCounts(infiles, outfile):
 
     P.run()
 
+@collate(buildFeatureCounts,
+         regex("featurecounts.dir/([^.]+)\.([^.]+).tsv.gz"),
+         r"featurecounts.dir/\2.genelengths.tsv.gz")
+def aggregateFeatureLengths(infiles, outfile):
+    ''' build a matrix of counts with genes and tracks dimensions.
+    '''
+
+    # Use column 7 as counts This is a possible source of bugs, the
+    # column position has changed before.
+
+    infiles = " ".join(infiles)
+    statement = '''python %(scriptsdir)s/combine_tables.py
+    --columns=1
+    --take=6
+    --use-file-prefix
+    --regex-filename='([^.]+)\..+.tsv.gz'
+    --log=%(outfile)s.log
+    %(infiles)s
+    | sed 's/geneid/gene_id/'
+    | gzip
+    > %(outfile)s '''
+
+    P.run()
+
+
+
 
 @transform(aggregateFeatureCounts,
            suffix(".tsv.gz"),
@@ -773,6 +799,13 @@ def loadFeatureCounts(infile, outfile):
     '''load individual feature counts into database'''
     P.load(infile, outfile, "--add-index=gene_id")
 
+
+@transform(aggregateFeatureLengths,
+           suffix(".tsv.gz"),
+           ".load")
+def loadFeatureLengths(infile, outfile):
+    '''load individual feature counts into database'''
+    P.load(infile, outfile, "--add-index=gene_id")
 
 @merge(buildFeatureCounts,
        "featurecounts_summary.load")
