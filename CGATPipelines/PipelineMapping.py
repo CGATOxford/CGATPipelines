@@ -813,7 +813,9 @@ class Mapper(SequenceCollectionProcessor):
                  remove_non_unique=False,
                  tool_options="",
                  *args, **kwargs):
-
+        '''
+        
+        '''
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
 
         if executable:
@@ -1023,13 +1025,8 @@ class Sailfish(Mapper):
                  threads="", *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.compress = compress
-        self.strand = strand
-        self.orient = orient
-        self.threads = threads
 
     def mapper(self, infiles, outfile):
-
-        threads = self.threads
 
         statement = ['''sailfish quant -i %%(index)s''' % locals()]
 
@@ -1042,60 +1039,72 @@ class Sailfish(Mapper):
         nfiles = max(num_files)
 
         if nfiles == 1:
-            input_file = '''-r <(zcat %s)''' % infiles[0][0]
-            library = ['''"T=SE:''']
-            if self.strand == "sense":
-                strandedness = '''S=S"'''
-            elif self.strand == "antisense":
-                strandedness = '''S=A"'''
-            elif self.strand == "unknown":
-                strandedness = '''S=U"'''
-            library.append(strandedness)
+            input_file = '''-r %s ''' % " ".join(
+                ["<(zcat %s)" % x[0] for x in infiles])
 
         elif nfiles == 2:
-            infile1, infile2 = infiles[0]
-            input_file = '''-1 <(zcat %(infile1)s)
-                            -2 <(zcat %(infile2)s)''' % locals()
 
-            library = ['''"T=PE:''']
+            input_file = '''-1 %s -2 %s''' % (
+                " ".join(["<(zcat %s)" % x[0] for x in infiles]),
+                " ".join(["<(zcat %s)" % x[1] for x in infiles]))
 
-            if self.orient == "towards":
-                orientation = '''O=><:'''
-            elif self.orient == "away":
-                orientation = '''O=<>:'''
-            elif self.orient == "same":
-                orientation = '''O=>>:'''
-            library.append(orientation)
-
-            if self.strand == "sense":
-                strandedness = '''S=SA"'''
-            elif self.strand == "antisense":
-                strandedness = '''S=AS"'''
-            elif self.strand == "unknown":
-                strandedness = '''S=U"'''
-            library.append(strandedness)
         else:
             # is this the correct error type?
             raise ValueError("incorrect number of input files")
 
-        library = "".join(library)
+        outdir = os.path.dirname(os.path.abspath(outfile))
 
-        statement.append('''-l %(library)s %(input_file)s -o %%(outdir)s
-                             -f --threads %(threads)s;''' % locals())
+        statement.append('''
+        -l %%(sailfish_libtype)s %(input_file)s -o %(outdir)s
+        --numBootstraps %%(sailfish_bootstrap)s
+        --threads %%(job_threads)s %%(sailfish_options)s;''' % locals())
 
         statement = " ".join(statement)
 
         return statement
 
-    def postprocess(self, infiles, outfile):
-        '''collect output data and postproces
-        Reformat header and rename outfile'''
 
-        statement = ('''sed -i "s/# Transcript/Transcript/g"
-                     %%(outdir)s/quant.sf;
-                     mv %%(outdir)s/quant.sf
-                     %%(outdir)s/%%(sample)s_quant.sf;'''
-                     % locals())
+class Salmon(Mapper):
+    '''run Salmon to quantify transcript abundance from fastq files'''
+
+    def __init__(self, compress=True, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.compress = compress
+
+    def mapper(self, infiles, outfile):
+
+        statement = ['''salmon quant -i %%(index)s''' % locals()]
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        if nfiles == 1:
+            input_file = '''-r %s ''' % " ".join(
+                ["<(zcat %s)" % x[0] for x in infiles])
+
+        elif nfiles == 2:
+
+            input_file = '''-1 %s -2 %s''' % (
+                " ".join(["<(zcat %s)" % x[0] for x in infiles]),
+                " ".join(["<(zcat %s)" % x[1] for x in infiles]))
+
+        else:
+            # is this the correct error type?
+            raise ValueError("incorrect number of input files")
+
+        outdir = os.path.dirname(os.path.abspath(outfile))
+
+        statement.append('''
+        -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
+        --numBootstraps %%(salmon_bootstrap)s
+        --threads %%(job_threads)s %%(salmon_options)s;''' % locals())
+
+        statement = " ".join(statement)
 
         return statement
 
@@ -1108,6 +1117,8 @@ class Kallisto(Mapper):
         '''build mapping statement on infiles'''
 
         tmpdir = os.path.join(self.tmpdir_fastq + "kallisto")
+
+        logfile = outfile + ".log"
 
         num_files = [len(x) for x in infiles]
 
@@ -1127,11 +1138,16 @@ class Kallisto(Mapper):
         else:
             raise ValueError("incorrect number of input files")
 
+        outdir = os.path.dirname(outfile)
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
+
         # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
         kallisto quant %%(kallisto_options)s
-        --bootstrap-samples=%%(bootstrap)s
-        -i %%(index)s -o %(tmpdir)s %(infiles)s;''' % locals()
+        --bootstrap-samples=%%(kallisto_bootstrap)s
+        -i %%(index)s -o %(tmpdir)s %(infiles)s
+        > %(logfile)s &> %(logfile)s ;''' % locals()
 
         self.tmpdir = tmpdir
 
@@ -1140,12 +1156,10 @@ class Kallisto(Mapper):
     def postprocess(self, infiles, outfile):
         '''move outfiles from tmpdir to final location'''
 
-        directory = os.path.dirname(os.path.abspath(outfile))
         tmpdir = self.tmpdir
 
         statement = ('''
-        mkdir %(directory)s;
-        mv %(tmpdir)s/abundance.h5 %(outfile)s;
+        mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
 
         return statement
@@ -1179,21 +1193,7 @@ class Counter(Mapper):
 
 
 class BWA(Mapper):
-    '''run bwa to map reads against genome.
-
-    .. note::
-       Colour space mapping is not implemented
-
-    If remove_non_unique is true, a filtering step is included in
-    postprocess, which removes reads that don't have tag X0:i:1
-    (i.e. have > 1 best hit)
-
-    Arguments
-    ---------
-    set_nh : bool
-        If True, set the NH flag in a post-processing step.
-
-    '''
+    '''Mapper for BWA'''
 
     def __init__(self,
                  set_nh=False, *args, **kwargs):
@@ -1202,7 +1202,31 @@ class BWA(Mapper):
         self.set_nh = set_nh
 
     def mapper(self, infiles, outfile):
+        '''
+        Build mapping statement from infiles to map with BWA.
 
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using BWA.
+
+
+        .. note::
+            Colour space mapping is not implemented
+        '''
         num_files = [len(x) for x in infiles]
 
         if max(num_files) != min(num_files):
@@ -1271,7 +1295,26 @@ class BWA(Mapper):
         return " ".join(statement)
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after mapping with BWA.
+        This statement removes non-unique reads, sets the NH tag,
+        strips sequences and sorts and indexes bam files.
+
+        Parameters
+        ----------
+        infile: str
+            filename of reads file
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        outfile: str
+            :term:`bam` filename containing the mapped reads in bam format.
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run() to run post processing.
+        '''
+
         # note, this postprocess method is inherited by multiple mappers
 
         track = P.snip(os.path.basename(outfile), ".bam")
@@ -1310,12 +1353,34 @@ class BWA(Mapper):
 
 class BWAMEM(BWA):
 
-    '''run bwa with mem algorithm to map reads against genome.
-    class inherits postprocess function from BWA class.
-    '''
+    ''' Mapper for BWA mem algorithm.'''
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.'''
+        '''
+        Build mapping statement from infiles to map with BWA mem.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using BWA.
+
+
+        .. note::
+            Colour space mapping is not implemented
+        '''
 
         num_files = [len(x) for x in infiles]
 
@@ -1524,7 +1589,8 @@ class Bismark(Mapper):
 
 
 class Stampy(BWA):
-    '''map reads against genome using STAMPY.
+    '''
+    Mapper for Stampy
     '''
 
     # compress fastq files with gzip
@@ -1533,7 +1599,30 @@ class Stampy(BWA):
     executable = "stampy.py"
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.'''
+        '''
+        Build mapping statement from infiles to map with Stampy.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+            suffix .junctions containing a list of known
+            splice junctions.
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Stampy.
+        '''
 
         num_files = [len(x) for x in infiles]
 
@@ -1597,11 +1686,31 @@ class Stampy(BWA):
 
 class Butter(BWA):
     '''
-    map reads against genome using Butter.
+    Mapper for Butter
     '''
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.'''
+        '''
+        Build mapping statement from infiles to map with Butter.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Butter.
+        '''
 
         if len(infiles) > 1:
             raise ValueError(
@@ -1660,14 +1769,14 @@ class Butter(BWA):
         return " ".join(statement)
 
     def cleanup(self, outfile):
-        '''clean up.'''
         statement = '''rm -rf %s %s;''' % (self.tmpdir_fastq, self.tmpdir)
 
         return statement
 
 
 class Tophat(Mapper):
-    """Map reads with tophat against the genome.
+    """
+    Mapper for Tophat
     """
     # tophat can map colour space files directly
     preserve_colourspace = True
@@ -1681,7 +1790,34 @@ class Tophat(Mapper):
         Mapper.__init__(self, *args, **kwargs)
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.
+        '''
+        Build mapping statement from infiles to map with Tophat.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 3 filenames
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        infiles[1]: str
+            :term:`fasta` filename
+            suffix .fa, containing the reference transcriptome
+
+        infiles[2]: str
+            junction filename
+            suffix .junctions containing a list of known
+            splice junctions.
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using TopHat.
         '''
 
         executable = self.executable
@@ -1767,7 +1903,39 @@ class Tophat(Mapper):
         return statement
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after mapping with tophat.
+        This statement gzips junctions file, moves log files to output folder,
+        indexes using samtools.
+
+        Parameters
+        ----------
+        infiles: list
+            contains three filenames -
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        infiles[1]: str
+            :term:`fasta` filename
+            suffix .fa, containing the reference transcriptome
+
+        infiles[2]: str
+            junction filename
+            suffix .junctions containing a list of known
+            splice junctions.
+
+        outfile: str
+            :term:`bam` filename
+            name of the output file from mapping
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run() to run post processing.
+        '''
 
         track = P.snip(outfile, ".bam")
         tmpdir_tophat = self.tmpdir_tophat
@@ -1784,11 +1952,42 @@ class Tophat(Mapper):
 
 
 class Tophat2(Tophat):
-
+    '''
+    Mapper for tophat2
+    '''
     executable = "tophat2"
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement for infiles.'''
+        '''
+        Build mapping statement from infiles to map with Tophat2.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 3 filenames
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        infiles[1]: str
+            :term:`fasta` filename
+            suffix .fa, containing the reference transcriptome
+
+        infiles[2]: str
+            junction filename
+            suffix .junctions containing a list of known
+            splice junctions.
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run() to run post processing.
+        '''
 
         # get tophat statement
         statement = Tophat.mapper(self, infiles, outfile)
@@ -1954,6 +2153,7 @@ class TopHat_fusion(Mapper):
 
 
 class Hisat(Mapper):
+    '''Mapper for Hisat'''
 
     # hisat can work of compressed files
     compress = True
@@ -1968,7 +2168,31 @@ class Hisat(Mapper):
         self.strip_sequence = strip_sequence
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.
+        '''
+        Build mapping statement from infiles to map with Hisat.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        infiles[1]: str
+            junction filename
+            suffix .junctions containing a list of known
+            splice junctions.
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Hisat.
         '''
 
         executable = self.executable
@@ -2031,7 +2255,34 @@ class Hisat(Mapper):
         return statement
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after mapping with hisat.
+        This statement strips sequence if specified,
+        sorts and indexes with samtools.
+
+        Parameters
+        ----------
+        infiles: list
+            contains two filenames
+
+        infiles[0]: str
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        infiles[1]: str
+            junction filename
+            suffix .junctions containing a list of known
+            splice junctions.
+
+        outfile: str
+        :term:`bam` filename
+            name of the output file from mapping
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run() to run post processing.
+        '''
 
         track = os.path.basename(outfile)
         outf = P.snip(outfile, ".bam")
@@ -2057,7 +2308,7 @@ class Hisat(Mapper):
 
 
 class GSNAP(Mapper):
-
+    ''' Mapper for GSNAP'''
     # tophat can map colour space files directly
     preserve_colourspace = True
 
@@ -2070,7 +2321,29 @@ class GSNAP(Mapper):
         Mapper.__init__(self, *args, **kwargs)
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.
+        '''
+        Build mapping statement from infiles to map with Gsnap.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        infiles[1]: str
+            filename of type iit containing all known splice sites
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Gsnap.
         '''
 
         track = P.snip(os.path.basename(outfile), ".bam")
@@ -2140,7 +2413,33 @@ class GSNAP(Mapper):
         return statement
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after mapping with Gsnap.
+
+        This statement removes non-unique reads, strips sequences,
+        sorts and indexes bam files.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        infiles[1]: str
+            filename of type iit containing all known splice sites
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to run post processing.
+        '''
 
         track = P.snip(os.path.basename(outfile), ".bam")
         outf = P.snip(outfile, ".bam")
@@ -2169,7 +2468,7 @@ class GSNAP(Mapper):
 
 
 class STAR(Mapper):
-
+    ''' Mapper for STAR'''
     # tophat can map colour space files directly
     preserve_colourspace = True
 
@@ -2182,9 +2481,27 @@ class STAR(Mapper):
         Mapper.__init__(self, *args, **kwargs)
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.
         '''
+        Build mapping statement from infiles to map with Star.
 
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Star.
+        '''
         track = P.snip(os.path.basename(outfile), ".bam")
 
         executable = self.executable
@@ -2253,8 +2570,29 @@ class STAR(Mapper):
         return statement
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after running Star.
+        This statement removes non-unique reads, strips sequences,
+        sorts and indexes bam files, moves log files to appropriate directory.
 
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to run post processing.
+        '''
         track = P.snip(os.path.basename(outfile), ".bam")
         outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir_fastq
@@ -2287,7 +2625,7 @@ class STAR(Mapper):
 
 
 class Bowtie(Mapper):
-    '''map with bowtie or bowtie2 against genome.'''
+    '''Mapper for Bowtie'''
 
     # bowtie can map colour space files directly
     preserve_colourspace = True
@@ -2304,7 +2642,30 @@ class Bowtie(Mapper):
         Mapper.__init__(self, *args, **kwargs)
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.
+        '''
+        Build mapping statement from infiles to map with Bowtie or Bowtie2.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        infiles[1]: str
+            :term:`fasta` file containing reference genome
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Bowtie.
+
 
         .. note:: a filter on bamfiles removes any /1 and /2
             markers from reads. The reason is that these
@@ -2395,7 +2756,33 @@ class Bowtie(Mapper):
         return statement
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after running Bowtie.
+        This statement removes non-unique reads, strips sequences,
+        sorts and indexes bam files, moves output files to correct
+        directories.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        infiles[1]: str
+            :term:`fasta` file containing reference genome
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to run post processing.
+        '''
 
         track = P.snip(outfile, ".bam")
         tmpdir_fastq = self.tmpdir_fastq
@@ -2426,7 +2813,8 @@ class Bowtie(Mapper):
 
 
 class Bowtie2(Bowtie):
-    '''map with bowtie2 against genome.'''
+    '''Modifies bowtie statements generated with Bowtie mapper for
+    Bowtie2'''
 
     executable = "bowtie2"
 
@@ -2439,7 +2827,7 @@ class Bowtie2(Bowtie):
 
 class BowtieTranscripts(Mapper):
 
-    '''map with bowtie against transcripts.'''
+    '''Mapper for Bowtie against transcripts'''
 
     # bowtie can map colour space files directly
     preserve_colourspace = True
@@ -2452,7 +2840,30 @@ class BowtieTranscripts(Mapper):
         Mapper.__init__(self, *args, **kwargs)
 
     def mapper(self, infiles, outfile):
-        '''build mapping statement on infiles.
+        '''
+        Build mapping statement from infiles to map with Bowtie or Bowtie2
+        against the transcriptome.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        infiles[1]: str
+            :term:`fasta` file containing reference genome
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Bowtie.
 
         .. note:: a filter on bamfiles removes any /1 and /2
             markers from reads. The reason is that these
@@ -2534,8 +2945,33 @@ class BowtieTranscripts(Mapper):
         return statement
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after running Bowtie.
+        This statement removes non-unique reads,
+        strips sequences, sorts and indexes
+        bam files, moves output files to correct directories.
 
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        infiles[1]: str
+            :term:`fasta` file containing reference genome
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to run post processing.
+        '''
         track = P.snip(outfile, ".bam")
         tmpdir_fastq = self.tmpdir_fastq
 
@@ -2562,15 +2998,40 @@ class BowtieTranscripts(Mapper):
 
 
 class BowtieJunctions(BowtieTranscripts):
-
-    '''map with bowtie against junctions.
-
-    In post-processing, reads are mapped from junction coordinates
-    to genomic coordinates.
+    '''
+    Mapper for bowtie against splice junctions.
     '''
 
     def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
+        '''
+        Builds statement to tidy up after running Bowtie and to
+        map reads from junction coordinates to genomic coordinates.
+
+        This statement removes non-unique reads,
+        strips sequences, sorts and indexes
+        bam files, moves output files to correct directories.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        infiles[1]: str
+            :term:`fasta` file containing reference genome
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to run post processing.
+        '''
 
         track = P.snip(outfile, ".bam")
         tmpdir_fastq = self.tmpdir_fastq

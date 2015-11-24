@@ -599,10 +599,15 @@ def exportIntervalsAsBed(infile,
 
 
 def summarizeMACS(infiles, outfile):
-    '''run MACS for peak detection.
-
-    This script parses the MACS logfile to extract peak calling
-    parameters and results.
+    '''Parse MACS logfile extract peak calling
+    parameters and results
+    
+    Arguments
+    ---------
+    infiles : string
+        Input files in MACS14 log file format.
+    outfile : string
+        Filename of output file in tab-delimited text format.
 
     '''
 
@@ -678,7 +683,19 @@ def summarizeMACS(infiles, outfile):
 
 
 def summarizeMACSsolo(infiles, outfile):
-    '''run MACS for peak detection.'''
+    '''Parse MACS logfile extract peak calling
+    parameters and results
+    
+    For MACS run without a control file where certain tewrms are 
+    missing from log file.
+    
+    Arguments
+    ---------
+    infiles : string
+        Input files in MACS14 log file format.
+    outfile : string
+        Filename of output file in tab-delimited text format.
+'''
     def __get(line, stmt):
         x = line.search(stmt)
         if x:
@@ -743,8 +760,18 @@ def summarizeMACSsolo(infiles, outfile):
 
 
 def summarizeMACSFDR(infiles, outfile):
-    '''compile table with peaks that would remain after filtering
-    by fdr.
+    '''compile table with the number of peaks that would remain 
+    after filtering using different FDR thresholds.
+    
+    Parse MACS peaks file .xls and count the number of peaks that pass
+    each of three False Discovery Rate thresholds (0,1.05,0.05).
+    
+    Arguments
+    ---------
+    infiles : string
+        Input files in MACS14 peak file format (.xls).
+    outfile : string
+        Filename of output file in tab-delimited text format.
     '''
 
     fdr_thresholds = numpy.arange(0, 1.05, 0.05)
@@ -774,10 +801,21 @@ def summarizeMACSFDR(infiles, outfile):
 def runMACS(infile, outfile,
             controlfile=None,
             tagsize=None):
-    '''run MACS for peak detection from BAM files.
+    '''run MACS14 for peak detection from BAM files.
 
     The output bed files contain the P-value as their score field.
-    Output bed files are compressed and indexed.
+    Output bed files are compressed with bgzip and indexed using tabix.
+    
+    Arguments
+    ---------
+    infile : string
+        Input file in :term:`bam` format.
+    outfile : string
+        Filename of output file in :term:`bed` format.
+    controlfile : string
+        ChIP-seq control (input) file in :term:`bam` format.
+    tagsize : int
+        sequencing read length in base pairs
     '''
     job_options = "-l mem_free=8G"
 
@@ -823,12 +861,17 @@ def runMACS(infile, outfile,
 
 
 def summarizeMACS2(infiles, outfile):
-    '''run MACS2 for peak detection.
-
-    This script parses the MACS2 logfile to extract
+    '''Parses the MACS2 logfile to extract
     peak calling parameters and results.
 
     TODO: doesn't report peak numbers...
+    
+    Arguments
+    ---------
+    infiles : string
+        Input files in MACS2 log file format.
+    outfile : string
+        Filename of output file in tab-delimited text format.
     '''
 
     def __get(line, stmt):
@@ -903,9 +946,24 @@ def summarizeMACS2(infiles, outfile):
 
 
 def summarizeMACS2FDR(infiles, outfile):
-    '''compile table with peaks that would remain after filtering
+    '''compile table with number of peaks that would remain after filtering
     by fdr.
+    
+    Parse MACS peaks file (.xls) to count the number of peaks that pass
+    each user defined False Discovery Rate threshold.
+    
+    Arguments
+    ---------
+    infiles : string
+        Input files in MACS2 log file format (.macs2).
+        DS: shouldn't we pass the peaks file directly?
+    outfile : string
+        Filename of output file in tab-delimited text format.
+    max_qvalue : int
+        maximum q-value used for filtering
+        DS: not yet implemented as a parameter
     '''
+    # PARAMS accessed here - should be passed as paprmeter to function
     fdr_threshold = PARAMS["macs2_max_qvalue"]  # numpy.arange( 0, 1.05, 0.05 )
 
     outf = IOTools.openFile(outfile, "w")
@@ -913,6 +971,7 @@ def summarizeMACS2FDR(infiles, outfile):
 
     for infile in infiles:
         called = []
+        
         track = P.snip(os.path.basename(infile), ".macs2")
         infilename = infile + "_peaks.xls.gz"
         inf = IOTools.openFile(infilename)
@@ -930,6 +989,17 @@ def bedGraphToBigwig(infile, contigsfile, outfile, remove=True):
     '''convert a bedgraph file to a bigwig file.
 
     The bedgraph file is deleted on success.
+    
+    Arguments
+    ---------
+    infile : string
+        Input file in term `bedgraph` format. Must be sorted: sort -k1,1 -k2,2
+    contigsfile : string
+        file of chromosome size containing two columns c=name and length
+    outfile : string
+        Filename of output file in `bigwig` format.
+    remove : boolean
+        remove bedgraph file after successful conversion. Default True
     '''
 
     if not os.path.exists(infile):
@@ -955,12 +1025,29 @@ def runMACS2(infile, outfile,
     '''run MACS for peak detection from BAM files.
 
     The output bed files contain the P-value as their score field.
-    Output bed files are compressed and indexed.
-
-    If *force_single_end* is set, do not use paired-ended
-    mode for paired ended BAM files.
+    Output bed files are bgzip compressed and tabix indexed.
 
     Build bedgraph files and convert to bigwig files.
+    
+    Arguments
+    ---------
+    infile : string
+        Input file in :term:`bam` format.
+    outfile : string
+        Filename of output file in :term:`bed` format.
+    controlfile : string
+        ChIP-seq control (input) file in :term:`bam` format.
+    contigsfile : string
+        File name for file of contig lengths 
+        for bedgraph to bigwig conversion (two columns: name\tlength).
+    force_single_end : boolean
+        Default false. If True, do not use BAMPE
+        mode for paired-end BAM files.
+    tagsize : int
+        sequencing read length in base pairs
+    max_qvalue : int
+        maximum q-value used for filtering
+        DS: not yet implemented as a parameter
     '''
     options = []
 
@@ -989,6 +1076,8 @@ def runMACS2(infile, outfile,
 
     # --bdg --SPMR: ask macs to create a bed-graph file with
     # fragment pileup per million reads
+    
+    # macs2_options accesses PARAMS directly - should be passed  explicitly
     statement = '''
     macs2 callpeak
     %(format_options)s
@@ -1102,6 +1191,7 @@ def runZinba(infile,
 
 def loadMACS(infile, outfile, bamfile, controlfile=None):
     '''load MACS results into database.
+    DS: should we split parsing fron loading?
 
     This method loads only positive peaks. It filters peaks by p-value,
     q-value and fold change and loads the diagnostic data and
@@ -1122,6 +1212,17 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
 
     This method creates :file:`<outfile>.tsv.gz` with the results
     of the filtering.
+    
+    Arguments
+    ---------
+    infile : string
+        Input file in MACS log file format (.macs)
+    outfile : string
+        Filename of output file in log file format.
+    bamfile : string
+        Input file in :term:`bam` format.
+    controlfile : string
+        ChIP-seq control (input) file in :term:`bam` format.
     '''
 
     track = P.snip(os.path.basename(infile), ".macs")
@@ -1152,7 +1253,7 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
 
     ###############################################################
     # filter peaks
-    # get thresholds
+    # DS thresholds should be passed explicityly to function
     max_qvalue = float(PARAMS["macs_max_qvalue"])
     # min, as it is -10log10
     min_pvalue = float(PARAMS["macs_min_pvalue"])
@@ -1310,6 +1411,17 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
 
     This method creates :file:`<outfile>.tsv.gz` with the results
     of the filtering.
+    
+    Arguments
+    ---------
+    infile : string
+        Input file in MACS log file format (.macs2)
+    outfile : string
+        Filename of output file in log file format.
+    bamfile : string
+        Input file in :term:`bam` format.
+    controlfile : string
+        ChIP-seq control (input) file in :term:`bam` format.
 
     '''
     track = P.snip(os.path.basename(infile), ".macs2")
@@ -1342,7 +1454,7 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
 
     ###############################################################
     # filter peaks - this isn't needed...
-    # get thresholds
+    # DS threshols shoul dbe passed explicitly
     max_qvalue = float(PARAMS["macs_max_qvalue"])
     # min, as it is -10log10
     min_pvalue = float(PARAMS["macs_min_pvalue"])
@@ -2674,13 +2786,28 @@ def makeReproducibility(infiles, outfile):
 def runScripture(infile, outfile,
                  contig_sizes,
                  mode="narrow"):
-    '''run scripture on infile.'''
+    '''run scripture for peak detection from BAM files.
+
+    The output bed files contain the P-value as their score field.
+    Output bed files are compressed with bgzip and indexed using tabix.
+    
+    Arguments
+    ---------
+    infile : string
+        Input file in :term:`bam` format.
+    outfile : string
+        Filename of output file in :term:`bed` format.
+    contig_sizes : string
+        File containing contig size information
+    mode : string
+        Peak detection mode. narrow by default. '''
 
     job_options = "-l mem_free=8G"
 
     samfile = pysam.Samfile(infile, "rb")
     contigs = samfile.references
-
+    
+    # scripture_min_mapping_quality scripture_fdr should be passed explicitly
     s = '''scripture
                    -task chip
                    -trim
@@ -2715,7 +2842,20 @@ def runScripture(infile, outfile,
 
 
 def loadScripture(infile, outfile, bamfile, controlfile=None):
-    '''load scripture peaks.'''
+    '''
+    load scripture peaks into database
+    
+    Arguments
+    ---------
+    infile : string
+        Input file in term : `BED` format
+    outfile : string
+        Filename of output file
+    bamfile : string
+        Input file in :term:`bam` format.
+    controlfile : string
+        ChIP-seq control (input) file in :term:`bam` format.
+    '''
 
     # Note: not sure if the following will work for
     #       paired end data.

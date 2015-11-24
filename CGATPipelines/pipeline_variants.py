@@ -883,8 +883,10 @@ def buildGeneAnnotations(infile, outfile):
     """
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-exons
-    --with-utr --log=%(outfile)s.log
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-exons
+    --mark-utr
+    --log=%(outfile)s.log
     | python %(scriptsdir)s/gtf2gtf.py --method=set-transcript-to-gene
     --log=%(outfile)s.log
     | python %(scriptsdir)s/gff2gff.py --skip-missing --method=sanitize
@@ -1689,10 +1691,10 @@ def buildMAF(infiles, outfile):
     tracks = " ".join(["--track=%s" % x[:-len(".load")] for x in infiles])
 
     statement = '''
-    gunzip 
-    < transcripts.gtf.gz 
+    gunzip
+    < transcripts.gtf.gz
     | python %(scriptsdir)s/gtf2gtf.py
-           --method=merge-transcripts --with-utr 
+    --method=merge-transcripts
     | %(cmd-farm)s --split-at-lines=100 --log=%(outfile)s.log --is-binary -v 10 
     "python %(scriptsdir)s/snp2maf.py 
           --genome=genome 

@@ -7,7 +7,6 @@
    pipeline/Exploration.rst
    pipeline/SleuthDiagnostics.rst
    pipeline/Biotypes.rst
-   
-
- 
+   pipeline/Results.rst
+   pipeline/Simulation.rst
 
