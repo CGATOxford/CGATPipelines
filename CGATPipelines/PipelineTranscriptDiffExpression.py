@@ -124,6 +124,79 @@ def identifyLowConfidenceTranscripts(infile, outfile):
 
         # identify transcript with poor accuracy of quantification
         low_accuracy = df[[abs(x) > 0.585 for x in
-                           df['log2diff']]].index.tolist()
+                           df['log2diff_tpm']]].index.tolist()
+
         for transcript in low_accuracy:
             outf.write("%s\t%s\n" % (transcript, "poor_accuracy"))
+
+
+@cluster_runnable
+def mergeAbundanceCounts(infile, outfile, counts):
+    ''' merge the abundance and simulation counts files for
+    each simulation '''
+
+    df_abund = pd.read_table(infile, sep="\t", index_col=0)
+    df_counts = pd.read_table(counts, sep="\t", index_col=0)
+    df_abund.columns = [x if x != "tpm" else "est_tpm"
+                        for x in df_abund.columns]
+
+    df_merge = pd.merge(df_abund, df_counts, left_index=True, right_index=True)
+    df_merge.index.name = "id"
+    df_merge.to_csv(outfile, sep="\t")
+
+
+@cluster_runnable
+def calculateCorrelations(infiles, outfile):
+    ''' calculate correlation across simulation iterations per transcript'''
+
+    abund, kmers = infiles
+
+    df_abund = pd.read_table(abund, sep="\t", index_col=0)
+    df_kmer = pd.read_table(kmers, sep="\t", index_col=0)
+
+    # this is hacky, it's doing all against all correlations for the
+    # two columns and subsetting
+    df_agg_tpm = df_abund.groupby(level=0)[[
+        "est_tpm", "tpm"]].corr().ix[0::2, 'tpm']
+
+    # drop the "read_count" level, make into dataframe and rename column
+    df_agg_tpm.index = df_agg_tpm.index.droplevel(1)
+    df_agg_tpm = pd.DataFrame(df_agg_tpm)
+    df_agg_tpm.columns = ["tpm_cor"]
+
+    df_agg_count = df_abund.groupby(level=0)[[
+        "est_counts", "read_count"]].corr().ix[0::2, 'read_count']
+
+    # drop the "read_count" level, make into dataframe and rename column
+    df_agg_count.index = df_agg_count.index.droplevel(1)
+    df_agg_count = pd.DataFrame(df_agg_count)
+    df_agg_count.columns = ["counts_cor"]
+
+    # merge and bin the unique fraction values
+    df_agg = pd.merge(df_agg_count, df_agg_tpm,
+                      left_index=True, right_index=True)
+    df_final = pd.merge(df_kmer, df_agg, left_index=True, right_index=True)
+    df_final['fraction_bin'] = (
+        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, 1),
+                    right=True))/100.0
+
+    df_abund_tpm_sum = df_abund.groupby(level=0)["est_tpm", "tpm"].sum()
+    df_abund_count_sum = df_abund.groupby(level=0)[
+        "est_counts", "read_count"].sum()
+    df_abund_sum = pd.merge(df_abund_tpm_sum, df_abund_count_sum,
+                            left_index=True, right_index=True)
+
+    df_final = pd.merge(df_final, df_abund_sum,
+                        left_index=True, right_index=True)
+
+    df_final['log2diff_tpm'] = np.log2(df_final['est_tpm'] /
+                                       df_final['tpm'])
+    df_final['log2diff_tpm_thres'] = [x if abs(x) < 2 else 2 *x/abs(x)
+                                      for x in df_final['log2diff_tpm']]
+
+    df_final['log2diff_counts'] = np.log2(df_final['est_counts'] /
+                                          df_final['read_count'])
+    df_final['log2diff_counts_thres'] = [x if abs(x) < 1 else x/abs(x)
+                                         for x in df_final['log2diff_counts']]
+
+    df_final.to_csv(outfile, sep="\t", index=True)
