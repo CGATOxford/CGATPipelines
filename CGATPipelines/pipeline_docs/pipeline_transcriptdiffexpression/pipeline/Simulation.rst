@@ -28,14 +28,14 @@ simulations to the sum of estimated TPMs. N.B The sum of ground truths
 is not the same for each transcript as the number of simulated copies
 per transcript is randomly sampled [0-10] for each simulation. Where
 the absolute fold-difference between the ground truth and estimate is
-greater than 1.5-fold, the transcript is flagged.
+greater than 2-fold, the transcript is flagged.
 
-.. report:: Simulations.simulationCorrelations
+.. report:: Simulations.simulationCorrelationsTpm
    :groupby: track
    :render: r-ggplot
    :statement: aes(tpm, est_tpm) +
 	       geom_point(size=1, alpha=0.5,
-	       aes(col=abs(as.numeric(as.character(log2diff)))<0.585)) +
+	       aes(col=abs(log2diff_tpm)<1)) +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=15),
@@ -61,7 +61,8 @@ greater than 1.5-fold, the transcript is flagged.
 Summary table for transcripts flagged by difference between ground
 truth and estimated TPM
 
-.. report:: Simulations.simulationCorrelationsSummaryFold
+
+.. report:: Simulations.simulationCorrelationsSummaryFoldTpm
    :render: table
    :force:
 
@@ -76,15 +77,92 @@ red. The "uniqueness" of a transcript is quantified by identifying the
 fraction of all 31nt kmers which are unique to the transcript, i.e not
 found in any other transcript.
 
-.. report:: Simulations.simulationCorrelations
+.. report:: Simulations.simulationCorrelationsTpm
    :groupby: track
    :render: r-ggplot
-   :statement: aes(as.factor(fraction_bin), as.numeric(as.character(log2diff_thres))) +
-	       geom_jitter(alpha=0.3,
-                           position=position_jitter(width=0.3, height=0),
-			   aes(shape=abs(as.numeric(as.character(log2diff_thres)))==1,
-			   size=abs(as.numeric(as.character(log2diff_thres)))==1,
-			   colour=abs(as.numeric(as.character(log2diff_thres)))==1)) +
+   :statement: aes(as.factor(fraction_bin),
+	           as.numeric(as.character(log2diff_tpm_thres))) +
+	       geom_jitter(
+	         alpha=0.3,
+                 position=position_jitter(width=0.3, height=0),
+		 aes(shape=abs(as.numeric(as.character(log2diff_tpm_thres)))==1,
+		 size=abs(as.numeric(as.character(log2diff_tpm_thres)))==1,
+		 colour=abs(as.numeric(as.character(log2diff_tpm_thres)))==1)) +
+	       scale_size_manual(guide=FALSE, values=c(0.5, 1)) +
+ 	       scale_shape_discrete(guide=FALSE) + 
+	       scale_colour_manual(guide=FALSE, values = c("grey15","red")) + 
+	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
+	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       theme_bw() +
+	       theme(axis.title.x=element_text(size=15),
+	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
+	       axis.text.y=element_text(size=15),
+	       axis.title.y=element_text(size=15),
+	       aspect.ratio=1) +
+	       scale_x_discrete(breaks=as.factor(seq(0,2,0.2))) + 
+	       xlab("Fraction unique kmers") +
+	       ylab("Log2 Fold difference (Estimated/Ground Truth)")
+	       
+   Full plot	   
+
+
+Ground Truth Counts vs. Estimated Counts
+========================================
+
+
+The plots below are identical except that the counts per transcript
+are shown instead of the TPM
+
+.. report:: Simulations.simulationCorrelationsCount
+   :groupby: track
+   :render: r-ggplot
+   :statement: aes(read_count, est_counts) +
+	       geom_point(size=1, alpha=0.5,
+	       aes(col=abs(as.numeric(as.character(log2diff_count)))<0.585)) +
+	       theme_bw() +
+	       theme(
+	       axis.text.x=element_text(size=15),
+	       axis.text.y=element_text(size=15),
+	       axis.title.x=element_text(size=15),
+	       axis.title.y=element_text(size=15),
+	       legend.title=element_text(size=15),
+	       legend.text=element_text(size=15),
+	       aspect.ratio=1) +
+	       scale_colour_discrete(
+	       name="Accuracy", labels=c("Poor", "Good")) +
+	       xlab("Ground truth") +
+	       ylab("Estimated Counts") +
+	       geom_abline(col="grey40", size=0.5) +
+	       geom_abline(intercept=0, slope=1.5, col="turquoise3",
+                           size=0.5, linetype=2) +
+	       geom_abline(intercept=0, slope=0.66, col="turquoise3",
+                           size=0.5, linetype=2)
+
+    Ground Truth Count vs. Estimated Count
+
+
+Summary table for transcripts flagged by difference between ground
+truth and estimated Count
+
+
+.. report:: Simulations.simulationCorrelationsSummaryFoldCount
+   :render: table
+   :force:
+
+   Summary table
+
+
+.. report:: Simulations.simulationCorrelationsCount
+   :groupby: track
+   :render: r-ggplot
+   :statement: aes(as.factor(fraction_bin),
+	           as.numeric(as.character(log2diff_count_thres))) +
+	       geom_jitter(
+	         alpha=0.3,
+                 position=position_jitter(width=0.3, height=0),
+		 aes(shape=abs(as.numeric(as.character(log2diff_count_thres)))==1,
+		 size=abs(as.numeric(as.character(log2diff_count_thres)))==1,
+		 colour=abs(as.numeric(as.character(log2diff_count_thres)))==1)) +
 	       scale_size_manual(guide=FALSE, values=c(0.5, 1)) +
  	       scale_shape_discrete(guide=FALSE) + 
 	       scale_colour_manual(guide=FALSE, values = c("grey15","red")) + 
@@ -115,10 +193,11 @@ less than 3 % unique kmers are flagged.
 
     Correlation vs Fraction Unique Kmers
 
-.. report:: Simulations.simulationCorrelations
+.. report:: Simulations.simulationCorrelationsTpm
    :groupby: track
    :render: r-ggplot
-   :statement: aes(as.factor(fraction_bin), as.numeric(as.character(cor))) +
+   :statement: aes(as.factor(fraction_bin),
+	           as.numeric(as.character(tpm_cor))) +
 	       geom_jitter(size=0.5, alpha=0.3, col="grey15",
                            position=position_jitter(width=0.3,
 			   height=0)) +
@@ -133,15 +212,16 @@ less than 3 % unique kmers are flagged.
 	       aspect.ratio=1) +
 	       scale_x_discrete(limits=as.factor(seq(0,0.1,0.01))) + 
 	       xlab("Fraction unique kmers") +
-	       ylab("Correlation")
+	       ylab("Correlation (Estimated TPM vs ground truth)")
 	       
    Zoomed plot	       
 
 
-.. report:: Simulations.simulationCorrelations
+.. report:: Simulations.simulationCorrelationsTpm
    :groupby: track
    :render: r-ggplot
-   :statement: aes(as.factor(fraction_bin), as.numeric(as.character(cor))) +
+   :statement: aes(as.factor(fraction_bin),
+	           as.numeric(as.character(tpm_cor))) +
 	       geom_jitter(size=1, alpha=0.25, col="grey30",
                            position=position_jitter(width=0.3,
 			   height=0)) +
@@ -156,7 +236,7 @@ less than 3 % unique kmers are flagged.
 	       aspect.ratio=1) +
 	       scale_x_discrete(breaks=as.factor(seq(0,1,0.1))) + 
 	       xlab("Fraction unique kmers") +
-	       ylab("Correlation")
+	       ylab("Correlation (Estimated TPM vs ground truth)")
 
     Full plot
 
@@ -168,3 +248,56 @@ Summary table for transcripts flagged by low fraction unique kmers
    :force:
 
    Summary table
+
+
+The plots below are identical except that the counts per transcript
+are shown
+
+    Correlation vs Fraction Unique Kmers
+
+.. report:: Simulations.simulationCorrelationsCount
+   :groupby: track
+   :render: r-ggplot
+   :statement: aes(as.factor(fraction_bin),
+                   as.numeric(as.character(count_cor))) +
+	       geom_jitter(size=0.5, alpha=0.3, col="grey15",
+                           position=position_jitter(width=0.3,
+			   height=0)) +
+	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
+	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       theme_bw() +
+	       theme(
+	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
+	       axis.title.x=element_text(size=15),
+	       axis.text.y=element_text(size=15),
+	       axis.title.y=element_text(size=15),
+	       aspect.ratio=1) +
+	       scale_x_discrete(limits=as.factor(seq(0,0.1,0.01))) + 
+	       xlab("Fraction unique kmers") +
+	       ylab("Correlation (Estimated Counts vs ground truth)")
+	       
+   Zoomed plot	       
+
+
+.. report:: Simulations.simulationCorrelationsCount
+   :groupby: track
+   :render: r-ggplot
+   :statement: aes(as.factor(fraction_bin),
+	           as.numeric(as.character(count_cor))) +
+	       geom_jitter(size=1, alpha=0.25, col="grey30",
+                           position=position_jitter(width=0.3,
+			   height=0)) +
+	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
+	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       theme_bw() +
+	       theme(
+	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
+	       axis.title.x=element_text(size=15),
+	       axis.text.y=element_text(size=15),
+	       axis.title.y=element_text(size=15),
+	       aspect.ratio=1) +
+	       scale_x_discrete(breaks=as.factor(seq(0,1,0.1))) + 
+	       xlab("Fraction unique kmers") +
+	       ylab("Correlation (Estimated Counts vs ground truth)")
+
+    Full plot
