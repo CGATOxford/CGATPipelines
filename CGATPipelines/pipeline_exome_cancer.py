@@ -650,10 +650,10 @@ def runMutect2(infiles, outfile):
 
     PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
                                   cosmic, dbsnp, call_stats_out,
+                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'],
                                   quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile_matched=infile,
-                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'])
+                                  normal_panel, infile)
 
 
 # delete once above function checked
@@ -778,10 +778,10 @@ def runMutectReverse(infiles, outfile):
 
     PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome,
                                   cosmic, dbsnp, call_stats_out,
+                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'],
                                   quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile_matched=infile_tumour,
-                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'])
+                                  normal_panel, infile_tumour)
 
 
 # generalise the functions below
@@ -852,10 +852,10 @@ def runMutectOnDownsampled(infiles, outfile):
 
     PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
                                   cosmic, dbsnp, call_stats_out,
+                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'],
                                   quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile_matched=infile,
-                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'])
+                                  normal_panel, infile)
 
 ##############################################################################
 ##############################################################################
