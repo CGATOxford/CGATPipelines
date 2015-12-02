@@ -11,14 +11,14 @@ Pipelines`_ for an overview of using CGAT pipelines. The documentation
 for the ReadQC Pipeline is below:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
+   pipeline/MDS.rst
+   pipeline/heatmap.rst
    pipeline/BiasAnalysisFirst.rst
    pipeline/BiasAnalysisSecond.rst
    pipeline/BiasAnalysisThird.rst
    pipeline/BiasAnalysisLinear.rst
-   python/Trackers.rst
-   heatmap.rst
 
 .. automodule:: pipeline_rnaseqqc
    :members:
