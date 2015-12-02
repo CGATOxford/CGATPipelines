@@ -193,11 +193,7 @@ PipelineExome.PARAMS = PARAMS
 
 def getGATKOptions():
     # removed picard=1, surely not neccessary?
-    return "-l mem_free=4G"
-
-
-def getMuTectOptions():
-    return "-l mem_free=4G"
+    return PARAMS["gatk_memory"]
 
 
 #########################################################################
@@ -267,7 +263,7 @@ def mapReads(infile, outfile):
     generate alignment statistics and deduplicate using Picard'''
 
     job_threads = PARAMS["bwa_threads"]
-    job_options = "-l mem_free=2G"
+    job_memory = PARAMS["bwa_memory"]
 
     if PARAMS["bwa_algorithm"] == "aln":
         m = PipelineMapping.BWA(
@@ -546,7 +542,7 @@ def loadPicardRealigenedAlignStats(infiles, outfile):
            r"normal_panel_variants/\1_normal_mutect.vcf")
 def callControlVariants(infile, outfile):
     '''run mutect to call snps in tumor sample'''
-    cluster_options = getMuTectOptions()
+
     basename = P.snip(outfile, "_normal_mutect.vcf")
     call_stats_out = basename + "_call_stats.out"
     mutect_log = basename + ".log"
@@ -558,7 +554,8 @@ def callControlVariants(infile, outfile):
                            PARAMS["genome"])
 
     PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
-                                  dbsnp, call_stats_out, cluster_options)
+                                  dbsnp, call_stats_out,
+                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'])
 
 
 @follows(mkdir("normal_panel_variants"))
@@ -636,7 +633,7 @@ def runMutect2(infiles, outfile):
     '''calls somatic SNPs using MuTect'''
     infile, normal_panel = infiles
     infile_tumour = infile.replace("Control", PARAMS["mutect_tumour"])
-    cluster_options = getMuTectOptions()
+
     basename = P.snip(outfile, ".mutect.snp.vcf")
     call_stats_out = basename + "_call_stats.out"
     mutect_log = basename + ".log"
@@ -653,9 +650,10 @@ def runMutect2(infiles, outfile):
 
     PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
                                   cosmic, dbsnp, call_stats_out,
-                                  cluster_options, quality, max_alt_qual,
+                                  quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile_matched=infile)
+                                  normal_panel, infile_matched=infile,
+                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'])
 
 
 # delete once above function checked
@@ -727,13 +725,12 @@ def indelCaller(infile, outfile):
     outdir = "/".join(outfile.split("/")[0:2])
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
-    cluster_options = "-pe dedicated 12 -R y -l mem_free=1.9G"
     config = "config.ini"
-    job_options = "-l mem_free=1.9G"
-    job_threads = 12
 
     PipelineExome.strelkaINDELCaller(infile, infile_tumour, outfile,
-                                     genome, config, outdir, cluster_options)
+                                     genome, config, outdir, 
+                                     PARAMS['strelka_memory'],
+                                     PARAMS['strelka_threads'])
 
 ##########################################################################
 ##########################################################################
@@ -755,13 +752,10 @@ def runMutectReverse(infiles, outfile):
     infile_tumour = infile.replace(
         "Control", PARAMS["mutect_tumour"])
 
-    cluster_options = getMuTectOptions()
     basename = P.snip(outfile, "_normal_mutect.vcf")
     call_stats_out = basename + "_call_stats.out"
     mutect_log = basename + ".log"
 
-    job_options = getMuTectOptions()
-    job_threads = 2
     basename = P.snip(outfile, ".mutect.reverse.snp.vcf")
     call_stats_out = basename + "_call_stats.reverse.out"
     coverage_wig_out = basename + "_coverage.reverse.wig"
@@ -784,9 +778,10 @@ def runMutectReverse(infiles, outfile):
 
     PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome,
                                   cosmic, dbsnp, call_stats_out,
-                                  cluster_options, quality, max_alt_qual,
+                                  quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile_matched=infile_tumour)
+                                  normal_panel, infile_matched=infile_tumour,
+                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'])
 
 
 # generalise the functions below
@@ -840,7 +835,6 @@ def runMutectOnDownsampled(infiles, outfile):
     infile, normal_panel = infiles
     infile_tumour = infile.replace(
         "Control", PARAMS["mutect_tumour"])
-    cluster_options = getMuTectOptions()
     basename = P.snip(outfile, "_normal_mutect.vcf")
 
     call_stats_out = basename + "_call_stats.out"
@@ -858,9 +852,10 @@ def runMutectOnDownsampled(infiles, outfile):
 
     PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
                                   cosmic, dbsnp, call_stats_out,
-                                  cluster_options, quality, max_alt_qual,
+                                  quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile_matched=infile)
+                                  normal_panel, infile_matched=infile,
+                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'])
 
 ##############################################################################
 ##############################################################################
@@ -888,7 +883,8 @@ def listOfBAMs(infiles, outfile):
 def annotateVariantsSNPeff(infile, outfile):
     '''Annotate SNP variants using SNPeff'''
     to_cluster = USECLUSTER
-    job_options = "-pe dedicated 2 -R y -l mem_free=4G"
+    job_memory = "4G"
+    job_threads = 2
 
     snpeff_genome = PARAMS["annotation_snpeff_genome"]
     config = PARAMS["annotation_snpeff_config"]
@@ -904,7 +900,8 @@ def annotateVariantsSNPeff(infile, outfile):
 def annotateVariantsINDELsSNPeff(infile, outfile):
     '''Annotate INDEL variants using SNPeff'''
     to_cluster = USECLUSTER
-    job_options = "-pe dedicated 2 -R y -l mem_free=4G"
+    job_memory = "4G"
+    job_threads = 2
 
     snpeff_genome = PARAMS["annotation_snpeff_genome"]
     config = PARAMS["annotation_snpeff_config"]
