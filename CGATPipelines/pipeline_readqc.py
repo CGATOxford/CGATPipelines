@@ -259,20 +259,18 @@ if PARAMS.get("preprocessors", None):
 
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["trimmomatic_adapter"]:
-            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s " % (
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
                 PARAMS["trimmomatic_adapter"],
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
-                PARAMS["trimmomatic_c_thresh"],
-                "TRUE") + trimmomatic_options
+                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
 
         if PARAMS["auto_remove"]:
-            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s " % (
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
                 "contaminants.fasta",
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
-                PARAMS["trimmomatic_c_thresh"],
-                "TRUE") + trimmomatic_options
+                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
 
         job_threads = PARAMS["threads"]
         job_memory = "7G"

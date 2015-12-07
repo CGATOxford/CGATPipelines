@@ -334,12 +334,13 @@ def run_report(clean=True,
     export PYTHONPATH=%(syspath)s;
     %(xvfb_command)s
     %(report_engine)s-build
-           --num-jobs=%(report_threads)s
-           sphinx-build
-                    -b html
-                    -d %(report_doctrees)s
-                    -c .
-           %(docdir)s %(report_html)s
+    --num-jobs=%(report_threads)s
+    sphinx-build
+    -b html
+    -d %(report_doctrees)s
+    -c .
+    -j %(report_threads)s
+    %(docdir)s %(report_html)s
     >& report.log %(erase_return)s )
     '''
 
