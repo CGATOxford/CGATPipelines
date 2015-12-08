@@ -29,10 +29,11 @@ The results table contains the following columns:
   suspect.
 
 
-These are the significant DE transcript
+These are the significant DE transcripts per test
 
 .. report:: Results.SleuthResultsSig
    :render: table
+   :groupby: track
    :large: xls
    :force:
 
@@ -40,10 +41,11 @@ These are the significant DE transcript
    Results from DE testing
 
 
-This is the full results table
+These are the full results tables
 
 .. report:: Results.SleuthResults
    :render: xls-table
+   :groupby: track
    :force:
 
 

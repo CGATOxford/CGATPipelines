@@ -96,7 +96,9 @@ class TranscriptExpressionOrdered(IsoformTracker):
 
         df = pd.DataFrame(self.getAll(statement))
 
-        df.drop("transcript_id", axis=1, inplace=True)
+        df.drop(["gene_id", "gene_name",
+                 "transcript_biotype", "transcript_id"],
+                axis=1, inplace=True)
 
         df = df.apply(ordered_log, axis=0)
 
@@ -105,6 +107,7 @@ class TranscriptExpressionOrdered(IsoformTracker):
         df = pd.melt(df, id_vars=["index"])
 
         df = df.replace([np.inf, -np.inf], np.nan).dropna()
+        df.index = ['all', ] * len(df)
 
         return df
 
@@ -120,6 +123,8 @@ class TranscriptNumberSamplesExpressed(IsoformTracker):
         df = pd.DataFrame(self.getAll(statement))
 
         df = df.set_index(["transcript_id"])
+        df.drop(["gene_id", "gene_name", "transcript_biotype"],
+                axis=1, inplace=True)
 
         final_df = pd.DataFrame()
 

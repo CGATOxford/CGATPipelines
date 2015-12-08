@@ -43,7 +43,7 @@ number of samples (x-axis) at different expression thresholds
 	       geom_line(aes(group=threshold, colour=as.factor(threshold))) +
 	       theme_bw() +
 	       theme(aspect.ratio=1,
-	       axis.text.x=element_text(size=10),
+	       axis.text.x=element_text(size=10, angle=90, vjust=0.5, hjust=0),
 	       axis.text.y=element_text(size=15),
 	       axis.title.y=element_text(size=15),
 	       legend.title=element_text(size=15),

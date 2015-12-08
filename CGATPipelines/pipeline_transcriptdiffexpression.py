@@ -935,7 +935,9 @@ def calculateCorrelations(infiles, outfile):
 def loadCorrelation(infile, outfile):
     ''' load the correlations data table'''
 
-    P.load(infile, outfile)
+    options = "--add-index=id"
+    P.load(infile, outfile, options=options)
+
 
 
 @transform(calculateCorrelations,
@@ -974,7 +976,10 @@ def identifyLowConfidenceTranscript(infile, outfile):
            ".load")
 def loadLowConfidenceTranscripts(infile, outfile):
     ''' load the low confidence transcripts '''
-    P.load(infile, outfile)
+
+    options = "--add-index=transcript_id"
+    P.load(infile, outfile, options=options)
+
 
 
 @mkdir("simulation.dir")
@@ -1160,22 +1165,8 @@ def runSleuth(infiles, outfiles):
            r"\1_\2.load")
 def loadSleuthTables(infile, outfile):
     ''' load tables from Sleuth '''
-    P.load(infile, outfile)
 
-
-@transform(runSleuth,
-           suffix("_results.tsv"),
-           "_withBiotypes.tsv")
-def addTranscriptBiotypes(infile, outfile):
-    ''' add the transcript biotypes to the results outfile'''
-    # TS: This could be done when the report is built but saves time just
-    # to just do it once here
-
-    df = pd.read_table(infile, sep="\t", index_col=0)
-    df.set_index('test_id', inplace=True)
-    df.index.names = ["transcript_id"]
-
-    dbh = connect()
+    tmpfile = P.getTempFilename("./")
 
     table = os.path.basename(
         PARAMS["annotations_interface_table_transcript_info"])
@@ -1187,34 +1178,59 @@ def addTranscriptBiotypes(infile, outfile):
     else:
         where_cmd = ""
 
-    print ("""
-    SELECT DISTINCT
+    select = """SELECT DISTINCT
     transcript_id, transcript_biotype, gene_id, gene_name
     FROM annotations.%(table)s
-    %(where_cmd)s""" % locals())
+    %(where_cmd)s""" % locals()
 
-    select = dbh.execute("""
-    SELECT DISTINCT
-    transcript_id, transcript_biotype, gene_id, gene_name
-    FROM annotations.%(table)s
-    %(where_cmd)s""" % locals())
+    df1 = pd.read_table(infile, sep="\t")
+    df1.set_index("transcript_id", drop=True, inplace=True)
 
-    df_annotations = pd.DataFrame.from_records(
-        select, index="transcript_id",
-        columns=("transcript_id", "transcript_biotype",
-                 "gene_id", "gene_name"))
+    df2 = pd.read_sql(select, connect())
+    df2.set_index("transcript_id", drop=False, inplace=True)
 
-    df = df.join(df_annotations, sort=False)
+    df = df1.join(df2)
+    df.to_csv(tmpfile, sep="\t", index=True)
 
-    df.to_csv(outfile, index=True, sep="\t")
+    options = "--add-index=transcript_id"
+    P.load(tmpfile, outfile, options=options)
+    os.unlink(tmpfile)
 
-
-@transform(addTranscriptBiotypes,
-           suffix("_withBiotypes.tsv"),
+@transform(runSleuth,
+           suffix("_results.tsv"),
            "_DEresults.load")
 def loadSleuthResults(infile, outfile):
     ''' load Sleuth results '''
-    P.load(infile, outfile)
+
+    tmpfile = P.getTempFilename("./")
+
+    table = os.path.basename(
+        PARAMS["annotations_interface_table_transcript_info"])
+
+    if PARAMS["geneset_gene_biotypes"]:
+        where_cmd = "WHERE " + " OR ".join(
+            ["gene_biotype = '%s'" % x
+             for x in PARAMS["geneset_gene_biotypes"].split(",")])
+    else:
+        where_cmd = ""
+
+    select = """SELECT DISTINCT
+    transcript_id, transcript_biotype, gene_id, gene_name
+    FROM annotations.%(table)s
+    %(where_cmd)s""" % locals()
+
+    df1 = pd.read_table(infile, sep="\t")
+    df1.set_index("test_id", drop=False, inplace=True)
+
+    df2 = pd.read_sql(select, connect())
+    df2.set_index("transcript_id", drop=False, inplace=True)
+
+    df = df1.join(df2)
+    df.to_csv(tmpfile, sep="\t", index=True)
+
+    options = "--add-index=transcript_id"
+    P.load(tmpfile, outfile, options=options)
+    os.unlink(tmpfile)
 
 
 @follows(loadSleuthTables,
