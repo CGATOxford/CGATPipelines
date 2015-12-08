@@ -156,6 +156,7 @@ class sampleMDS(RnaseqqcTracker):
         return pos
 
 
+# TS: Correlation trackers should be simplified and use tracks to select subsets
 class CorrelationSummaryA(RnaseqqcTracker):
     table = "binned_means_correlation"
     select = ["AA", "AT", "AC", "AG"]

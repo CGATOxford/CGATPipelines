@@ -21,7 +21,7 @@ Linear Regression
    :render: r-ggplot
    :statement: aes(y=as.numeric(mean_expression), x=bin, colour=id_2)+
 	       geom_point()+
-	       stat_smooth(aes(group=sample,colour=id_1),method=lm,se=F)+
+	       stat_smooth(aes(group=sample,colour=id_2),method=lm,se=F)+
 	       scale_colour_discrete(name=guide_legend(title='First Identifier'))+
 	       scale_y_continuous(limits=c(0,1))+
 	       xlab('')+
@@ -40,7 +40,7 @@ Local Regression
    :render: r-ggplot
    :statement: aes(y=as.numeric(mean_expression), x=bin, colour=id_2)+
 	       geom_point()+
-	       stat_smooth(aes(group=sample,colour=id_1),method=loess,se=F)+
+	       stat_smooth(aes(group=sample,colour=id_2),method=loess,se=F)+
 	       scale_colour_discrete(name=guide_legend(title='First Identifier'))+
 	       scale_y_continuous(limits=c(0,1))+
 	       xlab('')+
