@@ -165,7 +165,7 @@ import re
 import glob
 import cStringIO
 import numpy
-import pandas
+import pandas as pd
 from scipy.stats import linregress
 import itertools as iter
 
@@ -245,7 +245,7 @@ if PARAMS["sailfish"]:
         ''' merge the TPM values per sample'''
 
         sample_id = os.path.basename(os.path.dirname(infiles[0]))
-        df = pandas.read_table(
+        df = pd.read_table(
             infiles[0], sep='\t', comment='#', header=0, index_col=0)
         df.columns = ["Length", sample_id, "NumReads"]
         df.index.name = "Name"
@@ -254,13 +254,13 @@ if PARAMS["sailfish"]:
         for infile in infiles[1:]:
             sample_id = os.path.basename(os.path.dirname(infile))
 
-            tmp_df = pandas.read_table(
+            tmp_df = pd.read_table(
                 infile, sep='\t', comment='#', header=0, index_col=0)
             tmp_df.columns = ["Length", sample_id, "NumReads"]
             tmp_df.index.name = "Name"
             tmp_df.drop(["Length", "NumReads"], axis=1, inplace=True)
 
-            df = pandas.merge(df, tmp_df, left_index=True, right_index=True)
+            df = pd.merge(df, tmp_df, left_index=True, right_index=True)
 
         df.to_csv(outfile, sep="\t")
 else:
@@ -297,15 +297,16 @@ def characteriseTranscripts(infile, outfile):
            regex("transcripts_attributes.tsv.gz"),
            add_inputs(mergeResults),
            ["quant.dir/binned_means_correlation.tsv",
-            "quant.dir/binned_means_gradients.tsv"])
+            "quant.dir/binned_means_gradients.tsv",
+            "quant.dir/binned_means.tsv"])
 def summariseBias(infiles, outfiles):
 
     transcripts, expression = infiles
-    out_correlation, out_gradient = outfiles
+    out_correlation, out_gradient, out_means = outfiles
 
-    atr = pandas.read_csv(transcripts, sep='\t',
-                          compression="gzip", index_col="id")
-    exp = pandas.read_csv(expression, sep='\t')
+    atr = pd.read_csv(transcripts, sep='\t',
+                      compression="gzip", index_col="id")
+    exp = pd.read_csv(expression, sep='\t')
     atr = atr.rename(columns={'pGC': 'GC_Content'})
 
     def percentage(x):
@@ -341,7 +342,7 @@ def summariseBias(infiles, outfiles):
 
         temp_dict = dict.fromkeys(sample_names, function)
         temp_dict[attribute] = function
-        means_df = df.groupby(pandas.qcut(df.ix[:, attribute], bins))
+        means_df = df.groupby(pd.qcut(df.ix[:, attribute], bins))
         means_df = means_df.agg(temp_dict).sort(axis=1)
         atr_values = means_df[attribute]
         means_df.drop(attribute, axis=1, inplace=True)
@@ -357,22 +358,31 @@ def summariseBias(infiles, outfiles):
 
     corr_matrices = {}
     gradient_lists = {}
+
+    means_binned_df = pd.DataFrame()
+
     for factor in bias_factors:
-        means_binned, corr_matrix, gradients = aggregate_by_factor(
+        tmp_df, corr_matrix, gradients = aggregate_by_factor(
             merged, factor, samples, PARAMS["bias_bin"], numpy.mean)
-        outfile_means = "quant.dir/means_binned_%s.tsv" % factor
-        means_binned.to_csv(outfile_means, sep="\t",
-                            index=False, float_format='%.4f')
+
+        tmp_df = pd.melt(tmp_df, id_vars=factor)
+        tmp_df.columns = ["bin", "sample", "mean_expression"]
+        tmp_df["factor"] = [factor, ] * len(tmp_df)
+
+        means_binned_df = pd.concat([means_binned_df, tmp_df], axis=0)
         corr_matrices[factor] = list(corr_matrix[factor])
         gradient_lists[factor] = gradients
 
-    corr_matrix_df = pandas.DataFrame.from_dict(
+    corr_matrix_df = pd.DataFrame.from_dict(
         corr_matrices, orient='columns', dtype=None)
     corr_matrix_df["sample"] = sorted(samples)
 
-    gradient_df = pandas.DataFrame.from_dict(
+    gradient_df = pd.DataFrame.from_dict(
         gradient_lists, orient='columns', dtype=None)
     gradient_df["sample"] = sorted(samples)
+
+    means_binned_df.to_csv(out_means, sep="\t",
+                           index=False, float_format='%.6f')
 
     corr_matrix_df.to_csv(out_correlation, sep="\t",
                           index=False, float_format='%.6f')

@@ -219,110 +219,25 @@ class GradientSummaryGC(CorrelationSummaryGC):
     table = "binned_means_gradients"
 
 
-class BiasFactorPlot(RnaseqqcTracker):
-    table = ""
-    factor = ""
+class BiasFactors(RnaseqqcTracker):
+    table = "binned_means"
+
+    def getTracks(self):
+        d = self.get("SELECT DISTINCT factor FROM %(table)s")
+        return tuple([x[0] for x in d])
 
     def __call__(self, track, slice=None):
-        statement = ("SELECT * FROM %(table)s")
+        statement = "SELECT * FROM %(table)s WHERE factor = '%(track)s'"
         # fetch data
-        df = pd.DataFrame.from_dict(self.getAll(statement))
-        df = pd.melt(df, id_vars=self.factor)
-        df['variable'] = [x.replace("_quant_sf", "") for x in df['variable']]
+        df = self.getDataFrame(statement)
 
-        df2 = pd.DataFrame(map(lambda x: x.split("_"), df['variable']))
+        # TS: this should be replaces with a merge with the table of
+        # experiment information
+        df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
+
         merged = pd.concat([df, df2], axis=1)
         merged.index = ("all",)*len(merged.index)
         merged.index.name = "track"
+
         return merged
-
-
-class GCContentSummary(BiasFactorPlot):
-    table = "means_binned_GC_Content"
-    factor = "GC_Content"
-
-
-class LengthSummary(BiasFactorPlot):
-    table = "means_binned_length"
-    factor = "length"
-
-
-class AASummary(BiasFactorPlot):
-    table = "means_binned_AA"
-    factor = "AA"
-
-
-class ATSummary(BiasFactorPlot):
-    table = "means_binned_AT"
-    factor = "AT"
-
-
-class ACSummary(BiasFactorPlot):
-    table = "means_binned_AC"
-    factor = "AC"
-
-
-class AGSummary(BiasFactorPlot):
-    table = "means_binned_AG"
-    factor = "AG"
-
-
-class TASummary(BiasFactorPlot):
-    table = "means_binned_TA"
-    factor = "TA"
-
-
-class TTSummary(BiasFactorPlot):
-    table = "means_binned_TT"
-    factor = "TT"
-
-
-class TCSummary(BiasFactorPlot):
-    table = "means_binned_TC"
-    factor = "TC"
-
-
-class TGSummary(BiasFactorPlot):
-    table = "means_binned_TG"
-    factor = "TG"
-
-
-class CASummary(BiasFactorPlot):
-    table = "means_binned_CA"
-    factor = "CA"
-
-
-class CTSummary(BiasFactorPlot):
-    table = "means_binned_CT"
-    factor = "CT"
-
-
-class CCSummary(BiasFactorPlot):
-    table = "means_binned_CC"
-    factor = "CC"
-
-
-class CGSummary(BiasFactorPlot):
-    table = "means_binned_CG"
-    factor = "CG"
-
-
-class GASummary(BiasFactorPlot):
-    table = "means_binned_GA"
-    factor = "GA"
-
-
-class GTSummary(BiasFactorPlot):
-    table = "means_binned_GT"
-    factor = "GT"
-
-
-class GCSummary(BiasFactorPlot):
-    table = "means_binned_GC"
-    factor = "GC"
-
-
-class GGSummary(BiasFactorPlot):
-    table = "means_binned_GG"
-    factor = "GG"
