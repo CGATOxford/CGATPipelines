@@ -117,7 +117,7 @@ class SampleHeatmap(RnaseqqcTracker):
           '''col=hmcol)''')
 
         return odict((("Sum absolute covariance",
-                       "#$rpl %i$#" % getCurrentRDevice()),))
+                       "#$rpl %i$#" % self.getCurrentRDevice()),))
 
 
 class sampleMDS(RnaseqqcTracker):
