@@ -170,8 +170,8 @@ class CorrelationSummaryA(RnaseqqcTracker):
         df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
         merged = pd.concat([df, df2], axis=1)
-        merged.index = ("all",)*len(merged.index)
-        merged.index.name = "track"
+        #merged.index = ("all",)*len(merged.index)
+        #merged.index.name = "track"
         return merged
 
 
@@ -237,7 +237,7 @@ class BiasFactors(RnaseqqcTracker):
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
 
         merged = pd.concat([df, df2], axis=1)
-        merged.index = ("all",)*len(merged.index)
-        merged.index.name = "track"
+        #merged.index = ("all",)*len(merged.index)
+        #merged.index.name = "track"
 
         return merged

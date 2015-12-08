@@ -19,7 +19,7 @@ Linear Regression
 
 .. report:: RnaseqqcReport.BiasFactors
    :render: r-ggplot
-   :statement: aes(y=as.numeric(mean_expression), x=bin, colour=id_1)+
+   :statement: aes(y=as.numeric(mean_expression), x=bin, colour=id_3)+
 	       geom_point()+
 	       stat_smooth(aes(group=sample,colour=id_1),method=lm,se=F)+
 	       scale_colour_discrete(name=guide_legend(title='First Identifier'))+
@@ -38,7 +38,7 @@ Local Regression
 
 .. report:: RnaseqqcReport.BiasFactors
    :render: r-ggplot
-   :statement: aes(y=as.numeric(mean_expression), x=bin, colour=id_1)+
+   :statement: aes(y=as.numeric(mean_expression), x=bin, colour=id_3)+
 	       geom_point()+
 	       stat_smooth(aes(group=sample,colour=id_1),method=loess,se=F)+
 	       scale_colour_discrete(name=guide_legend(title='First Identifier'))+
