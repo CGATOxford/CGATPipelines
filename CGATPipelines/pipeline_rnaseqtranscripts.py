@@ -1057,7 +1057,7 @@ def mergeUsingCuffmerge(infiles, outfile):
 #########################################################################
 
 
-@jobs_limit(1, "db")
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((compareTranscriptsBetweenExperiments,
             compareTranscriptsPerExperiment),
            suffix(".cuffcompare"),
