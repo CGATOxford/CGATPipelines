@@ -469,7 +469,8 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
+        os.path.join(PARAMS["annotations_dir"],
+                     PARAMS["annotations_database"]))
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()

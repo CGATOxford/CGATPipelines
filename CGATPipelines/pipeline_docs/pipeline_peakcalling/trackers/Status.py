@@ -9,7 +9,7 @@ import numpy
 from PeakcallingReport import *
 
 
-class PeakCallingStatus(Status):
+class PeakCallingStatus(DefaultTracker, Status):
 
     '''status information for mapping stage.'''
 

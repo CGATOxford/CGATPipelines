@@ -372,7 +372,7 @@ def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
         statement.append(
             '''intersectBed -abam @IN@ -b %(mask)s -wa -v > @OUT@''')
 
-    statement.append('''mv @IN@ %(outfile)s''')
+    statement.append('''ln -s -f @IN@ %(outfile)s''')
     statement.append('''samtools index %(outfile)s''')
 
     statement = P.joinStatements(statement, infiles)
@@ -817,21 +817,26 @@ def runMACS(infile, outfile,
         sequencing read length in base pairs
     '''
     job_options = "-l mem_free=8G"
-
+    infile = os.path.abspath(infile)
     options = []
     if controlfile:
+        controlfile = os.path.abspath(controlfile)
         options.append("--control=%s" % controlfile)
     if tagsize is not None:
         options.append("--tsize %i" % tagsize)
 
     options = " ".join(options)
-
+    outfile = os.path.abspath(outfile)
+    name = os.path.basename(outfile)
+    dir = os.path.dirname(outfile)
     statement = '''
+    cd %(dir)s;
+    checkpoint;
     macs14
     -t %(infile)s
     --diag
     --verbose=10
-    --name=%(outfile)s
+    --name=%(name)s
     --format=BAM
     %(options)s
     %(macs_options)s
@@ -1118,7 +1123,7 @@ def runMACS2(infile, outfile,
     statement = '''grep -v "^$"
                    < %(outfile)s_%(suffix)s
                    | bgzip > %(outfile)s_%(suffix)s.gz;
-                   tabix -f -p bed %(outfile)s_%(suffix)s.gz;
+                   tabix -f -b 2 -e 3 -S 26 %(outfile)s_%(suffix)s.gz;
                    checkpoint;
                    rm -f %(outfile)s_%(suffix)s
                 '''
