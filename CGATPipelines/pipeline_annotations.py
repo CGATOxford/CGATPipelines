@@ -963,6 +963,7 @@ def buildCpGBed(infile, outfile):
       genome.  The BED file is then indexed using tabix
     '''
 
+    job_memory = "5G"
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
         --method=cpg
@@ -1118,8 +1119,8 @@ def loadGeneCoordinates(infile, outfile):
 @P.add_doc(PipelineGeneset.loadTranscriptStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(
-    (buildExonTranscripts, "ensembl.dir/transcript_stats.load"),
-    (buildCDSTranscripts, "ensembl.dir/cds_stats.load"))
+    ((buildExonTranscripts, "ensembl.dir/transcript_stats.load"),
+     (buildCDSTranscripts, "ensembl.dir/cds_stats.load")))
 def loadTranscriptStats(infile, outfile):
     PipelineGeneset.loadTranscriptStats(infile, outfile)
 
@@ -1278,6 +1279,7 @@ def downloadEntrezToEnsembl(infile, outfile):
        Biomart host to use.
 
     '''
+    
     if not PARAMS["ensembl_biomart_mart"]:
         #skip
         P.touch(outfile)

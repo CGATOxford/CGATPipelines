@@ -359,7 +359,7 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     # I was not able to resolve this, it was a complex
     # bug dependent on both the read libraries and the input reference gtf
     # files
-    job_memory = "2G"
+    job_memory = "5G"
 
     statement = '''
     cuffcompare -r <( gunzip < %(infile)s )
@@ -2161,11 +2161,12 @@ class Hisat(Mapper):
     executable = "tophat"
 
     def __init__(self, remove_non_unique=False, strip_sequence=False,
-                 *args, **kwargs):
+                 strandedness=True, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.remove_non_unique = remove_non_unique
         self.strip_sequence = strip_sequence
+        self.strandedness = strandedness
 
     def mapper(self, infiles, outfile):
         '''
@@ -2198,7 +2199,11 @@ class Hisat(Mapper):
         executable = self.executable
 
         num_files = [len(x) for x in infiles]
-
+        if self.strandedness and not (self.strandedness in
+                                      ['unstranded', 'fr-unstranded']):
+            stranded_option = '--rna-strandness %(hisat_library_type)s'
+        else:
+            stranded_option = ""
         if max(num_files) != min(num_files):
             raise ValueError(
                 "mixing single and paired-ended data not possible.")
@@ -2218,7 +2223,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            --rna-strandness %%(hisat_library_type)s
+            %(stranded_option)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -U %(infiles)s
@@ -2236,7 +2241,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            --rna-strandness %%(hisat_library_type)s
+            %(stranded_option)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -1 %(infiles1)s
