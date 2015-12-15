@@ -322,6 +322,24 @@ GENESET = glob.glob("*.gtf.gz")
 
 
 ###############################################################################
+# load designs
+###############################################################################
+@transform(["%s.design.tsv" % x.asFile() for x in DESIGNS],
+           suffix(".tsv"),
+           ".load")
+def loadDesigns(infile, outfile):
+    '''load design files into database'''
+    # note group column needs renaming
+
+    tmpfile = P.getTempFilename(".")
+
+    statement = "sed 's/group/_group/g' %(infile)s > %(tmpfile)s"
+    P.run()
+
+    P.load(tmpfile, outfile)
+    os.unlink(tmpfile)
+
+###############################################################################
 # Create kallisto index
 ###############################################################################
 
@@ -543,7 +561,7 @@ def buildReferenceTranscriptome(infile, outfile):
 
     statement = '''
     zcat %(infile)s |
-    awk '$3 ~ /exon|five_prime_utr|three_prime_utr/'|
+    awk '$3=="exon"'|
     python /ifs/devel/toms/cgat/scripts/gff2fasta.py
     --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
     --log=%(outfile)s.log > %(outfile)s;
@@ -720,7 +738,7 @@ def simulateRNASeqReads(infiles, outfiles):
     --output-read-length=%(simulation_read_length)s
     --insert-length-mean=%(simulation_insert_mean)s
     --insert-length-sd=%(simulation_insert_sd)s
-    --counts-method=copies
+    --counts-method=reads
     --counts-min=%(simulation_counts_min)s
     --counts-max=%(simulation_counts_max)s
     --sequence-error-phred=%(simulation_phred)s
@@ -1160,41 +1178,69 @@ def runSleuth(infiles, outfiles):
             submit=True, job_memory=job_memory)
 
 
+@follows(*QUANTTARGETS)
+@mkdir("DEresults.dir")
+@merge([QUANTTARGETS, buildReferenceTranscriptome],
+       [r"DEresults.dir/all_counts.tsv",
+        r"DEresults.dir/all_tpm.tsv"])
+def runSleuthAll(infiles, outfiles):
+    ''' run Sleuth on all samples just to generate a full counts/tpm table'''
+
+    infiles, transcripts = infiles
+    counts, tpm = outfiles
+
+    samples = list(set([os.path.basename(os.path.dirname(x)) for x in infiles]))
+
+    number_transcripts = 0
+    with IOTools.openFile(transcripts, "r") as inf:
+        for line in inf:
+            if line.startswith(">"):
+                number_transcripts += 1
+
+    # TS: rough estimate is 24 bytes * bootstraps * samples * transcripts
+    # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
+    # I've found this to be a serious underestimate so this is a more
+    # conservative estimate
+    memory_estimate = (48 * PARAMS["kallisto_bootstrap"] * len(samples) *
+                       number_transcripts)
+    print "memory_estimate:, ", memory_estimate
+    job_memory = "%fG" % ((memory_estimate / 1073741824))
+
+    TranscriptDiffExpression.runSleuthAll(
+        samples, "quant.dir/kallisto", counts, tpm,
+        submit=True, job_memory=job_memory)
+
+
+@merge(runSleuthAll,
+       [r"DEresults.dir/all_counts.load",
+        r"DEresults.dir/all_tpm.load"])
+def loadSleuthTablesAll(infiles, outfiles):
+    ''' load tables from Sleuth collation of all estimates '''
+
+    for infile in infiles:
+        outfile = infile.replace(".tsv", ".load")
+
+        TranscriptDiffExpression.loadSleuthTable(
+            infile, outfile,
+            PARAMS["annotations_interface_table_transcript_info"],
+            PARAMS["geneset_gene_biotypes"],
+            PARAMS["database"],
+            PARAMS["annotations_database"])
+
+
 @transform(runSleuth,
            regex("(\S+)_(counts|tpm).tsv"),
            r"\1_\2.load")
 def loadSleuthTables(infile, outfile):
     ''' load tables from Sleuth '''
 
-    tmpfile = P.getTempFilename("./")
+    TranscriptDiffExpression.loadSleuthTable(
+        infile, outfile,
+        PARAMS["annotations_interface_table_transcript_info"],
+        PARAMS["geneset_gene_biotypes"],
+        PARAMS["database"],
+        PARAMS["annotations_database"])
 
-    table = os.path.basename(
-        PARAMS["annotations_interface_table_transcript_info"])
-
-    if PARAMS["geneset_gene_biotypes"]:
-        where_cmd = "WHERE " + " OR ".join(
-            ["gene_biotype = '%s'" % x
-             for x in PARAMS["geneset_gene_biotypes"].split(",")])
-    else:
-        where_cmd = ""
-
-    select = """SELECT DISTINCT
-    transcript_id, transcript_biotype, gene_id, gene_name
-    FROM annotations.%(table)s
-    %(where_cmd)s""" % locals()
-
-    df1 = pd.read_table(infile, sep="\t")
-    df1.set_index("transcript_id", drop=True, inplace=True)
-
-    df2 = pd.read_sql(select, connect())
-    df2.set_index("transcript_id", drop=False, inplace=True)
-
-    df = df1.join(df2)
-    df.to_csv(tmpfile, sep="\t", index=True)
-
-    options = "--add-index=transcript_id"
-    P.load(tmpfile, outfile, options=options)
-    os.unlink(tmpfile)
 
 @transform(runSleuth,
            suffix("_results.tsv"),
@@ -1234,7 +1280,8 @@ def loadSleuthResults(infile, outfile):
 
 
 @follows(loadSleuthTables,
-         loadSleuthResults)
+         loadSleuthResults,
+         loadSleuthTablesAll)
 def differentialExpression():
     pass
 
@@ -1266,7 +1313,8 @@ def expressionSummaryPlots(infiles, logfile):
 
 @follows(differentialExpression,
          expressionSummaryPlots,
-         simulation)
+         simulation,
+         loadDesigns)
 def full():
     pass
 
