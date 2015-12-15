@@ -30,7 +30,26 @@ import rpy2.robjects as ro
 
 import pandas as pd
 import numpy as np
+import sqlite3
+import os
 
+def connect(database, annotations_database):
+    '''utility function to connect to database.
+
+    Use this method to connect to the pipeline database.
+    Additional databases can be attached here as well.
+
+    Returns an sqlite3 database handle.
+    '''
+
+    dbh = sqlite3.connect(database)
+    statement = '''ATTACH DATABASE '%s' as annotations''' % (
+        annotations_database)
+    cc = dbh.cursor()
+    cc.execute(statement)
+    cc.close()
+
+    return dbh
 
 @cluster_runnable
 def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
@@ -51,6 +70,47 @@ def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
     res.plotVolcano(contrast, outfile_prefix)
 
     res.table.to_csv(outfile, sep="\t", index=False)
+
+
+@cluster_runnable
+def runSleuthAll(samples, base_dir, counts, tpm):
+    ''' run sleuth for all samples to obtain counts and tpm tables
+
+    Note: all samples in the design table must also
+    have a directory with the same name in `base_dir` with kallisto
+    results in a file called abundance.h5
+    '''
+
+    design = pd.DataFrame({
+        "sample": samples,
+        "group": ([0, 1] * ((len(samples)+1)/2))[0:len(samples)]})
+
+    r_design_df = pandas2ri.py2ri(design)
+
+    createSleuthTables = R('''
+    function(design_df){
+
+    suppressMessages(library('sleuth'))
+    suppressMessages(library('reshape'))
+    sample_id = design_df$sample
+    kal_dirs <- sapply(sample_id,
+    function(id) file.path('%(base_dir)s', id))
+
+    design_df <- dplyr::select(design_df, sample = sample, group)
+    design_df <- dplyr::mutate(design_df, path = kal_dirs)
+
+    so <- sleuth_prep(design_df, ~group)
+
+    df = cast(so$obs_raw, target_id~sample, value = "est_counts")
+    colnames(df)[1] <- "transcript_id"
+    write.table(df, "%(counts)s", sep="\t", row.names=F, quote=F)
+
+    df = cast(so$obs_raw, target_id~sample, value = "tpm")
+    colnames(df)[1] <- "transcript_id"
+    write.table(df, "%(tpm)s", sep="\t", row.names=F, quote=F)
+    }''' % locals())
+
+    createSleuthTables(r_design_df)
 
 
 @cluster_runnable
@@ -200,3 +260,36 @@ def calculateCorrelations(infiles, outfile):
                                          for x in df_final['log2diff_counts']]
 
     df_final.to_csv(outfile, sep="\t", index=True)
+
+
+def loadSleuthTable(infile, outfile, transcript_info, gene_biotypes,
+                    database, annotations_database):
+
+        tmpfile = P.getTempFilename("/ifs/scratch/")
+
+        table = os.path.basename(transcript_info)
+
+        if gene_biotypes:
+            where_cmd = "WHERE " + " OR ".join(
+                ["gene_biotype = '%s'" % x
+                 for x in gene_biotypes.split(",")])
+        else:
+            where_cmd = ""
+
+        select = """SELECT DISTINCT
+        transcript_id, transcript_biotype, gene_id, gene_name
+        FROM annotations.%(table)s
+        %(where_cmd)s""" % locals()
+
+        df1 = pd.read_table(infile, sep="\t")
+        df1.set_index("transcript_id", drop=True, inplace=True)
+
+        df2 = pd.read_sql(select, connect(database, annotations_database))
+        df2.set_index("transcript_id", drop=False, inplace=True)
+
+        df = df1.join(df2)
+        df.to_csv(tmpfile, sep="\t", index=True)
+
+        options = "--add-index=transcript_id"
+        P.load(tmpfile, outfile, options=options)
+        os.unlink(tmpfile)
