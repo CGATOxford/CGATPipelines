@@ -153,15 +153,15 @@ def haplotypeCaller(infile, outfile, genome,
 
 
 def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
-                    dbsnp, call_stats_out, cluster_options,
+                    dbsnp, call_stats_out, job_memory, job_threads,
                     quality=20, max_alt_qual=150, max_alt=5,
                     max_fraction=0.05, tumor_LOD=6.3,
-                    normal_panel=None, gatk_key=None,
-                    infile_matched=None):
+                    normal_panel=None, 
+                    infile_matched=None,
+                    gatk_key=None):
     '''Call SNVs using Broad's muTect'''
     # TS. this is currently CGAT specific. How to generalise?
 
-    job_options = cluster_options
     statement = '''module load apps/java/jre1.6.0_26;
                    java -Xmx2g -jar
                    /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
@@ -196,10 +196,9 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
 
 
 def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
-                       outdir, cluster_options):
+                       outdir, job_memory, job_threads):
     '''Call INDELs using Strelka'''
 
-    job_options = cluster_options
     statement = '''
     rm -rf %(outdir)s;
     /ifs/apps/bio/strelka-1.0.14/bin/configureStrelkaWorkflow.pl

@@ -1545,6 +1545,7 @@ def runDESeq(infiles, outfile):
         filename of design file in :term:`tsv` format
     infiles[1]: str
         filename of window tag count data in :term:`tsv` format
+
     deseq_fit_type: str
         :term:`PARAMS`
         fit type to estimate dispersion with deseq, refer to
@@ -1572,16 +1573,15 @@ def runDESeq(infiles, outfile):
     '''
 
     spike_file = os.path.join("spike.dir", infiles[0]) + ".gz"
+#    deseq_version = PARAMS['deseq_version']
     if os.path.exists(spike_file):
         outfile_spike = P.snip(outfile, '.tsv.gz') + '.spike.gz'
-
         PipelineWindows.runDE(infiles[0],
                               infiles[1],
                               outfile_spike,
                               "deseq.dir",
                               method="deseq",
                               spike_file=spike_file)
-
     PipelineWindows.runDE(infiles[0],
                           infiles[1],
                           outfile,
@@ -1614,6 +1614,99 @@ def loadDESeq(infile, outfile):
 
         P.load(fn,
                prefix + ".deseq_summary.load",
+               collapse=0,
+               transpose="sample")
+
+    P.touch(outfile)
+
+
+# @P.add_doc(PipelineWindows.runDE)
+@follows(mkdir("deseq2.dir"), mkdir("deseq2.dir/plots"))
+@transform("design*.tsv",
+           regex("(.*).tsv"),
+           add_inputs(aggregateWindowsTagCounts),
+           r"deseq2.dir/\1.tsv.gz")
+def runDESeq2(infiles, outfile):
+    '''
+    Estimate differential expression using DESeq2.
+
+    The final output is a table. It is slightly edited such that
+    it contains a similar output and similar fdr compared to cuffdiff.
+
+    Parameters
+    ----------
+    infiles: list
+    infiles[0]: str
+        filename of design file in :term:`tsv` format
+    infiles[1]: str
+        filename of window tag count data in :term:`tsv` format
+    deseq2_fdr: float
+        :term:`PARAMS`
+        threshold fdr value for deseq2 analysis
+    deseq2_model: str
+        :term:`PARAMS`
+        model to pass to deseq2, see
+        https://bioconductor.org/packages/release/bioc/html/DESeq2.html
+    deseq2_contrasts: str
+        :term:`PARAMS`
+        contrasts to return in pairwise tests in deseq2, see
+        https://bioconductor.org/packages/release/bioc/html/DESeq2.html
+    tags_filter_min_counts_per_row: int
+        :term:`PARAMS`
+        minimum number of counts below which to filter rows
+    tags_filter_min_counts_per_sample: int
+        :term:`PARAMS`
+        minimum number of counts below which to filter samples
+    tags_filter_percentile_rowsums: int
+        :term:`PARAMS`
+        percentile filtering using the total number of counts per row, e.g.
+        20 removes 20% of windows with lowest counts.
+    outfile: str
+        filename of table to write deseq results in :term:`tsv` format
+    '''
+
+    spike_file = os.path.join("spike.dir", infiles[0]) + ".gz"
+
+    if os.path.exists(spike_file):
+        outfile_spike = P.snip(outfile, '.tsv.gz') + '.spike.gz'
+        PipelineWindows.runDE(infiles[0],
+                              infiles[1],
+                              outfile_spike,
+                              "deseq2.dir",
+                              method="deseq2",
+                              spike_file=spike_file)
+    PipelineWindows.runDE(infiles[0],
+                          infiles[1],
+                          outfile,
+                          "deseq2.dir",
+                          method="deseq2")
+
+
+@transform(runDESeq2, suffix(".tsv.gz"), ".load")
+def loadDESeq2(infile, outfile):
+    '''Load DESeq per-chunk summary stats into database table <track>.
+
+    Parameters
+    ----------
+    infile: str
+        filename of Deseq2 output in :term:`tsv` format
+    outfile: str
+        logfile of database load
+    '''
+
+    prefix = P.snip(outfile, ".load")
+
+    if os.path.exists(infile + "_size_factors.tsv"):
+        P.load(infile + "_size_factors.tsv",
+               prefix + "_deseq2_size_factors.load",
+               collapse=True,
+               transpose="sample")
+
+    for fn in glob.glob(infile + "*_summary.tsv"):
+        prefix = P.snip(fn[len(infile) + 1:], "_summary.tsv")
+
+        P.load(fn,
+               prefix + ".deseq2_summary.load",
                collapse=0,
                transpose="sample")
 
@@ -1815,6 +1908,7 @@ mapToTargets = {'deseq': (loadDESeq, runDESeq,),
                 'edger': (runEdgeR,),
                 'filter': (runFilterAnalysis,),
                 'medips': (runMedipsDMR,),
+                'deseq2': (loadDESeq2, runDESeq2)
                 }
 for x in METHODS:
     DIFFTARGETS.extend(mapToTargets[x])
