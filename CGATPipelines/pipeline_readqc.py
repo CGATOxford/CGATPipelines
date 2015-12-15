@@ -256,7 +256,8 @@ if PARAMS.get("preprocessors", None):
     def processReads(infile, outfiles):
         '''process reads from .fastq and other sequence files.
         '''
-
+        print "infile", infile
+        print "outfiles", outfiles
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["trimmomatic_adapter"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
@@ -310,7 +311,8 @@ if PARAMS.get("preprocessors", None):
                     cutadapt_options += " -a file:contaminants.fasta "
                 m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
-                    threads=PARAMS["threads"]))
+                    threads=PARAMS["threads"],
+                    untrimmed=PARAMS['cutadapt_reroute_untrimmed']))
 
         statement = m.build((infile,), "processed.dir/trimmed-", track)
 

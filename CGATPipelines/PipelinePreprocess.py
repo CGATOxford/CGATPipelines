@@ -306,9 +306,10 @@ class ProcessTool(object):
         Number of threads to use.
     '''
 
-    def __init__(self, options, threads=1):
+    def __init__(self, options, threads=1, untrimmed=0):
         self.processing_options = options
         self.threads = threads
+        self.untrimmed = untrimmed
 
     def get_num_files(self, infiles):
         """return the number of outputfiles created by
@@ -506,16 +507,28 @@ class Cutadapt(ProcessTool):
     def build(self, infiles, outfiles, output_prefix):
         prefix = self.prefix
         processing_options = self.processing_options
+        untrimmed = self.untrimmed
 
         assert len(infiles) == len(outfiles)
 
         cmds = []
-        for infile, outfile in zip(infiles, outfiles):
+        if int(untrimmed) == 0:
+            for infile, outfile in zip(infiles, outfiles):
 
-            cmds.append('''zcat %(infile)s
-            | cutadapt %(processing_options)s -
-            2>> %(output_prefix)s.log
-            | gzip > %(outfile)s;''' % locals())
+                    cmds.append('''zcat %(infile)s
+                    | cutadapt %(processing_options)s -
+                    2>> %(output_prefix)s.log
+                    | gzip > %(outfile)s;''' % locals())
+        else:
+            for infile, outfile in zip(infiles, outfiles):
+                    outfile_untrimmed = outfile.replace(".fastq",
+                                                        "_untrimmed.fastq")
+                    cmds.append('''zcat %(infile)s
+                    | cutadapt %(processing_options)s
+                    --untrimmed-output %(outfile_untrimmed)s -
+                    2>> %(output_prefix)s.log
+                    | gzip > %(outfile)s;
+                    gzip %(output_prefix)s_untrimmed.fastq;''' % locals())
 
         return " checkpoint; ".join(cmds)
 
