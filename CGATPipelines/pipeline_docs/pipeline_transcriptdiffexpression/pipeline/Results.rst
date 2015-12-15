@@ -50,3 +50,21 @@ These are the full results tables
 
 
    Results from DE testing
+
+These are the tables of Counts and TPM per sample, with gene ID
+annotations and simulation flags.
+
+.. report:: Results.SleuthTpmAll
+   :render: xls-table
+   :groupby: track
+   :force:
+
+
+   Transcripts per million per sample
+
+.. report:: Results.SleuthCountsAll
+   :render: xls-table
+   :groupby: track
+   :force:
+
+   Counts per sample

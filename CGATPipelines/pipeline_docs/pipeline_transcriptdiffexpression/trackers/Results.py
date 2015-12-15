@@ -44,3 +44,26 @@ class SleuthResultsSig(SleuthResults):
     pattern = "(.*)_DEresults$"
     direction = ""
     where = "WHERE p_value NOT NULL AND significant == 1 AND ABS(l2fold) > 1"
+
+
+class SleuthAll(IsoformTracker):
+
+    table = ""
+
+    def __call__(self, track, slice=None):
+
+        statement = '''
+        SELECT A.*, B.reason as flagged
+        FROM %(table)s AS A
+        LEFT JOIN kallisto_flagged_transcripts AS B
+        ON A.transcript_id = B.transcript_id
+        '''
+        return self.getAll(statement)
+
+
+class SleuthCountsAll(SleuthAll):
+    table = "all_counts"
+
+
+class SleuthTpmAll(SleuthAll):
+    table = "all_tpm"

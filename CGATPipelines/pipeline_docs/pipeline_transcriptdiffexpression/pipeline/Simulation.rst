@@ -35,7 +35,7 @@ greater than 2-fold, the transcript is flagged.
    :render: r-ggplot
    :statement: aes(tpm, est_tpm) +
 	       geom_point(size=1, alpha=0.5,
-	       aes(col=abs(log2diff_tpm)<1)) +
+	       aes(col=abs(as.numeric(as.character(log2diff_tpm)))<1)) +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=15),
@@ -118,7 +118,7 @@ are shown instead of the TPM
    :render: r-ggplot
    :statement: aes(read_count, est_counts) +
 	       geom_point(size=1, alpha=0.5,
-	       aes(col=abs(as.numeric(as.character(log2diff_count)))<0.585)) +
+	       aes(col=abs(as.numeric(as.character(log2diff_counts)))<1)) +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=15),
@@ -156,13 +156,13 @@ truth and estimated Count
    :groupby: track
    :render: r-ggplot
    :statement: aes(as.factor(fraction_bin),
-	           as.numeric(as.character(log2diff_count_thres))) +
+	           as.numeric(as.character(log2diff_counts_thres))) +
 	       geom_jitter(
 	         alpha=0.3,
                  position=position_jitter(width=0.3, height=0),
-		 aes(shape=abs(as.numeric(as.character(log2diff_count_thres)))==1,
-		 size=abs(as.numeric(as.character(log2diff_count_thres)))==1,
-		 colour=abs(as.numeric(as.character(log2diff_count_thres)))==1)) +
+		 aes(shape=abs(as.numeric(as.character(log2diff_counts_thres)))==1,
+		 size=abs(as.numeric(as.character(log2diff_counts_thres)))==1,
+		 colour=abs(as.numeric(as.character(log2diff_counts_thres)))==1)) +
 	       scale_size_manual(guide=FALSE, values=c(0.5, 1)) +
  	       scale_shape_discrete(guide=FALSE) + 
 	       scale_colour_manual(guide=FALSE, values = c("grey15","red")) + 
@@ -259,7 +259,7 @@ are shown
    :groupby: track
    :render: r-ggplot
    :statement: aes(as.factor(fraction_bin),
-                   as.numeric(as.character(count_cor))) +
+                   as.numeric(as.character(counts_cor))) +
 	       geom_jitter(size=0.5, alpha=0.3, col="grey15",
                            position=position_jitter(width=0.3,
 			   height=0)) +
@@ -283,7 +283,7 @@ are shown
    :groupby: track
    :render: r-ggplot
    :statement: aes(as.factor(fraction_bin),
-	           as.numeric(as.character(count_cor))) +
+	           as.numeric(as.character(counts_cor))) +
 	       geom_jitter(size=1, alpha=0.25, col="grey30",
                            position=position_jitter(width=0.3,
 			   height=0)) +
@@ -301,3 +301,25 @@ are shown
 	       ylab("Correlation (Estimated Counts vs ground truth)")
 
     Full plot
+
+
+These are the full tables of simulation results. The tpm and
+read_count values are the sum of ground truths for the tpm and read
+counts for the transcript across all the simulations. The
+est_count/est_tpm values are the sum of estimated counts/tpm for the
+transcript across all the simulations. The log2diff_count/log2diff_tpm
+values are the log2-fold difference between the ground truth and
+estimates. The count_cor/tpm_cor values are the pearson correlation
+coefficient for the correlation between ground truth and estimated values
+
+.. report:: Simulations.simulationCorrelationsTpm
+   :groupby: track
+   :render: xls-table
+
+   Transcripts per million based correlations   
+	    
+.. report:: Simulations.simulationCorrelationsCount
+   :groupby: track
+   :render: xls-table
+
+   Count-based correlations

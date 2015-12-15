@@ -39,7 +39,7 @@ class simulationCorrelations(IsoformTracker):
 class simulationCorrelationsCount(simulationCorrelations):
 
     pattern = "(\S+)_simulation_correlations$"
-    metric = "count"
+    metric = "counts"
 
 
 class simulationCorrelationsTpm(simulationCorrelations):
@@ -69,7 +69,7 @@ class simulationCorrelationsSummaryFold(IsoformTracker):
 
 class simulationCorrelationsSummaryFoldCount(simulationCorrelationsSummaryFold):
     pattern = "(\S+)_simulation_correlations$"
-    metric = "count"
+    metric = "counts"
 
 
 class simulationCorrelationsSummaryFoldTpm(simulationCorrelationsSummaryFold):
