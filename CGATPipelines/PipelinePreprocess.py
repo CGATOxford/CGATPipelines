@@ -528,7 +528,7 @@ class Cutadapt(ProcessTool):
                     --untrimmed-output %(outfile_untrimmed)s -
                     2>> %(output_prefix)s.log
                     | gzip > %(outfile)s;
-                    gzip %(output_prefix)s_untrimmed.fastq;''' % locals())
+                    gzip %(outfile_untrimmed)s.fastq;''' % locals())
 
         return " checkpoint; ".join(cmds)
 
