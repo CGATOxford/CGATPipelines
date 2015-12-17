@@ -1,5 +1,6 @@
 import re
 import glob
+import numpy as np
 import pandas as pd
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
@@ -220,3 +221,34 @@ class GCSummary(BiasFactorPlot):
 class GGSummary(BiasFactorPlot):
     table = "means_binned_GG"
     factor = "GG"
+
+
+class ExpressionDistribution(RnaseqqcTracker):
+    table = "transcript_quantification"
+
+    def __call__(self, track, slice=None):
+        statement = ("SELECT sample_id, transcript_id, RPKM FROM %(table)s WHERE transcript_id != 'Transcript'")
+        df = pd.DataFrame.from_dict(self.getAll(statement))
+        c = 0.0000001
+        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
+
+        return df
+
+#  cgatreport-test -t ExpressionDistribution -r r-ggplot -o statement='aes(x=log2rpkm, group=sample_id, colour=sample_id)+geom_density()'
+
+
+#class ExpressionDistributionNotR(RnaseqqcTracker, SingleTableTrackerColumns):
+#    table = "transcript_quantification"
+#    column = "transcript_id"
+#    exclude_columns = "RPKM"
+
+#    def __call__(self, track, slice=None):
+#        statement = ("SELECT sample_id, transcript_id, RPKM FROM %(table)s WHERE transcript_id != 'Transcript'")
+#        df = pd.DataFrame.from_dict(self.getAll(statement))
+#        c = 0.0000001
+#        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
+#        pivot = df.pivot(index='sample_id', columns='transcript_id', values='log2rpkm')
+
+#        return pivot
+
+# cgatreport-test -t ExpressionDistribution -r density-plot
