@@ -140,7 +140,7 @@ def getRepeatsFromUCSC(dbhandle,
 
     if remove_contigs_regex:
         statement.append(
-            ''' --contig-pattern="%(remove_contigs_regexs)s" ''')
+            ''' --contig-pattern="%(remove_contigs_regex)s" ''')
 
     statement.append('''| gzip > %(outfile)s ''')
 
