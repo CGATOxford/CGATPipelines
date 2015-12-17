@@ -2,6 +2,12 @@ import re
 import glob
 import numpy as np
 import pandas as pd
+import numpy as np
+from sklearn import manifold
+from sklearn.metrics import euclidean_distances
+import rpy2.robjects as ro
+from rpy2.robjects import r as R
+import rpy2.robjects.pandas2ri as py2ri
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -44,13 +50,118 @@ class RnaseqqcTracker(TrackerSQL):
 ##############################################################
 
 
+class SampleHeatmap(RnaseqqcTracker):
+    table = "transcript_quantification"
+    py2ri.activate()
+
+    def getTracks(self, subset=None):
+        return ("all")
+
+    def getCurrentRDevice(self):
+
+        '''return the numerical device id of the
+        current device'''
+
+        return R["dev.cur"]()[0]
+
+    def hierarchicalClustering(self, dataframe):
+        '''
+        Perform hierarchical clustering on a
+        dataframe of expression values
+
+        Arguments
+        ---------
+        dataframe: pandas.Core.DataFrame
+          a dataframe containing gene IDs, sample IDs
+          and gene expression values
+
+        Returns
+        -------
+        correlations: pandas.Core.DataFrame
+          a dataframe of a pair-wise correlation matrix
+          across samples.  Uses the Pearson correlation.
+        '''
+
+        # set sample_id to index
+        pivot = dataframe.pivot(index="sample_id",
+                                columns="transcript_id",
+                                values="TPM")
+        transpose = pivot.T
+        # why do I have to resort to R????
+        r_df = py2ri.py2ri_pandasdataframe(transpose)
+        R.assign("p.df", r_df)
+        R('''p.mat <- apply(p.df, 2, as.numeric)''')
+        R('''cor.df <- cor(p.mat)''')
+        r_cor = R["cor.df"]
+        py_cor = py2ri.ri2py_dataframe(r_cor)
+        corr_frame = py_cor
+
+        return corr_frame
+
+    def __call__(self, track, slice=None):
+        statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
+                     "WHERE transcript_id != 'Transcript';")
+        df = pd.DataFrame.from_dict(self.getAll(statement))
+        # insert clustering function here
+
+        mdf = self.hierarchicalClustering(df)
+        mdf.columns = set(df["sample_id"])
+        mdf.index = set(df["sample_id"])
+        r_cor = py2ri.py2ri_pandasdataframe(mdf)
+        R.assign("cor.mat", r_cor)
+
+        R.x11()
+        R('''suppressPackageStartupMessages(library(gplots))''')
+        R('''suppressPackageStartupMessages(library(RColorBrewer))''')
+        R('''hmcol <- colorRampPalette(c("#FFFF00", "#7A378B"))''')
+        R('''heatmap.2(as.matrix(cor.mat), trace="none",'''
+          '''col=hmcol)''')
+
+        return odict((("Sum absolute covariance",
+                       "#$rpl %i$#" % self.getCurrentRDevice()),))
+
+
+class sampleMDS(RnaseqqcTracker):
+    # to add:
+    # - parameterise dissimilarity so we can plot
+    #    euclidean & 1-cor(spearman's?)
+    # - JOIN with design table to get further aesthetics for plotting
+    #   E.g treatment, replicate, etc
+
+    table = "transcript_quantification"
+
+    def __call__(self, track,  slice=None):
+
+        # remove WHERE when table cleaned up to remove header rows
+        statement = (
+            "SELECT transcript_id, TPM, sample_id FROM %(table)s "
+            "where transcript_id != 'Transcript'")
+
+        # fetch data
+        df = pd.DataFrame.from_dict(self.getAll(statement))
+
+        df = df.pivot('transcript_id', 'sample_id')['TPM']
+
+        # calculate dissimilarities
+        similarities = euclidean_distances(df.transpose())
+
+        # run MDS
+        mds = manifold.MDS(n_components=2, max_iter=3000,
+                           eps=1e-9, dissimilarity="precomputed", n_jobs=1)
+        mds = mds.fit(similarities)
+        pos = pd.DataFrame(mds.embedding_)
+
+        pos.columns = ["MD1", "MD2"]
+        pos['sample'] = df.columns
+
+        return pos
+
+
+# TS: Correlation trackers should be simplified and use tracks to select subsets
 class CorrelationSummaryA(RnaseqqcTracker):
     table = "binned_means_correlation"
     select = ["AA", "AT", "AC", "AG"]
     select = ",".join(select)
-
-    def getTracks(self, subset=None):
-        return ("all")
 
     def __call__(self, track,  slice=None):
         statement = ("SELECT sample,%(select)s FROM %(table)s")
@@ -61,6 +172,8 @@ class CorrelationSummaryA(RnaseqqcTracker):
         df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
         merged = pd.concat([df, df2], axis=1)
+        #merged.index = ("all",)*len(merged.index)
+        #merged.index.name = "track"
         return merged
 
 
@@ -108,114 +221,28 @@ class GradientSummaryGC(CorrelationSummaryGC):
     table = "binned_means_gradients"
 
 
-class BiasFactorPlot(RnaseqqcTracker):
-    table = ""
-    factor = ""
+class BiasFactors(RnaseqqcTracker):
+    table = "binned_means"
 
-    def getTracks(self, subset=None):
-        return ("all")
+    def getTracks(self):
+        d = self.get("SELECT DISTINCT factor FROM %(table)s")
+        return tuple([x[0] for x in d])
 
     def __call__(self, track, slice=None):
-        statement = ("SELECT * FROM %(table)s")
+        statement = "SELECT * FROM %(table)s WHERE factor = '%(track)s'"
         # fetch data
-        df = pd.DataFrame.from_dict(self.getAll(statement))
-        df = pd.melt(df, id_vars=self.factor)
-        df['variable'] = [x.replace("_quant_sf", "") for x in df['variable']]
+        df = self.getDataFrame(statement)
 
-        # TS now redundant, right?
-        # remove normalisation as performed in pipeline already
-        df['value'] = ((df['value'] - min(df['value'])) /
-                       (max(df['value'])-min(df['value'])))
-
-        df2 = pd.DataFrame(map(lambda x: x.split("_"), df['variable']))
+        # TS: this should be replaces with a merge with the table of
+        # experiment information
+        df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
+
         merged = pd.concat([df, df2], axis=1)
+        #merged.index = ("all",)*len(merged.index)
+        #merged.index.name = "track"
+
         return merged
-
-
-class GCContentSummary(BiasFactorPlot):
-    table = "means_binned_GC_Content"
-    factor = "GC_Content"
-
-
-class LengthSummary(BiasFactorPlot):
-    table = "means_binned_length"
-    factor = "length"
-
-
-class AASummary(BiasFactorPlot):
-    table = "means_binned_AA"
-    factor = "AA"
-
-
-class ATSummary(BiasFactorPlot):
-    table = "means_binned_AT"
-    factor = "AT"
-
-
-class ACSummary(BiasFactorPlot):
-    table = "means_binned_AC"
-    factor = "AC"
-
-
-class AGSummary(BiasFactorPlot):
-    table = "means_binned_AG"
-    factor = "AG"
-
-
-class TASummary(BiasFactorPlot):
-    table = "means_binned_TA"
-    factor = "TA"
-
-
-class TTSummary(BiasFactorPlot):
-    table = "means_binned_TT"
-    factor = "TT"
-
-
-class TCSummary(BiasFactorPlot):
-    table = "means_binned_TC"
-    factor = "TC"
-
-
-class TGSummary(BiasFactorPlot):
-    table = "means_binned_TG"
-    factor = "TG"
-
-
-class CASummary(BiasFactorPlot):
-    table = "means_binned_CA"
-    factor = "CA"
-
-
-class CTSummary(BiasFactorPlot):
-    table = "means_binned_CT"
-    factor = "CT"
-
-
-class CCSummary(BiasFactorPlot):
-    table = "means_binned_CC"
-    factor = "CC"
-
-
-class CGSummary(BiasFactorPlot):
-    table = "means_binned_CG"
-    factor = "CG"
-
-
-class GASummary(BiasFactorPlot):
-    table = "means_binned_GA"
-    factor = "GA"
-
-
-class GTSummary(BiasFactorPlot):
-    table = "means_binned_GT"
-    factor = "GT"
-
-
-class GCSummary(BiasFactorPlot):
-    table = "means_binned_GC"
-    factor = "GC"
 
 
 class GGSummary(BiasFactorPlot):
