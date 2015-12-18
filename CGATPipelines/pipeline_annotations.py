@@ -1281,7 +1281,7 @@ def downloadEntrezToEnsembl(infile, outfile):
     '''
 
     if not PARAMS["ensembl_biomart_mart"]:
-        #skip
+        # skip
         P.touch(outfile)
         return None
 
@@ -1338,7 +1338,7 @@ def downloadTranscriptSynonyms(infile, outfile):
     """
 
     if not PARAMS["ensembl_biomart_mart"]:
-        #skip
+        # skip
         P.touch(outfile)
         return None
 
@@ -2542,7 +2542,7 @@ def buildGenomicContextStats(infile, outfile):
         ))
 def buildGenomicFunctionalAnnotation(infiles, outfiles):
 
-    territories_gtf_file=infiles[0]
+    territories_gtf_file = infiles[0]
 
     PipelineGeneset.buildGenomicFunctionalAnnotation(
         territories_gtf_file,
