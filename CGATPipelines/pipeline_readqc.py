@@ -140,7 +140,7 @@ Requirements:
 
 # import ruffus
 from ruffus import transform, merge, follows, mkdir, regex, suffix, jobs_limit, \
-    subdivide, collate
+    subdivide, collate, active_if
 
 # import useful standard python modules
 import sys
@@ -371,6 +371,7 @@ def loadFastqc(infile, outfile):
 
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
+@active_if(PARAMS["fastq_screen_run"] == 1)
 @transform((unprocessReads, processReads),
            regex(REGEX_TRACK_BOTH),
            r"%s/fastq_screen/\2.fastqscreen" % PARAMS['exportdir'])
