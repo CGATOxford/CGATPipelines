@@ -1294,7 +1294,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_memory = "16G"
+    job_memory = "32G"
 
     bamfile, readsfile = infiles
 
