@@ -487,7 +487,7 @@ def loadPeptideSequences(infile, outfile):
     P.run()
 
 
-def buildCDSFasta(infile, outfile):
+def buildCDSFasta(infiles, outfile):
     '''output CDS sequences.
 
     This method works by taking the CDNA and peptide sequence of a

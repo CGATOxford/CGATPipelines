@@ -1125,7 +1125,7 @@ def loadTranscriptStats(infile, outfile):
     PipelineGeneset.loadTranscriptStats(infile, outfile)
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir('ensembl.dir'))
 @files(buildGeneSet, "ensembl.dir/transcript_info.load")
 def downloadTranscriptInformation(infile, outfile):
@@ -1248,7 +1248,7 @@ def downloadTranscriptInformation(infile, outfile):
             locals())
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir('ensembl.dir'))
 @files(PARAMS["ensembl_filename_gtf"],
        "ensembl.dir/ensembl_to_entrez.load")
@@ -1279,9 +1279,9 @@ def downloadEntrezToEnsembl(infile, outfile):
        Biomart host to use.
 
     '''
-    
+
     if not PARAMS["ensembl_biomart_mart"]:
-        #skip
+        # skip
         P.touch(outfile)
         return None
 
@@ -1305,7 +1305,7 @@ def downloadEntrezToEnsembl(infile, outfile):
         indices=("gene_id", "entrez_id"))
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir('ensembl.dir'))
 @files(PARAMS["ensembl_filename_gtf"],
        "ensembl.dir/transcript_synonyms.load")
@@ -1338,12 +1338,12 @@ def downloadTranscriptSynonyms(infile, outfile):
     """
 
     if not PARAMS["ensembl_biomart_mart"]:
-        #skip
+        # skip
         P.touch(outfile)
         return None
-        
+
     tablename = P.toTable(outfile)
-    
+
     columns = {
         "ensembl_transcript_id": "transcript_id",
         "external_transcript_name": "transcript_name",
@@ -1388,8 +1388,8 @@ def buildCDNAFasta(infile, outfile):
 @files((buildCDSTranscripts,
         buildPeptideFasta,),
        PARAMS["interface_cds_fasta"])
-def buildCDSFasta(infile, outfile):
-    PipelineGeneset.buildCDSFasta(infile, outfile)
+def buildCDSFasta(infiles, outfile):
+    PipelineGeneset.buildCDSFasta(infiles, outfile)
 
 
 @P.add_doc(PipelineGeneset.loadProteinStats)
@@ -2287,6 +2287,7 @@ def imputeGO(infiles, outfile):
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
 @files(None, PARAMS['interface_kegg'])
@@ -2540,8 +2541,11 @@ def buildGenomicContextStats(infile, outfile):
         PARAMS["interface_genomic_function_tsv"],
         ))
 def buildGenomicFunctionalAnnotation(infiles, outfiles):
+
+    territories_gtf_file = infiles[0]
+
     PipelineGeneset.buildGenomicFunctionalAnnotation(
-        territories_file=infiles[0],
+        territories_gtf_file,
         dbh=connect(),
         outfiles=outfiles)
 

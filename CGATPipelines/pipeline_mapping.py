@@ -1840,7 +1840,7 @@ else:
                r"nreads.dir/\1.nreads")
     # this decorator for the dummy mergeReadCounts is needed to prevent
     # rerunning of all downstream functions.
-    def mergeReadCounts():
+    def mergeReadCounts(infiles, outfiles):
         pass
 
 ###################################################################
@@ -2376,7 +2376,7 @@ def loadBigWigStats(infiles, outfile):
 
     Summarise and merge bigwig files for all samples and load into a
     table called bigwig_stats
-    
+
     Parameters
     ----------
     infiles : list
