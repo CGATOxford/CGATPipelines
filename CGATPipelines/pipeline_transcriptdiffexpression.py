@@ -957,7 +957,6 @@ def loadCorrelation(infile, outfile):
     P.load(infile, outfile, options=options)
 
 
-
 @transform(calculateCorrelations,
            regex("simulation.dir/(\S+)_simulation_correlations.tsv"),
            r"simulation.dir/\1_flagged_transcripts.tsv")
@@ -997,7 +996,6 @@ def loadLowConfidenceTranscripts(infile, outfile):
 
     options = "--add-index=transcript_id"
     P.load(infile, outfile, options=options)
-
 
 
 @mkdir("simulation.dir")

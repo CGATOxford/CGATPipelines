@@ -20,7 +20,6 @@ import CGAT.IOTools as IOTools
 
 import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
 
 from CGATPipelines.Pipeline import cluster_runnable
 
@@ -32,6 +31,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import os
+
 
 def connect(database, annotations_database):
     '''utility function to connect to database.
@@ -50,6 +50,7 @@ def connect(database, annotations_database):
     cc.close()
 
     return dbh
+
 
 @cluster_runnable
 def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
@@ -251,7 +252,7 @@ def calculateCorrelations(infiles, outfile):
 
     df_final['log2diff_tpm'] = np.log2(df_final['est_tpm'] /
                                        df_final['tpm'])
-    df_final['log2diff_tpm_thres'] = [x if abs(x) < 2 else 2 *x/abs(x)
+    df_final['log2diff_tpm_thres'] = [x if abs(x) < 2 else 2 * x/abs(x)
                                       for x in df_final['log2diff_tpm']]
 
     df_final['log2diff_counts'] = np.log2(df_final['est_counts'] /
