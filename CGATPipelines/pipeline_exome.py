@@ -1297,6 +1297,40 @@ def loadCompoundHets(infile, outfile):
 ###############################################################################
 ###############################################################################
 ###############################################################################
+# coverage over candidate genes
+
+@active_if(PARAMS["coverage_calculate"] == 1)
+@transform(listOfBAMs, regex(r"gatk/all_samples.list"), r"candidate.sample_interval_summary")
+def candidateCoverage(infile, outfile):
+    '''Calculate coverage over exons of candidate genes'''
+    all_exons = PARAMS["coverage_all_exons"]
+    candidates = PARAMS["coverage_candidates"]
+    candidates = candidates.replace(",", " -e ")
+    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    statement = '''zcat %(all_exons)s | grep -e %(candidates)s 
+                   | awk '{print $1 ":" $4 "-" $5}' - | sed 's/chr//' - > 
+                   candidate.interval_list ; ''' % locals()
+    statement += '''zcat %(all_exons)s | grep -e %(candidates)s
+                    | awk '{print $16}' - | sed 's/"//g;s/;//g' - > 
+                    candidate_gene_names.txt ;''' % locals()
+    statement += '''GenomeAnalysisTK -T DepthOfCoverage -R %(genome)s 
+                    -o candidate -I %(infile)s -L candidate.interval_list ;''' % locals()
+    P.run()
+
+###############################################################################
+
+
+@active_if(PARAMS["coverage_calculate"] == 1)
+@transform(candidateCoverage, regex(r"candidate.sample_interval_summary"), r"candidate_coverage_plot.pdf")
+def candidateCoveragePlots(infile, outfile):
+    '''Produce plots of coverage'''
+    rscript = PARAMS["coverage_rscript"]
+    statement = '''Rscript %(rscript)s %(infile)s candidate_gene_names.txt %(outfile)s ;'''
+    P.run()
+
+###############################################################################
+###############################################################################
+###############################################################################
 # vcf statistics
 
 
