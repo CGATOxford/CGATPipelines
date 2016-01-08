@@ -59,9 +59,9 @@ def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
 
     outfile_prefix = P.snip(outfile, ".tsv")
 
-    Design = Expression.ExperimentalDesign(design)
+    Design1 = Expression.ExperimentalDesign(design)
     exp = Expression.DEExperiment_Sleuth()
-    res = exp.run(base_dir, Design, model, contrast, outfile_prefix,
+    res = exp.run(base_dir, Design1, model, contrast, outfile_prefix,
                   counts, tpm, fdr)
 
     res.getResults(fdr)

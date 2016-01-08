@@ -1173,7 +1173,7 @@ def runSleuth(infiles, outfiles):
     for contrast in contrasts:
 
         TranscriptDiffExpression.runSleuth(
-            Design, "quant.dir/kallisto", model, contrast,
+            design, "quant.dir/kallisto", model, contrast,
             outfile, counts, tpm, PARAMS["sleuth_fdr"],
             submit=True, job_memory=job_memory)
 
