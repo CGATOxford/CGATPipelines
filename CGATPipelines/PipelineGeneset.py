@@ -97,6 +97,8 @@ def annotateGenome(infile, outfile,
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=gene+transcript
     | python %(scriptsdir)s/gtf2gtf.py
+    --method=set-source-to-transcript_biotype
+    | python %(scriptsdir)s/gtf2gtf.py
     --method=merge-exons
     --mark-utr
     --log=%(outfile)s.log
