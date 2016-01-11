@@ -2733,7 +2733,7 @@ class Bowtie(Mapper):
             %(index_option)s %(index_prefix)s
             %(infiles)s
             %(output_option)s
-            2>%(outfile)s.log
+            2>%(outfile)s_bowtie.log
             | awk -v OFS="\\t" '{sub(/\/[12]$/,"",$1);print}'
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
             1>&2 2>> %(outfile)s.log;
@@ -2751,7 +2751,7 @@ class Bowtie(Mapper):
             %(index_option)s %(index_prefix)s
             -1 %(infiles1)s -2 %(infiles2)s
             %(output_option)s
-            2>%(outfile)s.log
+            2>%(outfile)s_bowtie.log
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
             1>&2 2>> %(outfile)s.log;
             ''' % locals()
