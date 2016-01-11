@@ -719,7 +719,7 @@ def run(**kwargs):
             # the statement needs to be wrapped in
             # /bin/bash -c '...' in order for bash
             # to interpret the substitution correctly.
-            if "<(" in statement:
+            if "<(" in statement or ">(" in statement:
                 shell = os.environ.get('SHELL', "/bin/bash")
                 if "bash" not in shell:
                     raise ValueError(
