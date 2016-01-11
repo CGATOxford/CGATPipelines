@@ -256,8 +256,6 @@ if PARAMS.get("preprocessors", None):
     def processReads(infile, outfiles):
         '''process reads from .fastq and other sequence files.
         '''
-        print "infile", infile
-        print "outfiles", outfiles
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["trimmomatic_adapter"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
@@ -305,6 +303,13 @@ if PARAMS.get("preprocessors", None):
                 m.add(PipelinePreprocess.Flash(
                     PARAMS["flash_options"],
                     threads=PARAMS["threads"]))
+            elif tool == "reversecomplement":
+                m.add(PipelinePreprocess.ReverseComplement(
+                    PARAMS["reversecomplement_options"]))
+            elif tool == "pandaseq":
+                m.add(PipelinePreprocess.Pandaseq(
+                    PARAMS["pandaseq_options"],
+                    threads=PARAMS["threads"]))
             elif tool == "cutadapt":
                 cutadapt_options = PARAMS["cutadapt_options"]
                 if PARAMS["auto_remove"]:
@@ -313,9 +318,10 @@ if PARAMS.get("preprocessors", None):
                     cutadapt_options,
                     threads=PARAMS["threads"],
                     untrimmed=PARAMS['cutadapt_reroute_untrimmed']))
+            else:
+                raise NotImplementedError("tool '%s' not implemented" % tool)
 
         statement = m.build((infile,), "processed.dir/trimmed-", track)
-
         P.run()
 
 else:

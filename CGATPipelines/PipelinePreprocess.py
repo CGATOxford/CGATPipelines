@@ -25,6 +25,7 @@ Requirements:
 * trimmomatic >= 0.32
 * trimgalore >= 0.3.3
 * flash >= 1.2.6
+* pandaseq >= 2.9
 
 Reference
 ---------
@@ -234,7 +235,6 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
 
             # number of output files created in this step
             nfiles = processor.get_num_files(current_files)
-
             if nfiles == 2:
                 suffixes = [track + ".fastq.1.gz",
                             track + ".fastq.2.gz"]
@@ -546,7 +546,7 @@ class Reconcile(ProcessTool):
 
     prefix = "reconcile"
 
-    def process(self, infiles, outfiles, output_prefix):
+    def build(self, infiles, outfiles, output_prefix):
 
         assert len(infiles) == 2
         infile1, infile2 = infiles
@@ -569,12 +569,11 @@ class Flash(ProcessTool):
         assert len(infiles) == 2
         return 1
 
-    def process(self, infiles, outfiles, output_prefix):
+    def build(self, infiles, outfiles, output_prefix):
 
         prefix = self.prefix
         offset = Fastq.getOffset("sanger", raises=False)
-        outdir = os.path.join(os.path.dirname(output_prefix),
-                              "flash.dir")
+        outdir = os.path.join(output_prefix + ".dir")
         track = os.path.basename(output_prefix)
 
         processing_options = self.processing_options
@@ -583,16 +582,16 @@ class Flash(ProcessTool):
         outfile = outfiles[0]
 
         cmd = '''flash %(infile1)s %(infile2)s
-        -p%(offset)s
+        -p %(offset)s
         %(processing_options)s
         -o %(track)s
         -d %(outdir)s
-        2>>%(output_prefix)s.log;
+        >& %(output_prefix)s-flash.log;
         checkpoint;
         gzip %(outdir)s/*;
         checkpoint;
-        mv %(outdir)s/%(track)s.extendedFrags.fastq %(outfile)s;
-        ;''' % locals()
+        mv %(outdir)s/%(track)s.extendedFrags.fastq.gz %(outfile)s;
+        ''' % locals()
 
         return cmd
 
@@ -623,3 +622,63 @@ class Flash(ProcessTool):
             postprocess_cmd = "checkpoint ;"
 
         return postprocess_cmd
+
+
+class ReverseComplement(ProcessTool):
+    """Reverse complement fastq files."""
+
+    prefix = "reversecomplement"
+
+    def build(self, infiles, outfiles, output_prefix):
+
+        assert len(infiles) == len(outfiles)
+
+        cmds = []
+        for infile, outfile in zip(infiles, outfiles):
+            cmds.append('''zcat %(infile)s
+            | python %%(scriptsdir)s/fastq2fastq.py
+            --method=reverse-complement
+            --log=%(output_prefix)s.log
+            | gzip > %(outfile)s;
+            ''' % locals())
+
+        return " checkpoint; ".join(cmds)
+
+
+class Pandaseq(ProcessTool):
+    """Read processing - run pandaseq"""
+
+    prefix = "pandaseq"
+
+    def get_num_files(self, infiles):
+        print "infiles=", infiles
+        assert len(infiles) == 2
+        return 1
+
+    def build(self, infiles, outfiles, output_prefix):
+
+        prefix = self.prefix
+        offset = Fastq.getOffset("sanger", raises=False)
+        outdir = os.path.join(output_prefix + ".dir")
+        track = os.path.basename(output_prefix)
+
+        processing_options = self.processing_options
+        threads = self.threads
+
+        infile1, infile2 = infiles
+        outfile = outfiles[0]
+
+        cmd = '''pandaseq -f %(infile1)s -r %(infile2)s
+        %(processing_options)s
+        -T %(threads)i
+        -U >(gzip > %(outfile)s.unpaired.gz)
+        -w >(gzip > %(outfile)s)
+        -F
+        -G %(output_prefix)s-pandaseq.log.bgz;
+        >& %(output_prefix)s-pandaseq.log;
+        checkpoint;
+        gzip %(outdir)s/*;
+        checkpoint;
+        ''' % locals()
+
+        return cmd
