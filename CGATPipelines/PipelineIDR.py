@@ -376,7 +376,7 @@ class sppIDRPeaks(callerIDRPeaks):
                       " %(threshold)s"
                       " -savn"
                       " -savr")]
-        
+
         # add additional options
         statement.append(self.PARAMS_PEAKCALLER["spp_options_parameters"])
 
