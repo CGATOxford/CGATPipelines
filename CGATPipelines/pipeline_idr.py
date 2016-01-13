@@ -415,7 +415,8 @@ def splitPooledBamfiles(infile, sentinel):
 
 @follows(filterBamfiles,
          poolInputBamfiles,
-         mkdir("peakfiles_individual_replicates"))
+         mkdir("peakfiles_individual_replicates"),
+         mkdir("stats"))
 @transform([os.path.join("./bamfiles_filtered", x.asFile() + ".sentinel")
             for x in TRACKS],
            regex("(.+)/(.+).sentinel"),
@@ -564,7 +565,7 @@ def runIDROnIndividualReplicates(infiles, outfile):
     # set IDR parameters (HACK!) WrapperIDR is in /ifs/devel/CGAT
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_script = os.path.join(os.path.dirname(E.__file__), "WrapperIDR.py")
 
     # iterate through pairwise combinations of infiles
     for infile1, infile2 in itertools.combinations(infiles, 2):
@@ -589,8 +590,8 @@ def runIDROnIndividualReplicates(infiles, outfile):
            add_inputs(r"\1-*-uri.sav"),
            r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForIndividualReplicates(infiles, outfile):
-    # HACK!
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    # HACK! <- MM: horrible hack, bleurgh!!!
+    idr_script = os.path.join(os.path.dirname(E.__file__), "WrapperIDR.py")
     statement = IDR.getIDRPlotStatement(infiles, outfile, idr_script)
     P.run()
 #    print statement
@@ -609,7 +610,11 @@ def runIDROnPseudoreplicates(infiles, outfile):
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    # MM: what is this horrific hack????
+    # changed to the equally hacky use of location of
+    # Expression.py <- this needs a better pointer to the
+    # CGAT code collection
+    idr_script = os.path.join(os.path.dirname(E.__file__), "WrapperIDR.py")
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -632,7 +637,7 @@ def runIDROnPseudoreplicates(infiles, outfile):
          add_inputs(r"\1*-uri.sav"),
          r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForPseudoreplicates(infiles, outfile):
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_script = os.path.join(os.path.dirname(E.__file__), "WrapperIDR.py")
     statement = IDR.getIDRPlotStatement(infiles[0], outfile, idr_script)
     P.run()
 
@@ -650,7 +655,7 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_script = os.path.join(os.path.dirname(E.__file__), "WrapperIDR.py")
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -673,7 +678,7 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
          add_inputs(r"\1*-uri.sav"),
          r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForPooledPseudoreplicates(infiles, outfile):
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_script = os.path.join(os.path.dirname(E.__file__), "WrapperIDR.py")
     statement = IDR.getIDRPlotStatement(infiles[0], outfile, idr_script)
     P.run()
 #    print "\n" + statement + "\n"
@@ -881,7 +886,8 @@ def callPeaksOnPooledReplicates(infile, outfile):
     P.touch(outfile)
 
 
-@follows(callPeaksOnPooledReplicates,
+@follows(connect,
+         callPeaksOnPooledReplicates,
          loadNPeaksForIndividualReplicates,
          loadNPeaksForPseudoreplicates,
          loadNPeaksForPooledPseudoreplicates,
@@ -896,22 +902,28 @@ def generatePeakSets(infile, outfiles):
 
     # retrieve maximum number of peaks obtained from inter-replicate IDR
     # (table created by loadNPeaksForIndividualReplicates)
-    statement = ("SELECT"
-                 " Experiment,"
-                 " max(n_peaks) AS nPeaks"
-                 " FROM individual_replicates_nPeaks"
-                 " GROUP BY experiment")
-    df = Database.fetch_DataFrame(statement)
+    statement = """
+    SELECT
+    Experiment,
+    max(n_peaks) AS nPeaks
+    FROM individual_replicates_nPeaks
+    GROUP BY experiment"""
+
+    df = Database.fetch_DataFrame(statement,
+                                  PARAMS["database_name"])
     # reassign experiment as index
     df = df.set_index("Experiment")
 
     # retrieve number of peaks obtained from pooled_pseudoreplicate IDR
     # (table created by loadNPeaksForPooledPseudoreplicates)
-    statement = ("SELECT"
-                 " Experiment,"
-                 " n_peaks AS nPeaks"
-                 " FROM pooled_pseudoreplicates_nPeaks")
-    df2 = Database.fetch_DataFrame(statement)
+    # MM: fixed bug from removal of PARAMS access in external
+    # module files
+    statement = """SELECT
+    Experiment,
+    n_peaks AS nPeaks
+    FROM pooled_pseudoreplicates_nPeaks"""
+    df2 = Database.fetch_DataFrame(statement,
+                                   PARAMS["database_name"])
 
     # reassign experiment as index
     df2 = df2.set_index("Experiment")
