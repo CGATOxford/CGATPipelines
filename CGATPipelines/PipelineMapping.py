@@ -1265,7 +1265,8 @@ class BWA(Mapper):
             > %(tmpdir)s/%(track)s.sai 2>>%(outfile)s.bwa.log;
             bwa samse %%(bwa_samse_options)s %%(bwa_index_dir)s/%%(genome)s
             %(tmpdir)s/%(track)s.sai %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1284,7 +1285,8 @@ class BWA(Mapper):
             bwa sampe %%(bwa_sampe_options)s %(index_prefix)s
                       %(tmpdir)s/%(track1)s.sai %(tmpdir)s/%(track2)s.sai
                       %(infiles1)s %(infiles2)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1341,7 +1343,7 @@ class BWA(Mapper):
             --log=%(outfile)s.log''' % locals()
 
         statement = '''
-                samtools view -uS %(tmpdir)s/%(track)s.sam
+                cat %(tmpdir)s/%(track)s.bam
                 %(unique_cmd)s
                 %(strip_cmd)s
                 %(set_nh_cmd)s
@@ -1417,7 +1419,8 @@ class BWAMEM(BWA):
             statement.append('''
             bwa mem %%(bwa_mem_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1427,7 +1430,9 @@ class BWAMEM(BWA):
             statement.append('''
             bwa mem %%(bwa_mem_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles1)s
-            %(infiles2)s > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            %(infiles2)s
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1522,16 +1527,16 @@ class Bismark(Mapper):
         base = os.path.basename(infile).split(".")[0]
         if infile.endswith(".fastq.gz"):
             statement = '''samtools view -h
-            %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2.bam|
-            awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
+            %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2.bam
+            | awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
             $1=="@SQ" || $1=="@PG"' | samtools view -b - >
             %%(outdir)s/%(track)s.bam;
             mv %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2_SE_report.txt
             %%(outdir)s/%(track)s_bismark_bt2_SE_report.txt;''' % locals()
         elif infile.endswith(".fastq.1.gz"):
             statement = '''samtools view -h
-            %(tmpdir_fastq)s/%(base)s.fastq.1.gz_bismark_bt2_pe.bam|
-            awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
+            %(tmpdir_fastq)s/%(base)s.fastq.1.gz_bismark_bt2_pe.bam
+            | awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
             $1=="@SQ" || $1=="@PG"' | samtools view -b - >
             %%(outdir)s/%(track)s.bam;
             mv %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2_PE_report.txt
@@ -1659,7 +1664,8 @@ class Stampy(BWA):
             -h %%(stampy_index_dir)s/%%(genome)s
             %%(stampy_options)s
             -M %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>%(outfile)s.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>%(outfile)s.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1673,7 +1679,8 @@ class Stampy(BWA):
             -h %%(stampy_index_dir)s/%%(genome)s
             %%(stampy_options)s
             -M %(infiles1)s %(infiles2)s
-            > %(tmpdir)s/%(track)s.sam 2>%(outfile)s.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>%(outfile)s.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1736,7 +1743,7 @@ class Butter(BWA):
 
             # butter cannot handle compressed fastqs
             # recognises file types by suffix
-            track_fastq = track + ".fastq"
+            track_fastq = os.path.join(tmpdir_fastq, track + ".fastq")
 
             if infiles.endswith(".gz"):
                 statement.append('''
@@ -1751,10 +1758,7 @@ class Butter(BWA):
             %%(butter_index_dir)s/%%(genome)s.fa
             --aln_cores=%%(job_threads)s
             --bam2wig=none
-            >%(outfile)s.log;
-            samtools view -h %(track)s.bam >
-            %(tmpdir)s/%(track)s.sam;
-            rm -rf ./%(track)s.bam ./%(track)s.bam.bai ./%(track_fastq)s;
+            > %(outfile)s_butter.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -2383,7 +2387,7 @@ class GSNAP(Mapper):
 #                   --nthreads %%(gsnap_worker_threads)i
 #                   --format=sam
 #                   --db=%(index_prefix)s
-#                   %%(gsnap_options)s
+#                   %%(gsnap_options)
 #                   > %(tmpdir)s/%(track)s.sam
 #                   2> %(outfile)s.log;
 #            ''' % locals()
@@ -2406,13 +2410,13 @@ class GSNAP(Mapper):
 
         statement = '''
         %(executable)s
-               --nthreads %%(gsnap_worker_threads)i
-               --format=sam
-               --db=%(index_prefix)s
-               %%(gsnap_options)s
-               %(files)s
-               > %(tmpdir)s/%(track)s.sam
-               2> %(outfile)s.log ;
+        --nthreads %%(gsnap_worker_threads)i
+        --format=sam
+        --db=%(index_prefix)s
+        %%(gsnap_options)s
+        %(files)s
+        | samtools view -bS -
+        2> %(outfile)s.log ;
         ''' % locals()
 
         return statement
@@ -2463,11 +2467,11 @@ class GSNAP(Mapper):
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
         statement = '''
-                samtools view -uS %(tmpdir)s/%(track)s.sam
-                %(unique_cmd)s
-                %(strip_cmd)s
-                | samtools sort - %(outf)s 2>>%(outfile)s.log;
-                samtools index %(outfile)s;''' % locals()
+        cat %(tmpdir)s/%(track)s.bam
+        %(unique_cmd)s
+        %(strip_cmd)s
+        | samtools sort - %(outf)s 2>>%(outfile)s.log;
+        samtools index %(outfile)s;''' % locals()
 
         return statement
 
@@ -2529,16 +2533,17 @@ class STAR(Mapper):
             infiles = "<( zcat %s )" % " ".join([x[0] for x in infiles])
             statement = '''
             %(executable)s
-                   --runMode alignReads
-                   --runThreadN %%(star_threads)i
-                   --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
-                   --outFileNamePrefix %(tmpdir)s/
-                   --outStd SAM
-                   --outSAMunmapped Within
-                   %%(star_options)s
-                   --readFilesIn %(infiles)s
-                   > %(tmpdir)s/%(track)s.sam
-                   2> %(outfile)s.log;
+            --runMode alignReads
+            --runThreadN %%(star_threads)i
+            --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
+            --outFileNamePrefix %(tmpdir)s/
+            --outStd SAM
+            --outSAMunmapped Within
+            %%(star_options)s
+            --readFilesIn %(infiles)s
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam
+            2> %(outfile)s.log;
             ''' % locals()
 
         elif nfiles == 2:
@@ -2556,17 +2561,18 @@ class STAR(Mapper):
 
             statement = '''
             %(executable)s
-                   --runMode alignReads
-                   --runThreadN %%(star_threads)i
-                   --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
-                   --outFileNamePrefix %(tmpdir)s/
-                   --outStd SAM
-                   --outSAMunmapped Within
-                   %%(star_options)s
-                   %(compress_option)s
-                   --readFilesIn %(files)s
-                   > %(tmpdir)s/%(track)s.sam
-                   2> %(outfile)s.log;
+            --runMode alignReads
+            --runThreadN %%(star_threads)i
+            --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
+            --outFileNamePrefix %(tmpdir)s/
+            --outStd SAM
+            --outSAMunmapped Within
+            %%(star_options)s
+            %(compress_option)s
+            --readFilesIn %(files)s
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam
+            2> %(outfile)s.log;
             ''' % locals()
 
         else:
@@ -2615,16 +2621,16 @@ class STAR(Mapper):
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
         statement = '''
-                cp %(tmpdir)s/Log.std.out %(outfile)s.std.log;
-                cp %(tmpdir)s/Log.final.out %(outfile)s.final.log;
-                cp %(tmpdir)s/SJ.out.tab %(outfile)s.junctions;
-                cat %(tmpdir)s/Log.out >> %(outfile)s.log;
-                cp %(tmpdir)s/Log.progress.out %(outfile)s.progress;
-                samtools view -uS %(tmpdir)s/%(track)s.sam
-                %(unique_cmd)s
-                %(strip_cmd)s
-                | samtools sort - %(outf)s 2>>%(outfile)s.log;
-                samtools index %(outfile)s;''' % locals()
+        cp %(tmpdir)s/Log.std.out %(outfile)s.std.log;
+        cp %(tmpdir)s/Log.final.out %(outfile)s.final.log;
+        cp %(tmpdir)s/SJ.out.tab %(outfile)s.junctions;
+        cat %(tmpdir)s/Log.out >> %(outfile)s.log;
+        cp %(tmpdir)s/Log.progress.out %(outfile)s.progress;
+        cat %(tmpdir)s/%(track)s.bam
+        %(unique_cmd)s
+        %(strip_cmd)s
+        | samtools sort - %(outf)s 2>>%(outfile)s.log;
+        samtools index %(outfile)s;''' % locals()
 
         return statement
 

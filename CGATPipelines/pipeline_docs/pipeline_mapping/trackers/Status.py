@@ -32,6 +32,9 @@ class MappingStatus(MappingTracker, Status):
         else:
             status = "FAIL"
 
+        if value is None:
+            value = 0
+
         return status, "%5.2f%%" % (100.0 * value)
 
     def testPairMapping(self, track):
