@@ -118,7 +118,8 @@ https://www.cgat.org/downloads/public/cgatpipelines/pipeline_test_data/test_read
 
 To run the example, simply unpack and untar::
 
-   wget -qO- https://www.cgat.org/downloads/public/cgatpipelines/pipeline_test_data/test_readqc.tgz | tar -xvz
+   wget -qO- https://www.cgat.org/downloads/public/cgatpipelines/
+             pipeline_test_data/test_readqc.tgz | tar -xvz
    cd test_readqc
    python <srcdir>/pipeline_readqc.py make full
 
@@ -139,8 +140,8 @@ Requirements:
 """
 
 # import ruffus
-from ruffus import transform, merge, follows, mkdir, regex, suffix, jobs_limit, \
-    subdivide, collate, active_if
+from ruffus import transform, merge, follows, mkdir, regex, suffix, \
+    jobs_limit, subdivide, collate, active_if
 
 # import useful standard python modules
 import sys
@@ -331,6 +332,28 @@ else:
         pass
 
 
+@active_if(PARAMS["general_reconcile"] == 1)
+@follows(mkdir("reconciled.dir"))
+@transform(processReads, regex(
+    r"processed.dir\/trimmed-(.*)\.fastq\.1\.gz"),
+    r"reconciled.dir/trimmed-\1.fastq.1.gz")
+def reconcileReads(infile, outfile):
+    if PARAMS["general_reconcile"] == 1:
+        in1 = infile
+        in2 = infile.replace(".fastq.1.gz", ".fastq.2.gz")
+        outfile = outfile.replace(".fastq.1.gz",  "")
+        job_threads = PARAMS["threads"]
+        job_memory = "8G"
+        statement = """python
+            %(scriptsdir)s/fastqs2fastqs.py
+            --method=reconcile
+            --output-filename-pattern=%(outfile)s.fastq.%%s.gz
+            %(in1)s %(in2)s"""
+
+        P.run()
+
+
+@follows(reconcileReads)
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
 @transform((unprocessReads, processReads),
@@ -352,6 +375,9 @@ def runFastqc(infiles, outfile):
     else:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc")
+    if PARAMS["general_reconcile"] == 1:
+        infiles = infiles.replace("processed.dir/trimmed",
+                                  "reconciled.dir/trimmed")
 
     statement = m.build((infiles,), outfile)
     P.run()
