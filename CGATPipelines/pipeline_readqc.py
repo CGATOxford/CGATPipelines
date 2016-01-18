@@ -140,7 +140,7 @@ Requirements:
 
 # import ruffus
 from ruffus import transform, merge, follows, mkdir, regex, suffix, jobs_limit, \
-    subdivide, collate
+    subdivide, collate, active_if
 
 # import useful standard python modules
 import sys
@@ -256,7 +256,8 @@ if PARAMS.get("preprocessors", None):
     def processReads(infile, outfiles):
         '''process reads from .fastq and other sequence files.
         '''
-
+        print "infile", infile
+        print "outfiles", outfiles
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["trimmomatic_adapter"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
@@ -310,7 +311,8 @@ if PARAMS.get("preprocessors", None):
                     cutadapt_options += " -a file:contaminants.fasta "
                 m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
-                    threads=PARAMS["threads"]))
+                    threads=PARAMS["threads"],
+                    untrimmed=PARAMS['cutadapt_reroute_untrimmed']))
 
         statement = m.build((infile,), "processed.dir/trimmed-", track)
 
@@ -369,6 +371,7 @@ def loadFastqc(infile, outfile):
 
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
+@active_if(PARAMS["fastq_screen_run"] == 1)
 @transform((unprocessReads, processReads),
            regex(REGEX_TRACK_BOTH),
            r"%s/fastq_screen/\2.fastqscreen" % PARAMS['exportdir'])
