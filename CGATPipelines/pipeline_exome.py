@@ -1307,6 +1307,7 @@ def candidateCoverage(infile, outfile):
     candidates = PARAMS["coverage_candidates"]
     candidates = candidates.replace(",", " -e ")
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    threshold = PARAMS["coverage_threshold"]
     statement = '''zcat %(all_exons)s | grep -e %(candidates)s 
                    | awk '{print $1 ":" $4 "-" $5}' - | sed 's/chr//' - > 
                    candidate.interval_list ; ''' % locals()
@@ -1314,7 +1315,7 @@ def candidateCoverage(infile, outfile):
                     | awk '{print $16}' - | sed 's/"//g;s/;//g' - > 
                     candidate_gene_names.txt ;''' % locals()
     statement += '''GenomeAnalysisTK -T DepthOfCoverage -R %(genome)s 
-                    -o candidate -I %(infile)s -L candidate.interval_list ;''' % locals()
+                    -o candidate -I %(infile)s -ct %(threshold)s -L candidate.interval_list ;''' % locals()
     P.run()
 
 ###############################################################################
@@ -1325,7 +1326,8 @@ def candidateCoverage(infile, outfile):
 def candidateCoveragePlots(infile, outfile):
     '''Produce plots of coverage'''
     rscript = PARAMS["coverage_rscript"]
-    statement = '''Rscript %(rscript)s %(infile)s candidate_gene_names.txt %(outfile)s ;'''
+    threshold = PARAMS["coverage_threshold"]
+    statement = '''Rscript %(rscript)s %(infile)s candidate_gene_names.txt %(threshold)s %(outfile)s ;'''
     P.run()
 
 ###############################################################################
