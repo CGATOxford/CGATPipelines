@@ -12,6 +12,16 @@ for the ReadQC Pipeline is below:
 
 .. toctree::
    :maxdepth: 3
+   
+   pipeline/overview.rst
+   pipeline/design.rst
+   pipeline/mappinglog.rst
+   pipeline/saturation.rst
+   pipeline/context.rst
+   pipeline/bias.rst
+   pipeline/expression.rst
+   pipeline/clustering.rst
+   pipeline/validation.rst
 
    pipeline/MDS.rst
    pipeline/heatmap.rst
