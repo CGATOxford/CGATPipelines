@@ -6,7 +6,10 @@ DE results tables
 =================
 
 The following presents the results tables for the differential
-expression (DE) testing for the transcripts. 
+expression (DE) testing for the transcripts. Only transcripts which
+were identified as significantly differentially expressed by greater
+than 2-fold are shown in the tables below. For the full results see
+the table download links at the bottom of the page
 
 The results table contains the following columns:
 
@@ -14,7 +17,8 @@ The results table contains the following columns:
 * gene_id = Ensembl gene identification
 * transcript_id = Ensembl transcript identification
 * transcript_biotype = Ensembl transcript biotype
-* expression = average expression of transcript
+* expression = average expression of transcript (Transcripts per
+  million; log2)
 * fold = fold change in expression between conditions
 * log2_fold = log2 transformed fold change
 * p_value = p-value for null hypothesis that fold change is zero
@@ -51,8 +55,30 @@ These are the full results tables
 
    Results from DE testing
 
-These are the tables of Counts and TPM per sample, with gene ID
-annotations and simulation flags.
+
+These are the results tables including the group means and the
+expression values for each individual sample. All transcripts with
+unadjusted p-values < 0.05 are included.
+
+.. report:: Results.SummarisedResults
+   :render: xls-table
+   :groupby: track
+   :force:
+
+   Summarised results tables
+
+
+These are the tables of Counts and TPM per gene per sample, with group means
+
+#.. report:: Results.GeneLevelExpression
+#   :render: xls-table
+#   :groupby: track
+#   :force:
+
+   Transcripts per million per sample, aggregated per gene
+
+These are the tables of Counts and TPM per transcript per sample, with
+gene ID annotations and simulation flags.
 
 .. report:: Results.SleuthTpmAll
    :render: xls-table

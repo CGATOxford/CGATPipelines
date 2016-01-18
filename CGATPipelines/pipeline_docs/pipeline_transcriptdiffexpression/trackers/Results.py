@@ -67,3 +67,57 @@ class SleuthCountsAll(SleuthAll):
 
 class SleuthTpmAll(SleuthAll):
     table = "all_tpm"
+
+
+class SummarisedResults(IsoformTracker):
+
+    pattern = "(.*)_DEresults$"
+
+    def __call__(self, track, slice=None):
+
+        select_results = '''SELECT A.*,
+        B.p_value, B.p_value_adj, B.l2fold, B.transcript_biotype
+        FROM %(track)s_tpm AS A
+        LEFT JOIN %(track)s_DEresults AS B
+        ON A.transcript_id = B.transcript_id
+        WHERE B.p_value<0.05'''
+
+        results_df = pd.DataFrame(self.getAll(select_results))
+
+        select_design = '''SELECT * FROM %(track)s_design'''
+        design_df = self.getDataFrame(select_design)
+
+        for group in set(design_df['_group']):
+            group_tracks = design_df[design_df["_group"] == group]['track']
+            group_tracks = [x.replace("-", "_") for x in group_tracks]
+
+            results_df["group_%s_mean" % group] = results_df[group_tracks].mean(axis=1)
+            results_df["group_%s_stdev" % group] = results_df[group_tracks].std(axis=1)
+
+        return results_df
+
+
+#class GeneLevelExpression(IsoformTracker):
+
+#    pattern = "(.*)_design$"
+
+#    def __call__(self, track, slice=None):
+
+#        select_results = '''SELECT * FROM %(track)s_tpm''' % locals()
+
+#        results_df = pd.DataFrame(self.getAll(select_results))
+
+#        grouped_df = results_df.groupby(["gene_id", "gene_name"])
+#        grouped_df = pd.DataFrame(grouped_df.aggregate(sum))
+
+#        select_design = '''SELECT * FROM %(track)s_design'''
+#        design_df = self.getDataFrame(select_design)
+
+#        for group in set(design_df['_group']):
+#            group_tracks = design_df[design_df["_group"]==group]['track']
+#            group_tracks = [x.replace("-", "_") for x in group_tracks]
+
+#            grouped_df["group_%s_mean" % group] = grouped_df[group_tracks].mean(axis=1)
+#            grouped_df["group_%s_stdev" % group] = grouped_df[group_tracks].std(axis=1)
+
+#        return grouped_df
