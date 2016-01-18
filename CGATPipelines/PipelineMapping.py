@@ -1265,7 +1265,8 @@ class BWA(Mapper):
             > %(tmpdir)s/%(track)s.sai 2>>%(outfile)s.bwa.log;
             bwa samse %%(bwa_samse_options)s %%(bwa_index_dir)s/%%(genome)s
             %(tmpdir)s/%(track)s.sai %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1284,7 +1285,8 @@ class BWA(Mapper):
             bwa sampe %%(bwa_sampe_options)s %(index_prefix)s
                       %(tmpdir)s/%(track1)s.sai %(tmpdir)s/%(track2)s.sai
                       %(infiles1)s %(infiles2)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1341,7 +1343,7 @@ class BWA(Mapper):
             --log=%(outfile)s.log''' % locals()
 
         statement = '''
-                samtools view -uS %(tmpdir)s/%(track)s.sam
+                cat %(tmpdir)s/%(track)s.bam
                 %(unique_cmd)s
                 %(strip_cmd)s
                 %(set_nh_cmd)s
@@ -1417,7 +1419,8 @@ class BWAMEM(BWA):
             statement.append('''
             bwa mem %%(bwa_mem_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1427,7 +1430,9 @@ class BWAMEM(BWA):
             statement.append('''
             bwa mem %%(bwa_mem_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles1)s
-            %(infiles2)s > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            %(infiles2)s
+            | samtools view -bS
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1752,9 +1757,6 @@ class Butter(BWA):
             --aln_cores=%%(job_threads)s
             --bam2wig=none
             >%(outfile)s.log;
-            samtools view -h %(track)s.bam >
-            %(tmpdir)s/%(track)s.sam;
-            rm -rf ./%(track)s.bam ./%(track)s.bam.bai ./%(track_fastq)s;
             ''' % locals())
 
         elif nfiles == 2:
