@@ -51,8 +51,10 @@ def connect(database, annotations_database):
 
     return dbh
 
+
 @cluster_runnable
-def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
+def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm,
+              fdr, lrt=False, reduced_model=None):
     ''' run sleuth. Note: all samples in the design table must also
     have a directory with the same name in `base_dir` with kallisto
     results in a file called abundance.h5'''
@@ -61,8 +63,8 @@ def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm, fdr):
 
     Design = Expression.ExperimentalDesign(design)
     exp = Expression.DEExperiment_Sleuth()
-    res = exp.run(base_dir, Design, model, contrast, outfile_prefix,
-                  counts, tpm, fdr)
+    res = exp.run(Design, base_dir, model, contrast, outfile_prefix,
+                  counts, tpm, fdr, lrt, reduced_model)
 
     res.getResults(fdr)
 
@@ -80,6 +82,8 @@ def runSleuthAll(samples, base_dir, counts, tpm):
     have a directory with the same name in `base_dir` with kallisto
     results in a file called abundance.h5
     '''
+
+    samples = samples.split(",")
 
     design = pd.DataFrame({
         "sample": samples,
