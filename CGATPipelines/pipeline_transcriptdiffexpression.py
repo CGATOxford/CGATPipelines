@@ -331,7 +331,7 @@ def loadDesigns(infile, outfile):
     '''load design files into database'''
     # note group column needs renaming
 
-    tmpfile = P.getTempFilename(".")
+    tmpfile = P.getTempFilename("/ifs/scratch")
 
     statement = "sed 's/group/_group/g' %(infile)s > %(tmpfile)s"
     P.run()
@@ -562,7 +562,7 @@ def buildReferenceTranscriptome(infile, outfile):
     statement = '''
     zcat %(infile)s |
     awk '$3=="exon"'|
-    python /ifs/devel/toms/cgat/scripts/gff2fasta.py
+    python %(scriptsdir)s/gff2fasta.py
     --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
     --log=%(outfile)s.log > %(outfile)s;
     samtools faidx %(outfile)s
@@ -582,7 +582,7 @@ def buildReferencePreTranscriptome(infile, outfile):
     statement = '''
     zcat %(infile)s |
     awk '$3 == "transcript"'|
-    python /ifs/devel/toms/cgat/scripts/gff2fasta.py
+    python %(scriptsdir)s/gff2fasta.py
     --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
     --log=%(outfile)s.log > %(outfile)s;
     samtools faidx %(outfile)s
@@ -1203,7 +1203,7 @@ def runSleuthAll(infiles, outfiles):
     # conservative estimate
     memory_estimate = (48 * PARAMS["kallisto_bootstrap"] * len(samples) *
                        number_transcripts)
-    print "memory_estimate:, ", memory_estimate
+
     job_memory = "%fG" % ((memory_estimate / 1073741824))
 
     TranscriptDiffExpression.runSleuthAll(
@@ -1248,7 +1248,7 @@ def loadSleuthTables(infile, outfile):
 def loadSleuthResults(infile, outfile):
     ''' load Sleuth results '''
 
-    tmpfile = P.getTempFilename("./")
+    tmpfile = P.getTempFilename("/ifs/scratch")
 
     table = os.path.basename(
         PARAMS["annotations_interface_table_transcript_info"])
