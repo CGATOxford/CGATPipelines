@@ -64,7 +64,8 @@ def getTempFile(dir=None, shared=False, suffix=""):
         else:
             dir = PARAMS['tmpdir']
 
-    return tempfile.NamedTemporaryFile(dir=dir, delete=False, prefix="ctmp", suffix=suffix)
+    return tempfile.NamedTemporaryFile(dir=dir, delete=False, prefix="ctmp",
+                                       suffix=suffix)
 
 
 def getTempFilename(dir=None, shared=False, suffix=""):
@@ -90,7 +91,7 @@ def getTempFilename(dir=None, shared=False, suffix=""):
         Absolute pathname of temporary file.
 
     '''
-    tmpfile = getTempFile(dir=dir, shared=shared, suffix="")
+    tmpfile = getTempFile(dir=dir, shared=shared, suffix=suffix)
     tmpfile.close()
     return tmpfile.name
 
