@@ -17,6 +17,7 @@ DATABASE = P.get('', P.get('sql_backend', 'sqlite:///./csvdb'))
 # trackers
 ###############################################################################
 
+
 class SleuthResults(IsoformTracker):
 
     pattern = "(.*)_DEresults$"
@@ -95,29 +96,3 @@ class SummarisedResults(IsoformTracker):
             results_df["group_%s_stdev" % group] = results_df[group_tracks].std(axis=1)
 
         return results_df
-
-
-#class GeneLevelExpression(IsoformTracker):
-
-#    pattern = "(.*)_design$"
-
-#    def __call__(self, track, slice=None):
-
-#        select_results = '''SELECT * FROM %(track)s_tpm''' % locals()
-
-#        results_df = pd.DataFrame(self.getAll(select_results))
-
-#        grouped_df = results_df.groupby(["gene_id", "gene_name"])
-#        grouped_df = pd.DataFrame(grouped_df.aggregate(sum))
-
-#        select_design = '''SELECT * FROM %(track)s_design'''
-#        design_df = self.getDataFrame(select_design)
-
-#        for group in set(design_df['_group']):
-#            group_tracks = design_df[design_df["_group"]==group]['track']
-#            group_tracks = [x.replace("-", "_") for x in group_tracks]
-
-#            grouped_df["group_%s_mean" % group] = grouped_df[group_tracks].mean(axis=1)
-#            grouped_df["group_%s_stdev" % group] = grouped_df[group_tracks].std(axis=1)
-
-#        return grouped_df
