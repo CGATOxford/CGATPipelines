@@ -1,8 +1,8 @@
 .. _context:
 
-=======================
-Where are reads mapping
-=======================
+===============
+Mapping context
+===============
 
 This section contains plots to assess where across the genome (e.g. types 
 of transcript, protein-coding or rRNA) the reads are mapping to. 

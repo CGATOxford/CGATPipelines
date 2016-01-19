@@ -31,9 +31,10 @@ for the ReadQC Pipeline is at the base of this page.
 What the report does not cover
 ==============================
 
-This report is a preliminary analysis only!!. These figures are not publication 
-quality and there may be other experiment specific exploratory analysis that 
-should be carried out - this will be depend on the design of individual experiments.
+This report is a generic preliminary analysis. These figures are not
+publication quality and there may be other experiment specific
+exploratory analysis that should be carried out - this will be depend
+on the design of individual experiments.
 
 
 Contents
@@ -43,7 +44,7 @@ The table of contents below lists the sections of pipeline_rnaseqqc report.
 
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    
    pipeline/executivesummary.rst
    pipeline/design.rst
