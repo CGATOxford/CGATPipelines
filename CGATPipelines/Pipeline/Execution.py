@@ -855,7 +855,8 @@ def cluster_runnable(func):
                    **submit_args)
         else:
             # remove job contral options before running function
-            for x in ("submit", "job_options", "job_queue"):
+            for x in ("submit", "job_options", "job_queue",
+                      "job_memory", "job_threads"):
                 if x in kwargs:
                     del kwargs[x]
             return func(*args, **kwargs)
