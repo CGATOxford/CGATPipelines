@@ -157,7 +157,8 @@ class sampleMDS(RnaseqqcTracker):
         return pos
 
 
-# TS: Correlation trackers should be simplified and use tracks to select subsets
+# TS: Correlation trackers should be simplified and use tracks to
+# select subsets
 class CorrelationSummaryA(RnaseqqcTracker):
     table = "binned_means_correlation"
     select = ["AA", "AT", "AC", "AG"]
@@ -172,8 +173,8 @@ class CorrelationSummaryA(RnaseqqcTracker):
         df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
         merged = pd.concat([df, df2], axis=1)
-        #merged.index = ("all",)*len(merged.index)
-        #merged.index.name = "track"
+        # merged.index = ("all",)*len(merged.index)
+        # merged.index.name = "track"
         return merged
 
 
@@ -239,8 +240,8 @@ class BiasFactors(RnaseqqcTracker):
         df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
 
         merged = pd.concat([df, df2], axis=1)
-        #merged.index = ("all",)*len(merged.index)
-        #merged.index.name = "track"
+        # merged.index = ("all",)*len(merged.index)
+        # merged.index.name = "track"
 
         return merged
 
@@ -249,17 +250,17 @@ class ExpressionDistribution(RnaseqqcTracker):
     table = "transcript_quantification"
 
     def __call__(self, track, slice=None):
-        statement = ("SELECT sample_id, transcript_id, RPKM FROM %(table)s WHERE transcript_id != 'Transcript'")
+        statement = """SELECT sample_id, transcript_id, RPKM
+        FROM %(table)s WHERE transcript_id != 'Transcript'"""
+
         df = pd.DataFrame.from_dict(self.getAll(statement))
         c = 0.0000001
         df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
 
         return df
 
-#  cgatreport-test -t ExpressionDistribution -r r-ggplot -o statement='aes(x=log2rpkm, group=sample_id, colour=sample_id)+geom_density()'
 
-
-#class ExpressionDistributionNotR(RnaseqqcTracker, SingleTableTrackerColumns):
+# class ExpressionDistributionNotR(RnaseqqcTracker, SingleTableTrackerColumns):
 #    table = "transcript_quantification"
 #    column = "transcript_id"
 #    exclude_columns = "RPKM"
