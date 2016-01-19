@@ -719,7 +719,7 @@ def run(**kwargs):
             # the statement needs to be wrapped in
             # /bin/bash -c '...' in order for bash
             # to interpret the substitution correctly.
-            if "<(" in statement:
+            if "<(" in statement or ">(" in statement:
                 shell = os.environ.get('SHELL', "/bin/bash")
                 if "bash" not in shell:
                     raise ValueError(
@@ -855,7 +855,8 @@ def cluster_runnable(func):
                    **submit_args)
         else:
             # remove job contral options before running function
-            for x in ("submit", "job_options", "job_queue"):
+            for x in ("submit", "job_options", "job_queue",
+                      "job_memory", "job_threads"):
                 if x in kwargs:
                     del kwargs[x]
             return func(*args, **kwargs)

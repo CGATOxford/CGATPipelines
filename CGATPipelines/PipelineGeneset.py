@@ -97,6 +97,8 @@ def annotateGenome(infile, outfile,
     | python %(scriptsdir)s/gtf2gtf.py
     --method=sort --sort-order=gene+transcript
     | python %(scriptsdir)s/gtf2gtf.py
+    --method=set-source-to-transcript_biotype
+    | python %(scriptsdir)s/gtf2gtf.py
     --method=merge-exons
     --mark-utr
     --log=%(outfile)s.log
@@ -313,6 +315,7 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
 
     '''
 
+    job_memory = "4G"
     table = P.toTable(outfile)
 
     if only_proteincoding:
@@ -486,7 +489,7 @@ def loadPeptideSequences(infile, outfile):
     P.run()
 
 
-def buildCDSFasta(infile, outfile):
+def buildCDSFasta(infiles, outfile):
     '''output CDS sequences.
 
     This method works by taking the CDNA and peptide sequence of a

@@ -118,7 +118,8 @@ https://www.cgat.org/downloads/public/cgatpipelines/pipeline_test_data/test_read
 
 To run the example, simply unpack and untar::
 
-   wget -qO- https://www.cgat.org/downloads/public/cgatpipelines/pipeline_test_data/test_readqc.tgz | tar -xvz
+   wget -qO- https://www.cgat.org/downloads/public/cgatpipelines/
+             pipeline_test_data/test_readqc.tgz | tar -xvz
    cd test_readqc
    python <srcdir>/pipeline_readqc.py make full
 
@@ -139,8 +140,8 @@ Requirements:
 """
 
 # import ruffus
-from ruffus import transform, merge, follows, mkdir, regex, suffix, jobs_limit, \
-    subdivide, collate
+from ruffus import transform, merge, follows, mkdir, regex, suffix, \
+    jobs_limit, subdivide, collate, active_if
 
 # import useful standard python modules
 import sys
@@ -256,7 +257,6 @@ if PARAMS.get("preprocessors", None):
     def processReads(infile, outfiles):
         '''process reads from .fastq and other sequence files.
         '''
-
         trimmomatic_options = PARAMS["trimmomatic_options"]
         if PARAMS["trimmomatic_adapter"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
@@ -304,16 +304,25 @@ if PARAMS.get("preprocessors", None):
                 m.add(PipelinePreprocess.Flash(
                     PARAMS["flash_options"],
                     threads=PARAMS["threads"]))
+            elif tool == "reversecomplement":
+                m.add(PipelinePreprocess.ReverseComplement(
+                    PARAMS["reversecomplement_options"]))
+            elif tool == "pandaseq":
+                m.add(PipelinePreprocess.Pandaseq(
+                    PARAMS["pandaseq_options"],
+                    threads=PARAMS["threads"]))
             elif tool == "cutadapt":
                 cutadapt_options = PARAMS["cutadapt_options"]
                 if PARAMS["auto_remove"]:
                     cutadapt_options += " -a file:contaminants.fasta "
                 m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
-                    threads=PARAMS["threads"]))
+                    threads=PARAMS["threads"],
+                    untrimmed=PARAMS['cutadapt_reroute_untrimmed']))
+            else:
+                raise NotImplementedError("tool '%s' not implemented" % tool)
 
         statement = m.build((infile,), "processed.dir/trimmed-", track)
-
         P.run()
 
 else:
@@ -323,6 +332,28 @@ else:
         pass
 
 
+@active_if(PARAMS["general_reconcile"] == 1)
+@follows(mkdir("reconciled.dir"))
+@transform(processReads, regex(
+    r"processed.dir\/trimmed-(.*)\.fastq\.1\.gz"),
+    r"reconciled.dir/trimmed-\1.fastq.1.gz")
+def reconcileReads(infile, outfile):
+    if PARAMS["general_reconcile"] == 1:
+        in1 = infile
+        in2 = infile.replace(".fastq.1.gz", ".fastq.2.gz")
+        outfile = outfile.replace(".fastq.1.gz",  "")
+        job_threads = PARAMS["threads"]
+        job_memory = "8G"
+        statement = """python
+            %(scriptsdir)s/fastqs2fastqs.py
+            --method=reconcile
+            --output-filename-pattern=%(outfile)s.fastq.%%s.gz
+            %(in1)s %(in2)s"""
+
+        P.run()
+
+
+@follows(reconcileReads)
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
 @transform((unprocessReads, processReads),
@@ -344,6 +375,9 @@ def runFastqc(infiles, outfile):
     else:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc")
+    if PARAMS["general_reconcile"] == 1:
+        infiles = infiles.replace("processed.dir/trimmed",
+                                  "reconciled.dir/trimmed")
 
     statement = m.build((infiles,), outfile)
     P.run()
@@ -369,6 +403,7 @@ def loadFastqc(infile, outfile):
 
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
+@active_if(PARAMS["fastq_screen_run"] == 1)
 @transform((unprocessReads, processReads),
            regex(REGEX_TRACK_BOTH),
            r"%s/fastq_screen/\2.fastqscreen" % PARAMS['exportdir'])

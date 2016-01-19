@@ -11,7 +11,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 
 EXPORTDIR = P.get('calling_exportdir', P.get('exportdir', 'export'))
 DATADIR = P.get('calling_datadir', P.get('datadir', '.'))
-DATABASE = P.get('calling_backend', P.get('sql_backend', 'sqlite:///./csvdb'))
+DATABASE = P.get('calling_backend', P.get('report_sql_backend', 'sqlite:///./csvdb'))
 
 ###################################################################
 # cf. pipeline_chipseq.py

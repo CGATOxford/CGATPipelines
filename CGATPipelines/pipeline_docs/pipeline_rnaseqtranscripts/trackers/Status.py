@@ -9,7 +9,7 @@ import numpy
 from RnaseqTranscriptsReport import *
 
 
-class TranscriptStatus(Status):
+class TranscriptStatus(RnaseqTranscriptsTracker, Status):
 
     '''status information on transcriptome building.'''
 

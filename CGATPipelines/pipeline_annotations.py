@@ -939,6 +939,7 @@ def buildGenomeGCProfile(infile, outfile):
         --log=%(outfile)s.log
     | bgzip
     > %(outfile)s'''
+
     P.run()
 
 
@@ -962,6 +963,7 @@ def buildCpGBed(infile, outfile):
       genome.  The BED file is then indexed using tabix
     '''
 
+    job_memory = "5G"
     statement = '''
     python %(scriptsdir)s/fasta2bed.py
         --method=cpg
@@ -1117,13 +1119,13 @@ def loadGeneCoordinates(infile, outfile):
 @P.add_doc(PipelineGeneset.loadTranscriptStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @files(
-    (buildExonTranscripts, "ensembl.dir/transcript_stats.load"),
-    (buildCDSTranscripts, "ensembl.dir/cds_stats.load"))
+    ((buildExonTranscripts, "ensembl.dir/transcript_stats.load"),
+     (buildCDSTranscripts, "ensembl.dir/cds_stats.load")))
 def loadTranscriptStats(infile, outfile):
     PipelineGeneset.loadTranscriptStats(infile, outfile)
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir('ensembl.dir'))
 @files(buildGeneSet, "ensembl.dir/transcript_info.load")
 def downloadTranscriptInformation(infile, outfile):
@@ -1165,6 +1167,11 @@ def downloadTranscriptInformation(infile, outfile):
        Genome assembly to use. Used add missing columns
        in mart to output table.
     '''
+
+    # If mart is not set, use old fasionhed gtf parsing
+    if not PARAMS["ensembl_biomart_mart"]:
+        PipelineGeneset.loadTranscriptInformation(infile, outfile)
+        return
 
     tablename = P.toTable(outfile)
 
@@ -1241,7 +1248,7 @@ def downloadTranscriptInformation(infile, outfile):
             locals())
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir('ensembl.dir'))
 @files(PARAMS["ensembl_filename_gtf"],
        "ensembl.dir/ensembl_to_entrez.load")
@@ -1273,6 +1280,11 @@ def downloadEntrezToEnsembl(infile, outfile):
 
     '''
 
+    if not PARAMS["ensembl_biomart_mart"]:
+        # skip
+        P.touch(outfile)
+        return None
+
     tablename = P.toTable(outfile)
 
     columns = {
@@ -1293,7 +1305,7 @@ def downloadEntrezToEnsembl(infile, outfile):
         indices=("gene_id", "entrez_id"))
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir('ensembl.dir'))
 @files(PARAMS["ensembl_filename_gtf"],
        "ensembl.dir/transcript_synonyms.load")
@@ -1324,6 +1336,11 @@ def downloadTranscriptSynonyms(infile, outfile):
        Biomart host to use.
 
     """
+
+    if not PARAMS["ensembl_biomart_mart"]:
+        # skip
+        P.touch(outfile)
+        return None
 
     tablename = P.toTable(outfile)
 
@@ -1371,8 +1388,8 @@ def buildCDNAFasta(infile, outfile):
 @files((buildCDSTranscripts,
         buildPeptideFasta,),
        PARAMS["interface_cds_fasta"])
-def buildCDSFasta(infile, outfile):
-    PipelineGeneset.buildCDSFasta(infile, outfile)
+def buildCDSFasta(infiles, outfile):
+    PipelineGeneset.buildCDSFasta(infiles, outfile)
 
 
 @P.add_doc(PipelineGeneset.loadProteinStats)
@@ -2270,6 +2287,7 @@ def imputeGO(infiles, outfile):
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
 @files(None, PARAMS['interface_kegg'])
@@ -2523,8 +2541,11 @@ def buildGenomicContextStats(infile, outfile):
         PARAMS["interface_genomic_function_tsv"],
         ))
 def buildGenomicFunctionalAnnotation(infiles, outfiles):
+
+    territories_gtf_file = infiles[0]
+
     PipelineGeneset.buildGenomicFunctionalAnnotation(
-        territories_file=infiles[0],
+        territories_gtf_file,
         dbh=connect(),
         outfiles=outfiles)
 

@@ -359,7 +359,7 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     # I was not able to resolve this, it was a complex
     # bug dependent on both the read libraries and the input reference gtf
     # files
-    job_memory = "2G"
+    job_memory = "5G"
 
     statement = '''
     cuffcompare -r <( gunzip < %(infile)s )
@@ -1067,9 +1067,11 @@ class Sailfish(Mapper):
 class Salmon(Mapper):
     '''run Salmon to quantify transcript abundance from fastq files'''
 
-    def __init__(self, compress=True, *args, **kwargs):
+    def __init__(self, compress=True, bias_correct=False,
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.compress = compress
+        self.bias_correct = bias_correct
 
     def mapper(self, infiles, outfile):
 
@@ -1107,6 +1109,22 @@ class Salmon(Mapper):
         statement = " ".join(statement)
 
         return statement
+
+    def postprocess(self, infiles, outfile):
+        '''collect output data and postprocess.'''
+
+        # if using bias correct, need to rename the bias corrected outfile
+        if self.bias_correct:
+            bias_corrected = outfile.replace(".sf", "_bias_corrected.sf")
+
+            statement = '''
+            rm -rf %(outfile)s;
+            mv %(bias_corrected)s %(outfile)s;
+            ''' % locals()
+            return statement
+
+        else:
+            return ""
 
 
 class Kallisto(Mapper):
@@ -1265,7 +1283,8 @@ class BWA(Mapper):
             > %(tmpdir)s/%(track)s.sai 2>>%(outfile)s.bwa.log;
             bwa samse %%(bwa_samse_options)s %%(bwa_index_dir)s/%%(genome)s
             %(tmpdir)s/%(track)s.sai %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1284,7 +1303,8 @@ class BWA(Mapper):
             bwa sampe %%(bwa_sampe_options)s %(index_prefix)s
                       %(tmpdir)s/%(track1)s.sai %(tmpdir)s/%(track2)s.sai
                       %(infiles1)s %(infiles2)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1341,7 +1361,7 @@ class BWA(Mapper):
             --log=%(outfile)s.log''' % locals()
 
         statement = '''
-                samtools view -uS %(tmpdir)s/%(track)s.sam
+                cat %(tmpdir)s/%(track)s.bam
                 %(unique_cmd)s
                 %(strip_cmd)s
                 %(set_nh_cmd)s
@@ -1417,7 +1437,8 @@ class BWAMEM(BWA):
             statement.append('''
             bwa mem %%(bwa_mem_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1427,7 +1448,9 @@ class BWAMEM(BWA):
             statement.append('''
             bwa mem %%(bwa_mem_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles1)s
-            %(infiles2)s > %(tmpdir)s/%(track)s.sam 2>>%(outfile)s.bwa.log;
+            %(infiles2)s
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1522,16 +1545,16 @@ class Bismark(Mapper):
         base = os.path.basename(infile).split(".")[0]
         if infile.endswith(".fastq.gz"):
             statement = '''samtools view -h
-            %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2.bam|
-            awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
+            %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2.bam
+            | awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
             $1=="@SQ" || $1=="@PG"' | samtools view -b - >
             %%(outdir)s/%(track)s.bam;
             mv %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2_SE_report.txt
             %%(outdir)s/%(track)s_bismark_bt2_SE_report.txt;''' % locals()
         elif infile.endswith(".fastq.1.gz"):
             statement = '''samtools view -h
-            %(tmpdir_fastq)s/%(base)s.fastq.1.gz_bismark_bt2_pe.bam|
-            awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
+            %(tmpdir_fastq)s/%(base)s.fastq.1.gz_bismark_bt2_pe.bam
+            | awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
             $1=="@SQ" || $1=="@PG"' | samtools view -b - >
             %%(outdir)s/%(track)s.bam;
             mv %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2_PE_report.txt
@@ -1659,7 +1682,8 @@ class Stampy(BWA):
             -h %%(stampy_index_dir)s/%%(genome)s
             %%(stampy_options)s
             -M %(infiles)s
-            > %(tmpdir)s/%(track)s.sam 2>%(outfile)s.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>%(outfile)s.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -1673,7 +1697,8 @@ class Stampy(BWA):
             -h %%(stampy_index_dir)s/%%(genome)s
             %%(stampy_options)s
             -M %(infiles1)s %(infiles2)s
-            > %(tmpdir)s/%(track)s.sam 2>%(outfile)s.log;
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam 2>%(outfile)s.log;
             ''' % locals())
         else:
             raise ValueError(
@@ -1736,7 +1761,7 @@ class Butter(BWA):
 
             # butter cannot handle compressed fastqs
             # recognises file types by suffix
-            track_fastq = track + ".fastq"
+            track_fastq = os.path.join(tmpdir_fastq, track + ".fastq")
 
             if infiles.endswith(".gz"):
                 statement.append('''
@@ -1751,10 +1776,7 @@ class Butter(BWA):
             %%(butter_index_dir)s/%%(genome)s.fa
             --aln_cores=%%(job_threads)s
             --bam2wig=none
-            >%(outfile)s.log;
-            samtools view -h %(track)s.bam >
-            %(tmpdir)s/%(track)s.sam;
-            rm -rf ./%(track)s.bam ./%(track)s.bam.bai ./%(track_fastq)s;
+            > %(outfile)s_butter.log;
             ''' % locals())
 
         elif nfiles == 2:
@@ -2161,11 +2183,12 @@ class Hisat(Mapper):
     executable = "tophat"
 
     def __init__(self, remove_non_unique=False, strip_sequence=False,
-                 *args, **kwargs):
+                 strandedness=True, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.remove_non_unique = remove_non_unique
         self.strip_sequence = strip_sequence
+        self.strandedness = strandedness
 
     def mapper(self, infiles, outfile):
         '''
@@ -2198,7 +2221,11 @@ class Hisat(Mapper):
         executable = self.executable
 
         num_files = [len(x) for x in infiles]
-
+        if self.strandedness and not (self.strandedness in
+                                      ['unstranded', 'fr-unstranded']):
+            stranded_option = '--rna-strandness %(hisat_library_type)s'
+        else:
+            stranded_option = ""
         if max(num_files) != min(num_files):
             raise ValueError(
                 "mixing single and paired-ended data not possible.")
@@ -2218,7 +2245,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            --rna-strandness %%(hisat_library_type)s
+            %(stranded_option)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -U %(infiles)s
@@ -2236,7 +2263,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            --rna-strandness %%(hisat_library_type)s
+            %(stranded_option)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -1 %(infiles1)s
@@ -2378,7 +2405,7 @@ class GSNAP(Mapper):
 #                   --nthreads %%(gsnap_worker_threads)i
 #                   --format=sam
 #                   --db=%(index_prefix)s
-#                   %%(gsnap_options)s
+#                   %%(gsnap_options)
 #                   > %(tmpdir)s/%(track)s.sam
 #                   2> %(outfile)s.log;
 #            ''' % locals()
@@ -2401,13 +2428,13 @@ class GSNAP(Mapper):
 
         statement = '''
         %(executable)s
-               --nthreads %%(gsnap_worker_threads)i
-               --format=sam
-               --db=%(index_prefix)s
-               %%(gsnap_options)s
-               %(files)s
-               > %(tmpdir)s/%(track)s.sam
-               2> %(outfile)s.log ;
+        --nthreads %%(gsnap_worker_threads)i
+        --format=sam
+        --db=%(index_prefix)s
+        %%(gsnap_options)s
+        %(files)s
+        | samtools view -bS -
+        2> %(outfile)s.log ;
         ''' % locals()
 
         return statement
@@ -2458,11 +2485,11 @@ class GSNAP(Mapper):
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
         statement = '''
-                samtools view -uS %(tmpdir)s/%(track)s.sam
-                %(unique_cmd)s
-                %(strip_cmd)s
-                | samtools sort - %(outf)s 2>>%(outfile)s.log;
-                samtools index %(outfile)s;''' % locals()
+        cat %(tmpdir)s/%(track)s.bam
+        %(unique_cmd)s
+        %(strip_cmd)s
+        | samtools sort - %(outf)s 2>>%(outfile)s.log;
+        samtools index %(outfile)s;''' % locals()
 
         return statement
 
@@ -2524,16 +2551,17 @@ class STAR(Mapper):
             infiles = "<( zcat %s )" % " ".join([x[0] for x in infiles])
             statement = '''
             %(executable)s
-                   --runMode alignReads
-                   --runThreadN %%(star_threads)i
-                   --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
-                   --outFileNamePrefix %(tmpdir)s/
-                   --outStd SAM
-                   --outSAMunmapped Within
-                   %%(star_options)s
-                   --readFilesIn %(infiles)s
-                   > %(tmpdir)s/%(track)s.sam
-                   2> %(outfile)s.log;
+            --runMode alignReads
+            --runThreadN %%(star_threads)i
+            --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
+            --outFileNamePrefix %(tmpdir)s/
+            --outStd SAM
+            --outSAMunmapped Within
+            %%(star_options)s
+            --readFilesIn %(infiles)s
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam
+            2> %(outfile)s.log;
             ''' % locals()
 
         elif nfiles == 2:
@@ -2551,17 +2579,18 @@ class STAR(Mapper):
 
             statement = '''
             %(executable)s
-                   --runMode alignReads
-                   --runThreadN %%(star_threads)i
-                   --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
-                   --outFileNamePrefix %(tmpdir)s/
-                   --outStd SAM
-                   --outSAMunmapped Within
-                   %%(star_options)s
-                   %(compress_option)s
-                   --readFilesIn %(files)s
-                   > %(tmpdir)s/%(track)s.sam
-                   2> %(outfile)s.log;
+            --runMode alignReads
+            --runThreadN %%(star_threads)i
+            --genomeDir %%(star_index_dir)s/%%(star_mapping_genome)s.dir
+            --outFileNamePrefix %(tmpdir)s/
+            --outStd SAM
+            --outSAMunmapped Within
+            %%(star_options)s
+            %(compress_option)s
+            --readFilesIn %(files)s
+            | samtools view -bS -
+            > %(tmpdir)s/%(track)s.bam
+            2> %(outfile)s.log;
             ''' % locals()
 
         else:
@@ -2610,16 +2639,16 @@ class STAR(Mapper):
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
         statement = '''
-                cp %(tmpdir)s/Log.std.out %(outfile)s.std.log;
-                cp %(tmpdir)s/Log.final.out %(outfile)s.final.log;
-                cp %(tmpdir)s/SJ.out.tab %(outfile)s.junctions;
-                cat %(tmpdir)s/Log.out >> %(outfile)s.log;
-                cp %(tmpdir)s/Log.progress.out %(outfile)s.progress;
-                samtools view -uS %(tmpdir)s/%(track)s.sam
-                %(unique_cmd)s
-                %(strip_cmd)s
-                | samtools sort - %(outf)s 2>>%(outfile)s.log;
-                samtools index %(outfile)s;''' % locals()
+        cp %(tmpdir)s/Log.std.out %(outfile)s.std.log;
+        cp %(tmpdir)s/Log.final.out %(outfile)s.final.log;
+        cp %(tmpdir)s/SJ.out.tab %(outfile)s.junctions;
+        cat %(tmpdir)s/Log.out >> %(outfile)s.log;
+        cp %(tmpdir)s/Log.progress.out %(outfile)s.progress;
+        cat %(tmpdir)s/%(track)s.bam
+        %(unique_cmd)s
+        %(strip_cmd)s
+        | samtools sort - %(outf)s 2>>%(outfile)s.log;
+        samtools index %(outfile)s;''' % locals()
 
         return statement
 
@@ -2728,7 +2757,7 @@ class Bowtie(Mapper):
             %(index_option)s %(index_prefix)s
             %(infiles)s
             %(output_option)s
-            2>%(outfile)s.log
+            2>%(outfile)s_bowtie.log
             | awk -v OFS="\\t" '{sub(/\/[12]$/,"",$1);print}'
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
             1>&2 2>> %(outfile)s.log;
@@ -2746,7 +2775,7 @@ class Bowtie(Mapper):
             %(index_option)s %(index_prefix)s
             -1 %(infiles1)s -2 %(infiles2)s
             %(output_option)s
-            2>%(outfile)s.log
+            2>%(outfile)s_bowtie.log
             | samtools import %%(reffile)s - %(tmpdir_fastq)s/out.bam
             1>&2 2>> %(outfile)s.log;
             ''' % locals()
