@@ -477,8 +477,9 @@ def callControlVariants(infile, outfile):
                            PARAMS["genome"])
 
     PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
-                                  dbsnp, call_stats_out, PARAMS['mutect_memory'], 
+                                  dbsnp, call_stats_out, PARAMS['mutect_memory'],
                                   PARAMS['mutect_threads'], artifact=True)
+
 
 @transform(callControlVariants,
            suffix(".vcf"),
@@ -540,6 +541,7 @@ def runMutect(infiles, outfile):
                                   quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
                                   normal_panel, infile)
+
 
 @transform(splitMergedRealigned,
            regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
@@ -1071,6 +1073,8 @@ def loadEBioInfo(infile, outfile):
 # load Network of Cancer Genes table
 
 # parameterise file location:
+
+
 @originate("cancergenes.load")
 def loadNCG(outfile):
     '''Load NCG into database'''
