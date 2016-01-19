@@ -1,10 +1,14 @@
-.. _ExpressionDistribution:
+.. _contextproportion:
 
-==================================
-Distributions of Expression values
-==================================
+======================
+Transcript proportions
+======================
 
-Insert short description of page contents
+This page summarises the proportions of reads that map to different genomic contexts
+e.g:
+  * protein-coding transcripts
+  * small rna transcripts (rRNA, tRNA, snoRNA, Mt-RNA, snRNA etc)
+  * repeat elements (LINEs, SINEs etc) 
 
 Summary::
   * Aims of this analysis
@@ -38,15 +42,17 @@ The bad
 
 More bad examples `<http://myBadData.html >`
 
+Your data:
 
-Expression Distribution plot
-============================
+.. report:: myData.Tracker
+   :render: myRenderer
+   :transform: myTransform
+   :options: myAesthetics
 
-.. report:: RnaseqqcReport.ExpressionDistribution
-   :render: r-ggplot
-   :statement: aes(x=log2rpkm, group=sample_id, colour=sample_id)+
-               geom_density()
+   Graphs and tables
+   Code snippets used to generate graphs and tables
 
 Commentary
   This will take the form of some active comments.  This will require the report to
   be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
+

@@ -1,19 +1,31 @@
+.. _design.rst
+
+===============================
 Methods and Experimental Design
+===============================
 
--     Experimental Design
+Sumarise ultimate aim of this experiment
 
-o     What samples
+Experimental Design
+===================
 
-o     What groups
+  * What are the samples
+  * What are the groups
+  * Put in the Design table - or similar picture of study design
 
-§     Design table
+Data Sources
+============
 
-o     What are the inputs
+  * What are the inputs (where did the files come from)
+  * Where was the GTF from?
+  * Which genome and annotations were used?
 
-§     Gtf from where?
 
-§     Which genome etc
+Pipeline progress
+=================
 
-§     Can this be generated from ini file/pipeline log files
+  * Overview of which pipeline steps have been run (Plot)
 
-o     Overview of pipeline what steps run
+
+
+

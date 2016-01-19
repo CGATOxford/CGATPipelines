@@ -1,10 +1,11 @@
-.. _ExpressionDistribution:
+.. _functionalenrichment:
 
-==================================
-Distributions of Expression values
-==================================
+=====================
+Functional Enrichment
+=====================
 
-Insert short description of page contents
+This section show the results of a simple investigation into the transcripts/genes 
+that are functionally enriched in each sample - if the functional groups identified were not expected in your samples this may indicate sample/tissue mix-ups. 
 
 Summary::
   * Aims of this analysis
@@ -38,15 +39,17 @@ The bad
 
 More bad examples `<http://myBadData.html >`
 
+Your data:
 
-Expression Distribution plot
-============================
+.. report:: myData.Tracker
+   :render: myRenderer
+   :transform: myTransform
+   :options: myAesthetics
 
-.. report:: RnaseqqcReport.ExpressionDistribution
-   :render: r-ggplot
-   :statement: aes(x=log2rpkm, group=sample_id, colour=sample_id)+
-               geom_density()
+   Graphs and tables
+   Code snippets used to generate graphs and tables
 
 Commentary
   This will take the form of some active comments.  This will require the report to
   be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
+
