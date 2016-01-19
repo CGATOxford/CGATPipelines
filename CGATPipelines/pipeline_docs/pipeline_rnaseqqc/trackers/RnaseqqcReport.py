@@ -245,11 +245,6 @@ class BiasFactors(RnaseqqcTracker):
         return merged
 
 
-class GGSummary(BiasFactorPlot):
-    table = "means_binned_GG"
-    factor = "GG"
-
-
 class ExpressionDistribution(RnaseqqcTracker):
     table = "transcript_quantification"
 
