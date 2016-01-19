@@ -219,7 +219,6 @@ def mapReads(infile, outfile):
     else:
         raise ValueError("bwa algorithm '%s' not known" % algorithm)
 
-        
     statement = m.build((infile,), outfile)
     print statement
     P.run()
@@ -481,7 +480,6 @@ def callControlVariants(infile, outfile):
                                   dbsnp, call_stats_out, PARAMS['mutect_memory'], 
                                   PARAMS['mutect_threads'], artifact=True)
 
-
 @transform(callControlVariants,
            suffix(".vcf"),
            "_slim.vcf.gz")
@@ -504,8 +502,8 @@ def mergeControlVariants(infiles, outfile):
     infiles = " ".join(infiles)
 
     # remove module command when Sebastian has made latest version executable
-    
-    statement = '''module load bio/vcftools/0.1.08a; 
+
+    statement = '''module load bio/vcftools/0.1.08a;
                    vcf-isec -o -n +1 %(infiles)s
                    > %(outfile)s'''
     P.run()
@@ -542,8 +540,6 @@ def runMutect(infiles, outfile):
                                   quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
                                   normal_panel, infile)
-
-
 
 @transform(splitMergedRealigned,
            regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
@@ -915,13 +911,13 @@ def loadVariantAnnotation(infile, outfile):
 
     P.load(infile, outfile, options="--add-index=%(indices)s" % locals())
 
-    #dbh = connect()
-    #tablename = P.toTable(outfile)
-    #statement = '''cat %(infile)s |
+    # dbh = connect()
+    # tablename = P.toTable(outfile)
+    # statement = '''cat %(infile)s |
     #               python %(scriptsdir)s/csv2db.py
     #               --table %(tablename)s --retry --ignore-empty
     #               > %(outfile)s'''
-    #P.run()
+    # P.run()
 
 
 @follows(runMutect)
@@ -1061,19 +1057,18 @@ def loadEBioInfo(infile, outfile):
 
     P.load(infile, outfile, options="--add-index=gene")
 
-   # dbh = connect()
-    #tablename = P.toTable(outfile)
-    #statement = '''cat %(infile)s |
+    # dbh = connect()
+    # tablename = P.toTable(outfile)
+    # statement = '''cat %(infile)s |
     #               python %(scriptsdir)s/csv2db.py
     #               --table %(tablename)s --retry --ignore-empty
     #               > %(outfile)s'''
-   # P.run()
+    # P.run()
 
 #########################################################################
 #########################################################################
 #########################################################################
 # load Network of Cancer Genes table
-
 
 # parameterise file location:
 @originate("cancergenes.load")
@@ -1085,13 +1080,13 @@ def loadNCG(outfile):
 
     P.load(infile, outfile, options="--add-index=symbol")
 
-    #dbh = connect()
-    #tablename = P.toTable(outfile)
-    #statement = '''cat %(infile)s |
-     #              python %(scriptsdir)s/csv2db.py
-     #              --table %(tablename)s --retry --ignore-empty
-     #              > %(outfile)s'''
-    #P.run()
+    # dbh = connect()
+    # tablename = P.toTable(outfile)
+    # statement = '''cat %(infile)s |
+    #              python %(scriptsdir)s/csv2db.py
+    #              --table %(tablename)s --retry --ignore-empty
+    #              > %(outfile)s'''
+    # P.run()
 
 
 #########################################################################
