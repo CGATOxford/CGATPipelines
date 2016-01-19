@@ -1,8 +1,8 @@
-.. _rnaseqqcpipeline:
+.. _PCA:
 
-==============
-PAGE TITLE
-==============
+============================
+Principal Component Analysis
+============================
 
 Insert short description of page contents
 

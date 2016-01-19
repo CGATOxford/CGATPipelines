@@ -1,10 +1,13 @@
-.. _ExpressionDistribution:
+.. _genes:
 
-==================================
-Distributions of Expression values
-==================================
+=================
+Genes of Interest
+=================
 
-Insert short description of page contents
+This page details the levels of expression of up to 10 candidate genes provided by 
+the user to act as possitive and negative controls to check that the samples and replicates
+look like you would expect and indicate and potential samples that have failed a treatment or 
+been mixed up. 
 
 Summary::
   * Aims of this analysis
@@ -38,15 +41,17 @@ The bad
 
 More bad examples `<http://myBadData.html >`
 
+Your data:
 
-Expression Distribution plot
-============================
+.. report:: myData.Tracker
+   :render: myRenderer
+   :transform: myTransform
+   :options: myAesthetics
 
-.. report:: RnaseqqcReport.ExpressionDistribution
-   :render: r-ggplot
-   :statement: aes(x=log2rpkm, group=sample_id, colour=sample_id)+
-               geom_density()
+   Graphs and tables
+   Code snippets used to generate graphs and tables
 
 Commentary
   This will take the form of some active comments.  This will require the report to
   be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
+

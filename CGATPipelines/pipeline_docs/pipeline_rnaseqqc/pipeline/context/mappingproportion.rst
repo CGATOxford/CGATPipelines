@@ -1,10 +1,11 @@
-.. _ExpressionDistribution:
+.. _mappingproportion:
 
-==================================
-Distributions of Expression values
-==================================
+==========================
+Poportion of mapped reads
+==========================
 
-Insert short description of page contents
+This page demonstrates the proportion of reads that are mapped and unmapped in each
+sample
 
 Summary::
   * Aims of this analysis
@@ -38,15 +39,17 @@ The bad
 
 More bad examples `<http://myBadData.html >`
 
+Your data:
 
-Expression Distribution plot
-============================
+.. report:: myData.Tracker
+   :render: myRenderer
+   :transform: myTransform
+   :options: myAesthetics
 
-.. report:: RnaseqqcReport.ExpressionDistribution
-   :render: r-ggplot
-   :statement: aes(x=log2rpkm, group=sample_id, colour=sample_id)+
-               geom_density()
+   Graphs and tables
+   Code snippets used to generate graphs and tables
 
 Commentary
   This will take the form of some active comments.  This will require the report to
   be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
+
