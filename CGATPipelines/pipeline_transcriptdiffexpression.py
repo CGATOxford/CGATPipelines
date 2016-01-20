@@ -1237,8 +1237,9 @@ def loadGeneWiseAggregates(infile, outfile):
     ''' load tables from aggregation of transcript-level estimate to
     gene-level estimates'''
 
-    P.load(infile, outfile)
-    P.load(infile.replace("counts", "tpm"), outfile.replace("counts", "tpm"))
+    P.load(infile, outfile, options="add-index=gene_id")
+    P.load(infile.replace("counts", "tpm"), outfile.replace("counts", "tpm"),
+           options="add-index=gene_id")
 
 
 @merge(runSleuthAll,
