@@ -1209,6 +1209,39 @@ def runSleuthAll(infiles, outfiles):
         submit=True, job_memory=job_memory)
 
 
+@transform(runSleuthAll,
+           regex("DEresults.dir/all_(\S+).tsv"),
+           r"DEresults.dir/all_\1_gene_expression.tsv")
+def aggregateCounts(infiles, outfile):
+    ''' aggregate counts across transcripts for the same gene_id '''
+
+    for infile in infiles:
+        outfile = P.snip(infile, ".tsv") + "_gene_expression.tsv"
+        statement = "SELECT DISTINCT transcript_id, gene_id FROM transcript_info"
+        transcript_info_df = pd.read_sql(statement, connect())
+        transcript_info_df.set_index("transcript_id", inplace=True)
+
+        df = pd.read_table(infile, sep="\t")
+        df.set_index("transcript_id", inplace=True)
+        df = df.join(transcript_info_df)
+        df = pd.DataFrame(df.groupby("gene_id").apply(sum))
+        df.drop("gene_id", 1, inplace=True)
+
+        df.to_csv(outfile, sep="\t", index=True)
+
+
+@transform(aggregateCounts,
+           suffix(".tsv"),
+           ".load")
+def loadGeneWiseAggregates(infile, outfile):
+    ''' load tables from aggregation of transcript-level estimate to
+    gene-level estimates'''
+
+    P.load(infile, outfile, options="add-index=gene_id")
+    P.load(infile.replace("counts", "tpm"), outfile.replace("counts", "tpm"),
+           options="add-index=gene_id")
+
+
 @merge(runSleuthAll,
        [r"DEresults.dir/all_counts.load",
         r"DEresults.dir/all_tpm.load"])
@@ -1279,7 +1312,8 @@ def loadSleuthResults(infile, outfile):
 
 @follows(loadSleuthTables,
          loadSleuthResults,
-         loadSleuthTablesAll)
+         loadSleuthTablesAll,
+         loadGeneWiseAggregates)
 def differentialExpression():
     pass
 

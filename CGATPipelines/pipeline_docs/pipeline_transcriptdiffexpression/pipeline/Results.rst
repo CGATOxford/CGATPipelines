@@ -66,31 +66,3 @@ unadjusted p-values < 0.05 are included.
    :force:
 
    Summarised results tables
-
-
-These are the tables of Counts and TPM per gene per sample, with group means
-
-#.. report:: Results.GeneLevelExpression
-#   :render: xls-table
-#   :groupby: track
-#   :force:
-
-   Transcripts per million per sample, aggregated per gene
-
-These are the tables of Counts and TPM per transcript per sample, with
-gene ID annotations and simulation flags.
-
-.. report:: Results.SleuthTpmAll
-   :render: xls-table
-   :groupby: track
-   :force:
-
-
-   Transcripts per million per sample
-
-.. report:: Results.SleuthCountsAll
-   :render: xls-table
-   :groupby: track
-   :force:
-
-   Counts per sample
