@@ -158,12 +158,16 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                     max_fraction=0.05, tumor_LOD=6.3,
                     normal_panel=None, 
                     infile_matched=None,
-                    gatk_key=None):
+                    gatk_key=None,
+                    artifact=False):
     '''Call SNVs using Broad's muTect'''
     # TS. this is currently CGAT specific. How to generalise?
 
+    job_memory_java = job_memory.lower()
+    job_threads = 1
+
     statement = '''module load apps/java/jre1.6.0_26;
-                   java -Xmx2g -jar
+                   java -Xmx%(job_memory_java)s -jar
                    /ifs/apps/bio/muTect-1.1.4/muTect-1.1.4.jar
                    --analysis_type MuTect
                    --reference_sequence %(genome)s
@@ -172,8 +176,11 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                    --input_file:tumor %(infile)s
                    --out %(call_stats_out)s
                    --enable_extended_output
-                   --vcf %(outfile)s --artifact_detection_mode
+                   --vcf %(outfile)s
                 ''' % locals()
+    if artifact:
+        statement += ''' --artifact_detection_mode '''
+
     if infile_matched:
         statement += '''--min_qscore %(quality)s
                         --gap_events_threshold 2
@@ -196,7 +203,7 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
 
 
 def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
-                       outdir, job_memory, job_threads):
+                       outdir, job_memory):
     '''Call INDELs using Strelka'''
 
     statement = '''
@@ -443,9 +450,9 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
                 if line.startswith('#CHROM'):
                     columns = line.split("\t")
                     for x in range(0, len(columns)):
-                        if "Control" in columns[x]:
+                        if "BD" in columns[x]:
                             control_col = x
-                        elif tumour in columns[x]:
+                        elif "TD" in columns[x]:
                             tumor_col = x
                 if not line.startswith('#'):
                     values = line.split("\t")
@@ -526,7 +533,8 @@ def parseMutectCallStats(infile, outfile):
     df = df.transpose()
     df.columns = ["single", "combination"]
     df = df.sort("single", ascending=False)
-    df.to_csv(outfile, header=True, index=False, sep="\t")
+    df.index.name = "justification"
+    df.to_csv(outfile, header=True, index=True, sep="\t")
 
 
 @cluster_runnable
@@ -630,8 +638,11 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
                    "case_set_id=%(study)s_all&genetic_profile_id=%(table)s&"
                    "gene_list=%(gene_list)s" % locals())
 
-            df = pd.io.parsers.read_csv(url, comment="#", sep="\t",
-                                        header=False, index_col=0)
+            #with IOTools.openFile(outfile+"_tmp", "w") as out:
+            #    out.write("%s\n" % url)
+
+            df = pd.io.parsers.read_csv(url, comment="#", sep="\t", index_col=0)
+
             # delete me
             print url
 
