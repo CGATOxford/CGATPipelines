@@ -22,34 +22,62 @@ class imagesTracker(TrackerImages):
 class simulationCorrelations(IsoformTracker):
 
     pattern = "(\S+)_simulation_correlations$"
-    
+    metric = ""
+
     def __call__(self, track, slice=None):
 
         statement = '''
-        SELECT read_count, est_counts, fraction_bin, cor, log2diff,
-        log2diff_thres FROM %(track)s_simulation_correlations
+        SELECT tpm, read_count, est_%(metric)s, fraction_bin, %(metric)s_cor,
+        log2diff_%(metric)s, log2diff_%(metric)s_thres
+        FROM %(track)s_simulation_correlations
+        ORDER BY log2diff_%(metric)s
         '''
 
         return self.getAll(statement)
 
 
+class simulationCorrelationsCount(simulationCorrelations):
+
+    pattern = "(\S+)_simulation_correlations$"
+    metric = "counts"
+
+
+class simulationCorrelationsTpm(simulationCorrelations):
+
+    pattern = "(\S+)_simulation_correlations$"
+    metric = "tpm"
+
+
 class simulationCorrelationsSummaryFold(IsoformTracker):
 
     pattern = "(\S+)_simulation_correlations$"
+    metric = ""
 
     def __call__(self, track, slice=None):
 
         statement = '''
-        select
-        total(CASE WHEN abs(log2diff) >0.585 THEN 1 ELSE 0 END) AS 'flagged',
-        total(CASE WHEN abs(log2diff) <=0.585 THEN 1 ELSE 0 END) AS 'passed'
+        SELECT
+        total(CASE WHEN abs(log2diff_%(metric)s) >1 THEN 1 ELSE 0 END)
+        AS 'flagged',
+        total(CASE WHEN abs(log2diff_%(metric)s) <1 THEN 1 ELSE 0 END)
+        AS 'passed'
         FROM %(track)s_simulation_correlations
         '''
 
         return self.getAll(statement)
 
 
-class simulationCorrelationsSummaryKmers(IsoformTracker):
+class simulationCorrelationsSummaryFoldCount(simulationCorrelationsSummaryFold):
+    pattern = "(\S+)_simulation_correlations$"
+    metric = "counts"
+
+
+class simulationCorrelationsSummaryFoldTpm(simulationCorrelationsSummaryFold):
+    pattern = "(\S+)_simulation_correlations$"
+    metric = "tpm"
+
+
+class simulationCorrelationsSummaryKmers(simulationCorrelationsSummaryFold):
 
     pattern = "(\S+)_simulation_correlations$"
 

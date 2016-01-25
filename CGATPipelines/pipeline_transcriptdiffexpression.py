@@ -322,6 +322,24 @@ GENESET = glob.glob("*.gtf.gz")
 
 
 ###############################################################################
+# load designs
+###############################################################################
+@transform(["%s.design.tsv" % x.asFile() for x in DESIGNS],
+           suffix(".tsv"),
+           ".load")
+def loadDesigns(infile, outfile):
+    '''load design files into database'''
+    # note group column needs renaming
+
+    tmpfile = P.getTempFilename("/ifs/scratch")
+
+    statement = "sed 's/group/_group/g' %(infile)s > %(tmpfile)s"
+    P.run()
+
+    P.load(tmpfile, outfile)
+    os.unlink(tmpfile)
+
+###############################################################################
 # Create kallisto index
 ###############################################################################
 
@@ -504,8 +522,7 @@ if PARAMS["geneset_auto_generate"]:
                regex("index.dir/transcript_ids.tsv"),
                "index.dir/transcripts.gtf.gz")
     def buildGeneSet(mapfile, outfile):
-        ''' build a gene set with only transcripts from transcripts which
-        pass filter '''
+        ''' build a gene set with only transcripts which pass filter '''
 
         geneset = PARAMS['annotations_interface_geneset_all_gtf']
 
@@ -544,10 +561,10 @@ def buildReferenceTranscriptome(infile, outfile):
 
     statement = '''
     zcat %(infile)s |
-    awk '$3 ~ /exon|five_prime_utr|three_prime_utr/'|
-    python /ifs/devel/toms/cgat/scripts/gff2fasta.py
-    --is-gtf --genome-file=%(genome_file)s --fold-at 60
-    > %(outfile)s;
+    awk '$3=="exon"'|
+    python %(scriptsdir)s/gff2fasta.py
+    --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
+    --log=%(outfile)s.log > %(outfile)s;
     samtools faidx %(outfile)s
     '''
     P.run()
@@ -565,9 +582,9 @@ def buildReferencePreTranscriptome(infile, outfile):
     statement = '''
     zcat %(infile)s |
     awk '$3 == "transcript"'|
-    python /ifs/devel/toms/cgat/scripts/gff2fasta.py
-    --is-gtf --genome-file=%(genome_file)s --fold-at 60
-    > %(outfile)s;
+    python %(scriptsdir)s/gff2fasta.py
+    --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
+    --log=%(outfile)s.log > %(outfile)s;
     samtools faidx %(outfile)s
     '''
     P.run()
@@ -650,7 +667,8 @@ def countKmers(infile, outfile):
 
 
 @mkdir("simulation.dir")
-@follows(buildReferenceTranscriptome)
+@follows(buildReferenceTranscriptome,
+         buildReferencePreTranscriptome)
 @files([(["index.dir/transcripts.fa",
          "index.dir/transcripts.pre_mRNA.fa"],
          ("simulation.dir/simulated_reads_%i.fastq.1.gz" % x,
@@ -704,27 +722,30 @@ def simulateRNASeqReads(infiles, outfiles):
             paste - - - - | sort -R | sed 's/\\t/\\n/g'| '''
 
     if PARAMS["simulation_random"]:
+        # random shuffling requires all the reads to be held in memory!
+        # should really estimate whether 4G will be enough
         job_memory = "4G"
     else:
         job_memory = "1G"
 
+    job_threads = 2
+
     statement = '''
     cat %(infile)s |
     python %(scriptsdir)s/fasta2fastq.py
-    --premrna-fraction=0.05
+    --premrna-fraction=%(simulation_pre_mrna_fraction)s
     --infile-premrna-fasta=%(premrna_fasta)s
     --output-read-length=%(simulation_read_length)s
     --insert-length-mean=%(simulation_insert_mean)s
     --insert-length-sd=%(simulation_insert_sd)s
-    --reads-per-entry-min=%(simulation_min_reads_per_transcript)s
-    --reads-per-entry-max=%(simulation_max_reads_per_transcript)s
+    --counts-method=reads
+    --counts-min=%(simulation_counts_min)s
+    --counts-max=%(simulation_counts_max)s
     --sequence-error-phred=%(simulation_phred)s
     --output-counts=%(outfile_counts)s
     --output-quality-format=33 -L %(outfile)s.log
     %(options)s | %(single_end_random_cmd)s
     gzip > %(outfile)s %(paired_end_random_cmd)s'''
-
-    job_memory = "2G"
 
     P.run()
 
@@ -744,7 +765,7 @@ def quantifyWithKallistoSimulation(infiles, outfile):
     # multithreading not supported until > v0.42.1
     # job_threads = PARAMS["kallisto_threads"]
     job_threads = 1
-    job_memory = "6G"
+    job_memory = "8G"
 
     kallisto_options = PARAMS["kallisto_options"]
 
@@ -784,9 +805,13 @@ def quantifyWithSalmonSimulation(infiles, outfile):
 
     # job_threads = PARAMS["salmon_threads"]
     job_threads = 1
-    job_memory = "6G"
+    job_memory = "8G"
 
     salmon_options = PARAMS["salmon_options"]
+
+    if PARAMS["salmon_bias_correct"]:
+        salmon_options += " --biascorrect"
+
     salmon_libtype = "ISF"
 
     if PARAMS["simulation_bootstrap"]:
@@ -794,7 +819,7 @@ def quantifyWithSalmonSimulation(infiles, outfile):
     else:
         salmon_bootstrap = 0
 
-    m = PipelineMapping.Salmon()
+    m = PipelineMapping.Salmon(PARAMS["salmon_bias_correct"])
     statement = m.build((infile,), outfile)
 
     P.run()
@@ -811,7 +836,7 @@ def quantifyWithSailfishSimulation(infiles, outfile):
     infile, counts = infiles
 
     job_threads = PARAMS["sailfish_threads"]
-    job_memory = "10G"
+    job_memory = "8G"
 
     sailfish_options = PARAMS["sailfish_options"]
     sailfish_libtype = "ISF"
@@ -892,12 +917,8 @@ def mergeAbundanceCounts(infile, outfile, counts):
     ''' merge the abundance and simulation counts files for
     each simulation '''
 
-    df_abund = pd.read_table(infile, sep="\t", index_col=0)
-    df_counts = pd.read_table(counts, sep="\t", index_col=0)
-
-    df_merge = pd.merge(df_abund, df_counts, left_index=True, right_index=True)
-    df_merge.index.name = "id"
-    df_merge.to_csv(outfile, sep="\t")
+    TranscriptDiffExpression.mergeAbundanceCounts(
+        infile, outfile, counts, job_memory="2G", submit=True)
 
 
 @collate(mergeAbundanceCounts,
@@ -922,37 +943,8 @@ def concatSimulationResults(infiles, outfile):
 def calculateCorrelations(infiles, outfile):
     ''' calculate correlation across simulation iterations per transcript'''
 
-    abund, kmers = infiles
-
-    df_abund = pd.read_table(abund, sep="\t", index_col=0)
-    df_kmer = pd.read_table(kmers, sep="\t", index_col=0)
-
-    # this is hacky, it's doing all against all correlations for the
-    # two columns and subsetting
-    df_agg = df_abund.groupby(level=0)[[
-        "est_counts", "read_count"]].corr().ix[0::2, 'read_count']
-
-    # drop the "read_count" level, make into dataframe and rename column
-    df_agg.index = df_agg.index.droplevel(1)
-    df_agg = pd.DataFrame(df_agg)
-    df_agg.columns = ["cor"]
-
-    # merge and bin the unique fraction values
-    df_final = pd.merge(df_kmer, df_agg, left_index=True, right_index=True)
-    df_final['fraction_bin'] = (
-        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, 1),
-                    right=True))/100.0
-
-    df_abund_sum = df_abund.groupby(level=0)["est_counts", "read_count"].sum()
-    df_final = pd.merge(df_final, df_abund_sum,
-                        left_index=True, right_index=True)
-    df_final['log2diff'] = np.log2(df_final['est_counts'] /
-                                   df_final['read_count'])
-
-    df_final['log2diff_thres'] = [x if abs(x) < 1 else x/abs(x)
-                                  for x in df_final['log2diff']]
-
-    df_final.to_csv(outfile, sep="\t", index=True)
+    TranscriptDiffExpression.calculateCorrelations(
+        infiles, outfile, job_memory="8G", submit=True)
 
 
 @transform(calculateCorrelations,
@@ -960,7 +952,9 @@ def calculateCorrelations(infiles, outfile):
            ".load")
 def loadCorrelation(infile, outfile):
     ''' load the correlations data table'''
-    P.load(infile, outfile)
+
+    options = "--add-index=id"
+    P.load(infile, outfile, options=options)
 
 
 @transform(calculateCorrelations,
@@ -999,7 +993,9 @@ def identifyLowConfidenceTranscript(infile, outfile):
            ".load")
 def loadLowConfidenceTranscripts(infile, outfile):
     ''' load the low confidence transcripts '''
-    P.load(infile, outfile)
+
+    options = "--add-index=transcript_id"
+    P.load(infile, outfile, options=options)
 
 
 @mkdir("simulation.dir")
@@ -1180,27 +1176,110 @@ def runSleuth(infiles, outfiles):
             submit=True, job_memory=job_memory)
 
 
+@follows(*QUANTTARGETS)
+@mkdir("DEresults.dir")
+@merge([QUANTTARGETS, buildReferenceTranscriptome],
+       [r"DEresults.dir/all_counts.tsv",
+        r"DEresults.dir/all_tpm.tsv"])
+def runSleuthAll(infiles, outfiles):
+    ''' run Sleuth on all samples just to generate a full counts/tpm table'''
+
+    infiles, transcripts = infiles
+    counts, tpm = outfiles
+
+    samples = list(set([os.path.basename(os.path.dirname(x)) for x in infiles]))
+
+    number_transcripts = 0
+    with IOTools.openFile(transcripts, "r") as inf:
+        for line in inf:
+            if line.startswith(">"):
+                number_transcripts += 1
+
+    # TS: rough estimate is 24 bytes * bootstraps * samples * transcripts
+    # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
+    # I've found this to be a serious underestimate so this is a more
+    # conservative estimate
+    memory_estimate = (48 * PARAMS["kallisto_bootstrap"] * len(samples) *
+                       number_transcripts)
+
+    job_memory = "%fG" % ((memory_estimate / 1073741824))
+
+    TranscriptDiffExpression.runSleuthAll(
+        samples, "quant.dir/kallisto", counts, tpm,
+        submit=True, job_memory=job_memory)
+
+
+@transform(runSleuthAll,
+           regex("DEresults.dir/all_(\S+).tsv"),
+           r"DEresults.dir/all_\1_gene_expression.tsv")
+def aggregateCounts(infiles, outfile):
+    ''' aggregate counts across transcripts for the same gene_id '''
+
+    for infile in infiles:
+        outfile = P.snip(infile, ".tsv") + "_gene_expression.tsv"
+        statement = "SELECT DISTINCT transcript_id, gene_id FROM transcript_info"
+        transcript_info_df = pd.read_sql(statement, connect())
+        transcript_info_df.set_index("transcript_id", inplace=True)
+
+        df = pd.read_table(infile, sep="\t")
+        df.set_index("transcript_id", inplace=True)
+        df = df.join(transcript_info_df)
+        df = pd.DataFrame(df.groupby("gene_id").apply(sum))
+        df.drop("gene_id", 1, inplace=True)
+
+        df.to_csv(outfile, sep="\t", index=True)
+
+
+@transform(aggregateCounts,
+           suffix(".tsv"),
+           ".load")
+def loadGeneWiseAggregates(infile, outfile):
+    ''' load tables from aggregation of transcript-level estimate to
+    gene-level estimates'''
+
+    P.load(infile, outfile, options="add-index=gene_id")
+    P.load(infile.replace("counts", "tpm"), outfile.replace("counts", "tpm"),
+           options="add-index=gene_id")
+
+
+@merge(runSleuthAll,
+       [r"DEresults.dir/all_counts.load",
+        r"DEresults.dir/all_tpm.load"])
+def loadSleuthTablesAll(infiles, outfiles):
+    ''' load tables from Sleuth collation of all estimates '''
+
+    for infile in infiles:
+        outfile = infile.replace(".tsv", ".load")
+
+        TranscriptDiffExpression.loadSleuthTable(
+            infile, outfile,
+            PARAMS["annotations_interface_table_transcript_info"],
+            PARAMS["geneset_gene_biotypes"],
+            PARAMS["database"],
+            PARAMS["annotations_database"])
+
+
 @transform(runSleuth,
            regex("(\S+)_(counts|tpm).tsv"),
            r"\1_\2.load")
 def loadSleuthTables(infile, outfile):
     ''' load tables from Sleuth '''
-    P.load(infile, outfile)
+
+    TranscriptDiffExpression.loadSleuthTable(
+        infile, outfile,
+        PARAMS["annotations_interface_table_transcript_info"],
+        PARAMS["geneset_gene_biotypes"],
+        PARAMS["database"],
+        PARAMS["annotations_database"])
 
 
 @transform(runSleuth,
            suffix("_results.tsv"),
-           "_withBiotypes.tsv")
-def addTranscriptBiotypes(infile, outfile):
-    ''' add the transcript biotypes to the results outfile'''
-    # TS: This could be done when the report is built but saves time just
-    # to just do it once here
+           "_DEresults.load")
+def loadSleuthResults(infile, outfile):
+    ''' load Sleuth results '''
 
-    df = pd.read_table(infile, sep="\t", index_col=0)
-    df.set_index('test_id', inplace=True)
-    df.index.names = ["transcript_id"]
-
-    dbh = connect()
+    tmpfile = P.getTempFilename("/ifs/scratch")
 
     table = os.path.basename(
         PARAMS["annotations_interface_table_transcript_info"])
@@ -1212,38 +1291,29 @@ def addTranscriptBiotypes(infile, outfile):
     else:
         where_cmd = ""
 
-    print ("""
-    SELECT DISTINCT
+    select = """SELECT DISTINCT
     transcript_id, transcript_biotype, gene_id, gene_name
     FROM annotations.%(table)s
-    %(where_cmd)s""" % locals())
+    %(where_cmd)s""" % locals()
 
-    select = dbh.execute("""
-    SELECT DISTINCT
-    transcript_id, transcript_biotype, gene_id, gene_name
-    FROM annotations.%(table)s
-    %(where_cmd)s""" % locals())
+    df1 = pd.read_table(infile, sep="\t")
+    df1.set_index("test_id", drop=False, inplace=True)
 
-    df_annotations = pd.DataFrame.from_records(
-        select, index="transcript_id",
-        columns=("transcript_id", "transcript_biotype",
-                 "gene_id", "gene_name"))
+    df2 = pd.read_sql(select, connect())
+    df2.set_index("transcript_id", drop=False, inplace=True)
 
-    df = df.join(df_annotations, sort=False)
+    df = df1.join(df2)
+    df.to_csv(tmpfile, sep="\t", index=True)
 
-    df.to_csv(outfile, index=True, sep="\t")
-
-
-@transform(addTranscriptBiotypes,
-           suffix("_withBiotypes.tsv"),
-           "_DEresults.load")
-def loadSleuthResults(infile, outfile):
-    ''' load Sleuth results '''
-    P.load(infile, outfile)
+    options = "--add-index=transcript_id"
+    P.load(tmpfile, outfile, options=options)
+    os.unlink(tmpfile)
 
 
 @follows(loadSleuthTables,
-         loadSleuthResults)
+         loadSleuthResults,
+         loadSleuthTablesAll,
+         loadGeneWiseAggregates)
 def differentialExpression():
     pass
 
@@ -1275,7 +1345,8 @@ def expressionSummaryPlots(infiles, logfile):
 
 @follows(differentialExpression,
          expressionSummaryPlots,
-         simulation)
+         simulation,
+         loadDesigns)
 def full():
     pass
 

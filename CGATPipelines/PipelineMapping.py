@@ -1067,9 +1067,11 @@ class Sailfish(Mapper):
 class Salmon(Mapper):
     '''run Salmon to quantify transcript abundance from fastq files'''
 
-    def __init__(self, compress=True, *args, **kwargs):
+    def __init__(self, compress=True, bias_correct=False,
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.compress = compress
+        self.bias_correct = bias_correct
 
     def mapper(self, infiles, outfile):
 
@@ -1107,6 +1109,22 @@ class Salmon(Mapper):
         statement = " ".join(statement)
 
         return statement
+
+    def postprocess(self, infiles, outfile):
+        '''collect output data and postprocess.'''
+
+        # if using bias correct, need to rename the bias corrected outfile
+        if self.bias_correct:
+            bias_corrected = outfile.replace(".sf", "_bias_corrected.sf")
+
+            statement = '''
+            rm -rf %(outfile)s;
+            mv %(bias_corrected)s %(outfile)s;
+            ''' % locals()
+            return statement
+
+        else:
+            return ""
 
 
 class Kallisto(Mapper):
