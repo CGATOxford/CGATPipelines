@@ -854,7 +854,7 @@ def cluster_runnable(func):
                    params=[snip(module_file), function_name, args_file],
                    **submit_args)
         else:
-            # remove job contral options before running function
+            # remove job control options before running function
             for x in ("submit", "job_options", "job_queue"):
                 if x in kwargs:
                     del kwargs[x]
