@@ -4,10 +4,12 @@
 Principal Component Analysis
 ============================
 
-Insert short description of page contents
+Principal component analysis (PCA) is a way of visualising datasets to identify 
+the strong patterns that account for the majority of the variation between the 
+datasets. 
 
 Summary::
-  * Aims of this analysis
+  * Aims of analysis
   * What inputs/outputs
   * How the results were generated
   * What you should expect
@@ -38,12 +40,21 @@ The bad
 
 More bad examples `<http://myBadData.html >`
 
-Your data:
+PCA Plot
+========
 
-.. report:: myData.Tracker
-   :render: myRenderer
-   :transform: myTransform
-   :options: myAesthetics
+.. report:: RnaseqqcReport.samplePCA
+   :render: r-ggplot
+   :statement: aes(x=PC1, y=PC2) +
+	       geom_point() +
+	       theme_bw() +
+	       theme(
+	       axis.text.x=element_text(size=20),
+	       axis.text.y=element_text(size=20))
+
+   Plot of First (PC1) and second (PC2) principal components from pricipal component
+   analysis showing the latent variables that explain most of the variance in the dataset. 
+
 
    Graphs and tables
    Code snippets used to generate graphs and tables
