@@ -1210,6 +1210,42 @@ class Counter(Mapper):
         return " ".join(statement)
 
 
+class SubsetHead(Mapper):
+    """subset fastq files by taking the first n sequences"""
+
+    compress = True
+
+    def __init__(self, limit=1000000, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.limit = limit
+
+    def mapper(self, infiles, outfile):
+        '''count number of reads by counting number of lines
+        in fastq files.
+        '''
+        limit = self.limit
+        statement = []
+        output_prefix = P.snip(outfile, ".subset")
+        assert len(infiles) == 1
+        infiles = infiles[0]
+        if len(infiles) == 1:
+            output_filename = output_prefix + ".fastq.gz"
+            statement.append(
+                '''zcat %(f)s
+                | awk 'NR > %(limit)i {exit} {print}'
+                | gzip
+                > %(output_filename)s;''' % locals())
+        elif len(infiles) > 1:
+            for x, f in enumerate(infiles):
+                output_filename = output_prefix + ".fastq.%i.gz" % (x + 1)
+                statement.append(
+                    '''zcat %(f)s
+                    | awk 'NR > %(limit)i {exit} {print}'
+                    | gzip
+                    > %(output_filename)s;''' % locals())
+        return " ".join(statement)
+
+
 class BWA(Mapper):
     '''Mapper for BWA'''
 
