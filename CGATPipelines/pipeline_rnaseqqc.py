@@ -384,6 +384,41 @@ def buildCodingGeneSet(infiles, outfile):
     P.run()
 
 
+@follows(mkdir("geneset.dir"))
+@merge(PARAMS["annotations_interface_geneset_all_gtf"],
+       "geneset.dir/coding_exons.gtf.gz")
+def buildCodingExons(infile, outfile):
+    '''compile the set of protein coding exons.
+
+    Filter protein coding transcripts
+    This set is used for splice-site validation
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`gtf` format
+    outfile: str
+       Output filename in :term:`gtf` format
+
+    '''
+
+    statement = '''
+    zcat %(infile)s
+    | awk '$3 == "CDS"'
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=filter
+    --filter-method=proteincoding
+    --log=%(outfile)s.log
+    | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
+    | python %(scriptsdir)s/gtf2gtf.py
+    --method=merge-exons
+    --log=%(outfile)s.log
+    | gzip
+    > %(outfile)s
+    '''
+    P.run()
+
+
 @transform(buildCodingGeneSet, suffix(".gtf.gz"), ".junctions")
 def buildJunctions(infile, outfile):
     '''build file with splice junctions from gtf file.
@@ -591,7 +626,8 @@ def buildBAMStats(infile, outfile):
          --ignore-masked-reads
          --num-reads=%(sample_size)i
          --output-filename-pattern=%(outfile)s.%%s
-    < %(infile)s
+    < %(in
+    file)s
     > %(outfile)s
     '''
 
@@ -649,8 +685,9 @@ def buildFlatFasta(infile, outfile):
 
     statement = '''zcat %(infile)s
     | python %(scriptsdir)s/gff2fasta.py
-        --is-gtf
-        --genome=%(genome_dir)s/%(genome)s
+    --is-gtf
+    --genome=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
     | python %(scriptsdir)s/index_fasta.py
     %(dbname)s --force-output -
     > %(dbname)s.log
@@ -730,6 +767,51 @@ else:
         statement = '''ln -s %(infile)s; mv %(base)s %(outfile)s'''
         P.run()
 
+
+@transform(mapReadsWithHisat,
+           suffix(".bam"),
+           add_inputs(buildCodingExons),
+           ".transcriptprofile.gz")
+def buildTranscriptProfiles(infiles, outfile):
+    '''build gene coverage profiles
+
+    PolyA-RNA-Seq is expected to show a bias towards the 3' end of
+    transcripts. Here we generate a meta-profile for each sample for
+    the read depth from the :term:`bam` file across the gene models
+    defined in the :term:`gtf` gene set
+
+    In addition to the outfile specified by the task, plots will be
+    saved with full and focus views of the meta-profile
+
+    Parameters
+    ----------
+    infiles : list of str
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str`
+       Input filename in :term:`gtf` format
+
+    outfile : str
+       Output filename in :term:`tsv` format
+    '''
+
+    bamfile, gtffile = infiles
+
+    job_memory = "8G"
+
+    statement = '''python %(scriptsdir)s/bam2geneprofile.py
+    --output-filename-pattern="%(outfile)s.%%s"
+    --force-output
+    --reporter=transcript
+    --use-base-accuracy
+    --method=geneprofileabsolutedistancefromthreeprimeend
+    --normalize-profile=all
+    %(bamfile)s %(gtffile)s
+    | gzip
+    > %(outfile)s
+    '''
+
+    P.run()
 
 # @transform(PARAMS["sailfish_transcripts"],
 #            regex("(\S+)"),
@@ -860,9 +942,12 @@ else:
 #########################################################################
 
 
-# @follows(loadBiasSummary)
-# def full():
-#     pass
+
+
+@follows(loadContextStats, loadBAMStats,
+         buildTranscriptProfiles)
+def full():
+    pass
 
 
 # @follows(runSailfish)
