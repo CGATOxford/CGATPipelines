@@ -15,8 +15,8 @@ class Snp(ExomeTracker):
 
     def __call__(self, track, slice=None):
 
-        tables = self.getValues("SELECT name FROM sqlite_master")
-        tables = [x for x in tables if re.match(".*_annotations", x)]
+        tables = self.getValues("SELECT tbl_name FROM sqlite_master")
+        tables = list(set([x for x in tables if re.match(".*_annotations", x)]))
 
         if len(tables) > 0:
             sql_columns = ["%s.%s" % (x, x.replace("_annotations", ""))
@@ -51,11 +51,6 @@ class Snp(ExomeTracker):
         LEFT OUTER JOIN eBio_studies_gene_frequencies as D
         ON A.SNPEFF_GENE_NAME = D.gene
         %(annotations_join_cmd)s
-        WHERE A.FILTER!='REJECT'
-        AND B.t_alt_count > 3
-        AND (1.0*B.n_alt_count)/(B.n_ref_count + B.n_alt_count) < 0.03
-        AND (1.0*B.t_alt_count)/(B.t_ref_count + B.t_alt_count) > 0.06
-        AND (B.n_ref_count + B.n_alt_count) > 19;
         ''' % locals()
 
         return self.getAll(statement)
@@ -67,8 +62,8 @@ class Indel(ExomeTracker):
 
     def __call__(self, track, slice=None):
 
-        tables = self.getValues("SELECT name FROM sqlite_master")
-        tables = [x for x in tables if re.match(".*_annotations", x)]
+        tables = self.getValues("SELECT tbl_name FROM sqlite_master")
+        tables = list(set([x for x in tables if re.match(".*_annotations", x)]))
 
         if len(tables) > 0:
             sql_columns = ["%s.%s" % (x, x.replace("_annotations", ""))
@@ -90,9 +85,9 @@ class Indel(ExomeTracker):
         A.REF, A.ALT,
         A.SNPEFF_IMPACT AS Impact, A.SNPEFF_GENE_BIOTYPE AS Biotype,
         A.SNPEFF_AMINO_ACID_CHANGE AS AA_change,
-        A.SNPEFF_CODON_CHANGE AS Codon_change
+        A.SNPEFF_CODON_CHANGE AS Codon_change,
         %(annotations_select_cmd)s
-        B.type as NCG, B.cancer_types,  C.*,
+        B.type as NCG, B.cancer_type,  C.*,
         A.NORMAL_DP AS Normal_depth,
         A.TUMOR_DP AS Tumor_depth,
         A.NORMAL_TAR as Normal_Ref, A.NORMAL_TIR as Normal_Alt,
@@ -103,8 +98,6 @@ class Indel(ExomeTracker):
         LEFT OUTER JOIN eBio_studies_gene_frequencies as C
         ON A.SNPEFF_GENE_NAME = C.gene
         %(annotations_select_cmd)s
-        WHERE A.QSI_NT > 20 AND A.IHP < 12
-        AND A.RC < 12 AND A.IC < 12;
         ''' % locals()
 
         return self.getAll(statement)

@@ -18,8 +18,12 @@ import CGAT.VCF as VCF
 import collections
 import re
 import urllib
+import itertools
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
+from rpy2.robjects import pandas2ri
+from rpy2.robjects import r as R
+
 
 # Set PARAMS in calling module
 PARAMS = {}
@@ -408,11 +412,63 @@ def guessSex(infile, outfile):
 ##############################################################################
 
 
+def filterMutect(infile, outfile,
+                 control_id, tumour_id,
+                 min_t_alt, min_n_depth,
+                 max_n_alt_freq, min_t_alt_freq):
+    ''' filter the mutect snps'''
+
+    def comp(base):
+        '''return complementary base'''
+        comp_dict = {"C": "G", "G": "C", "A": "T", "T": "A"}
+        return comp_dict[base]
+
+    with IOTools.openFile(outfile, "w") as outf:
+        with IOTools.openFile(infile, "r") as inf:
+            for line in inf.readlines():
+                # need to find location of control and tumor columns
+                if line.startswith('#CHROM'):
+                    columns = line.split("\t")
+                    for x in range(0, len(columns)):
+                        if control_id in columns[x]:
+                            control_col = x
+                        elif tumour_id in columns[x]:
+                            tumor_col = x
+
+                if not line.startswith('#'):
+                    values = line.split("\t")
+                    if values[6] == "PASS":
+                        t_values = values[tumor_col].split(":")
+                        t_ref, t_alt = map(float, (t_values[2].split(",")))
+                        t_depth = t_alt + t_ref
+                        n_values = values[control_col].split(":")
+                        n_ref, n_alt = map(float, (n_values[2].split(",")))
+                        n_depth = n_alt + n_ref
+                        np.seterr(divide='ignore')
+
+                        # filter
+                        if not t_alt > min_t_alt:
+                            continue
+
+                        if not n_depth >= min_n_depth:
+                            continue
+
+                        if not np.divide(n_alt, n_depth) <= max_n_alt_freq:
+                            continue
+
+                        t_freq = np.divide(t_alt, t_depth)
+                        n_freq = np.divide(n_alt, n_depth)
+                        if (np.divide(t_freq, n_freq) >= min_t_alt_freq or
+                            n_freq == 0):
+                            outf.write(line)
+                else:
+                    # write out all comment lines
+                    outf.write(line)                            
+
+
 # the following two functions should be generalised
 # currently they operate only on mutect output
-@cluster_runnable
-def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
-                               max_n_alt_freq, min_t_alt_freq, tumour):
+def compileMutationalSignature(infiles, outfiles):
     '''takes a list of mutect output files and compiles per sample mutation
     signatures'''
 
@@ -431,6 +487,10 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
         comp_dict = {"C": "G", "G": "C", "A": "T", "T": "A"}
         return comp_dict[base]
 
+    def getID(infile):
+        return P.snip(os.path.basename(infile),
+                      ".mutect.snp.annotated.filtered.vcf")
+
     outfile1 = IOTools.openFile(outfiles[0], "w")
     mutations = ["C:T", "C:A", "C:G", "A:C", "A:T", "A:G"]
 
@@ -439,51 +499,30 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
     patient_freq = {}
 
     for infile in infiles:
-        patient_id = P.snip(os.path.basename(infile), ".mutect.snp.vcf")
+        patient_id = getID(infile)
         mut_dict = {}
         for comb in mutations:
             mut_dict[comb] = 0
 
         with IOTools.openFile(infile, "r") as f:
             for line in f.readlines():
-                # need to find location of control and tumor columns
-                if line.startswith('#CHROM'):
-                    columns = line.split("\t")
-                    for x in range(0, len(columns)):
-                        if "BD" in columns[x]:
-                            control_col = x
-                        elif "TD" in columns[x]:
-                            tumor_col = x
-                if not line.startswith('#'):
-                    values = line.split("\t")
-                    if values[6] == "PASS":
-                        t_values = values[tumor_col].split(":")
-                        t_ref, t_alt = map(float, (t_values[1].split(",")))
-                        t_depth = t_alt + t_ref
-                        n_values = values[control_col].split(":")
-                        n_ref, n_alt = map(float, (n_values[1].split(",")))
-                        n_depth = n_alt + n_ref
-                        np.seterr(divide='ignore')
-                        if (t_alt > min_t_alt and n_depth >= min_n_depth and
-                            np.divide(n_alt, n_depth) <= max_n_alt_freq and
-                            (((np.divide(t_alt, t_depth) /
-                               np.divide(n_alt, n_depth)) >= min_t_alt_freq) or
-                             ((np.divide(t_alt, t_depth) /
-                               np.divide(n_alt, n_depth)) == 0))):
-                                key = lookup(values[3], values[4])
-                                if key in mut_dict:
-                                    mut_dict[key] += 1
-                                else:
-                                    comp_key = lookup(
-                                        comp(values[3]), comp(values[4]))
-                                    mut_dict[comp_key] += 1
-                        np.seterr(divide='warn')
+                if line.startswith('#'):
+                    continue
+                values = line.split("\t")
+                key = lookup(values[3], values[4])
+                if key in mut_dict:
+                    mut_dict[key] += 1
+                else:
+                    comp_key = lookup(
+                        comp(values[3]), comp(values[4]))
+                    mut_dict[comp_key] += 1
+
         patient_freq[patient_id] = mut_dict
 
     for mutation in mutations:
         base1, base2 = breakKey(mutation)
         for infile in infiles:
-            patient_id = P.snip(os.path.basename(infile), ".mutect.snp.vcf")
+            patient_id = getID(infile)
             outfile1.write("%s\t%s\t%s\t%s\t%s\n" % (patient_id, mutation,
                                                      base1, base2,
                                                      patient_freq[patient_id]
@@ -494,7 +533,7 @@ def compileMutationalSignature(infiles, outfiles, min_t_alt, min_n_depth,
     outfile2.write("%s\t%s\n" % ("patient_id",
                                  "\t".join(mutations)))
     for infile in infiles:
-        patient_id = P.snip(os.path.basename(infile), ".mutect.snp.vcf")
+        patient_id = getID(infile)
         frequencies = "\t".join(map(str, [patient_freq[patient_id][x]
                                           for x in mutations]))
         outfile2.write("%s\t%s\n" % (patient_id, frequencies))
@@ -677,3 +716,76 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
         out.write("%s\t%s\n" % (gene, "\t".join(map(str, freq_values))))
 
     out.close()
+
+
+def intersectionHeatmap(infiles, outfile):
+    ''' calculate the intersection between the infiles and plot'''
+
+    pandas2ri.activate()
+
+    name2genes = {}
+    df = pd.DataFrame(columns=["id_1", "id_2", "intersection", "perc"])
+
+    ix = 0
+    for inf in infiles:
+
+        name = P.snip(os.path.basename(inf)).split(".")[0]
+        name = name.replace(".", "_")
+
+        with IOTools.openFile(inf, "r") as f:
+            genes = set()
+
+            for line in f:
+                if line[0] == "#":
+                    continue
+
+                values = line.strip().split("\t")
+                info = values[7].split(";")
+
+                for x in info:
+                    if x.split("=")[0] == "SNPEFF_GENE_NAME":
+                        gene_name = x.split("=")[1]
+                        break
+
+                # if no gene name found, line is skipped
+                if gene_name:
+                    genes.update((gene_name,))
+
+        name2genes[name] = genes
+        df.loc[ix] = [name, name, len(genes), 1.0]
+        ix += 1
+
+    for pair in itertools.permutations(name2genes.keys(), 2):
+        id_1, id_2 = pair
+        intersection = len(name2genes[id_1].intersection(name2genes[id_2]))
+        not_intersecting = len(name2genes[id_1].symmetric_difference(name2genes[id_2]))
+        intersection_perc = float(intersection) / (intersection +
+                                                   not_intersecting)
+
+        df.loc[ix] = [id_1, id_2, intersection, intersection_perc]
+        ix += 1
+
+    variant = os.path.basename(outfile).replace("overlap_", "").replace("_heatmap.png", "")
+
+    plotIntersectionHeatmap = R('''
+    function(df){
+    library(ggplot2)
+    m_txt = element_text(size=15)
+    m_txt_90 = element_text(size=15, angle=90, vjust=0.5, hjust=1)
+    l_txt = element_text(size=20)
+
+    p = ggplot(df, aes(id_1, id_2, fill=100*perc)) +
+    geom_tile() +
+    geom_text(aes(label=intersection), size=3) +
+    scale_fill_gradient(name="Intersection (%%)", limits=c(0,100),
+                       low="yellow", high="dodgerblue4") +
+    theme(axis.text.x = m_txt_90, axis.text.y = m_txt,
+          legend.text = m_txt, legend.title = m_txt,
+          aspect.ratio=1) +
+    xlab("") + ylab("") +
+    ggtitle("%(variant)s")
+
+    ggsave("%(outfile)s", width=10, height=10)
+    }''' % locals())
+
+    plotIntersectionHeatmap(df)
