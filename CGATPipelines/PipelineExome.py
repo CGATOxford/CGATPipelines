@@ -160,7 +160,7 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                     dbsnp, call_stats_out, job_memory, job_threads,
                     quality=20, max_alt_qual=150, max_alt=5,
                     max_fraction=0.05, tumor_LOD=6.3,
-                    normal_panel=None, 
+                    normal_panel=None,
                     infile_matched=None,
                     gatk_key=None,
                     artifact=False):
@@ -463,7 +463,7 @@ def filterMutect(infile, outfile,
                             outf.write(line)
                 else:
                     # write out all comment lines
-                    outf.write(line)                            
+                    outf.write(line)
 
 
 # the following two functions should be generalised
@@ -676,9 +676,6 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
             url = ("http://www.cbioportal.org/webservice.do?cmd=getProfileData&"
                    "case_set_id=%(study)s_all&genetic_profile_id=%(table)s&"
                    "gene_list=%(gene_list)s" % locals())
-
-            #with IOTools.openFile(outfile+"_tmp", "w") as out:
-            #    out.write("%s\n" % url)
 
             df = pd.io.parsers.read_csv(url, comment="#", sep="\t", index_col=0)
 

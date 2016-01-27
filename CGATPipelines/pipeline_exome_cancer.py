@@ -1122,7 +1122,7 @@ def loadNCG(outfile):
     '''Load NCG into database'''
 
     infile = PARAMS["cancergenes_table"]
-    #infile = "/ifs/projects/proj053/backup/NCG/cancergenes2016.tsv"
+    # infile = "/ifs/projects/proj053/backup/NCG/cancergenes2016.tsv"
 
     P.load(infile, outfile, options="--add-index=symbol")
 
