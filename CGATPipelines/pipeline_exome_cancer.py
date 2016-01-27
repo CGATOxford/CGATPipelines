@@ -217,7 +217,7 @@ def loadManualAnnotations(infile, outfile):
             for line in inf:
                 outf.write("%s\t%s" % (annotation, line))
 
-    P.load(tmp, outfile, options="--add_index=gene_id")
+    P.load(tmp, outfile, options="--add-index=gene_id")
     os.unlink(tmp)
 
 #########################################################################
@@ -930,25 +930,19 @@ def indelvcfToTable(infile, outfile):
 
 @transform([snpvcfToTable,
             indelvcfToTable],
-           regex(r"variants/(\S+).(?P<suffix>annotated.tsv|call_stats.out)"),
+           regex(r"variants/(\S+).(?P<suffix>annotated|call_stats.).(tsv|out)"),
            r"variants/\1.\g<suffix>.load")
 def loadVariantAnnotation(infile, outfile):
     '''Load VCF annotations into database'''
 
     if infile.endswith("indels.annotated.tsv"):
-        indices = '''"contig","position","SNPEFF_GENE_NAME"'''
+        indices = "CHROM,POS,SNPEFF_GENE_NAME"
     elif infile.endswith("mutect.snp.annotated.tsv"):
-        indices = '''"CHROM","POS","SNPEFF_GENE_NAME"'''
+        indices = "CHROM,POS,SNPEFF_GENE_NAME"
+    elif infile.endswith("call_stats.out"):
+        indices = "contig,position"
 
     P.load(infile, outfile, options="--add-index=%(indices)s" % locals())
-
-    # dbh = connect()
-    # tablename = P.toTable(outfile)
-    # statement = '''cat %(infile)s |
-    #               python %(scriptsdir)s/csv2db.py
-    #               --table %(tablename)s --retry --ignore-empty
-    #               > %(outfile)s'''
-    # P.run()
 
 
 @follows(runMutect)

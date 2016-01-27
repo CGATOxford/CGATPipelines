@@ -11,7 +11,7 @@ from exomeReport import *
 
 class Snp(ExomeTracker):
 
-    pattern = "(\S*)_mutect_snp_annotated_tsv$"
+    pattern = "(\S*)_mutect_snp_annotated$"
 
     def __call__(self, track, slice=None):
 
@@ -63,7 +63,7 @@ class Snp(ExomeTracker):
 
 class Indel(ExomeTracker):
 
-    pattern = "(\S*)_indels_annotated_tsv$"
+    pattern = "(\S*)_indels_annotated$"
 
     def __call__(self, track, slice=None):
 
