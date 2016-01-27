@@ -732,40 +732,25 @@ def runSailfish(infiles, outfile):
     P.run()
 
 
-if PARAMS["sailfish"]:
-    @follows(runSailfish)
-    @merge(runSailfish,
-           "abundance_estimates.tsv")
-    def mergeResults(infiles, outfile):
-        ''' merge the TPM values per sample'''
+@merge(runSailfish,
+       "sailfish.dir/sailfish_results.tsv.gz")
+def mergeSailfishResults(infiles, outfile):
 
-        sample_id = os.path.basename(os.path.dirname(infiles[0]))
-        df = pd.read_table(
-            infiles[0], sep='\t', comment='#', header=0, index_col=0)
-        df.columns = ["Length", sample_id, "NumReads"]
-        df.index.name = "Name"
-        df.drop(["Length", "NumReads"], axis=1, inplace=True)
+    infiles = " " .join(infiles)
 
-        for infile in infiles[1:]:
-            sample_id = os.path.basename(os.path.dirname(infile))
-
-            tmp_df = pd.read_table(
-                infile, sep='\t', comment='#', header=0, index_col=0)
-            tmp_df.columns = ["Length", sample_id, "NumReads"]
-            tmp_df.index.name = "Name"
-            tmp_df.drop(["Length", "NumReads"], axis=1, inplace=True)
-
-            df = pd.merge(df, tmp_df, left_index=True, right_index=True)
-
-        df.to_csv(outfile, sep="\t")
-else:
-    @follows(mkdir("quant.dir"))
-    @originate("abundance_estimates.tsv")
-    def mergeResults(outfile):
-        infile = PARAMS["abundance_file"]
-        base = os.path.basename(infile)
-        statement = '''ln -s %(infile)s; mv %(base)s %(outfile)s'''
-        P.run()
+    statement = """
+    cat %(infiles)s
+    | awk -v OFS="\\t"
+    '/^# Name/
+    { sample_id+=1;
+      if (sample_id == 1)
+      {gsub(/# Name/, "gene_id"); printf("sample_id\t%%s\\n", $0); next;}}
+    !/^#/
+        {printf("%%i\\t%%s\\n", sample_id, $0)}'
+    | gzip 
+    > %(outfile)s
+    """
+    P.run()
 
 
 @transform(mapReadsWithHisat,
@@ -944,8 +929,10 @@ def buildTranscriptProfiles(infiles, outfile):
 
 
 
-@follows(loadContextStats, loadBAMStats,
-         buildTranscriptProfiles)
+@follows(loadContextStats,
+         loadBAMStats,
+         buildTranscriptProfiles,
+         mergeSailfishResults)
 def full():
     pass
 
