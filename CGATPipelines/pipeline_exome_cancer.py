@@ -92,6 +92,13 @@ If you would like the genes of interest to be flagged in your vcf,
 make add_genes_of_interest=1 (default=0) and provide a list of comma
 separated genes (without spaces) in the ini file.
 
+If you would like to annotate genes of interest with a particular
+value in the results table, create a file call [label]_annotations.tsv
+in your working directory listing all the genes. For example, to
+annotate all genes identified in a previous shRNA screen, add a file
+called shRNA_annoations.tsv listing the genes and the results table
+will contain a column called "shRNA" with values "shRNA" and "null".
+
 Requirements
 ------------
 
@@ -190,6 +197,28 @@ PipelineMappingQC.PARAMS = PARAMS
 PipelineExome.PARAMS = PARAMS
 #########################################################################
 
+
+#########################################################################
+# Load manual annotations
+#########################################################################
+
+@transform("*_annotations.tsv",
+           suffix(".tsv"),
+           ".load")
+def loadManualAnnotations(infile, outfile):
+
+    tmp = P.getTempFilename(".")
+
+    annotation = P.snip(infile, "_annotations.tsv")
+
+    with IOTools.openFile(tmp, "w") as outf:
+        outf.write("%s\tgene_id\n" % annotation)
+        with IOTools.openFile(infile, "r") as inf:
+            for line in inf:
+                outf.write("%s\t%s" % (annotation, line))
+
+    P.load(tmp, outfile, options="--add_index=gene_id")
+    os.unlink(tmp)
 
 #########################################################################
 # Alignment to a reference genome
@@ -1127,7 +1156,8 @@ def loadMutationalSignature(infiles, outfile):
 #########################################################################
 #########################################################################
 
-@follows(loadMutectFilteringSummary,
+@follows(loadManualAnnotations,
+         loadMutectFilteringSummary,
          loadMutectExtendedOutput,
          loadVariantAnnotation,
          loadCoverageStats,
