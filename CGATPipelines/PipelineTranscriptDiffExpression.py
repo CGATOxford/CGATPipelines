@@ -296,3 +296,48 @@ def loadSleuthTable(infile, outfile, transcript_info, gene_biotypes,
         options = "--add-index=transcript_id"
         P.load(tmpfile, outfile, options=options)
         os.unlink(tmpfile)
+
+
+def loadSleuthTableGenes(infile, outfile, gene_info, gene_biotypes,
+                         database, annotations_database):
+
+        tmpfile = P.getTempFilename("/ifs/scratch/")
+
+        table = os.path.basename(gene_info)
+
+        if gene_biotypes:
+            where_cmd = "WHERE " + " OR ".join(
+                ["gene_biotype = '%s'" % x
+                 for x in gene_biotypes.split(",")])
+        else:
+            where_cmd = ""
+
+        select = """SELECT DISTINCT
+        gene_id, gene_name
+        FROM annotations.%(table)s
+        %(where_cmd)s""" % locals()
+
+        df1 = pd.read_table(infile, sep="\t")
+        df1.set_index("test_id", drop=False, inplace=True)
+
+        df2 = pd.read_sql(select, connect(database, annotations_database))
+        df2.set_index("gene_id", drop=False, inplace=True)
+
+        df = df1.join(df2)
+        df.to_csv(tmpfile, sep="\t", index=True)
+
+        options = "--add-index=gene_id"
+        P.load(tmpfile, outfile, options=options)
+        os.unlink(tmpfile)
+
+
+def convertFish(infile, outfile):
+    ''' convert sailfish/salmon output to Sleuth compatible h5 file'''
+
+    infile = os.path.dirname(infile)
+
+    convert = R('''library(wasabi)
+    prepare_fish_for_sleuth("%(infile)s", force=TRUE)
+    ''' % locals())
+
+    convert

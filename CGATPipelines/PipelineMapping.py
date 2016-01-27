@@ -1053,6 +1053,8 @@ class Sailfish(Mapper):
             raise ValueError("incorrect number of input files")
 
         outdir = os.path.dirname(os.path.abspath(outfile))
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
 
         statement.append('''
         -l %%(sailfish_libtype)s %(input_file)s -o %(outdir)s
@@ -1100,6 +1102,8 @@ class Salmon(Mapper):
             raise ValueError("incorrect number of input files")
 
         outdir = os.path.dirname(os.path.abspath(outfile))
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
 
         statement.append('''
         -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
