@@ -47,7 +47,10 @@ AA_change = amino acid change
 SNP Filtering Summary
 =======================================
 
-The following tables present the filtering summaries for SNP filtering
+The following tables present the filtering summaries for SNP
+filtering. SNP may be filtered for a combination of justifications or
+a single justification. The filtering summarised here applies only to
+MuTect. Further filtering may be have applied downstream.
 
 .. report:: Filtered.FilterSummary
    :render: table

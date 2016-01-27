@@ -97,7 +97,7 @@ class Indel(ExomeTracker):
         ON A.SNPEFF_GENE_NAME = B.symbol
         LEFT OUTER JOIN eBio_studies_gene_frequencies as C
         ON A.SNPEFF_GENE_NAME = C.gene
-        %(annotations_select_cmd)s
+        %(annotations_join_cmd)s
         ''' % locals()
 
         return self.getAll(statement)
@@ -110,7 +110,9 @@ class FilterSummary(ExomeTracker):
     def __call__(self, track, slice=None):
 
         statement = '''
-        SELECT * FROM %(track)s_mutect_filtering_summary
+        SELECT justification, IFNULL(single, 0.0) AS Single,
+        IFNULL(combination, 0.0) AS Combination
+        FROM %(track)s_mutect_filtering_summary
         ;
         ''' % locals()
 
