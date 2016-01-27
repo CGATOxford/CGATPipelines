@@ -930,7 +930,7 @@ def indelvcfToTable(infile, outfile):
 
 @transform([snpvcfToTable,
             indelvcfToTable],
-           regex(r"variants/(\S+).(?P<suffix>annotated|call_stats.).(tsv|out)"),
+           regex(r"variants/(\S+).(?P<suffix>annotated|call_stats).(tsv|out)"),
            r"variants/\1.\g<suffix>.load")
 def loadVariantAnnotation(infile, outfile):
     '''Load VCF annotations into database'''

@@ -43,8 +43,8 @@ class Snp(ExomeTracker):
         C.type as NCG, C.cancer_type, D.*,
         B.n_ref_count AS Normal_Ref, B.n_alt_count AS Normal_Alt,
         B.t_ref_count AS Tumor_Ref, B.t_alt_count AS Tumor_Alt
-        FROM %(track)s_mutect_snp_annotated_tsv AS A
-        JOIN %(track)s_call_stats_out AS B
+        FROM %(track)s_mutect_snp_annotated AS A
+        JOIN %(track)s_call_stats AS B
         ON A.CHROM = B.contig AND A.POS = B.position
         LEFT OUTER JOIN cancergenes as C
         ON A.SNPEFF_GENE_NAME = C.symbol
@@ -97,7 +97,7 @@ class Indel(ExomeTracker):
         A.TUMOR_DP AS Tumor_depth,
         A.NORMAL_TAR as Normal_Ref, A.NORMAL_TIR as Normal_Alt,
         A.TUMOR_TAR as Tumor_Ref, A.TUMOR_TIR as Tumor_Alt
-        FROM %(track)s_indels_annotated_tsv AS A
+        FROM %(track)s_indels_annotated AS A
         LEFT OUTER JOIN cancergenes as B
         ON A.SNPEFF_GENE_NAME = B.symbol
         LEFT OUTER JOIN eBio_studies_gene_frequencies as C
