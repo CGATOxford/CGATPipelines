@@ -267,7 +267,7 @@ def filterBamfiles(infile, sentinel):
     outfile = P.snip(sentinel, ".sentinel") + ".bam"
 
     # ensure bamfile is sorted,
-    statement = ["samtools sort @IN@ @OUT@", ]
+    statement = ["samtools sort -f @IN@ @OUT@.bam", ]
 
     # remove unmapped reads
     statement.append("python %(scriptsdir)s/bam2bam.py"
