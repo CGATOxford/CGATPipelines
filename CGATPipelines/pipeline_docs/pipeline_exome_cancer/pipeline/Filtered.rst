@@ -68,7 +68,7 @@ The following plot presents the intersection (overlap) between
 samples, expressed as the number of genes in both samples and the
 percentage of genes in the intersection
 
-.. report:: ExomeReport.imagesTracker
+.. report:: exomeReport.imagesTracker
    :render: gallery-plot
    :glob: intersection.dir/overlap_*_heatmap.png
 

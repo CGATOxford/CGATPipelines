@@ -564,29 +564,31 @@ def runMutect(infiles, outfile):
     mutect_log = basename + ".log"
 
     (cosmic, dbsnp, quality, max_alt_qual, max_alt,
-     max_fraction, tumor_LOD) = (
+     max_fraction, tumor_LOD, strand_LOD) = (
          PARAMS["mutect_cosmic"], PARAMS["gatk_dbsnp"],
          PARAMS["mutect_quality"], PARAMS["mutect_max_alt_qual"],
          PARAMS["mutect_max_alt"], PARAMS["mutect_max_fraction"],
-         PARAMS["mutect_lod"])
+         PARAMS["mutect_lod"], PARAMS["mutect_strand_lod"])
 
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
-                                  cosmic, dbsnp, call_stats_out,
-                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'],
-                                  quality, max_alt_qual,
-                                  max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile)
+    PipelineExome.mutectSNPCaller(
+        infile_tumour, outfile, mutect_log, genome,
+        cosmic, dbsnp, call_stats_out,
+        PARAMS['mutect_memory'], PARAMS['mutect_threads'],
+        quality, max_alt_qual,
+        max_alt, max_fraction, tumor_LOD, strand_LOD,
+        normal_panel, infile)
 
 
-@follows(runMutect)
-@transform("variants/*call_stats.out",
-           regex(r"variants/(\S+)_call_stats.out"),
+@transform(runMutect,
+           regex(r"variants/(\S+).mutect.snp.vcf"),
            r"variants/\1_call_stats.load")
 def loadMutectExtendedOutput(infile, outfile):
     '''Load mutect extended output into database'''
+
+    call_stats_out = outfile.replace(".mutect.snp.vcf", "_call_stats.out")
 
     indices = "contig,position"
     P.load(infile, outfile, options="--add-index=%(indices)s" % locals())
@@ -596,7 +598,9 @@ def loadMutectExtendedOutput(infile, outfile):
            regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
            r"variants/\1/results/all.somatic.indels.vcf")
 def indelCaller(infile, outfile):
+
     '''Call somatic indels using Strelka'''
+
     infile_tumour = infile.replace(
         PARAMS["sample_control"], PARAMS["sample_tumour"])
     outdir = "/".join(outfile.split("/")[0:2])
@@ -605,7 +609,8 @@ def indelCaller(infile, outfile):
 
     PipelineExome.strelkaINDELCaller(infile, infile_tumour, outfile,
                                      genome, PARAMS['strelka_config'], outdir,
-                                     PARAMS['strelka_memory'])
+                                     PARAMS['strelka_memory'],
+                                     PARAMS['strelka_threads'])
 
 ##########################################################################
 ##########################################################################
@@ -906,12 +911,13 @@ def filterMutect(infile, outfile):
     min_t_alt_freq = PARAMS["filter_minimum_tumor_allele_frequency"]
     min_n_depth = PARAMS["filter_minimum_normal_depth"]
     max_n_alt_freq = PARAMS["filter_maximum_normal_allele_frequency"]
+    min_ratio = PARAMS["filter_minimum_ratio"]
 
     PipelineExome.filterMutect(
         infile, outfile,
         PARAMS["sample_control"], PARAMS["sample_tumour"],
         min_t_alt, min_n_depth, max_n_alt_freq,
-        min_t_alt_freq)
+        min_t_alt_freq, min_ratio)
 
 ##############################################################################
 # Intersect filtered SNPs and INDELs

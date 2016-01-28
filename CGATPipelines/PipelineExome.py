@@ -159,7 +159,7 @@ def haplotypeCaller(infile, outfile, genome,
 def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
                     dbsnp, call_stats_out, job_memory, job_threads,
                     quality=20, max_alt_qual=150, max_alt=5,
-                    max_fraction=0.05, tumor_LOD=6.3,
+                    max_fraction=0.05, tumor_LOD=6.3, strand_LOD=2,
                     normal_panel=None,
                     infile_matched=None,
                     gatk_key=None,
@@ -207,15 +207,17 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
 
 
 def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
-                       outdir, job_memory):
+                       outdir, job_memory, job_threads):
     '''Call INDELs using Strelka'''
 
+    if os.exists(outdir):
+        os.unlink(outdir)
+
     statement = '''
-    rm -rf %(outdir)s;
     /ifs/apps/bio/strelka-1.0.14/bin/configureStrelkaWorkflow.pl
     --normal=%(infile_control)s  --tumor=%(infile_tumor)s
     --ref=%(genome)s  --config=%(config)s  --output-dir=%(outdir)s;
-    checkpoint ; make -j 12 -C %(outdir)s''' % locals()
+    checkpoint ; make -j %(job_threads)s -C %(outdir)s''' % locals()
 
     P.run()
 
@@ -415,7 +417,8 @@ def guessSex(infile, outfile):
 def filterMutect(infile, outfile,
                  control_id, tumour_id,
                  min_t_alt, min_n_depth,
-                 max_n_alt_freq, min_t_alt_freq):
+                 max_n_alt_freq, min_t_alt_freq,
+                 min_ratio):
     ''' filter the mutect snps'''
 
     def comp(base):
@@ -435,9 +438,13 @@ def filterMutect(infile, outfile,
                         elif tumour_id in columns[x]:
                             tumor_col = x
 
-                if not line.startswith('#'):
+                if line.startswith('#'):
+                    # write out all comment lines
+                    outf.write(line)
+
+                else:
                     values = line.split("\t")
-                    if values[6] == "PASS":
+                    if values[6] == "PASS" and "KRAS" in values[7]:
                         t_values = values[tumor_col].split(":")
                         t_ref, t_alt = map(float, (t_values[2].split(",")))
                         t_depth = t_alt + t_ref
@@ -446,25 +453,24 @@ def filterMutect(infile, outfile,
                         n_depth = n_alt + n_ref
                         np.seterr(divide='ignore')
 
+                        t_freq = np.divide(t_alt, t_depth)
+                        n_freq = np.divide(n_alt, n_depth)
+
                         # filter
                         if not t_alt > min_t_alt:
+                            continue
+
+                        if not t_freq >= min_t_alt_freq:
                             continue
 
                         if not n_depth >= min_n_depth:
                             continue
 
-                        if not np.divide(n_alt, n_depth) <= max_n_alt_freq:
+                        if not n_freq <= max_n_alt_freq:
                             continue
 
-                        t_freq = np.divide(t_alt, t_depth)
-                        n_freq = np.divide(n_alt, n_depth)
-                        if (np.divide(t_freq, n_freq) >= min_t_alt_freq or
-                            n_freq == 0):
+                        if (np.divide(t_freq, n_freq) >= min_ratio or n_freq == 0):
                             outf.write(line)
-                else:
-                    # write out all comment lines
-                    outf.write(line)
-
 
 # the following two functions should be generalised
 # currently they operate only on mutect output
