@@ -96,12 +96,12 @@ PCA Plot
 	       geom_point() +
 	       theme_bw() +
 	       theme(
-	       axis.text.x=element_text(size=20),
+	       axis.text.x=element_text(size=20, angle=90, vjust=0.5, hjust=0),
 	       axis.text.y=element_text(size=20),
 	       axis.title.x=element_text(size=20),
 	       axis.title.y=element_text(size=20),
-	       legend.title=element_text(size=20),
-	       legend.text=element_blank(),
+	       legend.text=element_text(size=20),
+	       legend.title=element_blank(),
 	       aspect.ratio=1)
 
    Plot of First (PC1) and second (PC2) principal components from pricipal component
@@ -111,8 +111,9 @@ PCA Plot
 .. report:: RnaseqqcReport.samplePCAvariance
    :render: r-ggplot
    :statement: aes(x=PC, y=100*variance) +
-	       ylab("Variance (%)") + xlab("") +
+	       ylab("Variance (%)") + xlab("PC") +
 	       geom_bar(stat="identity") +
+	       scale_x_continuous(breaks=seq(0,100,1)) +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=20),

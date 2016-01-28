@@ -284,9 +284,8 @@ class samplePCAvariance(samplePCA):
 
         variance = sklearn_pca.explained_variance_ratio_
 
-        final_df = pd.DataFrame(
-            {"variance": variance,
-             "PC": ["PC%i" % x for x in range(1, self.components+1)]})
+        final_df = pd.DataFrame({"variance": variance,
+                                 "PC": range(1, self.components+1)})
 
         return final_df
 
