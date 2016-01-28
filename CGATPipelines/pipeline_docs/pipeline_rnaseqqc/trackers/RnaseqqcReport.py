@@ -191,7 +191,7 @@ class samplePCA(RnaseqqcTracker):
         filtered_df = pivot_df[pivot_df.sum(axis=1) > 0]
 
         # add +1 to counts and log transform data.
-        logdf = np.log(filtered_df + 1)
+        logdf = np.log(filtered_df + 0.1)
 
         # Scale dataframe so variance =1 across rows
         logscaled = sklearn_scale(logdf, axis=1)
@@ -384,12 +384,12 @@ class ExpressionDistribution(RnaseqqcTracker):
     table = "transcript_quantification"
 
     def __call__(self, track, slice=None):
-        statement = """SELECT sample_id, transcript_id, RPKM
+        statement = """SELECT sample_id, transcript_id, TPM
         FROM %(table)s WHERE transcript_id != 'Transcript'"""
 
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        c = 0.0000001
-        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
+        c = 0.1
+        df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
         return df
 
