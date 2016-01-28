@@ -275,7 +275,7 @@ if PARAMS.get("preprocessors", None):
                     PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
 
         job_threads = PARAMS["threads"]
-        job_memory = "7G"
+        job_memory = "12G"
 
         track = re.match(REGEX_TRACK, infile).groups()[0]
 
@@ -320,7 +320,8 @@ if PARAMS.get("preprocessors", None):
                 m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
                     threads=PARAMS["threads"],
-                    untrimmed=PARAMS['cutadapt_reroute_untrimmed']))
+                    untrimmed=PARAMS['cutadapt_reroute_untrimmed'],
+                    process_paired=PARAMS["cutadapt_process_paired"]))
             else:
                 raise NotImplementedError("tool '%s' not implemented" % tool)
 

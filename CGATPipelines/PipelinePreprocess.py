@@ -504,31 +504,62 @@ class Cutadapt(ProcessTool):
 
     prefix = "cutadapt"
 
+    def __init__(self, options, threads=1, process_paired=0, *args, **kwargs):
+        self.process_paired = process_paired
+	ProcessTool.__init__(self, options, threads, *args, **kwargs)
+
     def build(self, infiles, outfiles, output_prefix):
         prefix = self.prefix
         processing_options = self.processing_options
         untrimmed = self.untrimmed
 
         assert len(infiles) == len(outfiles)
-
+        
         cmds = []
-        if int(untrimmed) == 0:
-            for infile, outfile in zip(infiles, outfiles):
+	if self.process_paired and len(infiles)==2:
+   	    in1, in2 = infiles
+            out1, out2 = outfiles
 
-                    cmds.append('''zcat %(infile)s
-                    | cutadapt %(processing_options)s -
-                    2>> %(output_prefix)s.log
-                    | gzip > %(outfile)s;''' % locals())
-        else:
-            for infile, outfile in zip(infiles, outfiles):
-                    outfile_untrimmed = outfile.replace(".fastq",
-                                                        "_untrimmed.fastq")
-                    cmds.append('''zcat %(infile)s
-                    | cutadapt %(processing_options)s
-                    --untrimmed-output %(outfile_untrimmed)s -
-                    2>> %(output_prefix)s.log
-                    | gzip > %(outfile)s;
-                    gzip %(outfile_untrimmed)s;''' % locals())
+            if "fastq" in in1:
+	        format="--format=fastq"
+            elif "fasta" in in1:
+                format="--format=fasta"
+            else:
+                format=""
+
+            untrimmed_output1, untrimmed_output2 = \
+                [i.replace(".fast","_untrimmed.fast")
+                 for i in infiles]
+
+            if untrimmed:
+                processing_options += \
+                    "--untrimmed-output=%(untrimmed_output1)s" \
+                    "--untrimmed-paired=%(untrimmed_output2)s" % locals
+
+            cmds.append('''
+            cutadapt %(processing_options)s %(in1)s %(in2)s
+                     -p %(out2)s -o %(out1)s %(format)s
+            2>> %(output_prefix)s.log; '''  %locals())
+
+            if untrimmed:
+                cmds.append("gzip %s;" % untrimmed_output1)
+                cmds.append("gzip %s;" % untrimmed_output2)
+
+	else:
+	    for infile, outfile in zip(infiles, outfiles):
+                outfile_untrimmed = outfile.replace(".fastq",
+                                                    "_untrimmed.fastq")
+                if untrimmed:
+                    processing_options += " --untrimmed-output=%s" % \
+                        outfile_untrimmed
+
+                cmds.append('''zcat %(infile)s
+                | cutadapt %(processing_options)s -
+                2>> %(output_prefix)s.log
+                | gzip > %(outfile)s;''' % locals())
+
+                if untrimmed:
+                    cmds.append("gzip %s;" % outfile_untrimmed)
 
         return " checkpoint; ".join(cmds)
 
@@ -553,8 +584,8 @@ class Reconcile(ProcessTool):
 
         cmd = """python %%(scriptsdir)s/fastqs2fastqs.py
         --method=reconcile
-        --output-filename-pattern=%(output_prefix)s.fastq.%%s.gz
-        %(infile1)s %(infile2)s
+        --output-filename-pattern=%(output_prefix)s.fastq.%%%%s.gz
+        %(infile1)s %(infile2)s;
         """ % locals()
 
         return cmd
