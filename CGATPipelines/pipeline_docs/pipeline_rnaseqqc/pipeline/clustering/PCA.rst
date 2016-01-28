@@ -89,21 +89,43 @@ More bad examples `<http://myBadData.html >`
 PCA Plot
 ========
 
-.. report:: RnaseqqcReport.samplePCA
+.. report:: RnaseqqcReport.samplePCAprojections
    :render: r-ggplot
-   :statement: aes(x=PC1, y=PC2) +
+   :groupby: slice
+   :statement: aes(x=PC1, y=PC2, colour=factor_value) +
 	       geom_point() +
 	       theme_bw() +
+	       scale_colour_discrete(name="Factor") +
 	       theme(
 	       axis.text.x=element_text(size=20),
-	       axis.text.y=element_text(size=20))
+	       axis.text.y=element_text(size=20),
+	       axis.title.x=element_text(size=20),
+	       axis.title.y=element_text(size=20),
+	       legend.title=element_text(size=20),
+	       legend.text=element_text(size=20),
+	       aspect.ratio=1)
 
    Plot of First (PC1) and second (PC2) principal components from pricipal component
    analysis showing the latent variables that explain most of the variance in the dataset. 
 
 
+.. report:: RnaseqqcReport.samplePCAvariance
+   :render: r-ggplot
+   :statement: aes(x=PC, y=100*variance) +
+	       ylab("Variance (%)") + xlab() +
+	       geom_bar(stat="identity") +
+	       theme_bw() +
+	       theme(
+	       axis.text.x=element_text(size=20),
+	       axis.text.y=element_text(size=20),
+	       axis.title.x=element_text(size=20),
+	       axis.title.y=element_text(size=20),
+	       aspect.ratio=1)
+
+
    Graphs and tables
    Code snippets used to generate graphs and tables
+
 
 Commentary
   This will take the form of some active comments.  This will require the report to
