@@ -927,8 +927,6 @@ def buildTranscriptProfiles(infiles, outfile):
 #########################################################################
 
 
-
-
 @follows(loadContextStats,
          loadBAMStats,
          buildTranscriptProfiles,
