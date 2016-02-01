@@ -1,26 +1,3 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Group
-#
-#   $Id$
-#
-#   Copyright (C) 2009 Tildon Grant Belgard
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
-
 """
 ====================
 ReadQc pipeline
@@ -157,13 +134,13 @@ Documentation
 
 # import ruffus
 from ruffus import transform, suffix, regex, merge, \
-    follows, mkdir, originate, add_inputs, jobs_limit
+    follows, mkdir, originate, add_inputs, jobs_limit, split
 
 # import useful standard python modules
 import sys
 import os
 import sqlite3
-import pandas as pd
+import re
 
 import CGAT.Experiment as E
 import CGAT.GTF as GTF
@@ -171,7 +148,6 @@ import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.Pipeline as P
 
 ###################################################
@@ -314,7 +290,8 @@ def buildReferenceGeneSet(infile, outfile):
     os.unlink(tmp_mergedfiltered)
 
 
-@originate("protein_coding_gene_ids.tsv")
+@follows(mkdir("geneset.dir"))
+@originate("geneset.dir/protein_coding_gene_ids.tsv")
 def identifyProteinCodingGenes(outfile):
     '''Output a list of proteing coding gene identifiers
 
@@ -626,8 +603,7 @@ def buildBAMStats(infile, outfile):
          --ignore-masked-reads
          --num-reads=%(sample_size)i
          --output-filename-pattern=%(outfile)s.%%s
-    < %(in
-    file)s
+    < %(infile)s
     > %(outfile)s
     '''
 
@@ -664,20 +640,9 @@ def loadContextStats(infiles, outfile):
 
 
 @transform(buildCodingGeneSet,
-           suffix("refcoding.gtf.gz"),
-           "flat.gtf.gz")
-def buildFlatGeneSet(infile, outfile):
-    """build geneset where all exons within a gene
-    are merged.
-    """
-
-    PipelineGeneset.buildFlatGeneSet(infile, outfile)
-
-
-@transform(buildFlatGeneSet,
            suffix(".gtf.gz"),
            ".fasta")
-def buildFlatFasta(infile, outfile):
+def buildTranscriptFasta(infile, outfile):
     """build geneset where all exons within a gene
     are merged.
     """
@@ -696,7 +661,7 @@ def buildFlatFasta(infile, outfile):
 
 
 @follows(mkdir("sailfish.dir"))
-@transform(buildFlatFasta,
+@transform(buildTranscriptFasta,
            regex("(\S+)"),
            "sailfish.dir/transcripts.sailfish.index")
 def indexForSailfish(infile, outfile):
@@ -708,10 +673,27 @@ def indexForSailfish(infile, outfile):
     P.run()
 
 
-@follows(indexForSailfish)
+@transform(buildCodingGeneSet,
+           suffix(".gtf.gz"),
+           ".tsv")
+def buildTranscriptGeneMap(infile, outfile):
+    """build a map of transcript ids to gene ids."""
+
+    statement = """
+    zcat %(infile)s
+    |python %(scriptsdir)s/gtf2tsv.py
+    --attributes-as-columns
+    --output-only-attributes
+    | python %(scriptsdir)s/csv_cut.py transcript_id gene_id
+    > %(outfile)s"""
+    P.run()
+
+
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
-           add_inputs(indexForSailfish),
+           add_inputs(indexForSailfish,
+                      buildCodingGeneSet,
+                      buildTranscriptGeneMap),
            r"sailfish.dir/\1/quant.sf")
 def runSailfish(infiles, outfile):
     '''quantify abundance'''
@@ -719,11 +701,12 @@ def runSailfish(infiles, outfile):
     job_threads = PARAMS["sailfish_threads"]
     job_memory = PARAMS["sailfish_memory"]
 
-    infile, index = infiles
+    infile, index, geneset, transcript_map = infiles
 
     sailfish_bootstrap = 1
     sailfish_libtype = PARAMS["sailfish_libtype"]
     sailfish_options = PARAMS["sailfish_options"]
+    sailfish_options += "--geneMap %s" % transcript_map
 
     m = PipelineMapping.Sailfish()
 
@@ -732,31 +715,62 @@ def runSailfish(infiles, outfile):
     P.run()
 
 
-@merge(runSailfish,
-       "sailfish.dir/sailfish_results.tsv.gz")
-def mergeSailfishResults(infiles, outfile):
+@split(runSailfish,
+       ["sailfish.dir/sailfish_transcripts.tsv.gz",
+        "sailfish.dir/sailfish_genes.tsv.gz"])
+def mergeSailfishResults(infiles, outfiles):
 
-    infiles = " " .join(infiles)
+    s_infiles = " " .join(sorted(infiles))
+    outfile_transcripts, outfile_genes = outfiles
 
     statement = """
-    cat %(infiles)s
+    cat %(s_infiles)s
     | awk -v OFS="\\t"
     '/^# Name/
     { sample_id+=1;
       if (sample_id == 1)
-      {gsub(/# Name/, "gene_id"); printf("sample_id\t%%s\\n", $0); next;}}
+      {gsub(/# Name/, "transcript_id"); printf("sample_id\\t%%s\\n", $0); next;}}
     !/^#/
         {printf("%%i\\t%%s\\n", sample_id, $0)}'
-    | gzip 
-    > %(outfile)s
+    | gzip
+    > %(outfile_transcripts)s
+    """
+    P.run()
+
+    s_infiles = " ".join(
+        [re.sub("quant.sf", "quant.genes.sf", x) for x in infiles])
+
+    statement = """
+    cat %(s_infiles)s
+    | awk -v OFS="\\t"
+    '/^# Name/
+    { sample_id+=1;
+      if (sample_id == 1)
+      {gsub(/# Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
+    !/^#/
+        {printf("%%i\\t%%s\\n", sample_id, $0)}'
+    | gzip
+    > %(outfile_genes)s
     """
     P.run()
 
 
+@transform(mergeSailfishResults,
+           suffix(".tsv.gz"),
+           ".load")
+def loadSailfishResults(infile, outfile):
+    P.load(infile, outfile,
+           options="--add-index=sample_id "
+           "--add-index=gene_id "
+           "--add-index=transcript_id "
+           "--map=sample_id:int")
+
+
+@follows(mkdir("transcriptprofiles.dir"))
 @transform(mapReadsWithHisat,
-           suffix(".bam"),
+           regex("hisat.dir/(\S+).hisat.bam"),
            add_inputs(buildCodingExons),
-           ".transcriptprofile.gz")
+           r"transcriptprofiles.dir/\1.transcriptprofile.gz")
 def buildTranscriptProfiles(infiles, outfile):
     '''build gene coverage profiles
 
@@ -789,6 +803,7 @@ def buildTranscriptProfiles(infiles, outfile):
     --force-output
     --reporter=transcript
     --use-base-accuracy
+    --method=geneprofile
     --method=geneprofileabsolutedistancefromthreeprimeend
     --normalize-profile=all
     %(bamfile)s %(gtffile)s
@@ -797,6 +812,84 @@ def buildTranscriptProfiles(infiles, outfile):
     '''
 
     P.run()
+
+
+@merge(SEQUENCEFILES,
+       "experiment.tsv")
+def buildExperimentTable(infiles, outfile):
+
+    d = os.getcwd()
+    try:
+        project_id = P.getProjectId()
+    except ValueError:
+        project_id = "unknown"
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("id\tname\tproject_id\tdirectory\ttitle\n")
+        outf.write("\t".join(
+            ("1",
+             P.getProjectName(),
+             project_id,
+             d,
+             PARAMS.get("title", ""))) + "\n")
+
+
+@merge(SEQUENCEFILES,
+       "samples.tsv")
+def buildSamplesTable(infiles, outfile):
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("id\texperiment_id\tsample_name\n")
+
+        for sample_id, filename in enumerate(sorted(infiles)):
+            sample_name, suffix = os.path.basename(filename).split(".", 1)
+            outf.write("\t".join((str(sample_id + 1), "1", sample_name)) + "\n")
+
+
+@merge(SEQUENCEFILES,
+       "factors.tsv")
+def buildFactorTable(infiles, outfile):
+
+    if "factors" not in PARAMS:
+        raise ValueError("factors not defined in config file")
+
+    factor_names = PARAMS.get("factors")
+    if factor_names == None or factor_names == "!?":
+        raise ValueError("factors not defined in config file")
+    factor_names = factor_names.split(",")
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("sample_name\tfactor\tfactor_value\n")
+
+        for sample_id, filename in enumerate(sorted(infiles)):
+            sample_name, suffix = os.path.basename(filename).split(".", 1)
+            parts = sample_name.split("-")
+
+            if len(parts) != len(factor_names):
+                raise ValueError(
+                    "unexpected number of factors in sample {}: "
+                    "expected={}, got={}".format(
+                        filename, factor_names, parts))
+
+            for factor, factor_value in zip(factor_names, parts):
+                if factor == "-":
+                    continue
+                outf.write("\t".join((str(sample_id + 1),
+                                      factor, factor_value)) + "\n")
+            outf.write("\t".join((str(sample_id + 1), "genome",
+                                  PARAMS["genome"])) + "\n")
+
+
+@transform((buildExperimentTable, buildSamplesTable, buildFactorTable),
+           suffix(".tsv"),
+           ".load")
+def loadMetaInformation(infile, outfile):
+    P.load(infile, outfile,
+           options="--map=id:int "
+           "--map=sample_id:int "
+           "--map=experiment_id:int "
+           "--add-index=id "
+           "--add-index=experiment_id "
+           "--add-index=sample_id ")
 
 # @transform(PARAMS["sailfish_transcripts"],
 #            regex("(\S+)"),
@@ -932,7 +1025,8 @@ def buildTranscriptProfiles(infiles, outfile):
 @follows(loadContextStats,
          loadBAMStats,
          buildTranscriptProfiles,
-         mergeSailfishResults)
+         loadSailfishResults,
+         loadMetaInformation)
 def full():
     pass
 
