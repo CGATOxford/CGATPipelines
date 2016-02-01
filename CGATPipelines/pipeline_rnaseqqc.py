@@ -204,7 +204,8 @@ SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
-    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz)")
+    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
+    "csfasta.gz|csfasta.F3.gz|export.txt.gz)")
 
 
 def connect():
@@ -729,7 +730,8 @@ def mergeSailfishResults(infiles, outfiles):
     '/^# Name/
     { sample_id+=1;
       if (sample_id == 1)
-      {gsub(/# Name/, "transcript_id"); printf("sample_id\\t%%s\\n", $0); next;}}
+      {gsub(/# Name/, "transcript_id");
+       printf("sample_id\\t%%s\\n", $0); next;}}
     !/^#/
         {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
@@ -842,7 +844,8 @@ def buildSamplesTable(infiles, outfile):
 
         for sample_id, filename in enumerate(sorted(infiles)):
             sample_name, suffix = os.path.basename(filename).split(".", 1)
-            outf.write("\t".join((str(sample_id + 1), "1", sample_name)) + "\n")
+            outf.write("\t".join(
+                (str(sample_id + 1), "1", sample_name)) + "\n")
 
 
 @merge(SEQUENCEFILES,
@@ -853,7 +856,7 @@ def buildFactorTable(infiles, outfile):
         raise ValueError("factors not defined in config file")
 
     factor_names = PARAMS.get("factors")
-    if factor_names == None or factor_names == "!?":
+    if factor_names is None or factor_names == "!?":
         raise ValueError("factors not defined in config file")
     factor_names = factor_names.split(",")
 
@@ -964,7 +967,8 @@ def loadMetaInformation(infile, outfile):
 #         means_df = means_df.agg(temp_dict).sort(axis=1)
 #         atr_values = means_df[attribute]
 #         means_df.drop(attribute, axis=1, inplace=True)
-#         means_df = (means_df-means_df.min()) / (means_df.max()-means_df.min())
+#         means_df = (means_df-means_df.min()) / \
+#                       (means_df.max()-means_df.min())
 #         means_df[attribute] = atr_values
 #         corr_matrix = means_df.corr(method='spearman')
 #         corr_matrix = corr_matrix[corr_matrix.index != attribute]
@@ -1018,10 +1022,6 @@ def loadMetaInformation(infile, outfile):
 #         P.load(inf, inf.replace(".tsv", ".load"))
 
 #########################################################################
-
-
-
-
 @follows(loadContextStats,
          loadBAMStats,
          buildTranscriptProfiles,
@@ -1029,14 +1029,6 @@ def loadMetaInformation(infile, outfile):
          loadMetaInformation)
 def full():
     pass
-
-
-# @follows(runSailfish)
-# def sail():
-#     pass
-
-
-#########################################################################
 
 
 @follows()

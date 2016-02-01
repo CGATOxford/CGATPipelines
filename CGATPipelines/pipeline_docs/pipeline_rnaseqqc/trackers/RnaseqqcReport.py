@@ -1,16 +1,13 @@
-import re
 import glob
 import numpy as np
 import pandas as pd
-import numpy as np
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import scale as sklearn_scale
 from sklearn.decomposition import PCA as sklearnPCA
-import rpy2.robjects as ro
 from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
-from CGATReport.Tracker import *
+from CGATReport.Tracker import TrackerSQL
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
@@ -60,7 +57,6 @@ class SampleHeatmap(RnaseqqcTracker):
         return ("all")
 
     def getCurrentRDevice(self):
-
         '''return the numerical device id of the
         current device'''
 
@@ -124,107 +120,105 @@ class SampleHeatmap(RnaseqqcTracker):
 
 
 class sampleMDS(RnaseqqcTracker):
-	# to add:
-	# - ability to use rlog or variance stabalising transformatio
-	# - ability to change filter threshold fo rlowly expressed transcripts
-	# - JOIN with design table to get further aesthetics for plotting
-	#   E.g treatment, replicate, etc
+        # to add:
+        # - ability to use rlog or variance stabalising transformatio
+        # - ability to change filter threshold fo rlowly expressed transcripts
+        # - JOIN with design table to get further aesthetics for plotting
+        #   E.g treatment, replicate, etc
 
-	table = "transcript_quantification"
+    table = "transcript_quantification"
 
-	def __call__(self, track,  slice=None):
+    def __call__(self, track,  slice=None):
 
-		# remove WHERE when table cleaned up to remove header rows
-		statement = (
-			"SELECT transcript_id, TPM, sample_id FROM %(table)s "
-			"where transcript_id != 'Transcript'")
+        # remove WHERE when table cleaned up to remove header rows
+        statement = (
+            "SELECT transcript_id, TPM, sample_id FROM %(table)s "
+            "where transcript_id != 'Transcript'")
 
-		# fetch data
-		df = pd.DataFrame.from_dict(self.getAll(statement))
+        # fetch data
+        df = pd.DataFrame.from_dict(self.getAll(statement))
 
-		df = df.pivot('transcript_id', 'sample_id')['TPM']
+        df = df.pivot('transcript_id', 'sample_id')['TPM']
 
-		# calculate dissimilarities
-		similarities = euclidean_distances(df.transpose())
+        # calculate dissimilarities
+        similarities = euclidean_distances(df.transpose())
 
-		# run MDS
-		mds = manifold.MDS(n_components=2, max_iter=3000,
-								eps=1e-9, dissimilarity="precomputed", n_jobs=1)
-		mds = mds.fit(similarities)
-		pos = pd.DataFrame(mds.embedding_)
+        # run MDS
+        mds = manifold.MDS(n_components=2, max_iter=3000,
+                           eps=1e-9, dissimilarity="precomputed", n_jobs=1)
+        mds = mds.fit(similarities)
+        pos = pd.DataFrame(mds.embedding_)
 
-		pos.columns = ["MD1", "MD2"]
-		pos['sample'] = df.columns
+        pos.columns = ["MD1", "MD2"]
+        pos['sample'] = df.columns
 
-		return pos  
+        return pos
 
 
 class samplePCA(RnaseqqcTracker):
-	'''
-	Perform Principal component analysis on dataframe of
-	expression values using sklearn PCA function. Takes expression
-	dataframe, logs transforms data and scales variables to unit variance
-	before performing PCA.  
+    '''
+    Perform Principal component analysis on dataframe of
+    expression values using sklearn PCA function. Takes expression
+    dataframe, logs transforms data and scales variables to unit variance
+    before performing PCA.
 
-	Arguments
-	---------
-	dataframe: pandas.Core.DataFrame
-	a dataframe containing gene IDs, sample IDs
-	and gene expression values
+    Arguments
+    ---------
+    dataframe: pandas.Core.DataFrame
+    a dataframe containing gene IDs, sample IDs
+    and gene expression values
 
-	Returns
-	-------
-	dataframe : pandas.Core.DataFrame
-	a dataframe of first(PC1) and second (PC2) pricipal components 
-	in columns across samples, which are across the rows. '''
-	# to add:
-	# - ability to use rlog or variance stabalising transformation instead log2
-	# - ability to change filter threshold fo rlowly expressed transcripts
-	# - JOIN with design table to get further aesthetics for plotting
-	#   E.g treatment, replicate, etc
+    Returns
+    -------
+    dataframe : pandas.Core.DataFrame
+    a dataframe of first(PC1) and second (PC2) pricipal components
+    in columns across samples, which are across the rows. '''
+    # to add:
+    # - ability to use rlog or variance stabalising transformation instead log2
+    # - ability to change filter threshold fo rlowly expressed transcripts
+    # - JOIN with design table to get further aesthetics for plotting
+    #   E.g treatment, replicate, etc
 
-	table = "transcript_quantification"
+    table = "transcript_quantification"
 
-	def __call__(self, track,  slice=None):
+    def __call__(self, track,  slice=None):
 
-		# remove WHERE when table cleaned up to remove header rows
-		statement = (
-			"SELECT transcript_id, TPM, sample_id FROM %(table)s "
-			"where transcript_id != 'Transcript'")
+        # remove WHERE when table cleaned up to remove header rows
+        statement = (
+            "SELECT transcript_id, TPM, sample_id FROM %(table)s "
+            "where transcript_id != 'Transcript'")
 
-		# fetch data
-		df = self.getDataFrame(statement)
+        # fetch data
+        df = self.getDataFrame(statement)
 
-		#put dataframe so row=genes, cols = samples, cells contain TPM
-		pivot_df = df.pivot('transcript_id', 'sample_id')['TPM']
+        # put dataframe so row=genes, cols = samples, cells contain TPM
+        pivot_df = df.pivot('transcript_id', 'sample_id')['TPM']
 
-		#filter dataframe to get rid of genes where TPM == 0 across samples
-		filtered_df = pivot_df[pivot_df.sum(axis=1) > 0]
+        # filter dataframe to get rid of genes where TPM == 0 across samples
+        filtered_df = pivot_df[pivot_df.sum(axis=1) > 0]
 
-		#add +1 to counts and log transform data. 
-		logdf = np.log(filtered_df + 1)
+        # add +1 to counts and log transform data.
+        logdf = np.log(filtered_df + 1)
 
-		#Scale dataframe so variance =1 across rows
-		logscaled = sklearn_scale(logdf, axis=1)
+        # Scale dataframe so variance =1 across rows
+        logscaled = sklearn_scale(logdf, axis=1)
 
-		#turn array back to df and add transcript id back to index
-		logscaled_df = pd.DataFrame(logscaled)
-		logscaled_df.index = list(logdf.index)
+        # turn array back to df and add transcript id back to index
+        logscaled_df = pd.DataFrame(logscaled)
+        logscaled_df.index = list(logdf.index)
 
+        # Now do the PCA - can change n_components
+        sklearn_pca = sklearnPCA(n_components=2)
+        sklearn_pca.fit(logscaled_df)
 
-		# Now do the PCA - can change n_components
-		sklearn_pca = sklearnPCA(n_components = 2)
-		sklearn_pca.fit(logscaled_df)
+        # these are the principle componets row 0 = PC1, 1 =PC2 etc
+        PC_df = pd.DataFrame(sklearn_pca.components_)
+        PC_df.index = ['PC1', 'PC2']
 
-		#these are the principle componets row 0 = PC1, 1 =PC2 etc
-		PC_df = pd.DataFrame(sklearn_pca.components_)
-		PC_df.index =['PC1', 'PC2']
+        # This is what want for ploting bar graph
+        # y = sklearn_pca.explained_variance_ratio_
 
-		#This is what want for ploting bar graph 
-		#y = sklearn_pca.explained_variance_ratio_
-
-		return PC_df.T
-
+        return PC_df.T
 
 
 # TS: Correlation trackers should be simplified and use tracks to
@@ -241,7 +235,7 @@ class CorrelationSummaryA(RnaseqqcTracker):
         df['sample'] = [x.replace("_quant.sf", "") for x in df['sample']]
         df = pd.melt(df, id_vars="sample")
         df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
-        df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
+        df2.columns = ["id_" + str(x) for x in range(1, len(df2.columns) + 1)]
         merged = pd.concat([df, df2], axis=1)
         # merged.index = ("all",)*len(merged.index)
         # merged.index.name = "track"
@@ -307,7 +301,7 @@ class BiasFactors(RnaseqqcTracker):
         # TS: this should be replaces with a merge with the table of
         # experiment information
         df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
-        df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
+        df2.columns = ["id_" + str(x) for x in range(1, len(df2.columns) + 1)]
 
         merged = pd.concat([df, df2], axis=1)
         # merged.index = ("all",)*len(merged.index)
@@ -336,11 +330,13 @@ class ExpressionDistribution(RnaseqqcTracker):
 #    exclude_columns = "RPKM"
 
 #    def __call__(self, track, slice=None):
-#        statement = ("SELECT sample_id, transcript_id, RPKM FROM %(table)s WHERE transcript_id != 'Transcript'")
+#        statement = ("SELECT sample_id, transcript_id, RPKM FROM %(table)s "
+#         "WHERE transcript_id != 'Transcript'")
 #        df = pd.DataFrame.from_dict(self.getAll(statement))
 #        c = 0.0000001
 #        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
-#        pivot = df.pivot(index='sample_id', columns='transcript_id', values='log2rpkm')
+#        pivot = df.pivot(index='sample_id', columns='transcript_id',
+#                   values='log2rpkm')
 
 #        return pivot
 
