@@ -419,6 +419,8 @@ def filterMutect(infile, outfile,
                  min_ratio):
     ''' filter the mutect snps'''
 
+    reasons = collections.counter()
+
     def comp(base):
         '''return complementary base'''
         comp_dict = {"C": "G", "G": "C", "A": "T", "T": "A"}
@@ -442,7 +444,7 @@ def filterMutect(infile, outfile,
 
                 else:
                     values = line.split("\t")
-                    if values[6] == "PASS" and "KRAS" in values[7]:
+                    if values[6] == "PASS" in values[7]:
                         t_values = values[tumor_col].split(":")
                         t_ref, t_alt = map(float, (t_values[2].split(",")))
                         t_depth = t_alt + t_ref
