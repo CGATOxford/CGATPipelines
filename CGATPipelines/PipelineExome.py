@@ -210,10 +210,8 @@ def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
                        outdir, job_memory, job_threads):
     '''Call INDELs using Strelka'''
 
-    if os.exists(outdir):
-        os.unlink(outdir)
-
     statement = '''
+    rm -rf %(outdir)s;
     /ifs/apps/bio/strelka-1.0.14/bin/configureStrelkaWorkflow.pl
     --normal=%(infile_control)s  --tumor=%(infile_tumor)s
     --ref=%(genome)s  --config=%(config)s  --output-dir=%(outdir)s;
