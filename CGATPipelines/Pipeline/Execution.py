@@ -497,24 +497,81 @@ def run(**kwargs):
         if not re.match("[a-zA-Z]", job_name[0]):
             job_name = "_" + job_name
 
-        spec = [
-            "-V",
-            "-p %(cluster_priority)i",
-            "-N %s" % job_name,
-            "%(cluster_options)s"]
+        # queue manager specific configuration options
 
-        for resource in PARAMS["cluster_memory_resource"].split(","):
-            spec.append("-l %s=%s" % (resource, job_memory))
+        queue_manager = PARAMS["queue_manager"]
 
-        # if process has multiple threads, use a parallel environment
-        if 'job_threads' in options:
-            spec.append(
-                "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
-        if "cluster_pe_queue" in options and 'job_threads' in options:
+        if queue_manager.lower() == "sge":
+
+            # see: ? cannot find documentation on the SGE native spec
+
+            spec = ["-V",
+                    "-p %(cluster_priority)i",
+                    "-N %s" % job_name,
+                    "%(cluster_options)s"]
+
+            for resource in PARAMS["cluster_memory_resource"].split(","):
+                spec.append("-l %s=%s" % (resource, job_memory))
+
+            # if process has multiple threads, use a parallel environment
+            if 'job_threads' in options:
                 spec.append(
-                    "-q %(cluster_pe_queue)s")
+                    "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
+            if "cluster_pe_queue" in options and 'job_threads' in options:
+                    spec.append(
+                        "-q %(cluster_pe_queue)s")
+            else:
+                spec.append("-q %(cluster_queue)s")
+
+        elif queue_manager.lower() == "slurm":
+
+            # SLURM DOCS:
+            # http://apps.man.poznan.pl/trac/slurm-drmaa
+            # https://computing.llnl.gov/linux/slurm/cons_res_share.html
+            #
+
+            if 'job_threads' in options:
+                job_threads = options["job_threads"]
+            else:
+                job_threads = 1  # probably should come from a config option
+
+            # Note the that the specified memory must be per CPU
+            # for consistency with the implemented SGE approach
+            if job_memory.endswith("G"):
+                job_memory_per_cpu = int(job_memory[:-1]) * 1000
+            elif job_memory.endswith("M"):
+                job_memory_per_cpu = int(job_memory[:-1])
+            else:
+                raise ValueError('job memory unit not recognised for SLURM, '
+                                 'must be either "M" (for Mb) or "G" (for Gb),'
+                                 ' e.g. 1G or 1000M for 1 Gigabyte of memory')
+
+            # The SLURM Consumable Resource plugin is required
+            # The "CR_CPU_Memory" resource must be specified
+            #
+            # i.e. in slurm.conf:
+            # SelectType=select/cons_res
+            # SelectTypeParameters=CR_CPU_Memory
+            #
+            # * Note that --cpus-per-task will actually refer to cores
+            #   with the appropriate Node configuration
+            #
+            # SLURM-DRMAA DOCS - Note that version 1.2 (SVN) is required
+            # http://apps.man.poznan.pl/trac/slurm-drmaa
+            #
+            # Not implemented:
+            # -V: cannot find documentation as to what this flag is for
+            # -p: does not appear to be part of the slurm drmaa native spec
+            #
+            # TODO: add "--account" (not sure the best way to fill param).
+
+        spec = ["-J %s" % job_name,
+                "--mem-per-cpu=%s" % job_memory_per_cpu,
+                "--cpus-per-task=%s" % job_threads,
+                "%(cluster_options)s"]
+
         else:
-            spec.append("-q %(cluster_queue)s")
+            raise ValueError("Queue manager %s not supported" % queue_manager)
 
         jt.nativeSpecification = " ".join(spec) % options
         # keep stdout and stderr separate
@@ -894,5 +951,3 @@ def run_pickled(params):
     function(*args, **kwargs)
 
     os.unlink(args_file)
-
-
