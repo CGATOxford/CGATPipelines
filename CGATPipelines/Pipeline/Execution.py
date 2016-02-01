@@ -565,10 +565,10 @@ def run(**kwargs):
             #
             # TODO: add "--account" (not sure the best way to fill param).
 
-        spec = ["-J %s" % job_name,
-                "--mem-per-cpu=%s" % job_memory_per_cpu,
-                "--cpus-per-task=%s" % job_threads,
-                "%(cluster_options)s"]
+            spec = ["-J %s" % job_name,
+                    "--mem-per-cpu=%s" % job_memory_per_cpu,
+                    "--cpus-per-task=%s" % job_threads,
+                    "%(cluster_options)s"]
 
         else:
             raise ValueError("Queue manager %s not supported" % queue_manager)
