@@ -1,6 +1,8 @@
 import glob
 import numpy as np
 import pandas as pd
+import numpy as np
+import collections
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import scale as sklearn_scale
@@ -120,11 +122,11 @@ class SampleHeatmap(RnaseqqcTracker):
 
 
 class sampleMDS(RnaseqqcTracker):
-        # to add:
-        # - ability to use rlog or variance stabalising transformatio
-        # - ability to change filter threshold fo rlowly expressed transcripts
-        # - JOIN with design table to get further aesthetics for plotting
-        #   E.g treatment, replicate, etc
+    # to add:
+    # - ability to use rlog or variance stabalising transformatio
+    # - ability to change filter threshold fo rlowly expressed transcripts
+    # - JOIN with design table to get further aesthetics for plotting
+    #   E.g treatment, replicate, etc
 
     table = "transcript_quantification"
 
@@ -314,12 +316,12 @@ class ExpressionDistribution(RnaseqqcTracker):
     table = "transcript_quantification"
 
     def __call__(self, track, slice=None):
-        statement = """SELECT sample_id, transcript_id, RPKM
+        statement = """SELECT sample_id, transcript_id, TPM
         FROM %(table)s WHERE transcript_id != 'Transcript'"""
 
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        c = 0.0000001
-        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
+        c = 0.1
+        df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
         return df
 
