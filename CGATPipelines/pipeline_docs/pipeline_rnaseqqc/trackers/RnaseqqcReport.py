@@ -293,7 +293,7 @@ class BiasFactors(RnaseqqcTracker):
     def getTracks(self):
         d = self.get("SELECT DISTINCT bias_factor FROM %(table)s")
         return ["GC_Content", "length"]
-        #return tuple([x[0] for x in d])
+        # return tuple([x[0] for x in d])
 
     def __call__(self, track, slice=None):
         statement = """
@@ -327,8 +327,6 @@ class BiasFactors(RnaseqqcTracker):
         # merged = pd.concat([df, df2], axis=1)
         # merged.index = ("all",)*len(merged.index)
         # merged.index.name = "track"
-
-
 
 
 class ExpressionDistribution(RnaseqqcTracker):
