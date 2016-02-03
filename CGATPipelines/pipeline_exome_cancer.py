@@ -106,11 +106,6 @@ will contain a column called "shRNA" with values "shRNA" and "null".
 Requirements
 ------------
 
-TS: note currently you have to use GATK 2.7.2
-In CGAT, prior to running pipeline run:
-> mymodule load bio/gatk-full/2.7-2
-
-
 On top of the default CGAT setup, the pipeline requires the following
 software to be in the path:
 
@@ -588,7 +583,7 @@ def runMutect(infiles, outfile):
 def loadMutectExtendedOutput(infile, outfile):
     '''Load mutect extended output into database'''
 
-    call_stats_out = outfile.replace(".mutect.snp.vcf", "_call_stats.out")
+    infile = infile.replace(".mutect.snp.vcf", "_call_stats.out")
 
     indices = "contig,position"
     P.load(infile, outfile, options="--add-index=%(indices)s" % locals())
@@ -907,6 +902,8 @@ def filterIndels(infile, outfile):
 def filterMutect(infile, outfile):
     ''' filter mutect snps using allele frequencies '''
 
+    logfile = outfile.replace(".vcf", ".log")
+
     min_t_alt = PARAMS["filter_minimum_tumor_allele"]
     min_t_alt_freq = PARAMS["filter_minimum_tumor_allele_frequency"]
     min_n_depth = PARAMS["filter_minimum_normal_depth"]
@@ -914,7 +911,7 @@ def filterMutect(infile, outfile):
     min_ratio = PARAMS["filter_minimum_ratio"]
 
     PipelineExome.filterMutect(
-        infile, outfile,
+        infile, outfile, logfile,
         PARAMS["sample_control"], PARAMS["sample_tumour"],
         min_t_alt, min_n_depth, max_n_alt_freq,
         min_t_alt_freq, min_ratio)
@@ -942,6 +939,7 @@ def intersectHeatmap(infiles, outfile):
            regex("variants/(\S+).annotated.filtered.vcf"),
            r"variants/\1.annotated.filtered.tsv")
 def snpvcfToTable(infile, outfile):
+
     '''Converts vcf to tab-delimited file'''
     to_cluster = USECLUSTER
     statement = '''GenomeAnalysisTK
@@ -949,7 +947,7 @@ def snpvcfToTable(infile, outfile):
                    -V %(infile)s --showFiltered --allowMissingData
                    -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER
                    -F INFO -F BaseQRankSum
-                   -F HaplotypeScore -F MQRankSum -F -F ReadPosRankSum
+                   -F HaplotypeScore -F MQRankSum -F ReadPosRankSum
                    -F SNPEFF_EFFECT -F SNPEFF_IMPACT -F SNPEFF_FUNCTIONAL_CLASS
                    -F SNPEFF_CODON_CHANGE -F SNPEFF_AMINO_ACID_CHANGE
                    -F SNPEFF_GENE_NAME -F SNPEFF_GENE_BIOTYPE
@@ -970,7 +968,7 @@ def indelvcfToTable(infile, outfile):
                    -V %(infile)s --showFiltered --allowMissingData
                    -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER
                    -F INFO -F BaseQRankSum
-                   -F HaplotypeScore -F MQRankSum -F -F ReadPosRankSum
+                   -F HaplotypeScore -F MQRankSum -F ReadPosRankSum
                    -F SNPEFF_EFFECT -F SNPEFF_IMPACT -F SNPEFF_FUNCTIONAL_CLASS
                    -F SNPEFF_CODON_CHANGE -F SNPEFF_AMINO_ACID_CHANGE
                    -F SNPEFF_GENE_NAME -F SNPEFF_GENE_BIOTYPE
@@ -1090,12 +1088,12 @@ def defineEBioStudies(outfile):
 
     cancer_types = PARAMS["annotation_ebio_cancer_types"]
 
-    PipelineExome.defineEBioStudies(cancer_types, outfile, submit=True)
+    PipelineExome.defineEBioStudies(cancer_types, outfile, submit=False)
 
 
 @transform(defineEBioStudies,
            suffix("eBio_studies.tsv"),
-           add_inputs(variantAnnotator, variantAnnotatorIndels),
+           add_inputs(filterIndels, filterMutect),
            "eBio_studies_gene_frequencies.tsv")
 def extractEBioinfo(infiles, outfile):
     '''find the number of mutations identitified in previous studies (ebio_ids)
@@ -1104,7 +1102,7 @@ def extractEBioinfo(infiles, outfile):
     eBio_ids = infiles[0]
     vcfs = infiles[1:]
 
-    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile, submit=True)
+    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile, submit=False)
 
 
 @transform(extractEBioinfo,
@@ -1142,6 +1140,7 @@ def loadNCG(outfile):
        ["variants/mutational_signature.tsv",
         "variants/mutational_signature_table.tsv"])
 def mutationalSignature(infiles, outfiles):
+
     PipelineExome.compileMutationalSignature(
         infiles, outfiles)
 
