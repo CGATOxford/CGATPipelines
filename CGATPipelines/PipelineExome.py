@@ -10,6 +10,7 @@ Reference
 import os
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
+import CGAT.Experiment as E
 from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
 import pandas as pd
@@ -412,14 +413,14 @@ def guessSex(infile, outfile):
 ##############################################################################
 
 
-def filterMutect(infile, outfile,
+def filterMutect(infile, outfile, logfile,
                  control_id, tumour_id,
                  min_t_alt, min_n_depth,
                  max_n_alt_freq, min_t_alt_freq,
                  min_ratio):
     ''' filter the mutect snps'''
 
-    reasons = collections.counter()
+    reasons = collections.Counter()
 
     def comp(base):
         '''return complementary base'''
@@ -444,7 +445,8 @@ def filterMutect(infile, outfile,
 
                 else:
                     values = line.split("\t")
-                    if values[6] == "PASS" in values[7]:
+
+                    if values[6] == "PASS":
                         t_values = values[tumor_col].split(":")
                         t_ref, t_alt = map(float, (t_values[2].split(",")))
                         t_depth = t_alt + t_ref
@@ -458,19 +460,30 @@ def filterMutect(infile, outfile,
 
                         # filter
                         if not t_alt > min_t_alt:
+                            reasons["Low_tumour_alt_count"] += 1
                             continue
 
                         if not t_freq >= min_t_alt_freq:
+                            reasons["Low_tumour_alt_freq"] += 1
                             continue
 
                         if not n_depth >= min_n_depth:
+                            reasons["Low_normal_depth"] += 1
                             continue
 
                         if not n_freq <= max_n_alt_freq:
+                            reasons["high_normal_alt_freq"] += 1
                             continue
 
                         if (np.divide(t_freq, n_freq) >= min_ratio or n_freq == 0):
                             outf.write(line)
+                    else:
+                        reasons["Mutect_reject"] += 1
+
+    with IOTools.openFile(logfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(("reason", "count")))
+        for reason in reasons:
+            outf.write("%s\t%i\n" % (reason, reasons[reason]))
 
 # the following two functions should be generalised
 # currently they operate only on mutect output
@@ -657,27 +670,27 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
             yield l[i:i+n]
 
     # delete me
-    print "number of genes: ", len(list(genes))
+    E.info("number of genes: %i" % len(list(genes)))
 
     for line in eBio_ids:
         tissue, study, table = line.strip().split("\t")
 
         n = 0
 
-        for i in xrange(0, len(list(genes)), 500):
+        for i in xrange(0, len(list(genes)), 250):
 
-            genes_chunk = list(genes)[i:i+500]
+            genes_chunk = list(genes)[i:i+250]
 
             # TS sporadic error when querying with a single gene at a time
             # "urllib2.URLError: <urlopen error [Errno 110] Connection timed out>"
             # max URL length appears to be 8200 characters,
-            # try doing 500 genes at a time?
+            # try doing 250 genes at a time?
 
             gene_list = "+".join(list(genes_chunk))
 
-            n += 500
+            n += len(genes_chunk)
 
-            print "number of genes processed: ", n
+            E.info("number of genes processed: %i" % n)
 
             url = ("http://www.cbioportal.org/webservice.do?cmd=getProfileData&"
                    "case_set_id=%(study)s_all&genetic_profile_id=%(table)s&"
@@ -685,11 +698,10 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
 
             df = pd.io.parsers.read_csv(url, comment="#", sep="\t", index_col=0)
 
-            # delete me
-            print url
-
             for gene in genes_chunk:
+
                 tmp_df = df[df['COMMON'] == gene]
+
                 # check dataframe contains data!
                 if tmp_df.shape[0] != 0:
                     # seem to be having issues with gene set containing duplicates!
@@ -713,7 +725,6 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
         for tissue in tissues:
             total = tissue_counts[tissue][gene]["total"]
             mutations = tissue_counts[tissue][gene]["mutations"]
-            print "total: ", total, "mutations: ", mutations
             freq_values.append(round(np.divide(float(mutations), total), 4))
 
         out.write("%s\t%s\n" % (gene, "\t".join(map(str, freq_values))))
