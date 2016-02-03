@@ -485,6 +485,7 @@ def filterMutect(infile, outfile, logfile,
         for reason in reasons:
             outf.write("%s\t%i\n" % (reason, reasons[reason]))
 
+
 # the following two functions should be generalised
 # currently they operate only on mutect output
 def compileMutationalSignature(infiles, outfiles):
