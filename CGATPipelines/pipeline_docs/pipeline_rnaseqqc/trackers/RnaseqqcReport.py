@@ -275,3 +275,12 @@ class ExpressionDistribution(RnaseqqcTracker):
 #        return pivot
 
 # cgatreport-test -t ExpressionDistribution -r density-plot
+
+
+
+class MappingTracker(TrackerSQL):
+    """Base class for trackers from mapping report used for mapping context below"""
+
+
+class MappingContext(MappingTracker, SingleTableTrackerRows):
+    table = "context_stats"
