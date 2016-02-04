@@ -1,11 +1,11 @@
-import re
 import glob
 import numpy as np
 import pandas as pd
-import numpy as np
+import collections
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
-import rpy2.robjects as ro
+from sklearn.preprocessing import scale as sklearn_scale
+from sklearn.decomposition import PCA as sklearnPCA
 from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
 from CGATReport.Tracker import *
@@ -51,7 +51,7 @@ class RnaseqqcTracker(TrackerSQL):
 
 
 class SampleHeatmap(RnaseqqcTracker):
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
     py2ri.activate()
 
     def getTracks(self, subset=None):
@@ -123,12 +123,12 @@ class SampleHeatmap(RnaseqqcTracker):
 
 class sampleMDS(RnaseqqcTracker):
     # to add:
-    # - parameterise dissimilarity so we can plot
-    #    euclidean & 1-cor(spearman's?)
+    # - ability to use rlog or variance stabalising transformatio
+    # - ability to change filter threshold fo rlowly expressed transcripts
     # - JOIN with design table to get further aesthetics for plotting
     #   E.g treatment, replicate, etc
 
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def __call__(self, track,  slice=None):
 
@@ -157,105 +157,188 @@ class sampleMDS(RnaseqqcTracker):
         return pos
 
 
-# TS: Correlation trackers should be simplified and use tracks to
-# select subsets
-class CorrelationSummaryA(RnaseqqcTracker):
-    table = "binned_means_correlation"
-    select = ["AA", "AT", "AC", "AG"]
-    select = ",".join(select)
+class samplePCA(RnaseqqcTracker):
+    '''
+    Perform Principal component analysis on dataframe of
+    expression values using sklearn PCA function. Takes expression
+    dataframe, logs transforms data and scales variables to unit variance
+    before performing PCA.
+    '''
 
-    def __call__(self, track,  slice=None):
-        statement = ("SELECT sample,%(select)s FROM %(table)s")
-        # fetch data
-        df = pd.DataFrame.from_dict(self.getAll(statement))
-        df['sample'] = [x.replace("_quant.sf", "") for x in df['sample']]
-        df = pd.melt(df, id_vars="sample")
-        df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
-        df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
-        merged = pd.concat([df, df2], axis=1)
-        # merged.index = ("all",)*len(merged.index)
-        # merged.index.name = "track"
-        return merged
+    # to add:
+    # - ability to use rlog or variance stabalising transformation instead log2
+    # - ability to change filter threshold for lowly expressed transcripts
 
+    components = 10
+    table = "sailfish_transcripts"
 
-class GradientSummaryA(CorrelationSummaryA):
-    table = "binned_means_gradients"
+    def pca(self):
 
+        # remove WHERE when table cleaned up to remove header rows
+        statement = ("""SELECT transcript_id, TPM, sample_id FROM %s
+        where transcript_id != 'Transcript' """ % self.table)
 
-class CorrelationSummaryT(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["TA", "TT", "TC", "TG"]
-    select = ",".join(select)
-
-
-class GradientSummaryT(CorrelationSummaryT):
-    table = "binned_means_gradients"
-
-
-class CorrelationSummaryC(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["CA", "CT", "CC", "CG"]
-    select = ",".join(select)
-
-
-class GradientSummaryC(CorrelationSummaryC):
-    table = "binned_means_gradients"
-
-
-class CorrelationSummaryG(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["GA", "GT", "GC", "GG"]
-    select = ",".join(select)
-
-
-class GradientSummaryG(CorrelationSummaryG):
-    table = "binned_means_gradients"
-
-
-class CorrelationSummaryGC(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["GC_Content", "length"]
-    select = ",".join(select)
-
-
-class GradientSummaryGC(CorrelationSummaryGC):
-    table = "binned_means_gradients"
-
-
-class BiasFactors(RnaseqqcTracker):
-    table = "binned_means"
-
-    def getTracks(self):
-        d = self.get("SELECT DISTINCT factor FROM %(table)s")
-        return tuple([x[0] for x in d])
-
-    def __call__(self, track, slice=None):
-        statement = "SELECT * FROM %(table)s WHERE factor = '%(track)s'"
         # fetch data
         df = self.getDataFrame(statement)
 
-        # TS: this should be replaces with a merge with the table of
-        # experiment information
-        df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
-        df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
+        # put dataframe so row=genes, cols = samples, cells contain TPM
+        pivot_df = df.pivot('transcript_id', 'sample_id')['TPM']
 
-        merged = pd.concat([df, df2], axis=1)
+        # filter dataframe to get rid of genes where TPM == 0 across samples
+        filtered_df = pivot_df[pivot_df.sum(axis=1) > 0]
+
+        # add +1 to counts and log transform data.
+        logdf = np.log(filtered_df + 0.1)
+
+        # Scale dataframe so variance =1 across rows
+        logscaled = sklearn_scale(logdf, axis=1)
+
+        # turn array back to df and add transcript id back to index
+        logscaled_df = pd.DataFrame(logscaled)
+        logscaled_df.index = list(logdf.index)
+
+        # Now do the PCA - can change n_components
+        sklearn_pca = sklearnPCA(n_components=self.components)
+        sklearn_pca.fit(logscaled_df)
+
+        index = logdf.columns
+
+        return sklearn_pca, index
+
+
+class samplePCAprojections(samplePCA):
+    '''
+    Perform Principal component analysis on dataframe of
+    expression values using sklearn PCA function. Takes expression
+    dataframe, logs transforms data and scales variables to unit variance
+    before performing PCA.
+
+    Arguments
+    ---------
+    dataframe: pandas.Core.DataFrame
+    a dataframe containing gene IDs, sample IDs
+    and gene expression values
+
+    Returns
+    -------
+    dataframe : pandas.Core.DataFrame
+    a dataframe of first(PC1) and second (PC2) pricipal components
+    in columns across samples, which are across the rows. '''
+    # to add:
+    # - ability to use rlog or variance stabalising transformation instead log2
+    # - ability to change filter threshold for lowly expressed transcripts
+
+    def __call__(self, track,  slice=None):
+
+        sklearn_pca, index = self.pca()
+
+        # these are the principle componets row 0 = PC1, 1 =PC2 etc
+        PC_df = pd.DataFrame(sklearn_pca.components_)
+        PC_df = PC_df.T
+        PC_df.columns = ["PC%i" % x for x in range(1, self.components+1)]
+        PC_df.index = index
+
+        # This is what want for ploting bar graph
+        # y = sklearn_pca.explained_variance_ratio_
+
+        factor_statement = '''select * from factors'''
+
+        # fetch factor data
+        factor_df = self.getDataFrame(factor_statement)
+        factor_df.set_index("sample_name", drop=True, inplace=True)
+
+        full_df = PC_df.join(factor_df)
+
+        return collections.OrderedDict({x: full_df[full_df['factor'] == x] for
+                                        x in set(full_df['factor'].tolist())})
+
+
+class samplePCAvariance(samplePCA):
+    '''
+    Perform Principal component analysis on dataframe of
+    expression values using sklearn PCA function. Takes expression
+    dataframe, logs transforms data and scales variables to unit variance
+    before performing PCA.
+
+    Arguments
+    ---------
+    dataframe: pandas.Core.DataFrame
+    a dataframe containing gene IDs, sample IDs
+    and gene expression values
+
+    Returns
+    -------
+    dataframe : pandas.Core.DataFrame
+    a dataframe of first(PC1) and second (PC2) pricipal components
+    in columns across samples, which are across the rows. '''
+    # to add:
+    # - ability to use rlog or variance stabalising transformation instead log2
+    # - ability to change filter threshold for lowly expressed transcripts
+
+    def __call__(self, track,  slice=None):
+
+        sklearn_pca, index = self.pca()
+
+        variance = sklearn_pca.explained_variance_ratio_
+
+        final_df = pd.DataFrame({"variance": variance,
+                                 "PC": range(1, self.components+1)})
+
+        return final_df
+
+
+class BiasFactors(RnaseqqcTracker):
+    table = "bias_binned_means"
+
+    def getTracks(self):
+        d = self.get("SELECT DISTINCT bias_factor FROM %(table)s")
+        return ["GC_Content", "length"]
+        # return tuple([x[0] for x in d])
+
+    def __call__(self, track, slice=None):
+        statement = """
+        SELECT bin, sample_id, value
+        FROM %(table)s
+        WHERE bias_factor = '%(track)s'
+        AND variable = 'LogTPM'"""
+        # fetch data
+        df = self.getDataFrame(statement)
+        df.set_index("sample_id", drop=False, inplace=True)
+
+        factor_statement = '''select * from factors'''
+        factor_df = self.getDataFrame(factor_statement)
+        factor_df.set_index("sample_name", drop=True, inplace=True)
+        factor_df.index.name = "sample_id"
+
+        print factor_df.head()
+        print df.head()
+
+        full_df = df.join(factor_df)
+
+        return full_df
+        return collections.OrderedDict({x: full_df[full_df['factor'] == x] for
+                                        x in set(full_df['factor'].tolist())})
+
+        # TS: this should be replaced with a merge with the table of
+        # experiment information
+        # df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
+        # df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
+
+        # merged = pd.concat([df, df2], axis=1)
         # merged.index = ("all",)*len(merged.index)
         # merged.index.name = "track"
 
-        return merged
-
 
 class ExpressionDistribution(RnaseqqcTracker):
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def __call__(self, track, slice=None):
-        statement = """SELECT sample_id, transcript_id, RPKM
+        statement = """SELECT sample_id, transcript_id, TPM
         FROM %(table)s WHERE transcript_id != 'Transcript'"""
 
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        c = 0.0000001
-        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
+        c = 0.1
+        df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
         return df
 
