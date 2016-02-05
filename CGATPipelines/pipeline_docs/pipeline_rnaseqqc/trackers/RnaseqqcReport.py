@@ -381,3 +381,27 @@ class ThreePrimeBias(RnaseqqcTracker):
         df.bin -= 1000
         # reindexes bins as downstreem region not included
         return df
+
+# class ExpressionDistributionNotR(RnaseqqcTracker, SingleTableTrackerColumns):
+#    table = "transcript_quantification"
+#    column = "transcript_id"
+#    exclude_columns = "RPKM"
+
+#    def __call__(self, track, slice=None):
+#        statement = ("SELECT sample_id, transcript_id, RPKM FROM %(table)s WHERE transcript_id != 'Transcript'")
+#        df = pd.DataFrame.from_dict(self.getAll(statement))
+#        c = 0.0000001
+#        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
+#        pivot = df.pivot(index='sample_id', columns='transcript_id', values='log2rpkm')
+
+#        return pivot
+
+# cgatreport-test -t ExpressionDistribution -r density-plot
+
+
+class MappingTracker(TrackerSQL):
+    """Base class for trackers from mapping report used for mapping context below"""
+
+
+class MappingContext(MappingTracker, SingleTableTrackerRows):
+    table = "context_stats"

@@ -44,13 +44,85 @@ More bad examples `<http://myBadData.html >`
 
 Your data:
 
-.. report:: myData.Tracker
-   :render: myRenderer
-   :transform: myTransform
-   :options: myAesthetics
+The following table lists all genomic contexts that reads map to. 
 
-   Graphs and tables
-   Code snippets used to generate graphs and tables
+.. report:: RnaseqqcReport.MappingContext
+   :render: table
+   :force:
+
+   Number of alignments that align in various genomic contexts
+
+
+Ribosomal and Repetitive RNA expression
+=======================================
+
+Ribosomal RNA is one of the most abundant transcripts in a cell
+and dominates RNASeq samples until it is removed. The following
+plots examine the number of alignments to ribosomal and repetitive 
+RNA. Repetetive RNA annotation is taken from the UCSC repeatmasker 
+tracks.
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: table
+   :slices: total,RNA,rRNA,scRNA,snRNA,srpRNA,tRNA,ribosomal_coding
+
+   Number of alignments that align to ribosomal and repetitive
+   RNA annotations (from the UCSC repeatmasker track).
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: stacked-bar-plot
+   :slices: total,RNA,rRNA,scRNA,snRNA,srpRNA,tRNA,ribosomal_coding
+   :split-at: 10
+
+   Proportion of alignments that align to ribosomal and
+   repetitive RNA annotations across samples.
+
+
+Non-coding RNA expression
+=========================
+
+The following plots examine the number of alignments to long intergenic 
+non-coding and micro RNA. RNA annotations are taken from the 
+UCSC repeatmasker tracks.
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: table
+   :slices: total,lincRNA,miRNA
+
+   Number of alignments that align to long intergenic non-coding and 
+   micro RNAs (from the UCSC repeatmasker track).
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: stacked-bar-plot
+   :slices: total,lincRNA,miRNA
+   :split-at: 10
+
+   Proportion of alignments that align to long intergenic non-coding and 
+   micro RNAs across samples.
+
+
+Protein coding expression
+=========================
+
+The following plots depict the number of alignments to protein
+coding and (protein coding) pseudogene exons. The annotations are
+taken from the ENSEMBL gene set.
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: table
+   :slices: total,protein_coding,pseudogene
+
+   Number of alignments that align to protein coding genes or pseudo
+   genes across samples.
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: stacked-bar-plot
+   :slices: total,protein_coding,pseudogene
+   :split-at: 10
+
+   Proportion of alignments that align to protein coding genes or
+   pseudo genes across samples.
+
 
 Commentary
   This will take the form of some active comments.  This will require the report to
