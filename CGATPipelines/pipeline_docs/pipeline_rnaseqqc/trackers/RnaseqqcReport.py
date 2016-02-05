@@ -341,3 +341,43 @@ class ExpressionDistribution(RnaseqqcTracker):
         df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
         return df
+
+
+class ThreePrimeBias(RnaseqqcTracker):
+    '''
+    Generates a dataframe of  mean read depth at each site in 3000bp from
+    the 3' end.
+
+    Arguments
+    ---------
+    threeprimebiasprofiles: str
+    the name of an SQL database table containing mean read
+    depth at these 3000 sites, plus upstream, downstream and intronic regions
+    (these are not used)
+
+    Returns
+    -------
+    df : pandas.Core.DataFrame
+    a dataframe of showing bin (1 - 3000 with 3000 at the 3' end) and mean read
+    count for only for the first 3000bp of each transcript'
+
+    '''
+
+    table = "threeprimebiasprofiles"
+
+    def getTracks(self):
+        d = self.get("""SELECT DISTINCT
+                    track FROM threeprimebiasprofiles""")
+        return tuple([x[0] for x in d])
+
+    def __call__(self, track):
+        statement = """
+        SELECT bin, region, counts
+        FROM %(table)s
+        WHERE track = '%(track)s'
+        AND region = 'exonsLast3000bp_zoomedTo3000bp'
+        """
+        df = self.getDataFrame(statement)
+        df.bin -= 1000
+        # reindexes bins as downstreem region not included
+        return df
