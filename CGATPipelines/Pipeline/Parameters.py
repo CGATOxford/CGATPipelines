@@ -135,6 +135,8 @@ HARDCODED_PARAMS = {
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
+    # queue manager (supported: sge, slurm)
+    'queue_manager': 'sge',
     # cluster queue to use
     'cluster_queue': 'all.q',
     # priority of jobs in cluster queue
@@ -214,6 +216,7 @@ def configToDictionary(config):
 
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
+                  site_ini=True,
                   user_ini=True,
                   default_ini=True,
                   only_import=None):
@@ -304,6 +307,13 @@ def getParameters(filenames=["pipeline.ini", ],
     if only_import:
         # turn on default dictionary
         TriggeredDefaultFactory.with_default = True
+
+    if site_ini:
+        # SNS: I propose that all hardcoded PARAMs be moved to here
+        # read configuration from /etc
+        fn = "/etc/cgat/pipeline.ini"
+        if os.path.exists(fn):
+            filenames.insert(0, fn)
 
     if user_ini:
         # read configuration from a users home directory
@@ -533,4 +543,3 @@ def checkParameter(param):
 def getParams():
     """return handle to global parameter dictionary"""
     return PARAMS
-
