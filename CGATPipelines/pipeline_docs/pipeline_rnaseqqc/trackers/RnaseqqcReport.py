@@ -150,6 +150,55 @@ class sampleMDS(RnaseqqcTracker):
         return pos
 
 
+class samplePCA(RnaseqqcTracker):
+    '''
+    Perform Principal component analysis on dataframe of
+    expression values using sklearn PCA function. Takes expression
+    dataframe, logs transforms data and scales variables to unit variance
+    before performing PCA.
+    '''
+
+    # to add:
+    # - ability to use rlog or variance stabalising transformation instead log2
+    # - ability to change filter threshold for lowly expressed transcripts
+
+    components = 10
+    table = "sailfish_transcripts"
+
+    def pca(self):
+
+        # remove WHERE when table cleaned up to remove header rows
+        statement = ("""SELECT transcript_id, TPM, sample_id FROM %s
+        where transcript_id != 'Transcript' """ % self.table)
+
+        # fetch data
+        df = self.getDataFrame(statement)
+
+        # put dataframe so row=genes, cols = samples, cells contain TPM
+        pivot_df = df.pivot('transcript_id', 'sample_id')['TPM']
+
+        # filter dataframe to get rid of genes where TPM == 0 across samples
+        filtered_df = pivot_df[pivot_df.sum(axis=1) > 0]
+
+        # add +1 to counts and log transform data.
+        logdf = np.log(filtered_df + 0.1)
+
+        # Scale dataframe so variance =1 across rows
+        logscaled = sklearn_scale(logdf, axis=1)
+
+        # turn array back to df and add transcript id back to index
+        logscaled_df = pd.DataFrame(logscaled)
+        logscaled_df.index = list(logdf.index)
+
+        # Now do the PCA - can change n_components
+        sklearn_pca = sklearnPCA(n_components=self.components)
+        sklearn_pca.fit(logscaled_df)
+
+        index = logdf.columns
+
+        return sklearn_pca, index
+
+
 class samplePCAprojections(samplePCA):
     '''
     Perform Principal component analysis on dataframe of
