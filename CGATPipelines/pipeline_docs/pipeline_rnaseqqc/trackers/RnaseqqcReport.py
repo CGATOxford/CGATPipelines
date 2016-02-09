@@ -1,14 +1,13 @@
-import re
 import glob
 import numpy as np
 import pandas as pd
 import numpy as np
 import itertools
+import collections
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import scale as sklearn_scale
 from sklearn.decomposition import PCA as sklearnPCA
-import rpy2.robjects as ro
 from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
 from CGATReport.Tracker import *
@@ -55,7 +54,7 @@ class RnaseqqcTracker(TrackerSQL):
 
 
 class SampleHeatmap(RnaseqqcTracker):
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
     py2ri.activate()
 
     def getTracks(self, subset=None):
@@ -151,7 +150,55 @@ class sampleMDS(RnaseqqcTracker):
         return pos
 
 
-class samplePCA(RnaseqqcTracker):
+class samplePCAprojections(samplePCA):
+    '''
+    Perform Principal component analysis on dataframe of
+    expression values using sklearn PCA function. Takes expression
+    dataframe, logs transforms data and scales variables to unit variance
+    before performing PCA.
+
+    Arguments
+    ---------
+    dataframe: pandas.Core.DataFrame
+    a dataframe containing gene IDs, sample IDs
+    and gene expression values
+
+    Returns
+    -------
+    dataframe : pandas.Core.DataFrame
+    a dataframe of first(PC1) and second (PC2) pricipal components
+    in columns across samples, which are across the rows. '''
+
+    # to add:
+    # - ability to use rlog or variance stabalising transformation instead log2
+    # - ability to change filter threshold for lowly expressed transcripts
+
+    def __call__(self, track,  slice=None):
+
+        sklearn_pca, index = self.pca()
+
+        # these are the principle componets row 0 = PC1, 1 =PC2 etc
+        PC_df = pd.DataFrame(sklearn_pca.components_)
+        PC_df = PC_df.T
+        PC_df.columns = ["PC%i" % x for x in range(1, self.components+1)]
+        PC_df.index = index
+
+        # This is what want for ploting bar graph
+        # y = sklearn_pca.explained_variance_ratio_
+
+        factor_statement = '''select * from factors'''
+
+        # fetch factor data
+        factor_df = self.getDataFrame(factor_statement)
+        factor_df.set_index("sample_name", drop=True, inplace=True)
+
+        full_df = PC_df.join(factor_df)
+
+        return collections.OrderedDict({x: full_df[full_df['factor'] == x] for
+                                        x in set(full_df['factor'].tolist())})
+
+
+class samplePCAvariance(samplePCA):
     '''
     Perform Principal component analysis on dataframe of
     expression values using sklearn PCA function. Takes expression
@@ -171,151 +218,72 @@ class samplePCA(RnaseqqcTracker):
     in columns across samples, which are across the rows. '''
     # to add:
     # - ability to use rlog or variance stabalising transformation instead log2
-    # - ability to change filter threshold fo rlowly expressed transcripts
-    # - JOIN with design table to get further aesthetics for plotting
-    #   E.g treatment, replicate, etc
-
-    table = "transcript_quantification"
+    # - ability to change filter threshold for lowly expressed transcripts
 
     def __call__(self, track,  slice=None):
 
-        # remove WHERE when table cleaned up to remove header rows
-        statement = (
-            "SELECT transcript_id, TPM, sample_id FROM %(table)s "
-            "where transcript_id != 'Transcript'")
+        sklearn_pca, index = self.pca()
 
-        # fetch data
-        df = self.getDataFrame(statement)
+        variance = sklearn_pca.explained_variance_ratio_
 
-        # put dataframe so row=genes, cols = samples, cells contain TPM
-        pivot_df = df.pivot('transcript_id', 'sample_id')['TPM']
+        final_df = pd.DataFrame({"variance": variance,
+                                 "PC": range(1, self.components+1)})
 
-        # filter dataframe to get rid of genes where TPM == 0 across samples
-        filtered_df = pivot_df[pivot_df.sum(axis=1) > 0]
-
-        # add +1 to counts and log transform data.
-        logdf = np.log(filtered_df + 1)
-
-        # Scale dataframe so variance =1 across rows
-        logscaled = sklearn_scale(logdf, axis=1)
-
-        # turn array back to df and add transcript id back to index
-        logscaled_df = pd.DataFrame(logscaled)
-        logscaled_df.index = list(logdf.index)
-
-        # Now do the PCA - can change n_components
-        sklearn_pca = sklearnPCA(n_components=2)
-        sklearn_pca.fit(logscaled_df)
-
-        # these are the principle componets row 0 = PC1, 1 =PC2 etc
-        PC_df = pd.DataFrame(sklearn_pca.components_)
-        PC_df.index = ['PC1', 'PC2']
-
-        # This is what want for ploting bar graph
-        # y = sklearn_pca.explained_variance_ratio_
-
-        return PC_df.T
-
-
-# TS: Correlation trackers should be simplified and use tracks to
-# select subsets
-class CorrelationSummaryA(RnaseqqcTracker):
-    table = "binned_means_correlation"
-    select = ["AA", "AT", "AC", "AG"]
-    select = ",".join(select)
-
-    def __call__(self, track,  slice=None):
-        statement = ("SELECT sample,%(select)s FROM %(table)s")
-        # fetch data
-        df = pd.DataFrame.from_dict(self.getAll(statement))
-        df['sample'] = [x.replace("_quant.sf", "") for x in df['sample']]
-        df = pd.melt(df, id_vars="sample")
-        df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
-        df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
-        merged = pd.concat([df, df2], axis=1)
-        # merged.index = ("all",)*len(merged.index)
-        # merged.index.name = "track"
-        return merged
-
-
-class GradientSummaryA(CorrelationSummaryA):
-    table = "binned_means_gradients"
-
-
-class CorrelationSummaryT(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["TA", "TT", "TC", "TG"]
-    select = ",".join(select)
-
-
-class GradientSummaryT(CorrelationSummaryT):
-    table = "binned_means_gradients"
-
-
-class CorrelationSummaryC(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["CA", "CT", "CC", "CG"]
-    select = ",".join(select)
-
-
-class GradientSummaryC(CorrelationSummaryC):
-    table = "binned_means_gradients"
-
-
-class CorrelationSummaryG(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["GA", "GT", "GC", "GG"]
-    select = ",".join(select)
-
-
-class GradientSummaryG(CorrelationSummaryG):
-    table = "binned_means_gradients"
-
-
-class CorrelationSummaryGC(CorrelationSummaryA):
-    table = "binned_means_correlation"
-    select = ["GC_Content", "length"]
-    select = ",".join(select)
-
-
-class GradientSummaryGC(CorrelationSummaryGC):
-    table = "binned_means_gradients"
+        return final_df
 
 
 class BiasFactors(RnaseqqcTracker):
-    table = "binned_means"
+    table = "bias_binned_means"
 
     def getTracks(self):
-        d = self.get("SELECT DISTINCT factor FROM %(table)s")
-        return tuple([x[0] for x in d])
+        d = self.get("SELECT DISTINCT bias_factor FROM %(table)s")
+        return ["GC_Content", "length"]
+        # return tuple([x[0] for x in d])
 
     def __call__(self, track, slice=None):
-        statement = "SELECT * FROM %(table)s WHERE factor = '%(track)s'"
+        statement = """
+        SELECT bin, sample_id, value
+        FROM %(table)s
+        WHERE bias_factor = '%(track)s'
+        AND variable = 'LogTPM'"""
         # fetch data
         df = self.getDataFrame(statement)
+        df.set_index("sample_id", drop=False, inplace=True)
 
-        # TS: this should be replaces with a merge with the table of
+        factor_statement = '''select * from factors'''
+        factor_df = self.getDataFrame(factor_statement)
+        factor_df.set_index("sample_name", drop=True, inplace=True)
+        factor_df.index.name = "sample_id"
+
+        print factor_df.head()
+        print df.head()
+
+        full_df = df.join(factor_df)
+
+        return full_df
+        return collections.OrderedDict({x: full_df[full_df['factor'] == x] for
+                                        x in set(full_df['factor'].tolist())})
+
+        # TS: this should be replaced with a merge with the table of
         # experiment information
-        df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
-        df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
+        # df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
+        # df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
 
-        merged = pd.concat([df, df2], axis=1)
+        # merged = pd.concat([df, df2], axis=1)
         # merged.index = ("all",)*len(merged.index)
         # merged.index.name = "track"
 
-        return merged
-
 
 class ExpressionDistribution(RnaseqqcTracker):
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def __call__(self, track, slice=None):
-        statement = """SELECT sample_id, transcript_id, RPKM
+        statement = """SELECT sample_id, transcript_id, TPM
         FROM %(table)s WHERE transcript_id != 'Transcript'"""
 
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        c = 0.0000001
-        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
+        c = 0.1
+        df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
         return df
 
@@ -366,6 +334,46 @@ class SampleOverlapsExpress(RnaseqqcTracker):
 
         return _df
 
+
+class ThreePrimeBias(RnaseqqcTracker):
+    '''
+    Generates a dataframe of  mean read depth at each site in 3000bp from
+    the 3' end.
+
+    Arguments
+    ---------
+    threeprimebiasprofiles: str
+    the name of an SQL database table containing mean read
+    depth at these 3000 sites, plus upstream, downstream and intronic regions
+    (these are not used)
+
+    Returns
+    -------
+    df : pandas.Core.DataFrame
+    a dataframe of showing bin (1 - 3000 with 3000 at the 3' end) and mean read
+    count for only for the first 3000bp of each transcript'
+
+    '''
+
+    table = "threeprimebiasprofiles"
+
+    def getTracks(self):
+        d = self.get("""SELECT DISTINCT
+                    track FROM threeprimebiasprofiles""")
+        return tuple([x[0] for x in d])
+
+    def __call__(self, track):
+        statement = """
+        SELECT bin, region, counts
+        FROM %(table)s
+        WHERE track = '%(track)s'
+        AND region = 'exonsLast3000bp_zoomedTo3000bp'
+        """
+        df = self.getDataFrame(statement)
+        df.bin -= 1000
+        # reindexes bins as downstreem region not included
+        return df
+
 # class ExpressionDistributionNotR(RnaseqqcTracker, SingleTableTrackerColumns):
 #    table = "transcript_quantification"
 #    column = "transcript_id"
@@ -381,3 +389,11 @@ class SampleOverlapsExpress(RnaseqqcTracker):
 #        return pivot
 
 # cgatreport-test -t ExpressionDistribution -r density-plot
+
+
+class MappingTracker(TrackerSQL):
+    """Base class for trackers from mapping report used for mapping context below"""
+
+
+class MappingContext(MappingTracker, SingleTableTrackerRows):
+    table = "context_stats"

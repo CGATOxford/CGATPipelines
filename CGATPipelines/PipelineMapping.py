@@ -1223,7 +1223,7 @@ class SubsetHead(Mapper):
         '''count number of reads by counting number of lines
         in fastq files.
         '''
-        limit = self.limit
+        limit = self.limit * 4  # 4 lines per fastq entry
         statement = []
         output_prefix = P.snip(outfile, ".subset")
         assert len(infiles) == 1

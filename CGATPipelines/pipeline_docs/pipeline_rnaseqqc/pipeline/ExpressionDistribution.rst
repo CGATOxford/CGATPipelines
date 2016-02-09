@@ -44,7 +44,7 @@ Expression Distribution plot
 
 .. report:: RnaseqqcReport.ExpressionDistribution
    :render: r-ggplot
-   :statement: aes(x=log2rpkm, group=sample_id, colour=sample_id)+
+   :statement: aes(x=logTPM, group=sample_id, colour=as.factor(sample_id))+
                geom_density()
 
 Commentary
