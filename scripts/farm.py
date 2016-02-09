@@ -643,25 +643,8 @@ def hasFinished(retcode, filename, output_tag, logfile):
 def runDRMAA(data, environment):
     '''run jobs in data using drmaa to connect to the cluster.'''
 
-    # SNS: the function P.writeDrmaaJobScript detects errors
-    #      by default
-    #
-    # prefix to detect errors within pipes
-    # prefix = '''detect_pipe_error_helper()
-    # {
-    # while [ "$#" != 0 ] ; do
-    #     # there was an error in at least one program of the pipe
-    #     if [ "$1" != 0 ] ; then return 1 ; fi
-    #     shift 1
-    # done
-    # return 0
-    # }
-    # detect_pipe_error() {
-    # detect_pipe_error_helper "${PIPESTATUS[@]}"
-    # return $?
-    # }
-    # '''
-    # suffix = "; detect_pipe_error"
+    # SNS: Error dection now taken care of with Cluster.py
+    # expandStatement function
 
     # working directory - needs to be the one from which the
     # the script is called to resolve input files.
@@ -669,8 +652,6 @@ def runDRMAA(data, environment):
 
     session = drmaa.Session()
     session.initialize()
-
-    # jt = session.createJobTemplate()
 
     jobids = []
     kwargs = {}
@@ -739,20 +720,8 @@ def runDRMAA(data, environment):
                         "could not export environment variable '%s'" % en)
         jt.jobEnvironment = e
 
-        # SNS: Now taken care of by P.setupDrmaaJobTemplate()
-        # jt.args = []
-        # o = ["-V",
-        #       "-N %s" % os.path.basename(kwargs.get("outfile", "farm.py"))]
-        # if options.cluster_queue:
-        #     o.append("-q %s" % options.cluster_queue)
-        # if options.cluster_priority:
-        #     o.append("-p %i" % options.cluster_priority)
-        # if options.cluster_options:
-        #    o.append(options.cluster_options)
-        # jt.nativeSpecification = " ".join(o)
-
-        # keep stdout and stderr separate
-        # jt.joinFiles = False
+        # SNS: Native specifation setting abstracted
+        # to Pipeline/Cluster.setupDrmaaJobTemplate()
 
         # use stdin for data
         if from_stdin:

@@ -35,8 +35,12 @@ Reference
 import re
 import os
 import stat
-import drmaa
 
+try:
+    import drmaa
+    HAS_DRMAA = True
+except RuntimeError:
+    HAS_DRMAA = False
 
 def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
     '''Sets up a Drmma job template. Currently SGE and SLURM are
