@@ -82,11 +82,14 @@ import tempfile
 import shutil
 import stat
 
+import threadpool
+import multiprocessing
+
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGAT.Blat as Blat
-import threadpool
-import multiprocessing
+
+from CGATPipelines.Pipeline import Cluster as Cluster
 
 try:
     import drmaa
@@ -639,22 +642,26 @@ def hasFinished(retcode, filename, output_tag, logfile):
 
 def runDRMAA(data, environment):
     '''run jobs in data using drmaa to connect to the cluster.'''
+
+    # SNS: the function P.writeDrmaaJobScript detects errors
+    #      by default
+    #
     # prefix to detect errors within pipes
-    prefix = '''detect_pipe_error_helper()
-    {
-    while [ "$#" != 0 ] ; do
-        # there was an error in at least one program of the pipe
-        if [ "$1" != 0 ] ; then return 1 ; fi
-        shift 1
-    done
-    return 0
-    }
-    detect_pipe_error() {
-    detect_pipe_error_helper "${PIPESTATUS[@]}"
-    return $?
-    }
-    '''
-    suffix = "; detect_pipe_error"
+    # prefix = '''detect_pipe_error_helper()
+    # {
+    # while [ "$#" != 0 ] ; do
+    #     # there was an error in at least one program of the pipe
+    #     if [ "$1" != 0 ] ; then return 1 ; fi
+    #     shift 1
+    # done
+    # return 0
+    # }
+    # detect_pipe_error() {
+    # detect_pipe_error_helper "${PIPESTATUS[@]}"
+    # return $?
+    # }
+    # '''
+    # suffix = "; detect_pipe_error"
 
     # working directory - needs to be the one from which the
     # the script is called to resolve input files.
@@ -662,7 +669,8 @@ def runDRMAA(data, environment):
 
     session = drmaa.Session()
     session.initialize()
-    jt = session.createJobTemplate()
+
+    # jt = session.createJobTemplate()
 
     jobids = []
     kwargs = {}
@@ -694,18 +702,33 @@ def runDRMAA(data, environment):
         cmd = " ".join(re.sub("\t+", " ", cmd).split("\n"))
         E.info("running statement:\n%s" % cmd)
 
-        tmpfile = tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False)
-        tmpfile.write("#!/bin/bash\n")  # -l -O expand_aliases\n" )
-        tmpfile.write(" ".join((prefix, cmd, suffix)) + "\n")
-        tmpfile.close()
+        job_script = tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False)
+        job_script.write("#!/bin/bash\n")  # -l -O expand_aliases\n" )
+        job_script.write(Cluster.expandStatement(cmd) + "\n")
+        job_script.close()
 
-        job_path = os.path.abspath(tmpfile.name)
+        job_path = os.path.abspath(job_script.name)
 
         os.chmod(job_path, stat.S_IRWXG | stat.S_IRWXU)
 
         # get session for process - only one is permitted
-        jt.workingDirectory = os.getcwd()
+
+        job_name = os.path.basename(kwargs.get("outfile", "farm.py"))
+
+        options_dict = vars(options)
+        options_dict["workingdir"] = os.getcwd()
+
+        if options.job_memory:
+            job_memory = options.job_memory
+        else:
+            job_memory = options.cluster_memory_default
+
+        jt = Cluster.setupDrmaaJobTemplate(session, options_dict,
+                                           job_name, job_memory)
+
         jt.remoteCommand = job_path
+
+        # update the environment
         e = {'BASH_ENV': options.bashrc}
         if environment:
             for en in environment:
@@ -716,23 +739,26 @@ def runDRMAA(data, environment):
                         "could not export environment variable '%s'" % en)
         jt.jobEnvironment = e
 
-        jt.args = []
-        o = ["-V",
-             "-N %s" % os.path.basename(kwargs.get("outfile", "farm.py"))]
-        if options.cluster_queue:
-            o.append("-q %s" % options.cluster_queue)
-        if options.cluster_priority:
-            o.append("-p %i" % options.cluster_priority)
-        if options.cluster_options:
-            o.append(options.cluster_options)
-        jt.nativeSpecification = " ".join(o)
+        # SNS: Now taken care of by P.setupDrmaaJobTemplate()
+        # jt.args = []
+        # o = ["-V",
+        #       "-N %s" % os.path.basename(kwargs.get("outfile", "farm.py"))]
+        # if options.cluster_queue:
+        #     o.append("-q %s" % options.cluster_queue)
+        # if options.cluster_priority:
+        #     o.append("-p %i" % options.cluster_priority)
+        # if options.cluster_options:
+        #    o.append(options.cluster_options)
+        # jt.nativeSpecification = " ".join(o)
 
         # keep stdout and stderr separate
-        jt.joinFiles = False
+        # jt.joinFiles = False
 
         # use stdin for data
         if from_stdin:
             jt.inputPath = ":" + filename
+
+        # set paths.
 
         # later: allow redirection of stdout and stderr to files
         # could this even be across hosts?
@@ -909,6 +935,11 @@ def getOptionParser():
         help="method to submit jobs [%default]")
 
     parser.add_option(
+        "--job-memory", dest="job_memory", type="string",
+        help="per-job memory requirement."
+        "Unit must be specified, eg. 100M, 1G ")
+
+    parser.add_option(
         "-e", "--env", dest="environment", type="string", action="append",
         help="environment variables to be passed to the jobs [%default]")
 
@@ -942,6 +973,7 @@ def getOptionParser():
         resubmit=5,
         collect=None,
         method="drmaa",
+        job_memory=None,
         max_files=None,
         max_lines=None,
         binary=False,
@@ -959,8 +991,7 @@ def main(argv=None):
 
     parser = getOptionParser()
 
-    (options, args) = E.Start(parser,
-                              add_cluster_options=True)
+    (options, args) = E.Start(parser, add_cluster_options=True)
 
     if len(args) == 0:
         raise ValueError(

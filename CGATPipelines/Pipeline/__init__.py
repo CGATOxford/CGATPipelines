@@ -220,9 +220,11 @@ from CGATPipelines.Pipeline.Control import *
 from CGATPipelines.Pipeline.Database import *
 from CGATPipelines.Pipeline.Local import *
 from CGATPipelines.Pipeline.Files import *
+from CGATPipelines.Pipeline.Cluster import *
 from CGATPipelines.Pipeline.Execution import *
 from CGATPipelines.Pipeline.Utils import *
 from CGATPipelines.Pipeline.Parameters import *
+
 
 from CGAT import Experiment as E
 
