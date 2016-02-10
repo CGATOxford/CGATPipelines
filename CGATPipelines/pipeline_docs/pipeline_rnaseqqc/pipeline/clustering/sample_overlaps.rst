@@ -15,11 +15,12 @@ Summary::
   * Bad example: To-Do
   * Links to other examples and the reasons that lie behind them: To-Do
 
-  This should be a text description of what to expect from the figures on this page.  What
-  are the take-home messsages, how should the figures be interpreted, etc
+This should be a text description of what to expect from the figures on this page.  What
+are the take-home messsages, how should the figures be interpreted, etc
 
 TO-DO: The good
 
+This page shows the overlap of gene expression between samples
 .. report:: GoodExample.Tracker
    :render: myRenderer
    :transform: myTransform
@@ -51,6 +52,7 @@ Your data:
    Sample Overlap Heatmap.
 
 Commentary
-  This will take the form of some active comments.  This will require the report to
-  be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
+
+This will take the form of some active comments.  This will require the report to
+be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
 

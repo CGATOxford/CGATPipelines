@@ -1,6 +1,8 @@
 import glob
 import numpy as np
 import pandas as pd
+import numpy as np
+import itertools
 import collections
 import itertools
 from sklearn import manifold
@@ -45,6 +47,7 @@ class RnaseqqcTracker(TrackerSQL):
 
     def __init__(self, *args, **kwargs):
         TrackerSQL.__init__(self, *args, backend=DATABASE, **kwargs)
+
 
 ##############################################################
 ##############################################################
@@ -146,18 +149,8 @@ class SampleHeatmap(RnaseqqcTracker):
         mdf = self.hierarchicalClustering(df)
         mdf.columns = set(df["sample_id"])
         mdf.index = set(df["sample_id"])
-        r_cor = py2ri.py2ri_pandasdataframe(mdf)
-        R.assign("cor.mat", r_cor)
 
-        R.x11()
-        R('''suppressPackageStartupMessages(library(gplots))''')
-        R('''suppressPackageStartupMessages(library(RColorBrewer))''')
-        R('''hmcol <- colorRampPalette(c("#FFFF00", "#7A378B"))''')
-        R('''heatmap.2(as.matrix(cor.mat), trace="none",'''
-          '''col=hmcol)''')
-
-        return odict((("Sum absolute covariance",
-                       "#$rpl %i$#" % self.getCurrentRDevice()),))
+        return mdf
 
 
 class sampleMDS(RnaseqqcTracker):
@@ -167,7 +160,7 @@ class sampleMDS(RnaseqqcTracker):
     # - JOIN with design table to get further aesthetics for plotting
     #   E.g treatment, replicate, etc
 
-    table = "sailfish_transcripts"
+    table = "transcript_quantification"
 
     def __call__(self, track,  slice=None):
 
@@ -263,6 +256,7 @@ class samplePCAprojections(samplePCA):
     dataframe : pandas.Core.DataFrame
     a dataframe of first(PC1) and second (PC2) pricipal components
     in columns across samples, which are across the rows. '''
+
     # to add:
     # - ability to use rlog or variance stabalising transformation instead log2
     # - ability to change filter threshold for lowly expressed transcripts
@@ -380,6 +374,53 @@ class ExpressionDistribution(RnaseqqcTracker):
         df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
         return df
+
+
+class SampleOverlapsExpress(RnaseqqcTracker):
+    '''
+    Tracker class to compute overlap of expression for each
+    sample on a pair-wise basis.  Returns a table of
+    sample x sample overlaps, where the overlap is the
+    number of common genes expressed in each pair of
+    samples.
+    '''
+
+    table = "transcript_quantification"
+
+    def __call__(self, track, slice=None):
+        statement = """SELECT sample_id, transcript_id
+        FROM %(table)s
+        WHERE TPM >= 100;"""
+
+        df = pd.DataFrame.from_dict(self.getAll(statement))
+
+        overlaps = self.getOverlaps(dataframe=df)
+        return overlaps
+
+    def getOverlaps(self, dataframe):
+        '''
+        Pass in a dataframe of samples and
+        expressed genes > threshold.
+        Return an nxn dataframe of sample
+        overlaps
+        '''
+        dataframe.index = dataframe["sample_id"]
+        samples = set(dataframe.index)
+        pairs = itertools.combinations_with_replacement(iterable=samples,
+                                                        r=2)
+        _df = pd.DataFrame(columns=samples, index=samples)
+        _df.fillna(0.0, inplace=True)
+
+        for comb in pairs:
+            s1, s2 = comb
+            s1_gene = set(dataframe.loc[s1]["transcript_id"])
+            s2_gene = set(dataframe.loc[s2]["transcript_id"])
+            gene_intersect = s1_gene.intersection(s2_gene)
+            size = len(gene_intersect)
+            _df.loc[s1, s2] = size
+            _df.loc[s2, s1] = size
+
+        return _df
 
 
 class ThreePrimeBias(RnaseqqcTracker):
