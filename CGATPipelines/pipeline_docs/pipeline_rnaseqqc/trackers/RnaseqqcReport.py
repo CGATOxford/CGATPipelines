@@ -64,30 +64,30 @@ class SampleOverlap(RnaseqqcTracker):
         statement = ("""SELECT DISTINCT sample_id FROM '%(table)s'""")
         sample_list = self.getValues(statement)
 
-	# create a DataFrame to output results
-        df_range = range(1,len(sample_list)+1)
-        result_df = pd.DataFrame(0,index=df_range, columns=df_range)
+        # create a DataFrame to output results
+        df_range = range(1, len(sample_list)+1)
+        result_df = pd.DataFrame(0, index=df_range, columns=df_range)
 
         # get all data at once
         statement = ("""SELECT sample_id, transcript_id, TPM
         FROM %(table)s
-	WHERE transcript_id != 'Transcript'
-	AND TPM >= 100""")
-        
-	working_df = self.getDataFrame(statement)
+        WHERE transcript_id != 'Transcript'
+        AND TPM >= 100""")
+
+        working_df = self.getDataFrame(statement)
 
         # pairwise comparison of samples with common transcripts
         for samples in itertools.combinations_with_replacement(sample_list, 2):
-           # get list of expressed transcripts for sample1
-           transcripts_s1 = working_df[(working_df.sample_id == samples[0])]['transcript_id']
-	   # get list of expressed transcripts for sample2
-           transcripts_s2 = working_df[(working_df.sample_id == samples[1])]['transcript_id']
-	   # compute intersection
-           number_in_common = len(set(transcripts_s1) & set(transcripts_s2))
-	   # and update dataframe containing results
-           result_df.iat[samples[0]-1,samples[1]-1] = number_in_common
-	   # this is a symmetrical matrix
-	   result_df.iat[samples[1]-1,samples[0]-1] = number_in_common
+            # get list of expressed transcripts for sample1
+            transcripts_s1 = working_df[(working_df.sample_id == samples[0])]['transcript_id']
+            # get list of expressed transcripts for sample2
+            transcripts_s2 = working_df[(working_df.sample_id == samples[1])]['transcript_id']
+            # compute intersection
+            number_in_common = len(set(transcripts_s1) & set(transcripts_s2))
+            # and update dataframe containing results
+            result_df.iat[samples[0]-1, samples[1]-1] = number_in_common
+            # this is a symmetrical matrix
+            result_df.iat[samples[1]-1, samples[0]-1] = number_in_common
  
         return result_df
 
