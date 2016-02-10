@@ -54,18 +54,12 @@ class RnaseqqcTracker(TrackerSQL):
 
 
 class SampleHeatmap(RnaseqqcTracker):
-    table = "sailfish_transcripts"
+
+    table = "transcript_quantification"
     py2ri.activate()
 
     def getTracks(self, subset=None):
         return ("all")
-
-    def getCurrentRDevice(self):
-
-        '''return the numerical device id of the
-        current device'''
-
-        return R["dev.cur"]()[0]
 
     def hierarchicalClustering(self, dataframe):
         '''
@@ -80,7 +74,7 @@ class SampleHeatmap(RnaseqqcTracker):
 
         Returns
         -------
-        correlations: pandas.Core.DataFrame
+        corr_frame: pandas.Core.DataFrame
           a dataframe of a pair-wise correlation matrix
           across samples.  Uses the Pearson correlation.
         '''
@@ -101,17 +95,34 @@ class SampleHeatmap(RnaseqqcTracker):
 
         return corr_frame
 
+    def getFactors(self, dataframe, factor):
+        '''
+        Get factor/experimental design levels
+        from table
+        '''
+
+        statement = ("SELECT factor,sample_name FROM factors "
+                     "WHERE factor = '%(factor)s';" % locals())
+
+        factor_df = pd.DataFrame.from_dict(self.getAll(statement))
+
+        merged = pd.merge(dataframe, factor_df, 
+                          left_index=True, right_on="sample_name")
+        return merged
+
     def __call__(self, track, slice=None):
         statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
                      "WHERE transcript_id != 'Transcript';")
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        # insert clustering function here
 
         mdf = self.hierarchicalClustering(df)
+
         mdf.columns = set(df["sample_id"])
         mdf.index = set(df["sample_id"])
 
-        return mdf
+        all_df = self.getFactors(mdf, 'replicate')
+
+        return all_df
 
 
 class sampleMDS(RnaseqqcTracker):
@@ -163,7 +174,8 @@ class samplePCA(RnaseqqcTracker):
     # - ability to change filter threshold for lowly expressed transcripts
 
     components = 10
-    table = "sailfish_transcripts"
+
+    table = "transcript_quantification"
 
     def pca(self):
 
@@ -324,7 +336,8 @@ class BiasFactors(RnaseqqcTracker):
 
 
 class ExpressionDistribution(RnaseqqcTracker):
-    table = "sailfish_transcripts"
+
+    table = "transcript_quantification"
 
     def __call__(self, track, slice=None):
         statement = """SELECT sample_id, transcript_id, TPM
