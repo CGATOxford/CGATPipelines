@@ -140,13 +140,14 @@ class SampleHeatmap(RnaseqqcTracker):
         from table
         '''
 
-        statement = ("SELECT factor,sample_name FROM factors "
+        statement = ("SELECT factor_value,sample_id FROM factor2 "
                      "WHERE factor = '%(factor)s';" % locals())
 
         factor_df = pd.DataFrame.from_dict(self.getAll(statement))
 
         merged = pd.merge(dataframe, factor_df, 
-                          left_index=True, right_on="sample_name")
+                          left_index=True, right_on="sample_id",
+                          how='outer')
         return merged
 
     def __call__(self, track, slice=None):
@@ -159,10 +160,9 @@ class SampleHeatmap(RnaseqqcTracker):
         mdf.columns = set(df["sample_id"])
         mdf.index = set(df["sample_id"])
 
-        all_df = self.getFactors(mdf, 'replicate')
-
-        return all_df
-
+        # all_df = self.getFactors(mdf, 'replicate')
+        # return all_df
+        return mdf
 
 class sampleMDS(RnaseqqcTracker):
     # to add:
