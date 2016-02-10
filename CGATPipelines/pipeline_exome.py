@@ -1216,6 +1216,88 @@ def loadRecs(infile, outfile):
 ###############################################################################
 ###############################################################################
 ###############################################################################
+# X-linked
+
+
+@follows(loadVariantAnnotation)
+@transform("*.ped", regex(r"(\S*Trio\S+|\S*Multiplex\S+).ped"),
+           add_inputs(r"variants/all_samples.snpsift.vcf"),
+           r"variants/\1.xlinked.vcf")
+def xlinkedVariants(infiles, outfile):
+    '''Find maternally inherited X chromosome variants in male patients'''
+    track = P.snip(os.path.basename(outfile), ".vcf")
+    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    pedfile, infile = infiles
+    pedigree = csv.DictReader(open(pedfile), delimiter='\t',
+                              fieldnames=['family', 'sample', 'father',
+                                          'mother', 'sex', 'status'])
+    affecteds = []
+    mothers = []
+    male_unaffecteds = []
+    female_unaffecteds = []
+    for row in pedigree:
+        if row['status'] == '2' and row['mother'] != '0':
+            if row['mother'] not in mothers:
+                mothers += [row['mother']]
+            affecteds += [row['sample']]
+        elif row['status'] == '1' and row['sex'] == '1':
+            male_unaffecteds += [row['sample']]
+        elif row['status'] == '1' and row['sex'] != '1' and row['sample'] not in mothers:
+            female_unaffecteds += [row['sample']]
+    if len(affecteds) == 0:
+        affecteds_exp = ''
+    else:
+        affecteds_exp = '").isHomRef()&&!vc.getGenotype("'.join(affecteds)
+#        affecteds_exp = '&&!vc.getGenotype("' + \
+#        ('").isHomRef()&&!vc.getGenotype("'.join(affecteds)) + \
+#        '").isHomRef()'
+    if len(mothers) == 0:
+        mothers_exp = ''
+    else:
+        mothers_exp = '&&vc.getGenotype("' + \
+        ('").getPL().1==0&&vc.getGenotype("'.join(mothers)) + \
+        '").getPL().1==0'
+    if len(male_unaffecteds) == 0:
+        male_unaffecteds_exp = ''
+    else:
+        male_unaffecteds_exp = '&&vc.getGenotype("' + \
+        ('").isHomRef()&&vc.getGenotype("'.join(male_unaffecteds)) + \
+        '").isHomRef()'
+    if len(female_unaffecteds) == 0:
+        female_unaffecteds_exp = ''
+    else:
+        female_unaffecteds_exp = '&&vc.getGenotype("' + \
+        ('").getPL().2!=0&&vc.getGenotype("'.join(female_unaffecteds)) + \
+            '").getPL().2!=0'
+    select = '''CHROM=="X"&&!vc.getGenotype("%(affecteds_exp)s").isHomRef()%(mothers_exp)s%(male_unaffecteds_exp)s%(female_unaffecteds_exp)s&&(SNPEFF_IMPACT=="HIGH"||SNPEFF_IMPACT=="MODERATE")''' % locals()
+    PipelineExome.selectVariants(infile, outfile, genome, select)
+
+###############################################################################
+
+
+@transform(xlinkedVariants,
+           regex(r"variants/(\S+).xlinked.vcf"),
+           r"variants/\1.xlinked.table")
+def tabulateXs(infile, outfile):
+    '''Tabulate potential X-linked disease variants'''
+    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    columns = PARAMS["gatk_vcf_to_table"]
+    PipelineExome.vcfToTable(infile, outfile, genome, columns)
+
+###############################################################################
+
+
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@transform(tabulateXs, regex(r"variants/(\S+).xlinked.table"),
+           r"variants/\1.xlinked.table.load")
+def loadXs(infile, outfile):
+    '''Load X-linked disease candidates into database'''
+    P.load(infile, outfile,
+           options="--retry --ignore-empty --allow-empty-file")
+
+###############################################################################
+###############################################################################
+###############################################################################
 # Compound hets
 
 
@@ -1437,6 +1519,9 @@ def dominant():
 def recessive():
     pass
 
+@follows(loadXs)
+def xlinked():
+    pass
 
 @follows(loadCompoundHets)
 def compoundHet():
