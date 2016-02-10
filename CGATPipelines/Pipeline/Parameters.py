@@ -111,6 +111,9 @@ HARDCODED_PARAMS = {
                 --cluster-queue=%(cluster_queue)s
                 --cluster-num-jobs=%(cluster_num_jobs)i
                 --cluster-priority=%(cluster_priority)i
+                --cluster-queue-manager=%(cluster_queue_manager)s
+                --cluster-memory-resource=%(cluster_memory_resource)s
+                --cluster-memory-default=%(cluster_memory_default)s
     """,
     # command to get tab-separated output from database
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
@@ -136,7 +139,7 @@ HARDCODED_PARAMS = {
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
     # queue manager (supported: sge, slurm)
-    'queue_manager': 'sge',
+    'cluster_queue_manager': 'sge',
     # cluster queue to use
     'cluster_queue': 'all.q',
     # priority of jobs in cluster queue
@@ -309,8 +312,7 @@ def getParameters(filenames=["pipeline.ini", ],
         TriggeredDefaultFactory.with_default = True
 
     if site_ini:
-        # SNS: I propose that all hardcoded PARAMs be moved to here
-        # read configuration from /etc
+        # read configuration from /etc/cgat/pipeline.ini
         fn = "/etc/cgat/pipeline.ini"
         if os.path.exists(fn):
             filenames.insert(0, fn)
