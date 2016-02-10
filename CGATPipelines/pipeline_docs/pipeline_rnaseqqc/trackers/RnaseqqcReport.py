@@ -88,7 +88,7 @@ class SampleOverlap(RnaseqqcTracker):
             result_df.iat[samples[0]-1, samples[1]-1] = number_in_common
             # this is a symmetrical matrix
             result_df.iat[samples[1]-1, samples[0]-1] = number_in_common
- 
+
         return result_df
 
 
@@ -145,7 +145,7 @@ class SampleHeatmap(RnaseqqcTracker):
 
         factor_df = pd.DataFrame.from_dict(self.getAll(statement))
 
-        merged = pd.merge(dataframe, factor_df, 
+        merged = pd.merge(dataframe, factor_df,
                           left_index=True, right_on="sample_id",
                           how='outer')
         return merged
@@ -163,6 +163,7 @@ class SampleHeatmap(RnaseqqcTracker):
         # all_df = self.getFactors(mdf, 'replicate')
         # return all_df
         return mdf
+
 
 class sampleMDS(RnaseqqcTracker):
     # to add:
