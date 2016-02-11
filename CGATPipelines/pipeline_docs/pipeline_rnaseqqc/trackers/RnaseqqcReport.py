@@ -51,7 +51,7 @@ class RnaseqqcTracker(TrackerSQL):
 
 
 class SampleHeatmap(RnaseqqcTracker):
-    table = "sailfish_transcripts"
+    table = "transcript_quantification"
     py2ri.activate()
 
     def getTracks(self, subset=None):
@@ -128,7 +128,7 @@ class sampleMDS(RnaseqqcTracker):
     # - JOIN with design table to get further aesthetics for plotting
     #   E.g treatment, replicate, etc
 
-    table = "sailfish_transcripts"
+    table = "transcript_quantification"
 
     def __call__(self, track,  slice=None):
 
@@ -170,7 +170,7 @@ class samplePCA(RnaseqqcTracker):
     # - ability to change filter threshold for lowly expressed transcripts
 
     components = 10
-    table = "sailfish_transcripts"
+    table = "transcript_quantification"
 
     def pca(self):
 
@@ -241,11 +241,11 @@ class samplePCAprojections(samplePCA):
         # This is what want for ploting bar graph
         # y = sklearn_pca.explained_variance_ratio_
 
-        factor_statement = '''select * from factors'''
+        factor_statement = '''select * from factor2'''
 
-        # fetch factor data
+        # fetch factor data-THIS NEEDS TO BE ADJUSTED IF FACTORS table corrected
         factor_df = self.getDataFrame(factor_statement)
-        factor_df.set_index("sample_name", drop=True, inplace=True)
+        factor_df.set_index("sample_id", drop=True, inplace=True)
 
         full_df = PC_df.join(factor_df)
 
@@ -330,7 +330,7 @@ class BiasFactors(RnaseqqcTracker):
 
 
 class ExpressionDistribution(RnaseqqcTracker):
-    table = "sailfish_transcripts"
+    table = "transcript_quantification"
 
     def __call__(self, track, slice=None):
         statement = """SELECT sample_id, transcript_id, TPM
