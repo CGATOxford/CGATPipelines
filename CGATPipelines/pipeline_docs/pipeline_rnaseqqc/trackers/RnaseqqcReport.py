@@ -1,7 +1,10 @@
 import glob
 import numpy as np
 import pandas as pd
+import numpy as np
+import itertools
 import collections
+import itertools
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import scale as sklearn_scale
@@ -45,24 +48,57 @@ class RnaseqqcTracker(TrackerSQL):
     def __init__(self, *args, **kwargs):
         TrackerSQL.__init__(self, *args, backend=DATABASE, **kwargs)
 
+
 ##############################################################
 ##############################################################
 ##############################################################
+
+
+class SampleOverlap(RnaseqqcTracker):
+
+    table = "transcript_quantification"
+
+    def __call__(self, *args):
+
+        # get list of unique IDs
+        statement = ("""SELECT DISTINCT sample_id FROM '%(table)s'""")
+        sample_list = self.getValues(statement)
+
+        # create a DataFrame to output results
+        df_range = range(1, len(sample_list)+1)
+        result_df = pd.DataFrame(0, index=df_range, columns=df_range)
+
+        # get all data at once
+        statement = ("""SELECT sample_id, transcript_id, TPM
+        FROM %(table)s
+        WHERE transcript_id != 'Transcript'
+        AND TPM >= 100""")
+
+        working_df = self.getDataFrame(statement)
+
+        # pairwise comparison of samples with common transcripts
+        for samples in itertools.combinations_with_replacement(sample_list, 2):
+            # get list of expressed transcripts for sample1
+            transcripts_s1 = working_df[(working_df.sample_id == samples[0])]['transcript_id']
+            # get list of expressed transcripts for sample2
+            transcripts_s2 = working_df[(working_df.sample_id == samples[1])]['transcript_id']
+            # compute intersection
+            number_in_common = len(set(transcripts_s1) & set(transcripts_s2))
+            # and update dataframe containing results
+            result_df.iat[samples[0]-1, samples[1]-1] = number_in_common
+            # this is a symmetrical matrix
+            result_df.iat[samples[1]-1, samples[0]-1] = number_in_common
+
+        return result_df
 
 
 class SampleHeatmap(RnaseqqcTracker):
+
     table = "transcript_quantification"
     py2ri.activate()
 
     def getTracks(self, subset=None):
         return ("all")
-
-    def getCurrentRDevice(self):
-
-        '''return the numerical device id of the
-        current device'''
-
-        return R["dev.cur"]()[0]
 
     def hierarchicalClustering(self, dataframe):
         '''
@@ -77,7 +113,7 @@ class SampleHeatmap(RnaseqqcTracker):
 
         Returns
         -------
-        correlations: pandas.Core.DataFrame
+        corr_frame: pandas.Core.DataFrame
           a dataframe of a pair-wise correlation matrix
           across samples.  Uses the Pearson correlation.
         '''
@@ -98,27 +134,35 @@ class SampleHeatmap(RnaseqqcTracker):
 
         return corr_frame
 
+    def getFactors(self, dataframe, factor):
+        '''
+        Get factor/experimental design levels
+        from table
+        '''
+
+        statement = ("SELECT factor_value,sample_id FROM factor2 "
+                     "WHERE factor = '%(factor)s';" % locals())
+
+        factor_df = pd.DataFrame.from_dict(self.getAll(statement))
+
+        merged = pd.merge(dataframe, factor_df,
+                          left_index=True, right_on="sample_id",
+                          how='outer')
+        return merged
+
     def __call__(self, track, slice=None):
         statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
                      "WHERE transcript_id != 'Transcript';")
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        # insert clustering function here
 
         mdf = self.hierarchicalClustering(df)
+
         mdf.columns = set(df["sample_id"])
         mdf.index = set(df["sample_id"])
-        r_cor = py2ri.py2ri_pandasdataframe(mdf)
-        R.assign("cor.mat", r_cor)
 
-        R.x11()
-        R('''suppressPackageStartupMessages(library(gplots))''')
-        R('''suppressPackageStartupMessages(library(RColorBrewer))''')
-        R('''hmcol <- colorRampPalette(c("#FFFF00", "#7A378B"))''')
-        R('''heatmap.2(as.matrix(cor.mat), trace="none",'''
-          '''col=hmcol)''')
-
-        return odict((("Sum absolute covariance",
-                       "#$rpl %i$#" % self.getCurrentRDevice()),))
+        # all_df = self.getFactors(mdf, 'replicate')
+        # return all_df
+        return mdf
 
 
 class sampleMDS(RnaseqqcTracker):
@@ -224,6 +268,7 @@ class samplePCAprojections(samplePCA):
     dataframe : pandas.Core.DataFrame
     a dataframe of first(PC1) and second (PC2) pricipal components
     in columns across samples, which are across the rows. '''
+
     # to add:
     # - ability to use rlog or variance stabalising transformation instead log2
     # - ability to change filter threshold for lowly expressed transcripts
@@ -330,6 +375,7 @@ class BiasFactors(RnaseqqcTracker):
 
 
 class ExpressionDistribution(RnaseqqcTracker):
+
     table = "transcript_quantification"
 
     def __call__(self, track, slice=None):
@@ -341,6 +387,53 @@ class ExpressionDistribution(RnaseqqcTracker):
         df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
         return df
+
+
+class SampleOverlapsExpress(RnaseqqcTracker):
+    '''
+    Tracker class to compute overlap of expression for each
+    sample on a pair-wise basis.  Returns a table of
+    sample x sample overlaps, where the overlap is the
+    number of common genes expressed in each pair of
+    samples.
+    '''
+
+    table = "transcript_quantification"
+
+    def __call__(self, track, slice=None):
+        statement = """SELECT sample_id, transcript_id
+        FROM %(table)s
+        WHERE TPM >= 100;"""
+
+        df = pd.DataFrame.from_dict(self.getAll(statement))
+
+        overlaps = self.getOverlaps(dataframe=df)
+        return overlaps
+
+    def getOverlaps(self, dataframe):
+        '''
+        Pass in a dataframe of samples and
+        expressed genes > threshold.
+        Return an nxn dataframe of sample
+        overlaps
+        '''
+        dataframe.index = dataframe["sample_id"]
+        samples = set(dataframe.index)
+        pairs = itertools.combinations_with_replacement(iterable=samples,
+                                                        r=2)
+        _df = pd.DataFrame(columns=samples, index=samples)
+        _df.fillna(0.0, inplace=True)
+
+        for comb in pairs:
+            s1, s2 = comb
+            s1_gene = set(dataframe.loc[s1]["transcript_id"])
+            s2_gene = set(dataframe.loc[s2]["transcript_id"])
+            gene_intersect = s1_gene.intersection(s2_gene)
+            size = len(gene_intersect)
+            _df.loc[s1, s2] = size
+            _df.loc[s2, s1] = size
+
+        return _df
 
 
 class ThreePrimeBias(RnaseqqcTracker):
