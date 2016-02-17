@@ -10,7 +10,7 @@ ReadQc pipeline
 
 
 Sailfish is utlised to rapidly estimate transcript abundance. This
-requires a multi-fasta transcripts file. 
+requires a multi-fasta transcripts file.
 
 For further details see http://www.cs.cmu.edu/~ckingsf/software/sailfish/
 
@@ -802,7 +802,9 @@ def loadTranscriptProfiles(infiles, outfile):
     ''' concatenate and load the transcript profiles
     Retain sample name as column = "track'''
 
-    regex = "transcriptprofiles.dir/(\S+).transcriptprofile.gz.geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz"
+    regex = ("transcriptprofiles.dir/(\S+).transcriptprofile.gz."
+             "geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz")
+
     infiles = [x + ".geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz" for x in infiles]
 
     P.concatenateAndLoad(infiles, outfile, regex_filename=regex)
