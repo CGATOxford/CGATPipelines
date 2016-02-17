@@ -147,14 +147,14 @@ class TranscriptQuantificationHeatmap(object):
 
         # factors are the columns after the total
         # number of samples
-        factors = data.iloc[:,data.shape[0]:]
-        unique = set(factors.iloc[:,0])
+        factors = data.iloc[:, data.shape[0]:]
+        unique = set(factors.iloc[:, 0])
 
         # select a random set of colours from the xkcd
         # palette
         random.seed(5648546)
         xkcd = random.sample(seaborn.xkcd_rgb.keys(),
-                             len(unique)) 
+                             len(unique))
         col_dict = dict(zip(unique, xkcd))
         cols = []
         for i in range(0, len(factors.index)):
@@ -166,9 +166,9 @@ class TranscriptQuantificationHeatmap(object):
 
         colorbar = self.getColorBar(data)
         n_samples = data.shape[0]
-        data = data.iloc[:,:n_samples]
+        data = data.iloc[:, :n_samples]
         print colorbar
-        ax = seaborn.clustermap(data, 
+        ax = seaborn.clustermap(data,
                                 row_colors=colorbar)
 
         return ResultBlocks(ResultBlock(
