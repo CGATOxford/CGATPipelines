@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import itertools
 import collections
+import random
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import scale as sklearn_scale
@@ -11,7 +12,7 @@ from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
 from CGATReport.ResultBlock import ResultBlocks, ResultBlock
 import seaborn
-from CGATReport.Tracker import TrackerSQL
+from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
@@ -94,13 +95,13 @@ class SampleOverlap(RnaseqqcTracker):
 
 class SampleHeatmap(RnaseqqcTracker):
 
-    table = "sailfish_transcripts"
+    table = "transcript_quantification"
     py2ri.activate()
 
     def getTracks(self, subset=None):
         return ("all")
 
-    def hierarchicalClustering(self, dataframe):
+    def getCorrelations(self, dataframe):
         '''
         Perform hierarchical clustering on a
         dataframe of expression values
@@ -155,14 +156,13 @@ class SampleHeatmap(RnaseqqcTracker):
                      "WHERE transcript_id != 'Transcript';")
         df = pd.DataFrame.from_dict(self.getAll(statement))
 
-        mdf = self.hierarchicalClustering(df)
+        mdf = self.getCorrelations(df)
 
         mdf.columns = set(df["sample_id"])
         mdf.index = set(df["sample_id"])
 
         all_df = self.getFactors(mdf, 'replicate')
         return all_df
-        # return mdf
 
 
 class TranscriptQuantificationHeatmap(object):
@@ -170,13 +170,37 @@ class TranscriptQuantificationHeatmap(object):
     def __init__(self, *args, **kwargs):
         pass
 
+    def getColorBar(self, data):
+
+        # factors are the columns after the total
+        # number of samples
+        factors = data.iloc[:,data.shape[0]:]
+        unique = set(factors.iloc[:,0])
+
+        # select a random set of colours from the xkcd
+        # palette
+        random.seed(5648546)
+        xkcd = random.sample(seaborn.xkcd_rgb.keys(),
+                             len(unique)) 
+        col_dict = dict(zip(unique, xkcd))
+        cols = []
+        for i in range(0, len(factors.index)):
+            cols.append(seaborn.xkcd_rgb[col_dict[factors.iloc[i, 0]]])
+
+        return cols
+
     def __call__(self, data, path):
 
-        ax = seaborn.clustermap(data, row_colors=["red"] * 6 + ["blue"] * 6)
+        colorbar = self.getColorBar(data)
+        n_samples = data.shape[0]
+        data = data.iloc[:,:n_samples]
+        print colorbar
+        ax = seaborn.clustermap(data, 
+                                row_colors=colorbar)
 
         return ResultBlocks(ResultBlock(
             '''#$mpl %i$#\n''' % ax.cax.figure.number,
-            title='ScatterPlot'))
+            title='ClusterMapPlot'))
 
 
 class sampleMDS(RnaseqqcTracker):
