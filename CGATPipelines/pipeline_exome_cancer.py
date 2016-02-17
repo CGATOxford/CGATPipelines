@@ -10,10 +10,14 @@ Exome Cancer pipeline
 
 .. todo::
 
-   Document fully
-   make phone home/key option work - GATK public key?
-   Summarise Indel calling (size of indels called)
-   Example
+   *Final filtering if SNPs/INDELs is currently done in the
+   reporting. This should be handled by the pipeline. The SNP output
+   would also then be passed to the mutational signature task
+   *Document
+   *fully make phone home/key option work - GATK public key?  Summarise
+   *Indel calling (size of indels called) Example
+
+
 
 The exome cancer pipeline imports unmapped reads from matched sample fastqs or
 sra files and aligns them to the genome using BWA.  Post alignment
@@ -91,6 +95,13 @@ Documentation
 If you would like the genes of interest to be flagged in your vcf,
 make add_genes_of_interest=1 (default=0) and provide a list of comma
 separated genes (without spaces) in the ini file.
+
+If you would like to annotate genes of interest with a particular
+value in the results table, create a file call [label]_annotations.tsv
+in your working directory listing all the genes. For example, to
+annotate all genes identified in a previous shRNA screen, add a file
+called shRNA_annoations.tsv listing the genes and the results table
+will contain a column called "shRNA" with values "shRNA" and "null".
 
 Requirements
 ------------
@@ -190,6 +201,28 @@ PipelineMappingQC.PARAMS = PARAMS
 PipelineExome.PARAMS = PARAMS
 #########################################################################
 
+
+#########################################################################
+# Load manual annotations
+#########################################################################
+
+@transform("*_annotations.tsv",
+           suffix(".tsv"),
+           ".load")
+def loadManualAnnotations(infile, outfile):
+
+    tmp = P.getTempFilename(".")
+
+    annotation = P.snip(infile, "_annotations.tsv")
+
+    with IOTools.openFile(tmp, "w") as outf:
+        outf.write("%s\tgene_id\n" % annotation)
+        with IOTools.openFile(infile, "r") as inf:
+            for line in inf:
+                outf.write("%s\t%s" % (annotation, line))
+
+    P.load(tmp, outfile, options="--add-index=gene_id")
+    os.unlink(tmp)
 
 #########################################################################
 # Alignment to a reference genome
@@ -526,28 +559,43 @@ def runMutect(infiles, outfile):
     mutect_log = basename + ".log"
 
     (cosmic, dbsnp, quality, max_alt_qual, max_alt,
-     max_fraction, tumor_LOD) = (
+     max_fraction, tumor_LOD, strand_LOD) = (
          PARAMS["mutect_cosmic"], PARAMS["gatk_dbsnp"],
          PARAMS["mutect_quality"], PARAMS["mutect_max_alt_qual"],
          PARAMS["mutect_max_alt"], PARAMS["mutect_max_fraction"],
-         PARAMS["mutect_lod"])
+         PARAMS["mutect_lod"], PARAMS["mutect_strand_lod"])
 
     genome = "%s/%s.fa" % (PARAMS["bwa_index_dir"],
                            PARAMS["genome"])
 
-    PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
-                                  cosmic, dbsnp, call_stats_out,
-                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'],
-                                  quality, max_alt_qual,
-                                  max_alt, max_fraction, tumor_LOD,
-                                  normal_panel, infile)
+    PipelineExome.mutectSNPCaller(
+        infile_tumour, outfile, mutect_log, genome,
+        cosmic, dbsnp, call_stats_out,
+        PARAMS['mutect_memory'], PARAMS['mutect_threads'],
+        quality, max_alt_qual,
+        max_alt, max_fraction, tumor_LOD, strand_LOD,
+        normal_panel, infile)
+
+
+@transform(runMutect,
+           regex(r"variants/(\S+).mutect.snp.vcf"),
+           r"variants/\1_call_stats.load")
+def loadMutectExtendedOutput(infile, outfile):
+    '''Load mutect extended output into database'''
+
+    infile = infile.replace(".mutect.snp.vcf", "_call_stats.out")
+
+    indices = "contig,position"
+    P.load(infile, outfile, options="--add-index=%(indices)s" % locals())
 
 
 @transform(splitMergedRealigned,
            regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
            r"variants/\1/results/all.somatic.indels.vcf")
 def indelCaller(infile, outfile):
+
     '''Call somatic indels using Strelka'''
+
     infile_tumour = infile.replace(
         PARAMS["sample_control"], PARAMS["sample_tumour"])
     outdir = "/".join(outfile.split("/")[0:2])
@@ -556,7 +604,8 @@ def indelCaller(infile, outfile):
 
     PipelineExome.strelkaINDELCaller(infile, infile_tumour, outfile,
                                      genome, PARAMS['strelka_config'], outdir,
-                                     PARAMS['strelka_memory'])
+                                     PARAMS['strelka_memory'],
+                                     PARAMS['strelka_threads'])
 
 ##########################################################################
 ##########################################################################
@@ -753,9 +802,7 @@ def variantAnnotator(infiles, outfile):
     to_cluster = USECLUSTER
     infile, bamlist, effFile = infiles
     dbsnp = PARAMS["gatk_dbsnp"]
-    statement = '''module unload apps/java/jre1.6.0_26;
-                   java -Xmx2g -jar
-                    /ifs/apps/bio/GATK-2.7-2/GenomeAnalysisTK.jar
+    statement = '''GenomeAnalysisTK
                    -T VariantAnnotator
                    -R %(bwa_index_dir)s/%(genome)s.fa
                    -I %(bamlist)s
@@ -780,9 +827,7 @@ def variantAnnotatorIndels(infiles, outfile):
     '''Annotate variant file using GATK VariantAnnotator'''
     to_cluster = USECLUSTER
     infile, bamlist, effFile = infiles
-    statement = '''module unload apps/java/jre1.6.0_26;
-                   java -Xmx2g -jar
-                    /ifs/apps/bio/GATK-2.7-2/GenomeAnalysisTK.jar
+    statement = '''GenomeAnalysisTK
                    -T VariantAnnotator
                    -R %(bwa_index_dir)s/%(genome)s.fa
                    -I %(bamlist)s
@@ -803,6 +848,7 @@ def variantAnnotatorIndels(infiles, outfile):
 ######################################################################
 
 # this does not work - insufficient number of indels in mills+
+# therefore this task is not a dependency of task full
 @transform(variantAnnotatorIndels,
            suffix(".annotated.vcf"),
            ".annotated.recalibrated.vcf")
@@ -814,9 +860,7 @@ def variantRecalibrator(infile, outfile):
     track = P.snip(os.path.basename(outfile), ".annotated.recalibrated.vcf")
     mills = PARAMS["gatk_mills"]
 
-    statement = '''module unload apps/java/jre1.6.0_26;
-                   java -Xmx4g -jar
-                   /ifs/apps/bio/GATK-2.7-2/GenomeAnalysisTK.jar
+    statement = '''GenomeAnalysisTK
                    -T VariantRecalibrator
                    -R %(bwa_index_dir)s/%(genome)s.fa
                    -input %(infile)s
@@ -831,40 +875,79 @@ def variantRecalibrator(infile, outfile):
                    -rscriptFile variants/%(track)s.plots.R'''
     P.run()
 
-#########################################################################
+##############################################################################
+# Filter SNPs and INDELs
+##############################################################################
 
 
 @transform(variantAnnotatorIndels,
            suffix(".annotated.vcf"),
-           ".passed.annotated.vcf")
+           ".annotated.filtered.vcf")
 def filterIndels(infile, outfile):
     ''' use SnpSift to filter INDELS using VCF fields'''
+
     statement = '''cat %(infile)s |
                    java -Xmx2g -jar /ifs/apps/bio/snpEff-3.1/SnpSift.jar filter
-                   "(QSI_NT>20 & IHP<12 & RC<12 & IC<12) "
+                   "(QSI_NT>%(filter_indel_nt)s &
+                     IHP<%(filter_indel_ihp)s &
+                     RC<%(filter_indel_rc)s &
+                     IC<%(filter_indel_rc)s) "
                    > %(outfile)s '''
     P.run()
 
+
+@transform(variantAnnotator,
+           regex("variants/(\S+).mutect.snp.annotated.vcf"),
+           r"variants/\1.mutect.snp.annotated.filtered.vcf")
+def filterMutect(infile, outfile):
+    ''' filter mutect snps using allele frequencies '''
+
+    logfile = outfile.replace(".vcf", ".log")
+
+    min_t_alt = PARAMS["filter_minimum_tumor_allele"]
+    min_t_alt_freq = PARAMS["filter_minimum_tumor_allele_frequency"]
+    min_n_depth = PARAMS["filter_minimum_normal_depth"]
+    max_n_alt_freq = PARAMS["filter_maximum_normal_allele_frequency"]
+    min_ratio = PARAMS["filter_minimum_ratio"]
+
+    PipelineExome.filterMutect(
+        infile, outfile, logfile,
+        PARAMS["sample_control"], PARAMS["sample_tumour"],
+        min_t_alt, min_n_depth, max_n_alt_freq,
+        min_t_alt_freq, min_ratio)
+
+##############################################################################
+# Intersect filtered SNPs and INDELs
+##############################################################################
+
+
+@mkdir("intersection.dir")
+@collate((filterIndels, filterMutect),
+         regex(r"variants/(\S+)\.(\S+).annotated.filtered.vcf"),
+         r"intersection.dir/overlap_\2_heatmap.png")
+def intersectHeatmap(infiles, outfile):
+    ''' intersect DE test_ids across the different quantifiers'''
+
+    PipelineExome.intersectionHeatmap(infiles, outfile)
 
 #########################################################################
 #########################################################################
 # convert vcf to tsv files and load into database
 
 
-@transform(variantAnnotator,
-           regex("variants/(\S+).annotated.vcf"),
-           r"variants/\1.annotated.tsv")
+@transform(filterMutect,
+           regex("variants/(\S+).annotated.filtered.vcf"),
+           r"variants/\1.annotated.filtered.tsv")
 def snpvcfToTable(infile, outfile):
+
     '''Converts vcf to tab-delimited file'''
     to_cluster = USECLUSTER
-    statement = '''module unload apps/java/jre1.6.0_26;
-                   java -Xmx2g -jar
-                    /ifs/apps/bio/GATK-2.7-2/GenomeAnalysisTK.jar
+    statement = '''GenomeAnalysisTK
                    -T VariantsToTable -R %(bwa_index_dir)s/%(genome)s.fa
                    -V %(infile)s --showFiltered --allowMissingData
                    -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER
                    -F INFO -F BaseQRankSum
-                   -F HaplotypeScore -F MQRankSum -F -F ReadPosRankSum
+                   -F HaplotypeScore -F MQRankSum -F ReadPosRankSum
                    -F SNPEFF_EFFECT -F SNPEFF_IMPACT -F SNPEFF_FUNCTIONAL_CLASS
                    -F SNPEFF_CODON_CHANGE -F SNPEFF_AMINO_ACID_CHANGE
                    -F SNPEFF_GENE_NAME -F SNPEFF_GENE_BIOTYPE
@@ -874,20 +957,18 @@ def snpvcfToTable(infile, outfile):
     P.run()
 
 
-@transform(variantAnnotatorIndels,
-           regex("variants/(\S+).annotated.vcf"),
-           r"variants/\1.annotated.tsv")
+@transform(filterIndels,
+           regex("variants/(\S+).annotated.filtered.vcf"),
+           r"variants/\1.annotated.filtered.tsv")
 def indelvcfToTable(infile, outfile):
     '''Converts vcf to tab-delimited file'''
     to_cluster = USECLUSTER
-    statement = '''module unload apps/java/jre1.6.0_26;
-                   java -Xmx2g -jar
-                    /ifs/apps/bio/GATK-2.7-2/GenomeAnalysisTK.jar
+    statement = '''GenomeAnalysisTK
                    -T VariantsToTable -R %(bwa_index_dir)s/%(genome)s.fa
                    -V %(infile)s --showFiltered --allowMissingData
                    -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER
                    -F INFO -F BaseQRankSum
-                   -F HaplotypeScore -F MQRankSum -F -F ReadPosRankSum
+                   -F HaplotypeScore -F MQRankSum -F ReadPosRankSum
                    -F SNPEFF_EFFECT -F SNPEFF_IMPACT -F SNPEFF_FUNCTIONAL_CLASS
                    -F SNPEFF_CODON_CHANGE -F SNPEFF_AMINO_ACID_CHANGE
                    -F SNPEFF_GENE_NAME -F SNPEFF_GENE_BIOTYPE
@@ -901,44 +982,17 @@ def indelvcfToTable(infile, outfile):
 
 @transform([snpvcfToTable,
             indelvcfToTable],
-           regex(r"variants/(\S+).(?P<suffix>annotated.tsv|call_stats.out)"),
-           r"variants/\1.\g<suffix>.load")
+           regex(r"variants/(\S+).annotated.filtered.tsv"),
+           r"variants/\1_annotated.load")
 def loadVariantAnnotation(infile, outfile):
     '''Load VCF annotations into database'''
 
-    if infile.endswith("indels.annotated.tsv"):
-        indices = '''"contig","position","SNPEFF_GENE_NAME"'''
-    elif infile.endswith("mutect.snp.annotated.tsv"):
-        indices = '''"CHROM","POS","SNPEFF_GENE_NAME"'''
+    if infile.endswith("indels.annotated.filtered.tsv"):
+        indices = "CHROM,POS,SNPEFF_GENE_NAME"
+    elif infile.endswith("mutect.snp.annotated.filtered.tsv"):
+        indices = "CHROM,POS,SNPEFF_GENE_NAME"
 
     P.load(infile, outfile, options="--add-index=%(indices)s" % locals())
-
-    # dbh = connect()
-    # tablename = P.toTable(outfile)
-    # statement = '''cat %(infile)s |
-    #               python %(scriptsdir)s/csv2db.py
-    #               --table %(tablename)s --retry --ignore-empty
-    #               > %(outfile)s'''
-    # P.run()
-
-
-@follows(runMutect)
-@transform("variants/*call_stats.out",
-           regex(r"variants/(\S+)_call_stats.out"),
-           r"variants/\1_call_stats.out.load")
-def loadMutectExtendedOutput(infile, outfile):
-    '''Load mutect extended output into database'''
-
-    index = "CHROM, POS"
-
-    dbh = connect()
-    tablename = P.toTable(outfile)
-    statement = '''cat %(infile)s |
-                   python %(scriptsdir)s/csv2db.py
-                   --table %(tablename)s --retry --ignore-empty
-                   > %(outfile)s'''
-    P.run()
-
 
 #########################################################################
 # Genes of interest
@@ -1034,12 +1088,12 @@ def defineEBioStudies(outfile):
 
     cancer_types = PARAMS["annotation_ebio_cancer_types"]
 
-    PipelineExome.defineEBioStudies(cancer_types, outfile, submit=True)
+    PipelineExome.defineEBioStudies(cancer_types, outfile, submit=False)
 
 
 @transform(defineEBioStudies,
            suffix("eBio_studies.tsv"),
-           add_inputs(variantAnnotator, variantAnnotatorIndels),
+           add_inputs(filterIndels, filterMutect),
            "eBio_studies_gene_frequencies.tsv")
 def extractEBioinfo(infiles, outfile):
     '''find the number of mutations identitified in previous studies (ebio_ids)
@@ -1048,7 +1102,7 @@ def extractEBioinfo(infiles, outfile):
     eBio_ids = infiles[0]
     vcfs = infiles[1:]
 
-    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile, submit=True)
+    PipelineExome.extractEBioinfo(eBio_ids, vcfs, outfile, submit=False)
 
 
 @transform(extractEBioinfo,
@@ -1058,14 +1112,6 @@ def loadEBioInfo(infile, outfile):
     '''load the frequencies from the eBIO portal'''
 
     P.load(infile, outfile, options="--add-index=gene")
-
-    # dbh = connect()
-    # tablename = P.toTable(outfile)
-    # statement = '''cat %(infile)s |
-    #               python %(scriptsdir)s/csv2db.py
-    #               --table %(tablename)s --retry --ignore-empty
-    #               > %(outfile)s'''
-    # P.run()
 
 #########################################################################
 #########################################################################
@@ -1079,39 +1125,24 @@ def loadEBioInfo(infile, outfile):
 def loadNCG(outfile):
     '''Load NCG into database'''
 
-    # infile = PARAMS["cancergenes_table"]
-    infile = "/ifs/projects/proj053/backup/NCG/cancergenes2016.tsv"
+    infile = PARAMS["cancergenes_table"]
+    # infile = "/ifs/projects/proj053/backup/NCG/cancergenes2016.tsv"
 
     P.load(infile, outfile, options="--add-index=symbol")
-
-    # dbh = connect()
-    # tablename = P.toTable(outfile)
-    # statement = '''cat %(infile)s |
-    #              python %(scriptsdir)s/csv2db.py
-    #              --table %(tablename)s --retry --ignore-empty
-    #              > %(outfile)s'''
-    # P.run()
-
 
 #########################################################################
 #########################################################################
 #########################################################################
 # analyse mutational siganture of filtered variants
 
-@merge(runMutect,
+
+@merge(filterMutect,
        ["variants/mutational_signature.tsv",
         "variants/mutational_signature_table.tsv"])
 def mutationalSignature(infiles, outfiles):
 
-    min_t_alt = PARAMS["filter_minimum_tumor_allele"]
-    min_t_alt_freq = PARAMS["filter_minimum_tumor_allele_frequency"]
-    min_n_depth = PARAMS["filter_minimum_normal_depth"]
-    max_n_alt_freq = PARAMS["filter_maximum_normal_allele_frequency"]
-    tumour = PARAMS["sample_tumour"]
-
     PipelineExome.compileMutationalSignature(
-        infiles, outfiles, min_t_alt, min_n_depth, max_n_alt_freq,
-        min_t_alt_freq, tumour, submit=True)
+        infiles, outfiles)
 
 
 @transform(mutationalSignature,
@@ -1127,7 +1158,8 @@ def loadMutationalSignature(infiles, outfile):
 #########################################################################
 #########################################################################
 
-@follows(loadMutectFilteringSummary,
+@follows(loadManualAnnotations,
+         loadMutectFilteringSummary,
          loadMutectExtendedOutput,
          loadVariantAnnotation,
          loadCoverageStats,
@@ -1135,7 +1167,8 @@ def loadMutationalSignature(infiles, outfile):
          loadPicardAlignStats,
          loadNCG,
          loadMutationalSignature,
-         loadEBioInfo)
+         loadEBioInfo,
+         intersectHeatmap)
 def full():
     pass
 
