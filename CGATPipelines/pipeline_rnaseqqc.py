@@ -54,6 +54,25 @@ fastq.1.gz, fastq2.2.gz
    Quality scores need to be of the same scale for all input files.
    Thus it might be difficult to mix different formats.
 
+Important configuration options
+===============================
+
+To determine the experimental factors in your experiment, name files
+with factors separated by ``-``, for example::
+
+   sample1-mRNA-10k-R1-L01.fastq.1.gz
+   sample1-mRNA-10k-R1-L01.fastq.2.gz
+   sample1-mRNA-10k-R1-L02.fastq.1.gz
+   sample1-mRNA-10k-R1-L02.fastq.2.gz
+   sample1-mRNA-150k-R1-L01.fastq.1.gz
+   sample1-mRNA-150k-R1-L01.fastq.2.gz
+   sample1-mRNA-150k-R1-L02.fastq.1.gz
+   sample1-mRNA-150k-R1-L02.fastq.2.gz
+
+and then set the ``factors`` variable in :file:`pipeline.ini` to::
+
+   factors=_,experiment,source,replicate,lane
+
 Pipeline output
 ===============
 
@@ -834,7 +853,7 @@ def buildFactorTable(infiles, outfile):
     factor_names = PARAMS.get("factors")
     if factor_names is None or factor_names == "!?":
         raise ValueError("factors not defined in config file")
-    factor_names = factor_names.split(",")
+    factor_names = factor_names.split("-")
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("sample_name\tfactor\tfactor_value\n")
@@ -850,7 +869,7 @@ def buildFactorTable(infiles, outfile):
                         filename, factor_names, parts))
 
             for factor, factor_value in zip(factor_names, parts):
-                if factor == "-":
+                if factor == "_":
                     continue
                 outf.write("\t".join((str(sample_id + 1),
                                       factor, factor_value)) + "\n")
