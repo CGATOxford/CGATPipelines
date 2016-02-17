@@ -237,41 +237,40 @@ def runSailfish(infiles, outfile):
     P.run()
 
 
-if PARAMS["sailfish"]:
-    @follows(runSailfish)
-    @merge(runSailfish,
-           "abundance_estimates.tsv")
-    def mergeResults(infiles, outfile):
-        ''' merge the TPM values per sample'''
+# if PARAMS["sailfish"]:
+#     @follows(runSailfish)
+#     @merge(runSailfish,
+#            "abundance_estimates.tsv")
+#     def mergeResults(infiles, outfile):
+#         ''' merge the TPM values per sample'''
 
-        sample_id = os.path.basename(os.path.dirname(infiles[0]))
-        df = pandas.read_table(
-            infiles[0], sep='\t', comment='#', header=0, index_col=0)
-        df.columns = ["Length", sample_id, "NumReads"]
-        df.index.name = "Name"
-        df.drop(["Length", "NumReads"], axis=1, inplace=True)
+#         sample_id = os.path.basename(os.path.dirname(infiles[0]))
+#         df = pandas.read_table(
+#             infiles[0], sep='\t', comment='#', header=0, index_col=0)
+#         df.columns = ["Length", sample_id, "NumReads"]
+#         df.index.name = "Name"
+#         df.drop(["Length", "NumReads"], axis=1, inplace=True)
 
-        for infile in infiles[1:]:
-            sample_id = os.path.basename(os.path.dirname(infile))
+#         for infile in infiles[1:]:
+#             sample_id = os.path.basename(os.path.dirname(infile))
 
-            tmp_df = pandas.read_table(
-                infile, sep='\t', comment='#', header=0, index_col=0)
-            tmp_df.columns = ["Length", sample_id, "NumReads"]
-            tmp_df.index.name = "Name"
-            tmp_df.drop(["Length", "NumReads"], axis=1, inplace=True)
+#             tmp_df = pandas.read_table(
+#                 infile, sep='\t', comment='#', header=0, index_col=0)
+#             tmp_df.columns = ["Length", sample_id, "NumReads"]
+#             tmp_df.index.name = "Name"
+#             tmp_df.drop(["Length", "NumReads"], axis=1, inplace=True)
             
-            df = pandas.concat([df, tmp_df], axis=1)
+#             df = pandas.concat([df, tmp_df], axis=1)
             
-        df.to_csv(outfile, sep="\t")
-else:
-    @follows(mkdir("quant.dir"))
-    @originate("abundance_estimates.tsv")
-    def mergeResults(outfile):
-        infile = PARAMS["abundance_file"]
-        base = os.path.basename(infile)
-        statement = '''ln -s %(infile)s; mv %(base)s %(outfile)s'''
-        P.run()
-
+#         df.to_csv(outfile, sep="\t")
+# else:
+#     @follows(mkdir("quant.dir"))
+#     @originate("abundance_estimates.tsv")
+#     def mergeResults(outfile):
+#         infile = PARAMS["abundance_file"]
+#         base = os.path.basename(infile)
+#         statement = '''ln -s %(infile)s; mv %(base)s %(outfile)s'''
+#         P.run()
 
 @transform(PARAMS["sailfish_transcripts"],
            regex("(\S+)"),
@@ -403,6 +402,8 @@ def sail():
 
 
 #########################################################################
+
+
 
 
 @follows()
