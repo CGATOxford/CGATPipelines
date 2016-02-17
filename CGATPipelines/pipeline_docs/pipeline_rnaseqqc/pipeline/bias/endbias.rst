@@ -26,18 +26,18 @@ and cropped at 3000 base pairs upstream.  Transcripts shorter than 3000 base pai
 Outputs
 -------
 The report generates a bar plot for each sample.  Each bin on the bar plot is a
-single position.  Starting from the 3' end at the right hand side of the y axis, the
+single position.  Starting from the 3' end at the right hand side of the x axis, the
 normalised, aggregated read count at each position is shown.
 
 How the results are generated
 -----------------------------
-Bam2geneprofile performs the following steps for each gene model specified
-in the gene set gtf.
+Bam2geneprofile performs the following steps:
 
-- Builds a theoretical mRNA transcript by stitching exons into one piece of mRNA
+- Builds a theoretical mRNA transcript for each gene model specified
+in the gene set gtf by stitching exons into one piece of mRNA
 - Aggregates these into a single "metagene" object
 - Calculates the aggregated read count at each position upstream of the 3' end of this object (starting at the TSS)
-- Combines these into a table for each sample, where each row is a bin representing one position realtive to the 3' end
+- Combines these into a table for each sample, where each row is a bin representing one position relative to the 3' end
 - Concatenates these tables
 
 What you should expect from results
