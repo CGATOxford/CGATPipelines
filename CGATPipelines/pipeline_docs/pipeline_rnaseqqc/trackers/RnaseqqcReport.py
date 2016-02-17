@@ -1,4 +1,3 @@
-import glob
 import numpy as np
 import pandas as pd
 import itertools
@@ -15,31 +14,10 @@ import seaborn
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
-
-###################################################################
-###################################################################
-# parameterization
-
-EXPORTDIR = P.get('readqc_exportdir', P.get('exportdir', 'export'))
-DATADIR = P.get('readqc_datadir', P.get('datadir', '.'))
-DATABASE = P.get('readqc_backend', P.get('sql_backend', 'sqlite:///./csvdb'))
-
-###################################################################
-# cf. pipeline_rnaseq.py
-# This should be automatically gleaned from pipeline_rnaseq.py
-###################################################################
+from CGATReport.Utils import PARAMS
 
 
-TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
-    glob.glob("%s/*.sra" % DATADIR), "(\S+).sra") +\
-    PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
-        glob.glob("%s/*.fastq.gz" % DATADIR), "(\S+).fastq.gz") +\
-    PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
-        glob.glob("%s/*.fastq.1.gz" % DATADIR), "(\S+).fastq.1.gz") +\
-    PipelineTracks.Tracks(PipelineTracks.Sample).loadFromDirectory(
-        glob.glob("*.csfasta.gz"), "(\S+).csfasta.gz")
-
-###########################################################################
+DATABASE = PARAMS.get('readqc_backend', PARAMS.get('sql_backend', 'sqlite:///./csvdb'))
 
 
 class RnaseqqcTracker(TrackerSQL):
@@ -50,14 +28,9 @@ class RnaseqqcTracker(TrackerSQL):
         TrackerSQL.__init__(self, *args, backend=DATABASE, **kwargs)
 
 
-##############################################################
-##############################################################
-##############################################################
-
-
 class SampleOverlap(RnaseqqcTracker):
 
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def __call__(self, *args):
 
@@ -141,7 +114,7 @@ class SampleHeatmap(RnaseqqcTracker):
         from table
         '''
 
-        statement = ("SELECT factor_value,sample_id FROM factor2 "
+        statement = ("SELECT factor_value, sample_id FROM factor "
                      "WHERE factor = '%(factor)s';" % locals())
 
         factor_df = pd.DataFrame.from_dict(self.getAll(statement))
@@ -210,7 +183,7 @@ class sampleMDS(RnaseqqcTracker):
     # - JOIN with design table to get further aesthetics for plotting
     #   E.g treatment, replicate, etc
 
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def __call__(self, track,  slice=None):
 
@@ -252,7 +225,7 @@ class samplePCA(RnaseqqcTracker):
     # - ability to change filter threshold for lowly expressed transcripts
 
     components = 10
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def pca(self):
 
@@ -324,7 +297,7 @@ class samplePCAprojections(samplePCA):
         # This is what want for ploting bar graph
         # y = sklearn_pca.explained_variance_ratio_
 
-        factor_statement = '''select * from factor2'''
+        factor_statement = '''select * from factor'''
 
         # fetch factor data-THIS NEEDS TO BE ADJUSTED IF FACTORS table corrected
         factor_df = self.getDataFrame(factor_statement)
@@ -414,7 +387,7 @@ class BiasFactors(RnaseqqcTracker):
 
 class ExpressionDistribution(RnaseqqcTracker):
 
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def __call__(self, track, slice=None):
         statement = """SELECT sample_id, transcript_id, TPM
@@ -436,7 +409,7 @@ class SampleOverlapsExpress(RnaseqqcTracker):
     samples.
     '''
 
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
 
     def __call__(self, track, slice=None):
         statement = """SELECT sample_id, transcript_id
@@ -514,7 +487,7 @@ class ThreePrimeBias(RnaseqqcTracker):
         return df
 
 # class ExpressionDistributionNotR(RnaseqqcTracker, SingleTableTrackerColumns):
-#    table = "transcript_quantification"
+#    table = "sailfish_transcripts"
 #    column = "transcript_id"
 #    exclude_columns = "RPKM"
 
@@ -533,6 +506,39 @@ class ThreePrimeBias(RnaseqqcTracker):
 class MappingTracker(TrackerSQL):
     """Base class for trackers from mapping report used for mapping context below"""
 
-
 class MappingContext(MappingTracker, SingleTableTrackerRows):
     table = "context_stats"
+
+class ProteinContext(RnaseqqcTracker):
+    table = "context_stats"
+    select ['protein_coding','non_stop_decay','nonsense_mediated_decay','IG_C_gene','IG_J_gene','IG_V_gene','TR_C_gene','TR_J_gene','TR_V_gene','processed_pseudogene','unprocessed_pseudogene','transcribed_processed_pseudogene','transcribed_unprocessed_pseudogene','translated_processed_pseudogene','unitary_pseudogene','IG_C_pseudogene','IG_J_pseudogene','IG_V_pseudogene','TR_J_pseudogene','TR_V_pseudogene','polymorphic_pseudogene','pseudogene']
+    select=",".join(select)
+
+    def getTracker(self, subset=None):
+        retun ("all")
+
+    def__call__(self, track, slice=None)
+    statement = ("SELECT track,%(select)s FROM %(table)s")
+    df = self.getDataFrame(statement)
+    df.set_index("track", drop=True, inplace=True)
+    df.index.name = "track"
+    df = pd.melt(df, id_vars=['track'], var_name ='context')
+    return df
+
+class lncRNAContext(RnaseqqcTracker):
+    table = "context_stats"
+    select ['lincRNA','antisense','sense_overlapping','sense_intronic','_3prime_overlapping_ncrna','processed_transcript']
+    select=",".join(select)
+
+class ncRNAContext(RnaseqqcTracker):
+    table = "context_stats"
+    select ['snRNA','snoRNA','tRNA','Mt_rRNA', 'Mt_tRNA']
+    select=",".join(select)
+
+class riboRNAContext(RnaseqqcTracker):
+    table = "context_stats"
+    select ['rRNA','ribosomal_coding']
+    select=",".join(select)
+
+
+

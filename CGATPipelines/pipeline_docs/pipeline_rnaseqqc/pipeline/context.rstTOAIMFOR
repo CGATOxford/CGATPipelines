@@ -12,5 +12,7 @@ This section includes:
 .. toctree::
    :maxdepth: 3
    
+   context/mappingproportion.rst
+   context/transcriptiomeproportion.rst
    context/contextproportion.rst
   

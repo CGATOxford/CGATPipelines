@@ -84,8 +84,6 @@ def runSleuthAll(samples, base_dir, counts, tpm):
     results in a file called abundance.h5
     '''
 
-    samples = samples.split(",")
-
     design = pd.DataFrame({
         "sample": samples,
         "group": ([0, 1] * ((len(samples)+1)/2))[0:len(samples)]})
