@@ -11,7 +11,7 @@ from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
 from CGATReport.ResultBlock import ResultBlocks, ResultBlock
 import seaborn
-from CGATReport.Tracker import TrackerSQL
+from CGATReport.Tracker import TrackerSQL, SingleTableTrackerRows
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
@@ -509,6 +509,5 @@ class ThreePrimeBias(RnaseqqcTracker):
 class MappingTracker(TrackerSQL):
     """Base class for trackers from mapping report used for mapping context below"""
 
-
 class MappingContext(MappingTracker, SingleTableTrackerRows):
-    table = "context_stats"
+   table = "context_stats"
