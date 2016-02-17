@@ -79,11 +79,9 @@ class SampleOverlap(RnaseqqcTracker):
         # pairwise comparison of samples with common transcripts
         for samples in itertools.combinations_with_replacement(sample_list, 2):
             # get list of expressed transcripts for sample1
-            transcripts_s1 = working_df[(working_df.sample_id == samples[0]
-                                     )]['transcript_id']
+            transcripts_s1 = working_df[(working_df.sample_id == samples[0])]['transcript_id']
             # get list of expressed transcripts for sample2
-            transcripts_s2 = working_df[(working_df.sample_id == samples[1]
-                                     )]['transcript_id']
+            transcripts_s2 = working_df[(working_df.sample_id == samples[1])]['transcript_id']
             # compute intersection
             number_in_common = len(set(transcripts_s1) & set(transcripts_s2))
             # and update dataframe containing results
