@@ -33,8 +33,7 @@ How the results are generated
 -----------------------------
 Bam2geneprofile performs the following steps:
 
-- Builds a theoretical mRNA transcript for each gene model specified
-in the gene set gtf by stitching exons into one piece of mRNA
+- Builds a theoretical mRNA transcript for each gene model specified in the gene set gtf by stitching exons into one piece of mRNA
 - Aggregates these into a single "metagene" object
 - Calculates the aggregated read count at each position upstream of the 3' end of this object (starting at the TSS)
 - Combines these into a table for each sample, where each row is a bin representing one position relative to the 3' end
