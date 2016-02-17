@@ -200,20 +200,6 @@ class sampleMDS(RnaseqqcTracker):
 
         return pos
 
-class sampleOverlaps(RnaseqqcTracker):
-    table = "transcript_quantification"
-
-    def __call__(self, track, slice=None):
-
-        statement = (
-            "SELECT transcript_id, TPM, sample_id FROM %(table)s "
-            "WHERE transcript_id != 'Transcript'")
-
-        df = pd.DataFrame.from_dict(self.getAll(statment))
-
-        return df
-
-
 class samplePCA(RnaseqqcTracker):
     '''
     Perform Principal component analysis on dataframe of
