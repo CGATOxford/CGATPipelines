@@ -506,39 +506,47 @@ class ThreePrimeBias(RnaseqqcTracker):
 class MappingTracker(TrackerSQL):
     """Base class for trackers from mapping report used for mapping context below"""
 
+
 class MappingContext(MappingTracker, SingleTableTrackerRows):
     table = "context_stats"
 
+
 class ProteinContext(RnaseqqcTracker):
     table = "context_stats"
-    select ['protein_coding','non_stop_decay','nonsense_mediated_decay','IG_C_gene','IG_J_gene','IG_V_gene','TR_C_gene','TR_J_gene','TR_V_gene','processed_pseudogene','unprocessed_pseudogene','transcribed_processed_pseudogene','transcribed_unprocessed_pseudogene','translated_processed_pseudogene','unitary_pseudogene','IG_C_pseudogene','IG_J_pseudogene','IG_V_pseudogene','TR_J_pseudogene','TR_V_pseudogene','polymorphic_pseudogene','pseudogene']
-    select=",".join(select)
+    select = ['protein_coding', 'non_stop_decay', 'nonsense_mediated_decay',
+              'IG_C_gene', 'IG_J_gene', 'IG_V_gene', 'TR_C_gene', 'TR_J_gene',
+              'TR_V_gene', 'processed_pseudogene', 'unprocessed_pseudogene',
+              'transcribed_processed_pseudogene',
+              'transcribed_unprocessed_pseudogene',
+              'translated_processed_pseudogene', 'unitary_pseudogene',
+              'IG_C_pseudogene',
+              'IG_J_pseudogene', 'IG_V_pseudogene', 'TR_J_pseudogene',
+              'TR_V_pseudogene',
+              'polymorphic_pseudogene', 'pseudogene']
 
     def getTracker(self, subset=None):
-        retun ("all")
+        return ("all")
 
-    def__call__(self, track, slice=None)
-    statement = ("SELECT track,%(select)s FROM %(table)s")
-    df = self.getDataFrame(statement)
-    df.set_index("track", drop=True, inplace=True)
-    df.index.name = "track"
-    df = pd.melt(df, id_vars=['track'], var_name ='context')
-    return df
+    def __call__(self, track, slice=None):
 
-class lncRNAContext(RnaseqqcTracker):
-    table = "context_stats"
-    select ['lincRNA','antisense','sense_overlapping','sense_intronic','_3prime_overlapping_ncrna','processed_transcript']
-    select=",".join(select)
+        select = ",".join(self.select)
 
-class ncRNAContext(RnaseqqcTracker):
-    table = "context_stats"
-    select ['snRNA','snoRNA','tRNA','Mt_rRNA', 'Mt_tRNA']
-    select=",".join(select)
-
-class riboRNAContext(RnaseqqcTracker):
-    table = "context_stats"
-    select ['rRNA','ribosomal_coding']
-    select=",".join(select)
+        statement = "SELECT track, %(select)s FROM %(table)s"
+        df = self.getDataFrame(statement)
+        df.set_index("track", drop=True, inplace=True)
+        df.index.name = "track"
+        df = pd.melt(df, id_vars=['track'], var_name='context')
+        return df
 
 
+class lncRNAContext(ProteinContext):
+    select = ['lincRNA', 'antisense', 'sense_overlapping', 'sense_intronic',
+              '_3prime_overlapping_ncrna', 'processed_transcript']
 
+
+class ncRNAContext(ProteinContext):
+    select = ['snRNA', 'snoRNA', 'tRNA', 'Mt_rRNA', 'Mt_tRNA']
+
+
+class riboRNAContext(ProteinContext):
+    select = ['rRNA', 'ribosomal_coding']
