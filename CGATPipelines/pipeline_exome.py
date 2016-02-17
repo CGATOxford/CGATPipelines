@@ -373,12 +373,18 @@ def GATKIndelRealignLane(infile, outfile):
            r"gatk/\1.bqsr.bam")
 def GATKBaseRecal(infile, outfile):
     '''recalibrates base quality scores using GATK'''
+    intrack = P.snip(os.path.basename(infile), ".bam")
+    outtrack = P.snip(os.path.basename(outfile), ".bam")
     dbsnp = PARAMS["gatk_dbsnp"]
     solid_options = PARAMS["gatk_solid_options"]
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     intervals = PARAMS["roi_intervals"]
     padding = PARAMS["roi_padding"]
-    PipelineExome.GATKBaseRecal(infile, outfile, genome, intervals, padding,
+    if PARAMS["targetted"]:
+        shutil.copyfile(infile, outfile)
+        shutil.copyfile(intrack + ".bai", outtrack + ".bai")
+    else:
+        PipelineExome.GATKBaseRecal(infile, outfile, genome, intervals, padding,
                                 dbsnp, solid_options)
     IOTools.zapFile(infile)
 
