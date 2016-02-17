@@ -50,7 +50,6 @@ The table of contents below lists the sections of pipeline_rnaseqqc report.
    pipeline/executivesummary.rst
    pipeline/pipeline_summary.rst
    pipeline/mappinglog.rst
-   pipeline/saturation.rst
    pipeline/context.rst
    pipeline/bias.rst
    pipeline/ExpressionDistribution.rst
