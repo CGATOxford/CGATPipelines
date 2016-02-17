@@ -160,9 +160,9 @@ class SampleHeatmap(RnaseqqcTracker):
         mdf.columns = set(df["sample_id"])
         mdf.index = set(df["sample_id"])
 
-        # all_df = self.getFactors(mdf, 'replicate')
-        # return all_df
-        return mdf
+        all_df = self.getFactors(mdf, 'replicate')
+        return all_df
+        # return mdf
 
 
 class sampleMDS(RnaseqqcTracker):
