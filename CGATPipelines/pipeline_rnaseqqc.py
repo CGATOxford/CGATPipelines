@@ -14,9 +14,6 @@ requires a multi-fasta transcripts file.
 
 For further details see http://www.cs.cmu.edu/~ckingsf/software/sailfish/
 
-
-
-
 Individual tasks are enabled in the configuration file.
 
 Usage
@@ -1002,8 +999,6 @@ def summariseBias(infiles, outfile):
 def loadBias(infile, outfile):
     P.load(infile, outfile, options="--add-index=sample_id")
 
-
-#########################################################################
 
 @follows(loadContextStats,
          loadBAMStats,
