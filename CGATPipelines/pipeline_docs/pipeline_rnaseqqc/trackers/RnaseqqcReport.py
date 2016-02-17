@@ -200,7 +200,6 @@ class sampleMDS(RnaseqqcTracker):
 
         return pos
 
-
 class samplePCA(RnaseqqcTracker):
     '''
     Perform Principal component analysis on dataframe of
@@ -214,7 +213,6 @@ class samplePCA(RnaseqqcTracker):
     # - ability to change filter threshold for lowly expressed transcripts
 
     components = 10
-
     table = "transcript_quantification"
 
     def pca(self):
@@ -287,11 +285,11 @@ class samplePCAprojections(samplePCA):
         # This is what want for ploting bar graph
         # y = sklearn_pca.explained_variance_ratio_
 
-        factor_statement = '''select * from factors'''
+        factor_statement = '''select * from factor2'''
 
-        # fetch factor data
+        # fetch factor data-THIS NEEDS TO BE ADJUSTED IF FACTORS table corrected
         factor_df = self.getDataFrame(factor_statement)
-        factor_df.set_index("sample_name", drop=True, inplace=True)
+        factor_df.set_index("sample_id", drop=True, inplace=True)
 
         full_df = PC_df.join(factor_df)
 
