@@ -4,6 +4,9 @@
 Heatmap
 =======
 
+.. report:: RnaseqqcReport.SampleHeatmap
+   :render: RnaseqqcReport.TranscriptQuantificationHeatmap
+
 Summary
 =======
 
@@ -41,7 +44,8 @@ Cluster Plot
 
 .. report:: RnaseqqcReport.SampleHeatmap
    :render: sb-clustermap-plot
-   :palette: GnBu
+ 
+.. :palette: GnBu
 
    Similarity of samples using pair-wise Pearson correlations.  Samples are clustered by average linkaged
    hierarchical clustering.
