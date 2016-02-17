@@ -62,20 +62,18 @@ plots examine the number of alignments to ribosomal and repetitive
 RNA. Repetetive RNA annotation is taken from the UCSC repeatmasker 
 tracks.
 
-.. report:: RnaseqqcReport.MappingContext
-   :render: table
-   :slices: total,RNA,rRNA,scRNA,snRNA,srpRNA,tRNA,ribosomal_coding
+   Proportion of alignments that align to ribosomal annotations across samples.
 
-   Number of alignments that align to ribosomal and repetitive
-   RNA annotations (from the UCSC repeatmasker track).
+.. report:: RnaseqqcReport.riboContext
+   :render: r-ggplot
+   :statement: aes(x = track, y = value, fill=context) + 
+	       geom_bar(stat='identity') + 
+	       theme(axis.text.x = element_text(size = 11, angle = 90, vjust=0.5, hjust = 1)) + 
+	       theme(axis.text.y = element_text(size = 11)) + theme(legend.text = element_text(size = 11)) + 
+	       theme(legend.key.size = unit(0.5, "cm")) + 
+	       theme(plot.background = element_blank(),panel.grid.major = element_blank(),
+	       panel.grid.minor = element_blank(),panel.border = element_blank())
 
-.. report:: RnaseqqcReport.MappingContext
-   :render: stacked-bar-plot
-   :slices: total,RNA,rRNA,scRNA,snRNA,srpRNA,tRNA,ribosomal_coding
-   :split-at: 10
-
-   Proportion of alignments that align to ribosomal and
-   repetitive RNA annotations across samples.
 
 
 Non-coding RNA expression

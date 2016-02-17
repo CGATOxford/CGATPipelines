@@ -12,7 +12,7 @@ transcripts per sample.
 
 .. report:: Isoform.TranscriptExpressionOrdered
    :render: r-ggplot
-   :statement: aes(y=index, x=value, colour=group, group=variable) +
+   :statement: aes(y=index, x=value, colour=variable, group=variable) +
 	       geom_line() +
 	       theme_bw() +
 	       theme(aspect.ratio=1,

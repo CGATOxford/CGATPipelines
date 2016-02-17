@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import sqlite3
 
 from CGATReport.Tracker import SingleTableTrackerRows
 from CGATReport.Tracker import SingleTableTrackerHistogram
@@ -12,7 +13,7 @@ from IsoformReport import *
 # parse params
 ###############################################################################
 DATABASE = P.get('', P.get('sql_backend', 'sqlite:///./csvdb'))
-
+ANNOTATIONS_DATABASE = P.get('annotations_database')
 ###############################################################################
 # trackers
 ###############################################################################
@@ -78,7 +79,7 @@ class SummarisedResults(IsoformTracker):
 
         select_results = '''SELECT A.*,
         B.p_value, B.p_value_adj, B.l2fold, B.transcript_biotype
-        FROM %(track)s_tpm AS A
+        FROM all_tpm AS A
         LEFT JOIN %(track)s_DEresults AS B
         ON A.transcript_id = B.transcript_id
         WHERE B.p_value<0.05'''
@@ -96,3 +97,22 @@ class SummarisedResults(IsoformTracker):
             results_df["group_%s_stdev" % group] = results_df[group_tracks].std(axis=1)
 
         return results_df
+
+
+class SleuthAllGenes(IsoformTracker):
+
+    table = ""
+
+    def __call__(self, track, slice=None):
+
+        statement = '''SELECT * FROM %(table)s '''
+
+        return self.getDataFrame(statement)
+
+
+class SleuthCountsAllGenes(SleuthAllGenes):
+    table = "all_counts"
+
+
+class SleuthTpmAllGenes(SleuthAllGenes):
+    table = "all_tpm"
