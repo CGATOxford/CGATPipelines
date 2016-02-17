@@ -1,17 +1,17 @@
 import glob
 import numpy as np
 import pandas as pd
-import numpy as np
 import itertools
 import collections
-import itertools
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
 from sklearn.preprocessing import scale as sklearn_scale
 from sklearn.decomposition import PCA as sklearnPCA
 from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
-from CGATReport.Tracker import *
+from CGATReport.ResultBlock import ResultBlocks, ResultBlock
+import seaborn
+from CGATReport.Tracker import TrackerSQL
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
@@ -94,7 +94,7 @@ class SampleOverlap(RnaseqqcTracker):
 
 class SampleHeatmap(RnaseqqcTracker):
 
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
     py2ri.activate()
 
     def getTracks(self, subset=None):
@@ -165,6 +165,20 @@ class SampleHeatmap(RnaseqqcTracker):
         # return mdf
 
 
+class TranscriptQuantificationHeatmap(object):
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __call__(self, data, path):
+
+        ax = seaborn.clustermap(data, row_colors=["red"] * 6 + ["blue"] * 6)
+
+        return ResultBlocks(ResultBlock(
+            '''#$mpl %i$#\n''' % ax.cax.figure.number,
+            title='ScatterPlot'))
+
+
 class sampleMDS(RnaseqqcTracker):
     # to add:
     # - ability to use rlog or variance stabalising transformatio
@@ -199,6 +213,7 @@ class sampleMDS(RnaseqqcTracker):
         pos['sample'] = df.columns
 
         return pos
+
 
 class samplePCA(RnaseqqcTracker):
     '''
