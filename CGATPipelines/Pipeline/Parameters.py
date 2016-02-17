@@ -111,6 +111,9 @@ HARDCODED_PARAMS = {
                 --cluster-queue=%(cluster_queue)s
                 --cluster-num-jobs=%(cluster_num_jobs)i
                 --cluster-priority=%(cluster_priority)i
+                --cluster-queue-manager=%(cluster_queue_manager)s
+                --cluster-memory-resource=%(cluster_memory_resource)s
+                --cluster-memory-default=%(cluster_memory_default)s
     """,
     # command to get tab-separated output from database
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
@@ -135,6 +138,8 @@ HARDCODED_PARAMS = {
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
+    # queue manager (supported: sge, slurm)
+    'cluster_queue_manager': 'sge',
     # cluster queue to use
     'cluster_queue': 'all.q',
     # priority of jobs in cluster queue
@@ -214,6 +219,7 @@ def configToDictionary(config):
 
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
+                  site_ini=True,
                   user_ini=True,
                   default_ini=True,
                   only_import=None):
@@ -304,6 +310,12 @@ def getParameters(filenames=["pipeline.ini", ],
     if only_import:
         # turn on default dictionary
         TriggeredDefaultFactory.with_default = True
+
+    if site_ini:
+        # read configuration from /etc/cgat/pipeline.ini
+        fn = "/etc/cgat/pipeline.ini"
+        if os.path.exists(fn):
+            filenames.insert(0, fn)
 
     if user_ini:
         # read configuration from a users home directory
@@ -533,4 +545,3 @@ def checkParameter(param):
 def getParams():
     """return handle to global parameter dictionary"""
     return PARAMS
-
