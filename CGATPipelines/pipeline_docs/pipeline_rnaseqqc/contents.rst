@@ -37,6 +37,7 @@ exploratory analysis that should be carried out - this will be depend
 on the design of individual experiments.
 
 
+========
 Contents
 ========
 
@@ -47,6 +48,7 @@ The table of contents below lists the sections of pipeline_rnaseqqc report.
    :maxdepth: 2
    
    pipeline/executivesummary.rst
+   pipeline/pipeline_summary.rst
    pipeline/design.rst
    pipeline/mappinglog.rst
    pipeline/saturation.rst
@@ -57,23 +59,8 @@ The table of contents below lists the sections of pipeline_rnaseqqc report.
    pipeline/validation.rst
 
 
-Pipeline summary
-================
 
-.. automodule:: pipeline_rnaseqqc
-   :members:
-   :inherited-members:
-   :show-inheritance:
-
-
-Errors and Warnings
-===================
-
-.. errorlist::
-
-.. warninglist::
-
-
+====================
  Indices and tables
 ====================
 

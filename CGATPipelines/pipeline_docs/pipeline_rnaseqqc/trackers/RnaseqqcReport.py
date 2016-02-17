@@ -1,7 +1,6 @@
 import glob
 import numpy as np
 import pandas as pd
-import numpy as np
 import itertools
 import collections
 from sklearn import manifold
@@ -10,7 +9,9 @@ from sklearn.preprocessing import scale as sklearn_scale
 from sklearn.decomposition import PCA as sklearnPCA
 from rpy2.robjects import r as R
 import rpy2.robjects.pandas2ri as py2ri
-from CGATReport.Tracker import *
+from CGATReport.ResultBlock import ResultBlocks, ResultBlock
+import seaborn
+from CGATReport.Tracker import TrackerSQL
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
@@ -53,19 +54,51 @@ class RnaseqqcTracker(TrackerSQL):
 ##############################################################
 
 
+class SampleOverlap(RnaseqqcTracker):
+
+    table = "transcript_quantification"
+
+    def __call__(self, *args):
+
+        # get list of unique IDs
+        statement = ("""SELECT DISTINCT sample_id FROM '%(table)s'""")
+        sample_list = self.getValues(statement)
+
+        # create a DataFrame to output results
+        df_range = range(1, len(sample_list)+1)
+        result_df = pd.DataFrame(0, index=df_range, columns=df_range)
+
+        # get all data at once
+        statement = ("""SELECT sample_id, transcript_id, TPM
+        FROM %(table)s
+        WHERE transcript_id != 'Transcript'
+        AND TPM >= 100""")
+
+        working_df = self.getDataFrame(statement)
+
+        # pairwise comparison of samples with common transcripts
+        for samples in itertools.combinations_with_replacement(sample_list, 2):
+            # get list of expressed transcripts for sample1
+            transcripts_s1 = working_df[(working_df.sample_id == samples[0])]['transcript_id']
+            # get list of expressed transcripts for sample2
+            transcripts_s2 = working_df[(working_df.sample_id == samples[1])]['transcript_id']
+            # compute intersection
+            number_in_common = len(set(transcripts_s1) & set(transcripts_s2))
+            # and update dataframe containing results
+            result_df.iat[samples[0]-1, samples[1]-1] = number_in_common
+            # this is a symmetrical matrix
+            result_df.iat[samples[1]-1, samples[0]-1] = number_in_common
+
+        return result_df
+
+
 class SampleHeatmap(RnaseqqcTracker):
+
     table = "sailfish_transcripts"
     py2ri.activate()
 
     def getTracks(self, subset=None):
         return ("all")
-
-    def getCurrentRDevice(self):
-
-        '''return the numerical device id of the
-        current device'''
-
-        return R["dev.cur"]()[0]
 
     def hierarchicalClustering(self, dataframe):
         '''
@@ -80,7 +113,7 @@ class SampleHeatmap(RnaseqqcTracker):
 
         Returns
         -------
-        correlations: pandas.Core.DataFrame
+        corr_frame: pandas.Core.DataFrame
           a dataframe of a pair-wise correlation matrix
           across samples.  Uses the Pearson correlation.
         '''
@@ -101,17 +134,49 @@ class SampleHeatmap(RnaseqqcTracker):
 
         return corr_frame
 
+    def getFactors(self, dataframe, factor):
+        '''
+        Get factor/experimental design levels
+        from table
+        '''
+
+        statement = ("SELECT factor_value,sample_id FROM factor2 "
+                     "WHERE factor = '%(factor)s';" % locals())
+
+        factor_df = pd.DataFrame.from_dict(self.getAll(statement))
+
+        merged = pd.merge(dataframe, factor_df,
+                          left_index=True, right_on="sample_id",
+                          how='outer')
+        return merged
+
     def __call__(self, track, slice=None):
         statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
                      "WHERE transcript_id != 'Transcript';")
         df = pd.DataFrame.from_dict(self.getAll(statement))
-        # insert clustering function here
 
         mdf = self.hierarchicalClustering(df)
+
         mdf.columns = set(df["sample_id"])
         mdf.index = set(df["sample_id"])
 
-        return mdf
+        all_df = self.getFactors(mdf, 'replicate')
+        return all_df
+        # return mdf
+
+
+class TranscriptQuantificationHeatmap(object):
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __call__(self, data, path):
+
+        ax = seaborn.clustermap(data, row_colors=["red"] * 6 + ["blue"] * 6)
+
+        return ResultBlocks(ResultBlock(
+            '''#$mpl %i$#\n''' % ax.cax.figure.number,
+            title='ScatterPlot'))
 
 
 class sampleMDS(RnaseqqcTracker):
@@ -163,7 +228,7 @@ class samplePCA(RnaseqqcTracker):
     # - ability to change filter threshold for lowly expressed transcripts
 
     components = 10
-    table = "sailfish_transcripts"
+    table = "transcript_quantification"
 
     def pca(self):
 
@@ -235,11 +300,11 @@ class samplePCAprojections(samplePCA):
         # This is what want for ploting bar graph
         # y = sklearn_pca.explained_variance_ratio_
 
-        factor_statement = '''select * from factors'''
+        factor_statement = '''select * from factor2'''
 
-        # fetch factor data
+        # fetch factor data-THIS NEEDS TO BE ADJUSTED IF FACTORS table corrected
         factor_df = self.getDataFrame(factor_statement)
-        factor_df.set_index("sample_name", drop=True, inplace=True)
+        factor_df.set_index("sample_id", drop=True, inplace=True)
 
         full_df = PC_df.join(factor_df)
 
@@ -324,7 +389,8 @@ class BiasFactors(RnaseqqcTracker):
 
 
 class ExpressionDistribution(RnaseqqcTracker):
-    table = "sailfish_transcripts"
+
+    table = "transcript_quantification"
 
     def __call__(self, track, slice=None):
         statement = """SELECT sample_id, transcript_id, TPM

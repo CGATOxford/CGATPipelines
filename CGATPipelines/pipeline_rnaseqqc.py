@@ -781,13 +781,13 @@ def buildTranscriptProfiles(infiles, outfile):
 
 
 @merge(buildTranscriptProfiles,
-       "transcriptprofiles.dir/profiles.load")
+       "transcriptprofiles.dir/threeprimebiasprofiles.load")
 def loadTranscriptProfiles(infiles, outfile):
     ''' concatenate and load the transcript profiles
     Retain sample name as column = "track'''
 
-    regex = "transcriptprofiles.dir/(\S+).transcriptprofile.gz.geneprofile.matrix.tsv.gz"
-    infiles = [x + ".geneprofile.matrix.tsv.gz" for x in infiles]
+    regex = "transcriptprofiles.dir/(\S+).transcriptprofile.gz.geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz"
+    infiles = [x + ".geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz" for x in infiles]
 
     P.concatenateAndLoad(infiles, outfile, regex_filename=regex)
 
