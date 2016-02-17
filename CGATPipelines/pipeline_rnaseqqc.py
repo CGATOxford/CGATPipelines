@@ -289,107 +289,106 @@ def characteriseTranscripts(infile, outfile):
 
 
 # where should this code be moved to?.. module file?
-@follows(characteriseTranscripts)
-@transform(characteriseTranscripts,
-           regex("transcripts_attributes.tsv.gz"),
-           add_inputs(mergeResults),
-           ["quant.dir/binned_means_correlation.tsv",
-            "quant.dir/binned_means_gradients.tsv"])
-def summariseBias(infiles, outfiles):
+# @follows(characteriseTranscripts)
+# @transform(characteriseTranscripts,
+#            regex("transcripts_attributes.tsv.gz"),
+#            add_inputs(mergeResults),
+#            ["quant.dir/binned_means_correlation.tsv",
+#             "quant.dir/binned_means_gradients.tsv"])
+# def summariseBias(infiles, outfiles):
 
-    transcripts, expression = infiles
-    out_correlation, out_gradient = outfiles
+#     transcripts, expression = infiles
+#     out_correlation, out_gradient = outfiles
 
-    atr = pandas.read_csv(transcripts, sep='\t',
-                          compression="gzip", index_col="id")
-    exp = pandas.read_csv(expression, sep='\t')
-    atr = atr.rename(columns={'pGC': 'GC_Content'})
+#     atr = pandas.read_csv(transcripts, sep='\t',
+#                           compression="gzip", index_col="id")
+#     exp = pandas.read_csv(expression, sep='\t')
+#     atr = atr.rename(columns={'pGC': 'GC_Content'})
 
-    def percentage(x):
-        return float(x[0])/float(x[1])
+#     def percentage(x):
+#         return float(x[0])/float(x[1])
 
-    for di in iter.product("ATCG", repeat=2):
-        di = di[0]+di[1]
-        temp_df = atr.loc[:, [di, "length"]]
-        atr[di] = temp_df.apply(percentage, axis=1)
+#     for di in iter.product("ATCG", repeat=2):
+#         di = di[0]+di[1]
+#         temp_df = atr.loc[:, [di, "length"]]
+#         atr[di] = temp_df.apply(percentage, axis=1)
 
-    drop_cols = (["nAT", "nGC", "pAT", "pA", "pG", "pC", "pT", "nA",
-                  "nG", "nC", "nT", "ncodons",
-                  "mCountsOthers", "nUnk", "nN", "pN"])
-    atr = atr.drop(drop_cols, axis=1)
-    atr["length"] = numpy.log2(atr["length"])
+#     drop_cols = (["nAT", "nGC", "pAT", "pA", "pG", "pC", "pT", "nA",
+#                   "nG", "nC", "nT", "ncodons",
+#                   "mCountsOthers", "nUnk", "nN", "pN"])
+#     atr = atr.drop(drop_cols, axis=1)
+#     atr["length"] = numpy.log2(atr["length"])
 
-    log_exp = numpy.log2(exp.ix[:, 1:]+0.1)
+#     log_exp = numpy.log2(exp.ix[:, 1:]+0.1)
 
-    log_exp["id"] = exp[["Name"]]
-    log_exp = log_exp.set_index("id")
+#     log_exp["id"] = exp[["Name"]]
+#     log_exp = log_exp.set_index("id")
 
-    bias_factors = list(atr.columns)
-    samples = list(exp.columns)
-    samples.remove("Name")
+#     bias_factors = list(atr.columns)
+#     samples = list(exp.columns)
+#     samples.remove("Name")
 
-    merged = atr.merge(log_exp, left_index="id", right_index="id")
+#     merged = atr.merge(log_exp, left_index="id", right_index="id")
 
-    def lin_reg_grad(x, y):
-        slope, intercept, r, p, stderr = linregress(x, y)
-        return slope
+#     def lin_reg_grad(x, y):
+#         slope, intercept, r, p, stderr = linregress(x, y)
+#         return slope
 
-    def aggregate_by_factor(df, attribute, sample_names, bins, function):
+#     def aggregate_by_factor(df, attribute, sample_names, bins, function):
 
-        temp_dict = dict.fromkeys(sample_names, function)
-        temp_dict[attribute] = function
-        means_df = df.groupby(pandas.qcut(df.ix[:, attribute], bins))
-        means_df = means_df.agg(temp_dict).sort(axis=1)
-        atr_values = means_df[attribute]
-        means_df.drop(attribute, axis=1, inplace=True)
-        means_df = (means_df-means_df.min()) / (means_df.max()-means_df.min())
-        means_df[attribute] = atr_values
-        corr_matrix = means_df.corr(method='spearman')
-        corr_matrix = corr_matrix[corr_matrix.index != attribute]
-        factor_gradients = []
-        for sample in samples:
-            factor_gradients.append(lin_reg_grad(y=means_df[sample],
-                                                 x=means_df[factor]))
-        return means_df, corr_matrix, factor_gradients
+#         temp_dict = dict.fromkeys(sample_names, function)
+#         temp_dict[attribute] = function
+#         means_df = df.groupby(pandas.qcut(df.ix[:, attribute], bins))
+#         means_df = means_df.agg(temp_dict).sort(axis=1)
+#         atr_values = means_df[attribute]
+#         means_df.drop(attribute, axis=1, inplace=True)
+#         means_df = (means_df-means_df.min()) / (means_df.max()-means_df.min())
+#         means_df[attribute] = atr_values
+#         corr_matrix = means_df.corr(method='spearman')
+#         corr_matrix = corr_matrix[corr_matrix.index != attribute]
+#         factor_gradients = []
+#         for sample in samples:
+#             factor_gradients.append(lin_reg_grad(y=means_df[sample],
+#                                                  x=means_df[factor]))
+#         return means_df, corr_matrix, factor_gradients
 
-    corr_matrices = {}
-    gradient_lists = {}
-    for factor in bias_factors:
-        means_binned, corr_matrix, gradients = aggregate_by_factor(
-            merged, factor, samples, PARAMS["bias_bin"], numpy.mean)
-        outfile_means = "quant.dir/means_binned_%s.tsv" % factor
-        means_binned.to_csv(outfile_means, sep="\t",
-                            index=False, float_format='%.4f')
-        corr_matrices[factor] = list(corr_matrix[factor])
-        gradient_lists[factor] = gradients
+#     corr_matrices = {}
+#     gradient_lists = {}
+#     for factor in bias_factors:
+#         means_binned, corr_matrix, gradients = aggregate_by_factor(
+#             merged, factor, samples, PARAMS["bias_bin"], numpy.mean)
+#         outfile_means = "quant.dir/means_binned_%s.tsv" % factor
+#         means_binned.to_csv(outfile_means, sep="\t",
+#                             index=False, float_format='%.4f')
+#         corr_matrices[factor] = list(corr_matrix[factor])
+#         gradient_lists[factor] = gradients
 
-    corr_matrix_df = pandas.DataFrame.from_dict(
-        corr_matrices, orient='columns', dtype=None)
-    corr_matrix_df["sample"] = sorted(samples)
+#     corr_matrix_df = pandas.DataFrame.from_dict(
+#         corr_matrices, orient='columns', dtype=None)
+#     corr_matrix_df["sample"] = sorted(samples)
 
-    gradient_df = pandas.DataFrame.from_dict(
-        gradient_lists, orient='columns', dtype=None)
-    gradient_df["sample"] = sorted(samples)
+#     gradient_df = pandas.DataFrame.from_dict(
+#         gradient_lists, orient='columns', dtype=None)
+#     gradient_df["sample"] = sorted(samples)
 
-    corr_matrix_df.to_csv(out_correlation, sep="\t",
-                          index=False, float_format='%.6f')
+#     corr_matrix_df.to_csv(out_correlation, sep="\t",
+#                           index=False, float_format='%.6f')
 
-    gradient_df.to_csv(out_gradient, sep="\t",
-                       index=False, float_format='%.6f')
+#     gradient_df.to_csv(out_gradient, sep="\t",
+#                        index=False, float_format='%.6f')
+
+# @follows(summariseBias)
+# @transform(summariseBias,
+#            suffix(".tsv"),
+#            ".load")
+# def loadBiasSummary(infiles, outfiles):
+#     for inf in glob.glob("quant.dir/*.tsv"):
+#         P.load(inf, inf.replace(".tsv", ".load"))
 
 
-@follows(summariseBias)
-@transform(summariseBias,
-           suffix(".tsv"),
-           ".load")
-def loadBiasSummary(infiles, outfiles):
-    for inf in glob.glob("quant.dir/*.tsv"):
-        P.load(inf, inf.replace(".tsv", ".load"))
-
-
-@follows(loadBiasSummary)
-def full():
-    pass
+# @follows(loadBiasSummary)
+# def full():
+#     pass
 
 
 @follows(runSailfish)
