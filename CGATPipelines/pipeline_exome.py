@@ -449,8 +449,8 @@ def loadPicardDuplicateStatsSample(infiles, outfile):
 # Coverage of targetted area
 
 
-@transform(RemoveDuplicatesSample,
-           regex(r"gatk/(\S+).dedup.bam"),
+@transform(GATKIndelRealignSample,
+           regex(r"gatk/(\S+).realigned.bam"),
            r"gatk/\1.cov")
 def buildCoverageStats(infile, outfile):
     '''Generate coverage statistics for regions of interest from a bed
