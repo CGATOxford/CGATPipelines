@@ -446,6 +446,32 @@ def loadPicardDuplicateStatsSample(infiles, outfile):
 ###############################################################################
 ###############################################################################
 ###############################################################################
+# Realign sample-by-sample
+
+
+@transform(RemoveDuplicatesSample,
+           regex(r"gatk/(\S+).dedup.bam"),
+           add_inputs(r"gatk/\1.merged.bam.count"),
+           r"gatk/\1.realigned.bam")
+def GATKIndelRealignSample(infiles, outfile):
+    '''realigns around indels using GATK'''
+    infile, countfile = infiles
+    threads = PARAMS["gatk_threads"]
+    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    intervals = PARAMS["roi_intervals"]
+    padding = PARAMS["roi_padding"]
+    countf = open(countfile, "r")
+    if countf.read() > '1':
+        PipelineExome.GATKIndelRealign(infiles[0], outfile, genome, intervals,
+                                       padding, threads)
+    else:
+        shutil.copyfile(infile, outfile)
+        shutil.copyfile(infile + ".bai", outfile + ".bai")
+    IOTools.zapFile(infile)
+
+###############################################################################
+###############################################################################
+###############################################################################
 # Coverage of targetted area
 
 
@@ -468,33 +494,6 @@ def buildCoverageStats(infile, outfile):
 def loadCoverageStats(infiles, outfile):
     '''Import coverage statistics into SQLite'''
     PipelineMappingQC.loadPicardCoverageStats(infiles, outfile)
-
-###############################################################################
-###############################################################################
-###############################################################################
-# Realign sample-by-sample
-
-
-@follows(buildCoverageStats)
-@transform(RemoveDuplicatesSample,
-           regex(r"gatk/(\S+).dedup.bam"),
-           add_inputs(r"gatk/\1.merged.bam.count"),
-           r"gatk/\1.realigned.bam")
-def GATKIndelRealignSample(infiles, outfile):
-    '''realigns around indels using GATK'''
-    infile, countfile = infiles
-    threads = PARAMS["gatk_threads"]
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
-    intervals = PARAMS["roi_intervals"]
-    padding = PARAMS["roi_padding"]
-    countf = open(countfile, "r")
-    if countf.read() > '1':
-        PipelineExome.GATKIndelRealign(infiles[0], outfile, genome, intervals,
-                                       padding, threads)
-    else:
-        shutil.copyfile(infile, outfile)
-        shutil.copyfile(infile + ".bai", outfile + ".bai")
-    IOTools.zapFile(infile)
 
 ###############################################################################
 ###############################################################################
@@ -1480,8 +1479,8 @@ def mapping():
 
 @follows(GATKBaseRecal,
          loadPicardDuplicateStatsLane,
-         loadCoverageStats,
-         GATKIndelRealignSample)
+         GATKIndelRealignSample,
+         loadCoverageStats)
 def gatk():
     pass
 
