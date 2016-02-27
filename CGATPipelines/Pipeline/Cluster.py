@@ -141,6 +141,9 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
 
         spec.append("--mem-per-cpu=%s" % job_memory_per_cpu)
 
+        # set the partition to use (equivalent of SGE queue)
+        spec.append("--partition=%(cluster_queue)s")
+
     else:
         raise ValueError("Queue manager %s not supported" % queue_manager)
 
