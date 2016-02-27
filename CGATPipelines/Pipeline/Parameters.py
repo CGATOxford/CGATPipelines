@@ -134,8 +134,17 @@ HARDCODED_PARAMS = {
     'database_port': 3306,
     # wrapper around non-CGAT scripts
     'cmd-run': """%(pipeline_scriptsdir)s/run.py""",
-    # directory used for temporary local files
+    # legacy directory used for temporary local files
+    #     Use of this var is not recommended
+    #     and will be depreciated
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
+    # directory used for temporary local tempory files on compute nodes
+    # *** passed directly to the shell      ***
+    # *** may not exist on login/head nodes ***
+    # default matches 'tmpdir' only for backwards compatibility
+    # typically a shell environment var is expected, e.g.
+    # 'local_tmpdir': '$SCRATCH_DIR',
+    'local_tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
     # queue manager (supported: sge, slurm)
