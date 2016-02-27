@@ -135,8 +135,8 @@ HARDCODED_PARAMS = {
     # wrapper around non-CGAT scripts
     'cmd-run': """%(pipeline_scriptsdir)s/run.py""",
     # legacy directory used for temporary local files
-    #     Use of this var is not recommended
-    #     and will be depreciated
+    #     Use of this var can be problematic (issue #174)
+    #     - it may be depreciated.
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary local tempory files on compute nodes
     # *** passed directly to the shell      ***
