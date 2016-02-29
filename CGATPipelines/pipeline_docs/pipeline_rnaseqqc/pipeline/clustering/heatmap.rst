@@ -29,6 +29,7 @@ What you should expect from the results
 ---------------------------------------
 
 Samples that are experimentally closer together, i.e. replicates within an experimental condition, should lie closer together in the heatmap.  Samples from different conditions should lie distal to each other.  If samples cluster unexpectedly this may indicate confounding from additional sources, such as library preparation, sequencing lane or other experimental factors.
+Currently the colour bar only represents the different replicate groups (NB: will add `condition` later when these have been set as required fields).
 
 Examples
 --------
@@ -40,7 +41,7 @@ Cluster Plot
 ============
 
 .. report:: RnaseqqcReport.SampleHeatmap
-   :render: RnaseqqcRenderer.ClusterMapWithSideBar
+   :render: RnaseqqcReport.TranscriptQuantificationHeatmap
  
    Similarity of samples using pair-wise Pearson correlations.  Samples are clustered by average linkaged
    hierarchical clustering.
