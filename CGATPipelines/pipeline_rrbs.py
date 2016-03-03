@@ -822,7 +822,7 @@ def calculateMethylationFrequency(infile, outfile):
            suffix("_frequency.tsv"),
            "_frequency.png")
 def plotMethylationFrequency(infile, outfile):
-    RRBS.plotMethFrequency(infile, outfile, job_memory="6G", submit=True)
+    RRBS.plotMethFrequency(infile, outfile, job_memory="2G", submit=True)
 
 
 @transform(addTreatmentMeans,
