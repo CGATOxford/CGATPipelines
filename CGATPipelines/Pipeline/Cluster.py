@@ -42,6 +42,7 @@ try:
 except RuntimeError:
     HAS_DRMAA = False
 
+
 def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
     '''Sets up a Drmma job template. Currently SGE and SLURM are
        supported'''
@@ -84,9 +85,9 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
             spec.append(
                 "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
 
-            if "cluster_pe_queue" in options and 'job_threads' in options:
-                spec.append(
-                    "-q %(cluster_pe_queue)s")
+        if "cluster_pe_queue" in options and 'job_threads' in options:
+            spec.append(
+                "-q %(cluster_pe_queue)s")
         else:
             spec.append("-q %(cluster_queue)s")
 
@@ -140,6 +141,9 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
                              ' e.g. 1G or 1000M for 1 Gigabyte of memory')
 
         spec.append("--mem-per-cpu=%s" % job_memory_per_cpu)
+
+        # set the partition to use (equivalent of SGE queue)
+        spec.append("--partition=%(cluster_queue)s")
 
     else:
         raise ValueError("Queue manager %s not supported" % queue_manager)
