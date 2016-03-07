@@ -92,7 +92,7 @@ found in any other transcript.
  	       scale_shape_discrete(guide=FALSE) + 
 	       scale_colour_manual(guide=FALSE, values = c("grey15","red")) + 
 	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
-	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       geom_boxplot(outlier.colour=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(axis.title.x=element_text(size=15),
 	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
@@ -167,7 +167,7 @@ truth and estimated Count
  	       scale_shape_discrete(guide=FALSE) + 
 	       scale_colour_manual(guide=FALSE, values = c("grey15","red")) + 
 	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
-	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       geom_boxplot(outlier.colour=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(axis.title.x=element_text(size=15),
 	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
@@ -202,7 +202,7 @@ less than 3 % unique kmers are flagged.
                            position=position_jitter(width=0.3,
 			   height=0)) +
 	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
-	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       geom_boxplot(outlier.colour=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
@@ -226,7 +226,7 @@ less than 3 % unique kmers are flagged.
                            position=position_jitter(width=0.3,
 			   height=0)) +
 	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
-	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       geom_boxplot(outlier.colour=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
@@ -264,7 +264,7 @@ are shown
                            position=position_jitter(width=0.3,
 			   height=0)) +
 	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
-	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       geom_boxplot(outlier.colour=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
@@ -288,7 +288,7 @@ are shown
                            position=position_jitter(width=0.3,
 			   height=0)) +
 	       stat_boxplot(geom ="errorbar", col="chartreuse3") +
-	       geom_boxplot(outlier.col=NA, col="chartreuse3") +
+	       geom_boxplot(outlier.colour=NA, col="chartreuse3") +
 	       theme_bw() +
 	       theme(
 	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
