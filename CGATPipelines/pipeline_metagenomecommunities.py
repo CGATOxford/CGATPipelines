@@ -724,19 +724,19 @@ def runDiamondOnRawSequences(infile, outfile):
     db = PARAMS["diamond_db"]
     diamond_options = PARAMS["diamond_options"]
 
-    statement = '''zcat %(infile)s > %(temp)s.fastq;                                                                                                                                                                                        
-                   checkpoint;                                                                                                                                                                                                              
-                   diamond blastx                                                                                                                                                                                                           
-                   --db %(db)s                                                                                                                                                                                                              
-                   --query %(temp)s.fastq                                                                                                                                                                                                   
-                   --daa %(temp)s.daa                                                                                                                                                                                                       
+    statement = '''zcat %(infile)s > %(temp)s.fastq;
+                   checkpoint;
+                   diamond blastx
+                   --db %(db)s
+                   --query %(temp)s.fastq
+                   --daa %(temp)s.daa
                    --threads(job_threads)s
-                   --log                                                                                                                                                                                                                    
-                   %(diamond_options)s                                                                                                                                                                                                      
-                   &> %(outfile)s.log;                                                                                                                                                                                                      
-                   diamond view -a %(temp)s.daa | gzip > %(outfile)s;                                                                                                                                                                       
-                   checkpoint;                                                                                                                                                                                                              
-                   rm -rf %(temp)s %(temp)s.fastq %(temp)s.daa                                                                                                                                                                              
+                   --log
+                   %(diamond_options)s
+                   &> %(outfile)s.log;
+                   diamond view -a %(temp)s.daa | gzip > %(outfile)s;
+                   checkpoint;
+                   rm -rf %(temp)s %(temp)s.fastq %(temp)s.daa
                 '''
     P.run()
 
@@ -752,7 +752,7 @@ def runLCA(infile, outfile):
     run the lowest common ancestor algorithm
     on the blast output to assign reads to
     taxa - from mtools. Runs with defaults at
-    the moment.  
+    the moment.
     '''
     job_memory = "25G"
 
@@ -955,8 +955,8 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
 
 
 @jobs_limit(1, "R")
-@transform(mergeLcaCountsAcrossSamples, 
-           suffix(".counts.tsv.gz"), 
+@transform(mergeLcaCountsAcrossSamples,
+           suffix(".counts.tsv.gz"),
            ".counts.rarefied.tsv")
 def rarefyTaxa(infile, outfile):
     '''
@@ -975,25 +975,28 @@ rarefy = {0: (mergeLcaCountsAcrossSamples, ".counts.tsv.gz"),
 RAREFY_FUNC = rarefy[PARAMS.get("rarefy_rarefy_taxa")][0]
 RAREFY_SUFFIX = rarefy[PARAMS.get("rarefy_rarefy_taxa")][1]
 
+
 @jobs_limit(1, "R")
-@transform(RAREFY_FUNC, 
+@transform(RAREFY_FUNC,
            suffix(RAREFY_SUFFIX),
            ".proportion.tsv")
 def buildLcaProportionsAcrossSamples(infile, outfile):
     '''
-    build the proportion of reads mapped to 
+    build the proportion of reads mapped to
     each taxoomic level per sample
     '''
-    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(infile, 
-                                                                   outfile,
-                                                                   dtype="taxa")
+    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(
+        infile,
+        outfile,
+        dtype="taxa")
 
 ###############################################
 ###############################################
 ###############################################
+
 
 @jobs_limit(1, "R")
-@transform(buildLcaProportionsAcrossSamples, 
+@transform(buildLcaProportionsAcrossSamples,
            suffix(".tsv"),
            ".cumproportion.pdf")
 def plotLcaProportionDistributions(infile, outfile):
@@ -1009,7 +1012,7 @@ def plotLcaProportionDistributions(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform(buildLcaProportionsAcrossSamples, 
+@transform(buildLcaProportionsAcrossSamples,
            suffix(".tsv"),
            ".stackedbar.pdf")
 def barchartLcaProportions(infile, outfile):
@@ -1191,19 +1194,19 @@ def runDiamondOnGenes(infile, outfile):
     db = PARAMS["genes_db"]
     diamond_options = PARAMS["genes_diamond_options"]
 
-    statement = '''zcat %(infile)s > %(temp)s.fastq;                                                                                                                                                                                        
-                   checkpoint;                                                                                                                                                                                                              
-                   diamond blastx                                                                                                                                                                                                           
-                   --db %(db)s                                                                                                                                                                                                              
-                   --query %(temp)s.fastq                                                                                                                                                                                                   
-                   --threads(job_threads)s 
-                   --daa %(temp)s.daa                                                                                                                                                                                                       
-                   --log                                                                                                                                                                                                                    
-                   %(diamond_options)s                                                                                                                                                                                                      
-                   &> %(outfile)s.log;                                                                                                                                                                                                      
-                   diamond view -a %(temp)s.daa | gzip > %(outfile)s;                                                                                                                                                                       
-                   checkpoint;                                                                                                                                                                                                              
-                   rm -rf %(temp)s %(temp)s.fastq %(temp)s.daa                                                                                                                                                                              
+    statement = '''zcat %(infile)s > %(temp)s.fastq;
+                   checkpoint;
+                   diamond blastx
+                   --db %(db)s
+                   --query %(temp)s.fastq
+                   --threads(job_threads)s
+                   --daa %(temp)s.daa
+                   --log
+                   %(diamond_options)s
+                   &> %(outfile)s.log;
+                   diamond view -a %(temp)s.daa | gzip > %(outfile)s;
+                   checkpoint;
+                   rm -rf %(temp)s %(temp)s.fastq %(temp)s.daa
                 '''
     P.run()
 
@@ -1227,6 +1230,9 @@ def buildDiamondGeneCounts(infile, outfile):
     P.run()
 
 
+###################################################################
+###################################################################
+###################################################################
 
 @transform(buildDiamondGeneCounts,
            suffix(".tsv.gz"),
@@ -1275,7 +1281,7 @@ def annotatePathways(infile, outfile):
     '''
     annotate NOGs with there respecetive pathways (functional categories)
     '''
-    PipelineMetagenomeCommunities.annotate(infile, 
+    PipelineMetagenomeCommunities.annotate(infile,
                                            outfile,
                                            PARAMS.get("pathways_geneset"))
 
@@ -1285,17 +1291,18 @@ def annotatePathways(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform(annotatePathways, 
+@transform(annotatePathways,
            suffix(".annotated.tsv.gz"),
            ".proportion.pathways.tsv")
 def buildPathwayProportionsAcrossSamples(infile, outfile):
     '''
-    build the proportion of reads mapped to 
+    build the proportion of reads mapped to
     each taxoomic level per sample
     '''
-    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(infile, 
-                                                                   outfile,
-                                                                   dtype="pathway")
+    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(
+        infile,
+        outfile,
+        dtype="pathway")
 
 
 ###################################################################
@@ -1304,17 +1311,18 @@ def buildPathwayProportionsAcrossSamples(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform(mergeDiamondGeneCounts, 
+@transform(mergeDiamondGeneCounts,
            suffix("_counts.tsv.gz"),
            ".proportion.tsv")
 def buildGeneProportionsAcrossSamples(infile, outfile):
     '''
-    build the proportion of reads mapped to 
+    build the proportion of reads mapped to
     each taxoomic level per sample
     '''
-    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(infile, 
-                                                                   outfile,
-                                                                   dtype="gene")
+    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(
+        infile,
+        outfile,
+        dtype="gene")
 
 ###############################################
 ###############################################
@@ -1337,9 +1345,10 @@ def plotGeneProportionDistributions(infile, outfile):
 ###################################################################
 ###################################################################
 
+
 @jobs_limit(1, "R")
 @transform([buildGeneProportionsAcrossSamples,
-            buildPathwayProportionsAcrossSamples], 
+            buildPathwayProportionsAcrossSamples],
            suffix(".tsv"),
            ".stackedbar.pdf")
 def barchartGeneProportions(infile, outfile):
