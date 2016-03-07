@@ -576,18 +576,22 @@ def buildReferenceTranscriptome(infile, outfile):
 def buildReferencePreTranscriptome(infile, outfile):
     ''' build a reference transcriptome for pre-mRNAs'''
 
-    genome_file = os.path.abspath(
-        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
+    if PARAMS['simulation_pre_mrna_fraction']:
+        genome_file = os.path.abspath(
+            os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
 
-    statement = '''
-    zcat %(infile)s |
-    awk '$3 == "transcript"'|
-    python %(scriptsdir)s/gff2fasta.py
-    --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
-    --log=%(outfile)s.log > %(outfile)s;
-    samtools faidx %(outfile)s
-    '''
-    P.run()
+        statement = '''
+        zcat %(infile)s |
+        awk '$3 == "transcript"'|
+        python %(scriptsdir)s/gff2fasta.py
+        --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
+        --log=%(outfile)s.log > %(outfile)s;
+        samtools faidx %(outfile)s
+        '''
+        P.run()
+
+    else:
+        P.touch(outfile)
 
 
 @transform(buildReferenceTranscriptome,
@@ -730,6 +734,9 @@ def simulateRNASeqReads(infiles, outfiles):
 
     job_threads = 2
 
+    if PARAMS['simulation_threshold_length']:
+        options += " --min-length"
+
     statement = '''
     cat %(infile)s |
     python %(scriptsdir)s/fasta2fastq.py
@@ -741,6 +748,23 @@ def simulateRNASeqReads(infiles, outfiles):
     --counts-method=reads
     --counts-min=%(simulation_counts_min)s
     --counts-max=%(simulation_counts_max)s
+    --sequence-error-phred=%(simulation_phred)s
+    --output-counts=%(outfile_counts)s
+    --output-quality-format=33 -L %(outfile)s.log
+    %(options)s | %(single_end_random_cmd)s
+    gzip > %(outfile)s %(paired_end_random_cmd)s'''
+
+    statement = '''
+    cat %(infile)s |
+    python %(scriptsdir)s/fasta2fastq.py
+    --premrna-fraction=%(simulation_pre_mrna_fraction)s
+    --infile-premrna-fasta=%(premrna_fasta)s
+    --output-read-length=%(simulation_read_length)s
+    --insert-length-mean=%(simulation_insert_mean)s
+    --insert-length-sd=%(simulation_insert_sd)s
+    --counts-method=copies
+    --counts-min=1
+    --counts-max=10
     --sequence-error-phred=%(simulation_phred)s
     --output-counts=%(outfile_counts)s
     --output-quality-format=33 -L %(outfile)s.log
