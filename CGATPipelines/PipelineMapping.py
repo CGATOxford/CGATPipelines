@@ -1174,7 +1174,8 @@ class Kallisto(Mapper):
 
         if self.pseudobam:
             statement += '''
-            --pseudobam | samtools view -b - > %(outfile)s.bam ;''' % locals()
+            --pseudobam | samtools view -b -
+            > %(outfile)s.bam 2> %(logfile)s;''' % locals()
         else:
             statement += ''' > %(logfile)s &> %(logfile)s ;''' % locals()
 
