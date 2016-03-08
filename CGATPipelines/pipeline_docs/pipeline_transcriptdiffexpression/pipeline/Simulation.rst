@@ -50,9 +50,9 @@ greater than 2-fold, the transcript is flagged.
 	       xlab("Ground truth") +
 	       ylab("Estimated TPM") +
 	       geom_abline(col="grey40", size=0.5) +
-	       geom_abline(intercept=0, slope=1.5, col="turquoise3",
+	       geom_abline(intercept=0, slope=2, col="turquoise3",
                            size=0.5, linetype=2) +
-	       geom_abline(intercept=0, slope=0.66, col="turquoise3",
+	       geom_abline(intercept=0, slope=1, col="turquoise3",
                            size=0.5, linetype=2)
 
     Ground Truth TPM vs. Estimated TPM
@@ -133,9 +133,9 @@ are shown instead of the TPM
 	       xlab("Ground truth") +
 	       ylab("Estimated Counts") +
 	       geom_abline(col="grey40", size=0.5) +
-	       geom_abline(intercept=0, slope=1.5, col="turquoise3",
+	       geom_abline(intercept=0, slope=2, col="turquoise3",
                            size=0.5, linetype=2) +
-	       geom_abline(intercept=0, slope=0.66, col="turquoise3",
+	       geom_abline(intercept=0, slope=0.5, col="turquoise3",
                            size=0.5, linetype=2)
 
     Ground Truth Count vs. Estimated Count

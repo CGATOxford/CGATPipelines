@@ -670,6 +670,16 @@ def countKmers(infile, outfile):
     P.run()
 
 
+@transform(countKmers,
+           suffix(".tsv"),
+           ".load")
+def loadKmers(infile, outfile):
+    ''' load the kmer counts'''
+
+    options = "--add-index=id"
+    P.load(infile, outfile, options=options)
+
+
 @mkdir("simulation.dir")
 @follows(buildReferenceTranscriptome,
          buildReferencePreTranscriptome)
@@ -1003,7 +1013,8 @@ def loadLowConfidenceTranscripts(infile, outfile):
 
 
 @mkdir("simulation.dir")
-@follows(loadCorrelation,
+@follows(loadKmers,
+         loadCorrelation,
          loadLowConfidenceTranscripts)
 def simulation():
     pass
