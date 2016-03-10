@@ -909,7 +909,7 @@ def findGenes(infile, outfile):
 # Tabulation
 
 
-TABULATION_INPUT = {0: annotateVariantsSNPsift, 1: findGenes}
+TABULATION_INPUT = {0: annotateVariantsVEP, 1: findGenes}
 
 
 @transform(TABULATION_INPUT[PARAMS["annotation_add_genes_of_interest"]],
