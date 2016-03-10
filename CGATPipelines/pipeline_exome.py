@@ -384,8 +384,8 @@ def GATKBaseRecal(infile, outfile):
         shutil.copyfile(infile, outfile)
         shutil.copyfile(intrack + ".bai", outtrack + ".bai")
     else:
-        PipelineExome.GATKBaseRecal(infile, outfile, genome, intervals, padding,
-                                dbsnp, solid_options)
+        PipelineExome.GATKBaseRecal(infile, outfile, genome, intervals,
+                                    padding, dbsnp, solid_options)
     IOTools.zapFile(infile)
 
 ###############################################################################
@@ -409,8 +409,8 @@ def mergeBAMs(infiles, outfile):
                    ASSUME_SORTED=true; checkpoint; '''
     statement += '''samtools index %(outfile)s ;''' % locals()
     P.run()
-    
-    #for inputfile in infiles:
+
+    # for inputfile in infiles:
     #    IOTools.zapFile(inputfile)
 
 ###############################################################################
@@ -1291,19 +1291,21 @@ def xlinkedVariants(infiles, outfile):
         mothers_exp = ''
     else:
         mothers_exp = '&&vc.getGenotype("' + \
-        ('").getPL().1==0&&vc.getGenotype("'.join(mothers)) + \
-        '").getPL().1==0'
+                      ('").getPL().1==0&&vc.getGenotype("'.join(mothers)) + \
+                      '").getPL().1==0'
     if len(male_unaffecteds) == 0:
         male_unaffecteds_exp = ''
     else:
         male_unaffecteds_exp = '&&vc.getGenotype("' + \
-        ('").isHomRef()&&vc.getGenotype("'.join(male_unaffecteds)) + \
-        '").isHomRef()'
+                               ('").isHomRef()&&vc.getGenotype("'.join(
+                                   male_unaffecteds)) + \
+                               '").isHomRef()'
     if len(female_unaffecteds) == 0:
         female_unaffecteds_exp = ''
     else:
         female_unaffecteds_exp = '&&vc.getGenotype("' + \
-        ('").getPL().2!=0&&vc.getGenotype("'.join(female_unaffecteds)) + \
+                                 ('").getPL().2!=0&&vc.getGenotype("'.join(
+                                     female_unaffecteds)) + \
             '").getPL().2!=0'
     select = '''CHROM=="X"&&!vc.getGenotype("%(affecteds_exp)s").isHomRef()%(mothers_exp)s%(male_unaffecteds_exp)s%(female_unaffecteds_exp)s&&(SNPEFF_IMPACT=="HIGH"||SNPEFF_IMPACT=="MODERATE")''' % locals()
     PipelineExome.selectVariants(infile, outfile, genome, select)
@@ -1417,6 +1419,7 @@ def loadCompoundHets(infile, outfile):
 ###############################################################################
 # coverage over candidate genes
 
+
 @active_if(PARAMS["coverage_calculate"] == 1)
 @transform(listOfBAMs, regex(r"gatk/all_samples.list"), r"candidate.sample_interval_summary")
 def candidateCoverage(infile, outfile):
@@ -1426,13 +1429,13 @@ def candidateCoverage(infile, outfile):
     candidates = candidates.replace(",", " -e ")
     genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
     threshold = PARAMS["coverage_threshold"]
-    statement = '''zcat %(all_exons)s | grep -e %(candidates)s 
-                   | awk '{print $1 ":" $4 "-" $5}' - | sed 's/chr//' - > 
+    statement = '''zcat %(all_exons)s | grep -e %(candidates)s
+                   | awk '{print $1 ":" $4 "-" $5}' - | sed 's/chr//' - >
                    candidate.interval_list ; ''' % locals()
     statement += '''zcat %(all_exons)s | grep -e %(candidates)s
-                    | awk '{print $16}' - | sed 's/"//g;s/;//g' - > 
+                    | awk '{print $16}' - | sed 's/"//g;s/;//g' - >
                     candidate_gene_names.txt ;''' % locals()
-    statement += '''GenomeAnalysisTK -T DepthOfCoverage -R %(genome)s 
+    statement += '''GenomeAnalysisTK -T DepthOfCoverage -R %(genome)s
                     -o candidate -I %(infile)s -ct %(threshold)s -L candidate.interval_list ;''' % locals()
     P.run()
 
@@ -1555,9 +1558,11 @@ def dominant():
 def recessive():
     pass
 
+
 @follows(loadXs)
 def xlinked():
     pass
+
 
 @follows(loadCompoundHets)
 def compoundHet():
