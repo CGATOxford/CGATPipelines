@@ -844,10 +844,41 @@ def annotateVariantsSNPsift(infile, outfile):
                     > variants/%(track)s_temp1.vcf; checkpoint;
                     SnpSift.sh annotate %(clinvar)s
                     variants/%(track)s_temp1.vcf > %(track)s_temp2.vcf;
-                    checkpoint; SnpSift.sh annotate -info AC_Adj,AN_Adj,AF 
-                    %(exac)s %(track)s_temp2.vcf > %(outfile)s; 
+                    checkpoint; SnpSift.sh annotate -info AC_Adj,AN_Adj,AF
+                    %(exac)s %(track)s_temp2.vcf > %(outfile)s;
                     rm -f variants/%(track)s_temp*.vcf;''' % locals()
     P.run()
+
+
+@transform(annotateVariantsSNPsift,
+           regex(r"variants/all_samples.snpsift.vcf"),
+           r"variants/all_samples.vep.vcf")
+def annotateVariantsVEP(infile, outfile):
+    # infile - VCF
+    # outfile - VCF with vep annotations
+    job_options = "-l mem_free=6G"
+    job_threads = 4
+    tempin = P.getTempFilename(".")
+    tempout = P.getTempFilename(".")
+    shutil.copy(infile, tempin)
+    VEP = PARAMS["annotation_vepannotators"].split(",")
+    vep_annotators = PARAMS["annotation_vepannotators"]
+    vep_path = PARAMS["annotation_veppath"]
+    vep_cache = PARAMS["annotation_vepcache"]
+    vep_species = PARAMS["annotation_vepspecies"]
+    vep_assembly = PARAMS["annotation_vepassembly"]
+    if len(vep_annotators) != 0:
+        annostring = vep_annotators
+        statement = '''perl %(vep_path)s/variant_effect_predictor.pl
+                       --cache --dir %(vep_cache)s --vcf
+                       --species %(vep_species)s
+                       --assembly %(vep_assembly)s --input_file %(tempin)s
+                       --output_file %(tempout)s --force_overwrite
+                       %(annostring)s --offline;
+                       cp %(tempout)s variants/vep.vcf;
+                       mv %(tempout)s %(tempin)s'''
+        P.run()
+    shutil.move(tempin, outfile)
 
 ###############################################################################
 ###############################################################################
@@ -856,7 +887,7 @@ def annotateVariantsSNPsift(infile, outfile):
 
 
 @active_if(PARAMS["annotation_add_genes_of_interest"] == 1)
-@transform((annotateVariantsSNPsift),
+@transform((annotateVariantsVEP),
            regex(r"variants/all_samples.snpsift.vcf"),
            r"variants/all_samples.genes.vcf")
 def findGenes(infile, outfile):
