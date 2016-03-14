@@ -1154,7 +1154,9 @@ class Kallisto(Mapper):
 
         if nfiles == 1:
 
-            infiles = "--single " + " ".join([x[0] for x in infiles])
+            infiles = (" --fragment-length=%(kallisto_fragment_length)s" +
+                       " --sd=%(kallisto_fragment_sd)s" +
+                       " --single %s" % " ".join([x[0] for x in infiles]))
 
         elif nfiles == 2:
             infiles = " ".join([" ".join(x) for x in infiles])
