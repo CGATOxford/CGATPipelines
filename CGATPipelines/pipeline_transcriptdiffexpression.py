@@ -608,13 +608,13 @@ if PARAMS["geneset_auto_generate"]:
 
 else:
     # if a reference gtf is provided, just soft link to this
-    assert os.path.exists(geneset.fa) > 0, (
+    assert os.path.exists("geneset.fa") > 0, (
         "if not auto generating a geneset, you must"
         "provide a geneset in a geneset.fa file")
 
     @mkdir("index.dir")
     @files("geneset.fa", "index.dir/transcripts.fa")
-    def buildGeneSet(infile, outfile):
+    def buildReferenceTranscriptome(infile, outfile):
         ''' link to the geneset provided'''
         P.clone(os.path.abspath(infile), os.path.abspath(outfile))
 
