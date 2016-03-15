@@ -576,18 +576,22 @@ def buildReferenceTranscriptome(infile, outfile):
 def buildReferencePreTranscriptome(infile, outfile):
     ''' build a reference transcriptome for pre-mRNAs'''
 
-    genome_file = os.path.abspath(
-        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
+    if PARAMS['simulation_pre_mrna_fraction']:
+        genome_file = os.path.abspath(
+            os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
 
-    statement = '''
-    zcat %(infile)s |
-    awk '$3 == "transcript"'|
-    python %(scriptsdir)s/gff2fasta.py
-    --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
-    --log=%(outfile)s.log > %(outfile)s;
-    samtools faidx %(outfile)s
-    '''
-    P.run()
+        statement = '''
+        zcat %(infile)s |
+        awk '$3 == "transcript"'|
+        python %(scriptsdir)s/gff2fasta.py
+        --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
+        --log=%(outfile)s.log > %(outfile)s;
+        samtools faidx %(outfile)s
+        '''
+        P.run()
+
+    else:
+        P.touch(outfile)
 
 
 @transform(buildReferenceTranscriptome,
@@ -666,6 +670,16 @@ def countKmers(infile, outfile):
     P.run()
 
 
+@transform(countKmers,
+           suffix(".tsv"),
+           ".load")
+def loadKmers(infile, outfile):
+    ''' load the kmer counts'''
+
+    options = "--add-index=id"
+    P.load(infile, outfile, options=options)
+
+
 @mkdir("simulation.dir")
 @follows(buildReferenceTranscriptome,
          buildReferencePreTranscriptome)
@@ -738,9 +752,9 @@ def simulateRNASeqReads(infiles, outfiles):
     --output-read-length=%(simulation_read_length)s
     --insert-length-mean=%(simulation_insert_mean)s
     --insert-length-sd=%(simulation_insert_sd)s
-    --counts-method=reads
-    --counts-min=%(simulation_counts_min)s
-    --counts-max=%(simulation_counts_max)s
+    --counts-method=copies
+    --counts-min=%(simulation_copies_min)s
+    --counts-max=%(simulation_copies_max)s
     --sequence-error-phred=%(simulation_phred)s
     --output-counts=%(outfile_counts)s
     --output-quality-format=33 -L %(outfile)s.log
@@ -999,7 +1013,8 @@ def loadLowConfidenceTranscripts(infile, outfile):
 
 
 @mkdir("simulation.dir")
-@follows(loadCorrelation,
+@follows(loadKmers,
+         loadCorrelation,
          loadLowConfidenceTranscripts)
 def simulation():
     pass
