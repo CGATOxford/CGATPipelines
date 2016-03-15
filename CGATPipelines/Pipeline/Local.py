@@ -60,9 +60,11 @@ import re
 import shutil
 import inspect
 import collections
+import brewer2mpl
 
 from CGAT import Experiment as E
 import CGAT.IOTools as IOTools
+from CGATPipelines.Pipeline.Parameters import loadParameters
 
 PROJECT_ROOT = '/ifs/projects'
 
@@ -440,7 +442,8 @@ def publish_report(prefix="",
 def publish_tracks(export_files,
                    prefix="",
                    project_id=None,
-                   project_name=None):
+                   project_name=None,
+                   UCSC_ini=None):
     '''publish a UCSC Track Hub.
 
     This method takes a dictionary of file types associated
@@ -487,6 +490,11 @@ def publish_tracks(export_files,
 
     if not prefix:
         prefix = PARAMS.get("report_prefix", "")
+
+    if not UCSC_ini:
+        UCSC_ini = PARAMS.get("ucsc_ini", None)
+
+    print "\n\n\n\n", UCSC_ini, "\n\n\n\n"
 
     web_dir = PARAMS["web_dir"]
     if project_id is None:
@@ -580,6 +588,38 @@ def publish_tracks(export_files,
                                  ("shortLabel", trackname),
                                  ("longLabel", trackname),
                                  ("type", ucsctype))
+
+    if UCSC_ini:
+        UCSC_PARAMS = loadParameters(UCSC_ini)
+
+        for param, values in UCSC_PARAMS.iteritems():
+            if not re.match(".*_values", param):
+                continue
+
+            name = param.replace("_values", "")
+            values = UCSC_PARAMS[param]
+            tracks[name] = [x.split(" ") for x in values.split(",")]
+            regex = UCSC_PARAMS[name + "_regex"]
+            children = []
+
+            for track in tracks:
+                if re.match(regex, track):
+                    children.append(track)
+
+            if name + "_colour" in UCSC_PARAMS.keys():
+                colour, colour_type = UCSC_PARAMS[name + "_colour"].split(",")
+                colours = brewer2mpl.get_map(
+                    colour, colour_type, max(3, len(children)))
+                colours = colours.colors
+            else:
+                colours = None
+
+            for n, child in enumerate(children):
+                tracks[child] += (("parent", name),)
+                if colours:
+                    rgb = ",".join(map(str, colours[n]))
+                    tracks[child] += (("color", rgb),)
+
 
     E.info("writing to %s" % trackfile)
     with IOTools.openFile(trackfile, "w") as outfile:

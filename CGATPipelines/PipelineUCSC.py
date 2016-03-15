@@ -398,7 +398,7 @@ def writeTrackFile(outfile, tracks):
     data : list
         List of tracks, each being a dictionary of key/value pairs.
     '''
-
+    
     for track, trackdata in tracks:
         outfile.write(" ".join(("track", track)) + "\n")
         for key, value in trackdata:
