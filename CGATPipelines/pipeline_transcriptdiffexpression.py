@@ -1208,9 +1208,9 @@ def runSleuth(infiles, outfiles):
     # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
     # I've found this to be a serious underestimate so this is a more
     # conservative estimate
-    memory_estimate = (48 * PARAMS["kallisto_bootstrap"] * number_samples *
+    memory_estimate = (48 * max(1,PARAMS["kallisto_bootstrap"]) * number_samples *
                        number_transcripts)
-    job_memory = "%fG" % ((memory_estimate / 1073741824))
+    job_memory = "%fG" % (float(memory_estimate) / 1073741824)
 
     design_id = P.snip(design, ".design.tsv")
     model = PARAMS["sleuth_model_%s" % design_id]
@@ -1248,10 +1248,11 @@ def runSleuthAll(infiles, outfiles):
     # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
     # I've found this to be a serious underestimate so this is a more
     # conservative estimate
-    memory_estimate = (48 * PARAMS["kallisto_bootstrap"] * len(samples) *
+    memory_estimate = (48 * max(1,PARAMS["kallisto_bootstrap"]) * len(samples) *
                        number_transcripts)
 
-    job_memory = "%fG" % ((memory_estimate / 1073741824))
+    job_memory = "%fG" % (float(memory_estimate) / 1073741824)
+    print job_memory
 
     TranscriptDiffExpression.runSleuthAll(
         samples, "quant.dir/kallisto", counts, tpm,
