@@ -697,7 +697,7 @@ def index():
 # Simulation
 ###############################################################################
 # if not simulating, final task ('simulation') is empty
-if PARAMS['simulation']:
+if PARAMS['simulation_run']:
 
     @mkdir("simulation.dir")
     @transform(buildReferenceTranscriptome,
