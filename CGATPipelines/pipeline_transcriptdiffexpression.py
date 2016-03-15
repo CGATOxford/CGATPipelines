@@ -76,7 +76,6 @@ To generate a geneset multi-fasta from a gtf, use the following:
         --log=geneset.fa.log > geneset.fa;
         samtools faidx geneset.fa
         '''
-        P.run()
 
 To generate a geneset multi-fasta of pre-mRNAs from a gtf, use the following:
 
