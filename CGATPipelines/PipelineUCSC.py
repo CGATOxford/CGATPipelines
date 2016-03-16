@@ -383,6 +383,9 @@ def readTrackFile(infile):
                 track = value
                 continue
             block.append((key, value))
+        # T.S need to yield final block too
+        yield track, block
+
     return list(_yielder(data))
 
 
@@ -398,7 +401,7 @@ def writeTrackFile(outfile, tracks):
     data : list
         List of tracks, each being a dictionary of key/value pairs.
     '''
-    
+
     for track, trackdata in tracks:
         outfile.write(" ".join(("track", track)) + "\n")
         for key, value in trackdata:
