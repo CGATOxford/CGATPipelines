@@ -609,7 +609,7 @@ class SequenceCollectionProcessor(object):
                     # CGAT Pipelines
                     infile = sra_extraction_files[0]
                     basename = os.path.basename(infile)
-                    if (len(sra_extraction_files) == 1 
+                    if (len(sra_extraction_files) == 1
                         and basename.endswith("_1.fastq.gz")):
                         basename = basename[:-11] + ".fastq.gz"
                         statement.append(
