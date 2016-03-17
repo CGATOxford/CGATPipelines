@@ -2566,6 +2566,17 @@ def publish():
         "bigwigfiles": glob.glob("*/*.bw"),
     }
 
+    if PARAMS['ucsc_exclude']:
+        for filetype, files in export_files.iteritems():
+            new_files = set(files)
+            for f in files:
+                for regex in P.asList(PARAMS['ucsc_exclude']):
+                    if re.match(regex, f):
+                        new_files.remove(f)
+                        break
+
+            export_files[filetype] = list(new_files)
+
     # publish web pages
     E.info("publishing report")
     P.publish_report(export_files=export_files)

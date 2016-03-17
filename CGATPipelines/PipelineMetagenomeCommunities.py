@@ -3,10 +3,6 @@
 
 classes and utility functions for pipeline_metagenomecommunities.py
 
-Different assembly tools will use different inputs. Some can take
-fasta files whereas others will take fastq and in either case can be
-paired-end (in the same or different files) or single end
-
 '''
 
 import os
@@ -248,8 +244,9 @@ def plotHeatmap(results,
                          sep = "\t")''' % results)
     E.info("data loaded")
 
-    R('''t <- dat$taxa[dat$%s < %f & abs(dat$logFC) > %f]''')
-    R('''diff.genes <- unique(t)''' % (p, p_threshold, fc_threshold))
+    R('''t <- dat$taxa[dat$%s < %f & abs(dat$logFC) > %f]''' % (
+        p, p_threshold, fc_threshold))
+    R('''diff.genes <- unique(t)''')
 
     ##############################
     # this is a hack
@@ -435,7 +432,7 @@ def barplotDiversity(infile,
 
 
 def testDiversity(infile,
-                  poutfile,
+                  outfile,
                   rdir,
                   ind="shannon"):
     '''
@@ -462,3 +459,199 @@ def testDiversity(infile,
                      file = "%s",
                      sep = "\t",
                      row.names = F)''' % outfile)
+
+
+###############################################
+###############################################
+###############################################
+
+
+def rarefy(infile,
+           outfile,
+           sample):
+    R('''library(vegan)''')
+    R('''dat <- read.csv("%s",
+                         header=T,
+                         stringsAsFactors=F,
+                         sep="\t",
+                         row.names=1)''' % infile)
+    R('''rdat <- rrarefy(t(dat), %i)''' % sample)
+    R('''rdat <- as.data.frame(t(rdat))''')
+    R('''rdat$taxa <- rownames(rdat)''')
+    R('''rdat <- rdat[,append("taxa", colnames(rdat[1:ncol(rdat)-1]))]''')
+    R('''write.table(rdat, file="%s", sep = "\t", row.names=F, quote=F)'''
+      % outfile)
+
+###################################################################
+###################################################################
+###################################################################
+
+
+def buildLcaProportionsAcrossSamples(infile, outfile, dtype="pathway"):
+    '''
+    build the proportion of reads mapped to
+    each taxoomic level per sample
+    '''
+    R('''library(dplyr)''')
+    R('''dat <- read.csv(
+                         "%s",
+                         header = T,
+                         stringsAsFactors = F,
+                         sep = "\t",
+                         row.names=1
+                        )''' % infile)
+
+    if dtype == "pathway":
+        R('''dat <- data.frame(dat %>% group_by(taxa)
+                               %>% summarise_each(funs(sum)))''')
+        R('''rownames(dat) <- dat$taxa''')
+        R('''dat <- dat[,2:ncol(dat)]''')
+    else:
+        R('''dat <- dat''')
+    R('''dat.t <- data.frame(sweep(as.matrix(dat),
+                                   2,
+                                   colSums(dat), "/"))''')
+    R('''dat.t$taxa <- rownames(dat.t)''')
+    R('''write.table(dat.t, file = "%s",
+                     sep = "\t",
+                     quote=F,
+                     row.names = F)''' % outfile)
+
+###############################################
+###############################################
+###############################################
+
+
+def plotProportionDistributions(infile, outfile):
+    '''
+    plot the cumulative proportions of taxa. Input table
+    of proportions
+    '''
+    R('''library(ggplot2)''')
+    R('''library(gtools)''')
+    R('''library(reshape)''')
+    R('''dat <- read.csv("%s", header = T, stringsAsFactors = F, sep = "\t")'''
+      % infile)
+    R('''rownames(dat) <- dat$taxa''')
+
+    # get rid of taxa colomn
+    R('''dat <- dat[,1:ncol(dat)-1]''')
+    R('''dat.percent <- data.frame(apply(dat, 2, function(x) x*100))''')
+    R('''dat.percent <- dat.percent[,mixedsort(colnames(dat.percent))]''')
+    R('''dat.percent$average <- rowMeans(dat.percent)''')
+    R('''dat.percent <- dat.percent[order(dat.percent$average,
+                                          decreasing = T),]''')
+    R('''dat.percent$cumulative.proportion <- cumsum(dat.percent$average)''')
+    R('''dat.percent$ntaxa <- seq(1,nrow(dat.percent),1)''')
+    R('''plot1 <- ggplot(dat.percent, aes(x=ntaxa,
+                                          y=cumulative.proportion,
+                                          stat="identity"))''')
+    R('''plot2 <- plot1 + geom_line(stat = "identity", aes(linewidth = 2))''')
+    R('''plot2 + ylim(c(0,100)) + xlim(c(1, nrow(dat.percent)))''')
+    R('''ggsave("%s")''' % outfile)
+
+
+###############################################
+###############################################
+###############################################
+
+def barchartProportions(infile, outfile, order, dtype="pathways"):
+    '''
+    stacked barchart description of percent reads
+    mapping to each taxon
+    '''
+    R('''library(ggplot2)''')
+    R('''library(gtools)''')
+    R('''library(reshape)''')
+
+    R('''dat <- read.csv("%s",
+                         header = T,
+                         stringsAsFactors = F,
+                         sep = "\t")''' % infile)
+    R('''rownames(dat) <- dat$taxa''')
+
+    # get rid of taxa colomn
+    R('''dat <- dat[,1:ncol(dat)-1]''')
+    R('''dat.percent <- data.frame(apply(dat, 2, function(x) x*100))''')
+
+    # get order from python string
+    R('''sample.order <- unlist(strsplit("%s", ","))''' % order)
+    R('''dat.percent <- dat.percent[,sample.order]''')
+
+    # this is a horrible way to
+    # change the names of those < 5%
+    R('''to_other <- c()
+         for (i in 1:nrow(dat.percent)){
+              if (max(dat.percent[i,]) < 5){
+                  to_other <- append(to_other, rownames(dat.percent[i,]))
+              }
+         }''')
+
+    # take average across samples
+    R('''dat.percent$average <- rowMeans(dat.percent)''')
+
+    # plot all pathways cos there
+    # aren't many
+    # if dtype=="pathways":
+    #     R('''to_other = c()''')
+
+    # add taxa column with "other" = < 5% in any sample
+    R('''dat.percent$taxa <- rownames(dat.percent)''')
+    R('''dat.percent$taxa <- ifelse(dat.percent$taxa %in% to_other,
+                                    "other",
+                                    dat.percent$taxa)''')
+    R('''dat.other <- dat.percent[dat.percent$taxa == "other",]''')
+    R('''dat.other <- dat.other[,1:ncol(dat.other)-1]''')
+    R('''other <- colSums(dat.other)''')
+
+    R('''dat.percent <- dat.percent[dat.percent$taxa != "other",]''')
+    R('''dat.percent <- dat.percent[,1:ncol(dat.percent)-1,]''')
+    R('''dat.percent["other",] <- unlist(other)''')
+    R('''dat.percent$taxa <- rownames(dat.percent)''')
+    R('''dat.percent$taxa[dat.percent$taxa == "other"] <- "bother"''')
+    R('''dat.percent$taxa[dat.percent$taxa == "Function unknown"]
+                          <- "aFunction unknown"''')
+
+    # reshape and plot
+    R('''dat.percent <- melt(dat.percent)''')
+    R('''dat.percent <-  dat.percent[order(dat.percent$variable,
+                                           dat.percent$taxa),]''')
+    R('''plot1 <- ggplot(dat.percent,
+                          aes(x=factor(variable, levels=variable),
+                              y=value, fill=taxa, stat="identity"))
+                              + geom_bar(stat="identity")''')
+    R('''plot1 + theme(axis.text.x=element_text(angle=90))''')
+    R('''ggsave("%s")''' % outfile)
+
+###############################################
+###############################################
+###############################################
+
+
+def annotate(infile, outfile, geneset):
+    '''
+    annotate NOGs into functional categories
+    '''
+    annotation = {}
+    E.info("loading geneset")
+    anno = open(geneset)
+    for line in anno.readlines():
+        data = line[:-1].split("\t")
+        nog, funccat = data[1], data[3]
+        annotation[nog] = funccat
+    E.info("finished loading gene set")
+
+    E.info("annotating infile")
+    inf = IOTools.openFile(infile)
+    header = inf.readline()
+    outf = IOTools.openFile(outfile, "w")
+    outf.write(header[:-1]+"\ttaxa\n")
+    for line in inf.readlines():
+        data = line[:-1].split("\t")
+        nog = data[0]
+        try:
+            pathway = annotation[nog]
+        except KeyError:
+            pathway = "Function unknown"
+        outf.write(line[:-1]+"\t"+pathway+"\n")
+    outf.close()

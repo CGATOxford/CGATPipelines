@@ -263,7 +263,7 @@ def connect():
 
     This method also attaches to helper databases.
     '''
-    dbh = sqlite3.connect(PARAMS["database_name"])
+    dbh = sqlite3.connect(PARAMS["database"])
     return dbh
 
 ###################################################################
@@ -540,7 +540,7 @@ def classifyReadsWithKraken(infile, outfile):
     '''
     classify reads using kraken
     '''
-    job_options = "-l mem_free=30G"
+    job_memory = "30G"
     kraken_db = PARAMS.get("kraken_db")
     temp = P.getTempFilename(".")
     statement = '''kraken --db %(kraken_db)s
@@ -593,7 +593,7 @@ def loadKrakenCounts(infile, outfile):
     '''
     load kraken report
     '''
-    P.load(infile, outfile, "--index=taxon")
+    P.load(infile, outfile, "--add-index=taxon")
 
 ###################################################################
 ###################################################################
@@ -718,23 +718,25 @@ def runDiamondOnRawSequences(infile, outfile):
     temp = P.getTempFilename(".")
     outtemp = P.getTempFilename(".")
 
-    # this is going to mess up some other users potentially
-    job_options = "-q all.q -pe make 16 -l mem_free=100G"
+    job_threads = PARAMS["diamond_threads"]
+    job_memory = PARAMS["diamond_memory"]
 
     db = PARAMS["diamond_db"]
     diamond_options = PARAMS["diamond_options"]
+
     statement = '''zcat %(infile)s > %(temp)s.fastq;
                    checkpoint;
                    diamond blastx
                    --db %(db)s
                    --query %(temp)s.fastq
+                   --daa %(temp)s.daa
+                   --threads(job_threads)s
                    --log
                    %(diamond_options)s
-                   -o %(outtemp)s &> %(outfile)s.log;
+                   &> %(outfile)s.log;
+                   diamond view -a %(temp)s.daa | gzip > %(outfile)s;
                    checkpoint;
-                   zcat %(outtemp)s.gz | gzip > %(outfile)s;
-                   checkpoint;
-                   rm -rf %(temp)s %(temp)s.fastq %(outtemp)s.gz
+                   rm -rf %(temp)s %(temp)s.fastq %(temp)s.daa
                 '''
     P.run()
 
@@ -750,11 +752,9 @@ def runLCA(infile, outfile):
     run the lowest common ancestor algorithm
     on the blast output to assign reads to
     taxa - from mtools. Runs with defaults at
-    the moment. At this point we also build
-    the functional profile using KEGG - this
-    comes with mtools package
+    the moment.
     '''
-    job_options = "-l mem_free=25G"
+    job_memory = "25G"
 
     # filtering options
     filter_list = P.asList(PARAMS.get("lca_filter"))
@@ -808,8 +808,7 @@ def countLcaPerLevelTaxa(infile, outfile):
     '''
     count the number of taxa as found using LCA algorithm
     '''
-    job_options = "-l mem_free=20G"
-
+    job_memory = "20G"
     statement = '''zcat %(infile)s |
                    python %(scriptsdir)s/lca2table.py
                    --summarise=level-counts
@@ -839,8 +838,7 @@ def buildLcaCounts(infile, outfile):
     '''
     count the number of taxa as found using LCA algorithm
     '''
-    job_options = "-l mem_free=20G"
-
+    job_memory = "20G"
     statement = '''zcat %(infile)s |
                    python %(scriptsdir)s/lca2table.py
                    --summarise=taxa-counts
@@ -860,7 +858,7 @@ def loadLcaCounts(infile, outfile):
     '''
     load taxa level counts
     '''
-    P.load(infile, outfile, "--index=taxa")
+    P.load(infile, outfile, "--add-index=taxa")
 
 ###################################################################
 ###################################################################
@@ -956,12 +954,102 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
 ###############################################
 
 
+@jobs_limit(1, "R")
+@transform(mergeLcaCountsAcrossSamples,
+           suffix(".counts.tsv.gz"),
+           ".counts.rarefied.tsv")
+def rarefyTaxa(infile, outfile):
+    '''
+    rarefy to minimum counts
+    '''
+    PipelineMetagenomeCommunities.rarefy(infile,
+                                         outfile,
+                                         PARAMS.get("rarefy_sample"))
+
+###############################################
+###############################################
+###############################################
+
+rarefy = {0: (mergeLcaCountsAcrossSamples, ".counts.tsv.gz"),
+          1: (rarefyTaxa, ".counts.rarefied.tsv")}
+RAREFY_FUNC = rarefy[PARAMS.get("rarefy_rarefy_taxa")][0]
+RAREFY_SUFFIX = rarefy[PARAMS.get("rarefy_rarefy_taxa")][1]
+
+
+@jobs_limit(1, "R")
+@transform(RAREFY_FUNC,
+           suffix(RAREFY_SUFFIX),
+           ".proportion.tsv")
+def buildLcaProportionsAcrossSamples(infile, outfile):
+    '''
+    build the proportion of reads mapped to
+    each taxoomic level per sample
+    '''
+    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(
+        infile,
+        outfile,
+        dtype="taxa")
+
+###############################################
+###############################################
+###############################################
+
+
+@jobs_limit(1, "R")
+@transform(buildLcaProportionsAcrossSamples,
+           suffix(".tsv"),
+           ".cumproportion.pdf")
+def plotLcaProportionDistributions(infile, outfile):
+    '''
+    plot the cumulative proportions of taxa
+    '''
+    PipelineMetagenomeCommunities.plotProportionDistributions(infile,
+                                                              outfile)
+
+###############################################
+###############################################
+###############################################
+
+
+@jobs_limit(1, "R")
+@transform(buildLcaProportionsAcrossSamples,
+           suffix(".tsv"),
+           ".stackedbar.pdf")
+def barchartLcaProportions(infile, outfile):
+    '''
+    barchart description of percent reads
+    mapping to each taxon
+    '''
+    if PARAMS["heatmaps_order"]:
+        order = PARAMS.get("heatmaps_order")
+    else:
+        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+    PipelineMetagenomeCommunities.barchartProportions(infile,
+                                                      outfile,
+                                                      order,
+                                                      dtype="taxa")
+
+###############################################
+###############################################
+###############################################
+
+
+@follows(plotLcaProportionDistributions,
+         barchartLcaProportions)
+def proportions():
+    pass
+
+###############################################
+###############################################
+###############################################
+
+
 @transform(mergeLcaCountsAcrossSamples, suffix(".tsv.gz"), ".load")
 def loadAggregatedCounts(infile, outfile):
     '''
     load aggregated counts
     '''
-    P.load(infile, outfile, "--index=taxa")
+    P.load(infile, outfile, "--add-index=taxa")
 
 ############################
 # LCA target
@@ -988,7 +1076,7 @@ for classifier in P.asList(PARAMS.get("classifiers")):
     COUNT_DATA.append(classifiers[classifier])
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
@@ -1013,6 +1101,7 @@ def runRarefactionAnalysis(infile, outfile):
 ###################################################################
 
 
+@jobs_limit(1, "R")
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
            r"diversity.dir/\2.richness.sig")
@@ -1033,7 +1122,7 @@ def testRichness(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
@@ -1054,7 +1143,7 @@ def barplotDiversity(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
@@ -1098,26 +1187,26 @@ def runDiamondOnGenes(infile, outfile):
     At present it will run one sequence from paired files
     '''
     temp = P.getTempFilename(".")
-    outtemp = P.getTempFilename(".")
 
-    # this is going to mess up some other users potentially
-    job_options = "-q all.q -pe make 16 -l mem_free=100G"
-    # job_options = "-l mem_free=64G"
+    job_threads = PARAMS["diamond_threads"]
+    job_memory = PARAMS["diamond_memory"]
+
     db = PARAMS["genes_db"]
     diamond_options = PARAMS["genes_diamond_options"]
+
     statement = '''zcat %(infile)s > %(temp)s.fastq;
                    checkpoint;
                    diamond blastx
                    --db %(db)s
                    --query %(temp)s.fastq
+                   --threads(job_threads)s
+                   --daa %(temp)s.daa
                    --log
                    %(diamond_options)s
-                   -o %(outtemp)s;
-                    &> %(outfile)s.log
+                   &> %(outfile)s.log;
+                   diamond view -a %(temp)s.daa | gzip > %(outfile)s;
                    checkpoint;
-                   zcat %(outtemp)s.gz | gzip > %(outfile)s;
-                   checkpoint;
-                   rm -rf %(temp)s %(temp)s.fastq %(outtemp)s.gz
+                   rm -rf %(temp)s %(temp)s.fastq %(temp)s.daa
                 '''
     P.run()
 
@@ -1131,7 +1220,6 @@ def buildDiamondGeneCounts(infile, outfile):
     '''
     build gene level counts
     '''
-#    job_options="-q pairsdb.q -pe mpi 32 -l mem_free=200G"
     options = PARAMS.get("genes_count_options")
     statement = '''zcat %(infile)s |
                    python %(scriptsdir)s/diamond2counts.py
@@ -1141,10 +1229,10 @@ def buildDiamondGeneCounts(infile, outfile):
 
     P.run()
 
-###################################################################
-###################################################################
-###################################################################
 
+###################################################################
+###################################################################
+###################################################################
 
 @transform(buildDiamondGeneCounts,
            suffix(".tsv.gz"),
@@ -1153,7 +1241,7 @@ def loadDiamondGeneCounts(infile, outfile):
     '''
     load gene counts
     '''
-    P.load(infile, outfile, "--index=taxa")
+    P.load(infile, outfile, "--add-index=taxa")
 
 ###################################################################
 ###################################################################
@@ -1181,6 +1269,105 @@ def mergeDiamondGeneCounts(infiles, outfile):
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
     P.run()
+
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@transform(mergeDiamondGeneCounts, suffix(".tsv.gz"), ".annotated.tsv.gz")
+def annotatePathways(infile, outfile):
+    '''
+    annotate NOGs with there respecetive pathways (functional categories)
+    '''
+    PipelineMetagenomeCommunities.annotate(infile,
+                                           outfile,
+                                           PARAMS.get("pathways_geneset"))
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
+@transform(annotatePathways,
+           suffix(".annotated.tsv.gz"),
+           ".proportion.pathways.tsv")
+def buildPathwayProportionsAcrossSamples(infile, outfile):
+    '''
+    build the proportion of reads mapped to
+    each taxoomic level per sample
+    '''
+    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(
+        infile,
+        outfile,
+        dtype="pathway")
+
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
+@transform(mergeDiamondGeneCounts,
+           suffix("_counts.tsv.gz"),
+           ".proportion.tsv")
+def buildGeneProportionsAcrossSamples(infile, outfile):
+    '''
+    build the proportion of reads mapped to
+    each taxoomic level per sample
+    '''
+    PipelineMetagenomeCommunities.buildLcaProportionsAcrossSamples(
+        infile,
+        outfile,
+        dtype="gene")
+
+###############################################
+###############################################
+###############################################
+
+
+@jobs_limit(1, "R")
+@transform([buildGeneProportionsAcrossSamples,
+            buildPathwayProportionsAcrossSamples],
+           suffix(".tsv"),
+           ".cumproportion.pdf")
+def plotGeneProportionDistributions(infile, outfile):
+    '''
+    plot the cumulative proportions of taxa
+    '''
+    PipelineMetagenomeCommunities.plotProportionDistributions(infile,
+                                                              outfile)
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
+@transform([buildGeneProportionsAcrossSamples,
+            buildPathwayProportionsAcrossSamples],
+           suffix(".tsv"),
+           ".stackedbar.pdf")
+def barchartGeneProportions(infile, outfile):
+    '''
+    heatmap description of percent reads
+    mapping to each taxon
+    '''
+    if PARAMS["heatmaps_order_genes"]:
+        order = PARAMS.get("heatmaps_order_genes")
+    else:
+        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+    PipelineMetagenomeCommunities.barchartProportions(infile,
+                                                      outfile,
+                                                      order,
+                                                      dtype="pathways")
+
+###################################################################
+###################################################################
+###################################################################
 
 
 #################
@@ -1474,7 +1661,7 @@ def runPathwaysAnalysis(infiles, outfiles):
 ###################################################################
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.pdf")
 def runMDS(infile, outfile):
     '''
@@ -1490,7 +1677,7 @@ def runMDS(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.sig")
 def runPermanova(infile, outfile):
     '''
@@ -1516,7 +1703,7 @@ def MDS():
 ###################################################################
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @transform(mergeLcaCountsAcrossSamples,
            suffix(".tsv.gz"), ".barplot.png")
 def barplotAbundances(infile, outfile):
@@ -1532,7 +1719,7 @@ def barplotAbundances(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @transform(runMetagenomeSeq, suffix(".tsv"), ".ma.png")
 def MAPlot(infile, outfile):
     '''
@@ -1561,7 +1748,7 @@ def MAPlot(infile, outfile):
 ###################################################################
 
 
-@jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
+@jobs_limit(1, "R")
 @transform(runMetagenomeSeq, suffix(".tsv"), ".heatmap.png")
 def plotDiffHeatmap(infile, outfile):
     '''
@@ -1641,7 +1828,7 @@ def Differential_abundance():
 #     '''
 #     load the results of metagenomeSeq analysis
 #     '''
-#     P.load(infile, outfile, "--index=taxa")
+#     P.load(infile, outfile, "--add-index=taxa")
 
 # ###################################################################
 # ###################################################################
@@ -1684,7 +1871,7 @@ def Differential_abundance():
 #     '''
 #     laod differential abundance results
 #     '''
-#     P.load(infile, outfile, "--index=taxa")
+#     P.load(infile, outfile, "--add-index=taxa")
 
 
 # ###################################################################
@@ -1806,7 +1993,8 @@ def Differential_abundance():
 @follows(Alignment_stats,
          Differential_abundance,
          diversity,
-         MDS)
+         MDS,
+         proportions)
 def full():
     pass
 

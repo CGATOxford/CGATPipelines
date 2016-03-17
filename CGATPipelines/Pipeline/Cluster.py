@@ -145,6 +145,23 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
         # set the partition to use (equivalent of SGE queue)
         spec.append("--partition=%(cluster_queue)s")
 
+    elif queue_manager.lower() == "torque":
+
+        # PBS Torque native specifictation:
+        # http://apps.man.poznan.pl/trac/pbs-drmaa
+
+        spec = ["-N %s" % job_name,
+                "-l mem=%s" % job_memory, ]
+
+        if options["cluster_options"]:
+            spec.append("%(cluster_options)s")
+
+        # There is no equivalent to sge -V option for pbs-drmaa
+        # recreating this...
+        jt.jobEnvironment = os.environ
+        jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
+                                                           '.bashrc')})
+
     else:
         raise ValueError("Queue manager %s not supported" % queue_manager)
 

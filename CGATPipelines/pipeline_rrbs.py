@@ -413,6 +413,8 @@ def sortAndIndexBams(infile, outfile):
 ###################################################################
 # various export functions
 ###################################################################
+
+
 @transform(sortAndIndexBams,
            regex(".bam"),
            ".bw")
@@ -545,6 +547,36 @@ def make1basedCpgIslands(infile, outfile):
 def subsetCoverage(infile, outfile):
     statement = '''awk '($5+$6)>=10' %(infile)s > %(outfile)s''' % locals()
     P.run()
+
+
+@originate("fa_sizes.tsv")
+def getChromSizes(outfile):
+    ''' get contig sizes '''
+    statement = "/ifs/apps/bio/ucsc/fetchChromSizes %(genome)s > %(outfile)s"
+    P.run()
+
+
+@transform(subsetCoverage,
+           regex("methylation.dir/(\S+).bismark.subset10.cov"),
+           add_inputs(getChromSizes),
+           r"methylation.dir/\1.bismark.bigwig")
+def bed2BigWig(infiles, outfile):
+    infile, sizes = infiles
+    infile = infile.replace(".bismark.cov", ".bedGraph")
+
+    # need to sort first, can do this with tmp file
+    tmp_infile = P.getTempFilename()
+
+    statement = '''
+    sort -k1,1 -k2,2n %(infile)s |
+    awk '{OFS="\t"; $3 = $3 + 1; print $1,$2,$3,$4}' > %(tmp_infile)s;
+    checkpoint;
+    bedGraphToBigWig %(tmp_infile)s %(sizes)s %(outfile)s;
+    checkpoint;
+    rm -rf %(tmp_infile)s'''
+
+    P.run()
+
 ##########################################################################
 
 
@@ -1187,7 +1219,8 @@ def M3D():
          M3D,
          loadCoveredCpGs,
          plotCoverage,
-         plotMethylationFrequency)
+         plotMethylationFrequency,
+         bed2BigWig)
 def full():
     pass
 
@@ -1220,17 +1253,24 @@ def callMeth():
 #########################################################################
 
 
-@follows(mkdir("%s/bamfiles" % PARAMS["web_dir"]),
-         mkdir("%s/bigwigfiles" % PARAMS["web_dir"]),
-         )
+@follows(mkdir("%s/bigwigfiles" % PARAMS["web_dir"]))
 def publish():
     '''publish files.'''
 
     # directory, files
-    export_files = {
-        "bamfiles": glob.glob("*/*.bam") + glob.glob("*/*.bam.bai"),
-        "bigwigfiles": glob.glob("*/*.bw"),
-    }
+
+    export_files = {"bigwigfiles": glob.glob("*/*.bigwig")}
+
+    if PARAMS['ucsc_exclude']:
+        for filetype, files in export_files.iteritems():
+            new_files = set(files)
+            for f in files:
+                for regex in P.asList(PARAMS['ucsc_exclude']):
+                    if re.match(regex, f):
+                        new_files.remove(f)
+                        break
+
+            export_files[filetype] = list(new_files)
 
     # publish web pages
     E.info("publishing report")
