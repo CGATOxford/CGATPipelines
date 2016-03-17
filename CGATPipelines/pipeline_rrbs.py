@@ -335,6 +335,7 @@ def mapReadsWithBismark(infile, outfile):
     # print statement
     P.run()
 
+
 #########################################################################
 # Call Methylation
 #########################################################################
@@ -406,6 +407,84 @@ def sortAndIndexBams(infile, outfile):
     statement = '''samtools sort %(infile)s %(sort_out)s;
                    samtools index %(outfile)s;''' % locals()
     print statement
+    P.run()
+
+###################################################################
+###################################################################
+# various export functions
+###################################################################
+
+
+@transform(sortAndIndexBams,
+           regex(".bam"),
+           ".bw")
+def buildBigWig(infile, outfile):
+    '''build wiggle files from bam files.
+
+    Generate :term:`bigWig` format file from :term:`bam` alignment file
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`bam` format
+    outfile : str
+       Output filename in :term:`bigwig` format
+
+    annotations_interface_contigs : str
+       :term:`PARAMS`
+       Input filename in :term:`bed` format
+
+    '''
+
+    # wigToBigWig observed to use 16G
+    job_memory = "16G"
+    statement = '''python %(scriptsdir)s/bam2wiggle.py
+    --output-format=bigwig
+    %(bigwig_options)s
+    %(infile)s
+    %(outfile)s
+    > %(outfile)s.log'''
+    P.run()
+
+
+@merge(buildBigWig,
+       "bigwig_stats.load")
+def loadBigWigStats(infiles, outfile):
+    '''merge and load bigwig summary for all wiggle files.
+
+    Summarise and merge bigwig files for all samples and load into a
+    table called bigwig_stats
+
+    Parameters
+    ----------
+    infiles : list
+       Input filenames in :term:`bigwig` format
+    outfile : string
+        Output filename, the table name is derived from `outfile`.
+    '''
+
+    data = " ".join(
+        ['<( bigWigInfo %s | perl -p -e "s/:/\\t/; s/ //g; s/,//g")' %
+         x for x in infiles])
+    headers = ",".join([P.snip(os.path.basename(x), ".bw")
+                        for x in infiles])
+
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track")
+
+    statement = '''python %(scriptsdir)s/combine_tables.py
+    --header-names=%(headers)s
+    --skip-titles
+    --missing-value=0
+    --ignore-empty
+    %(data)s
+    | perl -p -e "s/bin/track/"
+    | python %(scriptsdir)s/table2table.py --transpose
+    | %(load_statement)s
+    > %(outfile)s
+    '''
+
     P.run()
 
 ########################################################################
@@ -852,7 +931,7 @@ def calculateMethylationFrequency(infile, outfile):
            suffix("_frequency.tsv"),
            "_frequency.png")
 def plotMethylationFrequency(infile, outfile):
-    RRBS.plotMethFrequency(infile, outfile, job_memory="6G", submit=True)
+    RRBS.plotMethFrequency(infile, outfile, job_memory="2G", submit=True)
 
 
 @transform(addTreatmentMeans,
@@ -1123,13 +1202,8 @@ def M3D():
     pass
 
 
-# add this to full once start summarising functions have been refactored
-@follows(loadStartSummary)
-def startSummary():
-    pass
-
-
-@follows(loadStartSummary,
+@follows(loadBigWigStats,
+         loadStartSummary,
          loadCoverage,
          loadCpGOverlap,
          loadRemainingReads,
@@ -1184,6 +1258,7 @@ def publish():
     '''publish files.'''
 
     # directory, files
+
     export_files = {"bigwigfiles": glob.glob("*/*.bigwig")}
 
     if PARAMS['ucsc_exclude']:

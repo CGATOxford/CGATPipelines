@@ -661,6 +661,7 @@ def buildSalmonIndex(infile, outfile):
 
     statement = '''
     salmon index %(salmon_index_options)s -t %(infile)s -i %(outfile)s
+    -k %(salmon_kmer)s
     '''
 
     P.run()
@@ -677,6 +678,7 @@ def buildSailfishIndex(infile, outfile):
 
     statement = '''
     sailfish index --transcripts=%(infile)s --out=%(outfile)s
+    --kmerSize=%(sailfish_kmer)s
     %(sailfish_index_options)s
     '''
 
