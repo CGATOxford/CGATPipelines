@@ -140,7 +140,7 @@ def getRepeatsFromUCSC(dbhandle,
 
     if remove_contigs_regex:
         statement.append(
-            ''' --contig-pattern="%(remove_contigs_regexs)s" ''')
+            ''' --contig-pattern="%(remove_contigs_regex)s" ''')
 
     statement.append('''| gzip > %(outfile)s ''')
 
@@ -383,6 +383,9 @@ def readTrackFile(infile):
                 track = value
                 continue
             block.append((key, value))
+        # T.S need to yield final block too
+        yield track, block
+
     return list(_yielder(data))
 
 

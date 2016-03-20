@@ -372,7 +372,9 @@ def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
         statement.append(
             '''intersectBed -abam @IN@ -b %(mask)s -wa -v > @OUT@''')
 
-    statement.append('''ln -s -f @IN@ %(outfile)s''')
+    # do not link, as local scratch will not be available on shared
+    # node
+    statement.append('''mv @IN@ %(outfile)s''')
     statement.append('''samtools index %(outfile)s''')
 
     statement = P.joinStatements(statement, infiles)
@@ -832,7 +834,7 @@ def runMACS(infile, outfile,
     statement = '''
     cd %(dir)s;
     checkpoint;
-    macs14
+    macs
     -t %(infile)s
     --diag
     --verbose=10

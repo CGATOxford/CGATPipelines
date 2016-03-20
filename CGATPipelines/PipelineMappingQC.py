@@ -14,7 +14,7 @@ import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
 
-PICARD_MEMORY = "2.1G"
+PICARD_MEMORY = "5G"
 
 
 def getNumReadsFromReadsFile(infile):
@@ -137,6 +137,9 @@ def buildPicardDuplicationStats(infile, outfile):
         statement = ""
         data_source = infile
 
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
+
     statement += '''MarkDuplicates
     INPUT=%(data_source)s
     ASSUME_SORTED=true
@@ -144,8 +147,9 @@ def buildPicardDuplicationStats(infile, outfile):
     OUTPUT=/dev/null
     VALIDATION_STRINGENCY=SILENT
     '''
-
     P.run()
+
+    os.unsetenv("CGAT_JAVA_OPTS")
 
     if ".gsnap.bam" in infile:
         os.unlink(tmpfile_name)
@@ -171,7 +175,6 @@ def buildPicardDuplicateStats(infile, outfile):
         Output filename with picard output.
 
     '''
-
     job_memory = PICARD_MEMORY
     job_threads = 3
 
@@ -180,15 +183,18 @@ def buildPicardDuplicateStats(infile, outfile):
         P.touch(outfile)
         return
 
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
     statement = '''MarkDuplicates
     INPUT=%(infile)s
     ASSUME_SORTED=true
     METRICS_FILE=%(outfile)s.duplicate_metrics
     OUTPUT=%(outfile)s
-    VALIDATION_STRINGENCY=SILENT
+    VALIDATION_STRINGENCY=SILENT;
     '''
     statement += '''samtools index %(outfile)s ;'''
     P.run()
+    os.unsetenv("CGAT_JAVA_OPTS")
 
 
 def buildPicardCoverageStats(infile, outfile, baits, regions):
