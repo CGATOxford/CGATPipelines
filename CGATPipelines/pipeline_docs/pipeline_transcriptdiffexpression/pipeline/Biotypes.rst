@@ -19,7 +19,7 @@ Over-expressed transcripts:
    :statement: aes(x=significant, y=Count, fill=transcript_biotype) +
 	       geom_bar(stat="identity", position="fill") +
 	       geom_text(stat = "identity", lineheight=.8,
-	       face="bold", aes(y = cumsum_centres,
+	       fontface="bold", aes(y = cumsum_centres,
 	       label=paste0(Count, "\n(", round(100*fraction,1), "%)"))) +
 	       theme_bw() +
 	       theme(axis.text.x=element_text(size=15),
@@ -40,7 +40,7 @@ Under-expressed transcripts:
    :statement: aes(x=significant, y=Count, fill=transcript_biotype) +
 	       geom_bar(stat="identity", position="fill") +
 	       geom_text(stat = "identity", lineheight=.8,
-	       face="bold", aes(y = cumsum_centres,
+	       fontface", aes(y = cumsum_centres,
 	       label=paste0(Count, "\n(", round(100*fraction,1), "%)"))) +
 	       theme_bw() +
 	       theme(axis.text.x=element_text(size=15),

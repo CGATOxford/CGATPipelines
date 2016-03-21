@@ -195,6 +195,10 @@ def countTagsWithinWindows(tagfile,
     counting_method : string
         Counting method to use. Possible values are ``nucleotide``
         and ``midpoint``.
+        midpoint counts the number of reads overlapping the midpoint of the
+        window by at least one base
+        nucleotide counts the number of reads overlapping the window by at
+        least one base.
     job_memory : string
         Amount of memory to allocate.
     '''
@@ -305,13 +309,21 @@ def aggregateWindowsTagCounts(infiles,
 def normalizeTagCounts(infile, outfile, method):
     '''normalize Tag counts
 
+    Parameters
+    ----------
     infile : string
         Input filename of file with counts.
     outfile : string
         Output filename with normalized counts.
     method : string
         Method to use for normalization.
-
+        can be deseq-size factors, total-column, total-row, total-count
+        deseq-size-factors - use normalisation implemented in DEseq
+        total-column - divide counts by column total
+        total-row - divide counts by the value in a row called 'total'
+        total-count - normalised all values in column by the ratio of the
+        per column sum of counts and the average column count
+        across all rows.
     '''
     statement = '''
     zcat %(infile)s
@@ -340,7 +352,7 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
     Arguments
     ---------
     infiles ; list
-        List of tables with DMR output
+        List of tabs with DMR output
     outfile : string
         Output filename. Tab separated file summarizing
     method : string
@@ -593,7 +605,7 @@ def runDE(design_file,
           outdir,
           method="deseq",
           spike_file=None):
-    '''run DESeq or EdgeR through :mod:`scripts/runExpression.py`
+    '''run DESeq, DESeq2 or EdgeR through :mod:`scripts/runExpression.py`
 
     The job is split into smaller sections. The order of the input
     data is randomized in order to avoid any biases due to chromosomes
@@ -630,7 +642,8 @@ def runDE(design_file,
         --log=%(outfile)s.log
         '''
 
-    prefix = os.path.basename(outfile)
+    prefix = IOTools.snip(os.path.basename(outfile))
+    E.info(prefix)
 
     # the post-processing strips away the warning,
     # renames the qvalue column to old_qvalue
@@ -651,16 +664,19 @@ def runDE(design_file,
               --method=%(method)s
               --tags-tsv-file=-
               --design-tsv-file=%(design_file)s
-              --output-filename-pattern=%%DIR%%/%(prefix)s_
+              --output-filename-pattern=%%DIR%%%(prefix)s_
               --deseq-fit-type=%(deseq_fit_type)s
               --deseq-dispersion-method=%(deseq_dispersion_method)s
               --deseq-sharing-mode=%(deseq_sharing_mode)s
               --edger-dispersion=%(edger_dispersion)f
+              --deseq2-design-formula=%(deseq2_model)s
+              --deseq2-contrasts=%(deseq2_contrasts)s
               --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
               --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
               --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
               --log=%(outfile)s.log
-              --fdr=%(edger_fdr)f"
+              --fdr=%(edger_fdr)f
+              --deseq2-plot=0"
     | perl -p -e "s/qvalue/old_qvalue/"
     | python %(scriptsdir)s/table2table.py
     --log=%(outfile)s.log
@@ -670,6 +686,7 @@ def runDE(design_file,
     --fdr-add-column=qvalue
     | gzip
     > %(outfile)s '''
+    E.info(statement)
 
     P.run()
 
@@ -735,6 +752,19 @@ def enrichmentVsInput(infile, outfile):
     '''
     Calculate the fold enrichment of the test data
     vs. the input data
+
+    Parameters
+    ----------
+    infile: list
+        list of filenames
+    infile[0]: str
+        filename of normalised :term:`bedGraph` file showing counts in
+        the input
+    infile[1]: str
+        filename of normalised :term:`bedGraph` files showing
+        counts in each experiment
+    outfile: str
+        filename of output :term:`bedGraph` file
     '''
 
     test_frame = pandas.read_table(infile[1],
@@ -1158,7 +1188,7 @@ def summarizeTagsWithinContext(tagfile,
 
 
 def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
-    """combine output from :func:`summarizeTagsWithinContex`.
+    """combine output from :func:`summarizeTagsWithinContext`.
 
     Arguments
     ---------
@@ -1177,7 +1207,8 @@ def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
 
     if not samples_in_columns:
         transpose_cmd = \
-            "| python %(scriptsdir)s/table2table.py --transpose" % P.getParams()
+            """| python %(scriptsdir)s/table2table.py
+            --transpose""" % P.getParams()
     else:
         transpose_cmd = ""
 
@@ -1191,7 +1222,7 @@ def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
     | gzip
     > %(outfile)s
     """
-    
+
     P.run()
 
 

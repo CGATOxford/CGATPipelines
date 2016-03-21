@@ -36,7 +36,7 @@ import CGAT.IOTools as IOTools
 PARAMS = {}
 
 
-def getTempFile(dir=None, shared=False):
+def getTempFile(dir=None, shared=False, suffix=""):
     '''get a temporary file.
 
     The file is created and the caller needs to close and delete
@@ -50,6 +50,8 @@ def getTempFile(dir=None, shared=False):
     shared : bool
         If set, the tempory file will be in a shared temporary
         location (given by the global configuration directory).
+    suffix : string
+        Filename suffix
 
     Returns
     -------
@@ -62,10 +64,11 @@ def getTempFile(dir=None, shared=False):
         else:
             dir = PARAMS['tmpdir']
 
-    return tempfile.NamedTemporaryFile(dir=dir, delete=False, prefix="ctmp")
+    return tempfile.NamedTemporaryFile(dir=dir, delete=False, prefix="ctmp",
+                                       suffix=suffix)
 
 
-def getTempFilename(dir=None, shared=False):
+def getTempFilename(dir=None, shared=False, suffix=""):
     '''return a temporary filename.
 
     The file is created and the caller needs to delete the temporary
@@ -79,6 +82,8 @@ def getTempFilename(dir=None, shared=False):
     shared : bool
         If set, the tempory file will be in a shared temporary
         location.
+    suffix : string
+        Filename suffix
 
     Returns
     -------
@@ -86,7 +91,7 @@ def getTempFilename(dir=None, shared=False):
         Absolute pathname of temporary file.
 
     '''
-    tmpfile = getTempFile(dir=dir, shared=shared)
+    tmpfile = getTempFile(dir=dir, shared=shared, suffix=suffix)
     tmpfile.close()
     return tmpfile.name
 

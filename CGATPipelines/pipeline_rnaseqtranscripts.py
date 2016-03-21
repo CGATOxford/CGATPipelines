@@ -590,6 +590,7 @@ def buildReferenceGeneSet(infile, outfile):
     # bug dependent on both the read libraries and the input reference gtf
     # files
 
+    job_memory = "5G"
     statement = '''
     cuffcompare -r <( gunzip < %(tmpfilename)s )
          -T
@@ -936,6 +937,8 @@ def runCuffCompare(infiles, outfile, reffile):
     genome = os.path.join(PARAMS["genome_dir"], PARAMS["genome"]) + ".fa"
     genome = os.path.abspath(genome)
 
+    job_memory = "15G"
+
     # note: cuffcompare adds \0 bytes to gtf file - replace with '.'
     statement = '''
         %(cmd_extract)s;
@@ -1054,6 +1057,7 @@ def mergeUsingCuffmerge(infiles, outfile):
 #########################################################################
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((compareTranscriptsBetweenExperiments,
             compareTranscriptsPerExperiment),
            suffix(".cuffcompare"),
@@ -1096,15 +1100,9 @@ def loadTranscriptComparison(infile, outfile):
         #########################################################
         tablename = P.toTable(outfile) + "_tracks"
 
-        statement = '''cat %(tmpfile)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=track
-              --table=%(tablename)s
-        > %(outfile)s
-        '''
-
-        P.run()
+        P.load(tmpfile, outfile,
+               tablename=tablename,
+               options="--allow-empty-file -i track")
 
         L.info("loaded %s" % tablename)
 
@@ -1126,16 +1124,9 @@ def loadTranscriptComparison(infile, outfile):
 
         tablename = P.toTable(outfile) + "_benchmark"
 
-        statement = '''cat %(tmpfile)s
-            | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=track
-              --add-index=contig
-              --table=%(tablename)s
-            >  %(outfile)s
-        '''
-
-        P.run()
+        P.load(tmpfile, outfile,
+               tablename=tablename,
+               options="--allow-empty -i track -i contig")
 
         L.info("loaded %s" % tablename)
 
@@ -1155,15 +1146,9 @@ def loadTranscriptComparison(infile, outfile):
         #########################################################
         tablename = P.toTable(outfile) + "_tracks"
 
-        statement = '''cat %(tmpfile)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=track
-              --table=%(tablename)s
-        > %(outfile)s
-        '''
-
-        P.run()
+        P.load(tmpfile, outfile,
+               tablename=tablename,
+               options="--allow-empty -i track")
 
         L.info("loaded %s" % tablename)
         tablename = P.toTable(outfile) + "_benchmark"
@@ -1230,46 +1215,35 @@ def loadTranscriptComparison(infile, outfile):
     outf3.close()
 
     tablename = P.toTable(outfile) + "_tracking"
-    statement = '''cat %(tmpfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=locus_id
-              --add-index=transfrag_id
-              --add-index=code
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
 
-    P.run()
+    P.load(tmpfile, outfile,
+           tablename=tablename,
+           options="--allow-empty-file -i locus_id -i transfrag_id -i code")
+
     L.info("loaded %s" % tablename)
 
     tablename = P.toTable(outfile) + "_transcripts"
-    statement = '''cat %(tmpfile2)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    
+    P.load(tmpfile2, outfile,
+           tablename=tablename,
+           options='''
               --allow-empty-file
               --add-index=transfrag_id
               --add-index=ref_gene_id
               --add-index=ref_transcript_id
               --add-index=transcript_id
               --add-index=gene_id
-              --add-index=track
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
+              --add-index=track''')
 
-    P.run()
     L.info("loaded %s" % tablename)
 
     tablename = P.toTable(outfile) + "_fpkm"
-    statement = '''cat %(tmpfile3)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=transfrag_id
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
 
-    P.run()
+    P.load(tmpfile3, outfile,
+           tablename=tablename,
+           options=''' --allow-empty-file
+              --add-index=transfrag_id''')
+
     L.info("loaded %s" % tablename)
 
     #########################################################
@@ -1297,14 +1271,10 @@ def loadTranscriptComparison(infile, outfile):
 
     tablename = P.toTable(outfile) + "_loci"
 
-    statement = '''cat %(tmpfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=locus_id
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
+    P.load(tmpfile, outfile,
+           tablename=tablename,
+           options="--add-index=locus_id")
 
-    P.run()
     L.info("loaded %s" % tablename)
 
     os.unlink(tmpfile)
@@ -1364,15 +1334,10 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
     #########################################################
     tablename = P.toTable(outfile) + "_tracks"
 
-    statement = '''cat %(tmpfile)s
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=track
-              --table=%(tablename)s
-        > %(outfile)s
-        '''
-
-    P.run()
+    P.load(tmpfile, outfile,
+           tablename=tablename,
+           options=''' --allow-empty-file
+              --add-index=track''')
 
     L.info("loaded %s" % tablename)
 
@@ -1436,46 +1401,38 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
     outf3.close()
 
     tablename = P.toTable(outfile) + "_tracking"
-    statement = '''cat %(tmpfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
+
+    P.load(tmpfile, outfile,
+           tablename=tablename,
+           options=''' --allow-empty-file
               --add-index=locus_id
               --add-index=transfrag_id
               --add-index=code
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
+              --table=%(tablename)s''')
 
-    P.run()
     L.info("loaded %s" % tablename)
 
     tablename = P.toTable(outfile) + "_transcripts"
-    statement = '''cat %(tmpfile2)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
+
+    P.load(tmpfile2, outfile,
+           tablename=tablename,
+           options=''' --allow-empty-file
               --add-index=transfrag_id
               --add-index=ref_gene_id
               --add-index=ref_transcript_id
               --add-index=transcript_id
               --add-index=gene_id
-              --add-index=track
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
+              --add-index=track''')
 
-    P.run()
     L.info("loaded %s" % tablename)
 
     tablename = P.toTable(outfile) + "_fpkm"
-    statement = '''cat %(tmpfile3)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --allow-empty-file
-              --add-index=transfrag_id
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
 
-    P.run()
+    P.load(tmpfile3, outfile,
+           tablename=tablename,
+           options=''' --allow-empty-file
+           --add-index=transfrag_id''')
+
     L.info("loaded %s" % tablename)
 
     #########################################################
@@ -1505,14 +1462,11 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
 
     tablename = P.toTable(outfile) + "_loci"
 
-    statement = '''cat %(tmpfile)s
-    | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
-              --add-index=locus_id
-              --table=%(tablename)s
-    >> %(outfile)s
-    '''
+    P.load(tmpfile, outfile,
+           tablename=tablename,
+           options=''' --allow-empty-file
+              --add-index=locus_id''')
 
-    P.run()
     L.info("loaded %s" % tablename)
 
     os.unlink(tmpfile)
@@ -1685,7 +1639,8 @@ def buildLincRNAGeneSet(infiles, outfile):
 
     '''
 
-    infile_abinitio, reference_gtf, repeats_gff, pseudogenes_gtf, numts_gtf = infiles
+    infile_abinitio, reference_gtf, repeats_gff, \
+        pseudogenes_gtf, numts_gtf = infiles
 
     E.info("indexing geneset for filtering")
 
@@ -2178,7 +2133,7 @@ def buildReproducibility(infile, outfile):
     for rep1, rep2 in itertools.combinations(replicates, 2):
 
         track1, track2 = rep1.asTable(), rep2.asTable()
-
+        
         def _write(statement, code):
             print statement
             data = Database.executewait(dbhandle, statement).fetchall()
@@ -2231,7 +2186,7 @@ def buildReproducibility(infile, outfile):
 
     R('''library(RSQLite)''')
     R('''drv = dbDriver( "SQLite" )''')
-    R('''con <- dbConnect(drv, dbname = 'csvdb')''')
+    R('''con <- dbConnect(drv, dbname = '%s')''' % PARAMS["database_name"])
     columns = ",".join([x.asTable() for x in replicates])
     data = R(
         '''data = dbGetQuery(con, "SELECT %(columns)s
@@ -2266,11 +2221,8 @@ def buildReproducibility(infile, outfile):
            "_reproducibility.load")
 def loadReproducibility(infile, outfile):
     '''load reproducibility results.'''
-    # IMS: toTable needs .load so changed P.toTable(infile) to
-    # P.toTable(outfile)
-    tablename = P.toTable(outfile)
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s
-    --log=%(outfile)s.log --allow-empty-file=True < %(infile)s'''
+        
+    P.load(infile, outfile, options="--allow-empty-file")
 
 #########################################################################
 #########################################################################

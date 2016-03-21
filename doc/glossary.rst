@@ -144,6 +144,10 @@ Other terms
     tss
         Transcription start site
 
+    PARAMS
+        Data structure used by all pipelines to store configuration
+        parameters read from pipeline.ini files.
+
     production pipeline
         A pipeline that performs common tasks on a certain type of
         data. The idea of a production pipeline is to provide common

@@ -194,7 +194,7 @@ P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
      "pipeline.ini"],
-    defaults={"annotations_annotations_dir": "",
+    defaults={"annotations_dir": "",
               "genesets_abinitio_coding": "pruned.gtf.gz",
               "genesets_abinitio_lncrna": "pruned.gtf.gz",
               "genesets_reference": "reference.gtf.gz",
@@ -220,7 +220,7 @@ def connect():
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_annotations_database"])
+        PARAMS["annotations_database"])
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
@@ -345,9 +345,9 @@ def buildRefnoncodingGeneSet(infile, outfile):
 @merge((PARAMS["genesets_abinitio_lncrna"],
         PARAMS["genesets_reference"],
         buildRefnoncodingGeneSet,
-        os.path.join(PARAMS["annotations_annotations_dir"],
+        os.path.join(PARAMS["annotations_dir"],
                      PARAMS["annotations_interface_pseudogenes_gtf"]),
-        os.path.join(PARAMS["annotations_annotations_dir"],
+        os.path.join(PARAMS["annotations_dir"],
                      PARAMS["annotations_interface_numts_gtf"]),
         ), "gtfs/lncrna.gtf.gz")
 def buildLncRNAGeneSet(infiles, outfile):
@@ -816,7 +816,7 @@ def createMAFAlignment(infiles, outfile):
            axt_files)
 
     target_genome = PARAMS["phyloCSF_target_genome"]
-    target_contigs = os.path.join(PARAMS["annotations_annotations_dir"],
+    target_contigs = os.path.join(PARAMS["annotations_dir"],
                                   PARAMS["annotations_interface_contigs"])
     query_genome = PARAMS["phyloCSF_query_genome"]
     query_contigs = os.path.join(PARAMS["phyloCSF_query_assembly"],

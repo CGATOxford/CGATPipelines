@@ -14,7 +14,7 @@ import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
 
-PICARD_MEMORY = "2.1G"
+PICARD_MEMORY = "5G"
 
 
 def getNumReadsFromReadsFile(infile):
@@ -137,6 +137,9 @@ def buildPicardDuplicationStats(infile, outfile):
         statement = ""
         data_source = infile
 
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
+
     statement += '''MarkDuplicates
     INPUT=%(data_source)s
     ASSUME_SORTED=true
@@ -144,8 +147,9 @@ def buildPicardDuplicationStats(infile, outfile):
     OUTPUT=/dev/null
     VALIDATION_STRINGENCY=SILENT
     '''
-
     P.run()
+
+    os.unsetenv("CGAT_JAVA_OPTS")
 
     if ".gsnap.bam" in infile:
         os.unlink(tmpfile_name)
@@ -157,6 +161,12 @@ def buildPicardDuplicateStats(infile, outfile):
     Record duplicate metrics using Picard and keep the dedupped .bam
     file.
 
+    Pair duplication is properly handled, including inter-chromosomal
+    cases. SE data is also handled.  These stats also contain a
+    histogram that estimates the return from additional sequecing.  No
+    marked bam files are retained (/dev/null...)  Note that picards
+    counts reads but they are in fact alignments.
+
     Arguments
     ---------
     infile : string
@@ -165,7 +175,6 @@ def buildPicardDuplicateStats(infile, outfile):
         Output filename with picard output.
 
     '''
-
     job_memory = PICARD_MEMORY
     job_threads = 3
 
@@ -174,15 +183,18 @@ def buildPicardDuplicateStats(infile, outfile):
         P.touch(outfile)
         return
 
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
     statement = '''MarkDuplicates
     INPUT=%(infile)s
     ASSUME_SORTED=true
     METRICS_FILE=%(outfile)s.duplicate_metrics
     OUTPUT=%(outfile)s
-    VALIDATION_STRINGENCY=SILENT ;
+    VALIDATION_STRINGENCY=SILENT;
     '''
     statement += '''samtools index %(outfile)s ;'''
     P.run()
+    os.unsetenv("CGAT_JAVA_OPTS")
 
 
 def buildPicardCoverageStats(infile, outfile, baits, regions):
@@ -400,6 +412,13 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
 def loadPicardAlignmentStats(infiles, outfile):
     '''load all output from Picard's CollectMultipleMetrics into database.
 
+    Loads tables into database with prefix derived from outfile:
+       * [outfile]_alignment_summary_metric
+       * [outfile]_insert_size_metrics
+       * [outfile]_quality_by_cycle_metrics
+       * [outfile]_quality_distribution_metrics
+       * [outfile]_insert_size_metrics
+
     Arguments
     ---------
     infiles : string
@@ -425,6 +444,10 @@ def loadPicardAlignmentStats(infiles, outfile):
 
 def loadPicardDuplicationStats(infiles, outfiles):
     '''load picard duplicate filtering stats into database.
+
+    Loads two tables into the database
+       * picard_duplication_metrics
+       * picard_complexity_histogram
 
     Arguments
     ---------
@@ -554,7 +577,7 @@ def loadBAMStats(infiles, outfile):
     infiles : string
         Input files, output from :func:`buildBAMStats`.
     outfile : string
-        Output file in :term:`tsv` format.
+        Logfile. The table name will be derived from `outfile`.
     '''
 
     header = ",".join([P.snip(os.path.basename(x), ".readstats")

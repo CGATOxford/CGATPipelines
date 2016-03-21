@@ -292,33 +292,36 @@ def connect():
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset.dir/reference.gtf.gz")
 def buildReferenceGeneSet(infile, outfile):
-    '''sanitize ENSEMBL transcripts file for cufflinks analysis.
+    ''' filter full gene set and add attributes to create the reference gene set
 
-    Merge exons separated by small introns (< 5bp).
+    Performs merge and filter operations:
+       * Merge exons separated by small introns (< 5bp).
+       * Remove transcripts with very long introns (`max_intron_size`)
+       * Remove transcripts located on contigs to be ignored (`remove_contigs`)
+         (usually: chrM, _random, ...)
+       * (Optional) Remove transcripts overlapping repetitive sequences
+         (`rna_file`)
 
-    Removes unwanted contigs according to configuration
-    value ``geneset_remove_contigs``.
+    This preserves all features in a gtf file (exon, CDS, ...)
 
-    Removes transcripts overlapping ribosomal genes if
-    ``geneset_remove_repetitive_rna`` is set. Protein coding
-    transcripts are not removed.
+    Runs cuffcompare with `infile` against itself to add
+    attributes such as p_id and tss_id.
 
-    Transcripts will be ignored that
-       * have very long introns (max_intron_size) (otherwise,
-         cufflinks complains)
-       * are located on contigs to be ignored (usually: chrM, _random, ...)
-
-    The result is run through cuffdiff in order to add the p_id and
-    tss_id tags required by cuffdiff.
-
-    This will only keep sources of the type 'exon'. It will also remove
-    any transcripts not in the reference genome.
-
-    Cuffdiff requires overlapping genes to have different tss_id tags.
-
-    This geneset is the source for most other genesets in the pipeline.
-
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`gtf` format
+    outfile : str
+       Input filename in :term:`gtf` format
+    annotations_interface_rna_gff : str
+       :term:`PARAMS`. Filename of :term:`gtf` file containing
+       repetitive rna annotations
+    genome_dir : str
+       :term:`PARAMS`. Directory of :term:fasta formatted files
+    genome : str
+       :term:`PARAMS`. Genome name (e.g hg38)
     '''
+
     tmp_mergedfiltered = P.getTempFilename(".")
 
     if "geneset_remove_repetetive_rna" in PARAMS:
@@ -348,7 +351,19 @@ def buildReferenceGeneSet(infile, outfile):
 @active_if(SPLICED_MAPPING)
 @originate("protein_coding_gene_ids.tsv")
 def identifyProteinCodingGenes(outfile):
-    """output a list of proteing coding gene identifiers."""
+    '''Output a list of proteing coding gene identifiers
+
+    Identify protein coding genes from the annotation database table
+    and output the gene identifiers
+
+    Parameters
+    ----------
+    oufile : str
+       Output file of :term:`gtf` format
+    annotations_interface_table_gene_info : str
+       :term:`PARAMS`. Database table name for gene information
+
+    '''
 
     dbh = connect()
 
@@ -371,15 +386,22 @@ def identifyProteinCodingGenes(outfile):
 def buildCodingGeneSet(infiles, outfile):
     '''build a gene set with only protein coding transcripts.
 
-    Genes are no longer selected via their gene biotype in the GTF file.
+    Retain the genes from the gene_tsv file in the outfile geneset.
+    The gene set will contain all transcripts of protein coding genes,
+    including processed transcripts. The gene set includes UTR and
+    CDS.
 
-    Genes are now identified from the annotation database table and then
-    provided in a tsv file to gtf2gtf.py
+    Parameters
+    ----------
+    infiles : list
+    infile: str
+       Input filename in :term:`gtf` format
 
-    Note that this set will contain all transcripts of protein
-    coding genes, including processed transcripts.
+    genes_ts: str
+       Input filename in :term:`tsv` format
 
-    This set includes UTR and CDS.
+    outfile: str
+       Output filename in :term:`gtf` format
 
     '''
 
@@ -409,17 +431,28 @@ def buildCodingGeneSet(infiles, outfile):
            add_inputs(identifyProteinCodingGenes),
            "geneset.dir/introns.gtf.gz")
 def buildIntronGeneModels(infiles, outfile):
-    '''build protein-coding intron-transcipts.
+    '''build protein-coding intron-transcipts
 
-    Intron-transcripts are the reverse complement of transcripts.
+    Retain the protein coding genes from the input gene set and
+    convert the exonic sequences to intronic sequences. 10 bp is
+    truncated on either end of an intron and need to have a minimum
+    length of 100. Introns from nested genes might overlap, but all
+    exons are removed.
 
-    Only protein coding genes are taken.
+    Parameters
+    ----------
+    infiles : list
+    infiles[0] : str
+       Input filename in :term:`gtf` format
+    infiles[1] : str
+       Input filename in :term:`tsv` format
 
-    10 bp are truncated on either end of an intron and need
-    to have a minimum length of 100.
+    outfile: str
+       Output filename in :term:`gtf` format
 
-    Introns from nested genes might overlap, but all exons
-    are removed.
+    annotations_interface_geneset_exons_gtf: str, PARAMS
+       Filename for :term:`gtf` format file containing gene set exons
+
     '''
 
     filename_exons = PARAMS["annotations_interface_geneset_exons_gtf"]
@@ -454,6 +487,7 @@ def buildIntronGeneModels(infiles, outfile):
     P.run()
 
 
+@P.add_doc(PipelineGeneset.loadTranscript2Gene)
 @active_if(SPLICED_MAPPING)
 @transform(buildCodingGeneSet,
            suffix(".gtf.gz"),
@@ -467,9 +501,18 @@ def loadGeneInformation(infile, outfile):
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset.dir/coding_exons.gtf.gz")
 def buildCodingExons(infile, outfile):
-    '''compile set of protein coding exons.
+    '''compile the set of protein coding exons.
 
+    Filter protein coding transcripts
     This set is used for splice-site validation
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`gtf` format
+    outfile: str
+       Output filename in :term:`gtf` format
+
     '''
 
     statement = '''
@@ -494,14 +537,25 @@ def buildCodingExons(infile, outfile):
 def buildReferenceTranscriptome(infile, outfile):
     '''build reference transcriptome.
 
-    The reference transcriptome contains all known protein coding
-    transcripts.
+    Extract the sequence for each transcript in a reference geneset
+    :term:`gtf` file from an indexed genome :term:`fasta` file and
+    output to a :term:`fasta` file. Transcript sequences include both
+    UTR and CDS.
 
-    The sequences include both UTR and CDS.
+    Additionally build :term:`bowtie` indices for tophat/tophat2 as required.
 
-    Builds bowtie indices for tophat/tophat2 if
-    required.
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`gtf` format
+    outfile: str
+       Output filename in :term:`fasta` format
+    genome_dir : str
+       :term:`PARAMS`. Directory of :term:fasta formatted files
+    genome : str
+       :term:`PARAMS`. Genome name (e.g hg38)
     '''
+
     gtf_file = P.snip(infile, ".gz")
 
     genome_file = os.path.abspath(
@@ -552,10 +606,18 @@ def buildReferenceTranscriptome(infile, outfile):
 def buildJunctions(infile, outfile):
     '''build file with splice junctions from gtf file.
 
-    A junctions file is a better option than supplying a GTF
+    Identify the splice junctions from a gene set :term:`gtf`
+    file. A junctions file is a better option than supplying a GTF
     file, as parsing the latter often fails. See:
 
     http://seqanswers.com/forums/showthread.php?t=7563
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`gtf` format
+    outfile: str
+       Output filename
 
     '''
 
@@ -596,7 +658,18 @@ def buildJunctions(infile, outfile):
 @merge(PARAMS["annotations_interface_geneset_exons_gtf"],
        "gsnap.dir/splicesites.iit")
 def buildGSNAPSpliceSites(infile, outfile):
-    '''build file with known splice sites for GSNAP from all exons...
+    '''build file with known splice sites for GSNAP from all exons
+
+    Identify the splice from a gene set :term:`gtf` file using the
+    GSNAP subprogram gts_splicesites.
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`gtf` format
+    outfile: str
+       Output filename
+
     '''
 
     outfile = P.snip(outfile, ".iit")
@@ -640,7 +713,7 @@ SEQUENCEFILES_REGEX = regex(
            SEQUENCEFILES_REGEX,
            r"nreads.dir/\1.nreads")
 def countReads(infile, outfile):
-    '''count number of reads in input files.'''
+    '''Count number of reads in input files.'''
     m = PipelineMapping.Counter()
     statement = m.build((infile,), outfile)
     P.run()
@@ -659,18 +732,73 @@ def countReads(infile, outfile):
            add_inputs(buildJunctions, buildReferenceTranscriptome),
            r"tophat.dir/\1.tophat.bam")
 def mapReadsWithTophat(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    """
+    Map reads using Tophat (spliced reads).
 
-    A list with known splice junctions is supplied.
+    Parameters
+    ----------
 
-    If tophat fails with an error such as::
+    infiles: list
+        contains 3 filenames -
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
 
-       Error: segment-based junction search failed with err =-6
-       what():  std::bad_alloc
+    infiles[1]: str
+        :term:`fasta` filename, suffix .fa
+        reference transcriptome
 
-    it means that it ran out of memory.
+    infiles[2]: str
+        filename with suffix .junctions containing a list of known
+        splice junctions.
 
-    '''
+    tophat_threads: int
+        :term:`PARAMS`
+        number of threads with which to run tophat
+
+    tophat_options: str
+        :term:`PARAMS`
+        string containing options to pass to tophat
+
+    tophat_memory: str
+        :term:`PARAMS`
+        memory required for tophat job
+
+    tophat_executable: str
+        :term:`PARAMS`
+        path to tophat executable
+
+    tophat_library_type
+        :term:`PARAMS`
+        fr-unstranded, fr-firststrand or fr-secondstrand see
+        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+
+    tophat_include_reference_transcriptome: bool
+        :term:`PARAMS`
+        if set, map to reference transcriptome
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
+
+    .. note::
+       If tophat fails with an error such as::
+
+          Error: segment-based junction search failed with err =-6
+          what():  std::bad_alloc
+
+       it means that it ran out of memory.
+
+    """
+
     job_threads = PARAMS["tophat_threads"]
 
     if "--butterfly-search" in PARAMS["tophat_options"]:
@@ -705,16 +833,74 @@ def mapReadsWithTophat(infiles, outfile):
            add_inputs(buildJunctions, buildReferenceTranscriptome),
            r"tophat2.dir/\1.tophat2.bam")
 def mapReadsWithTophat2(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+     Map reads using Tophat2 (spliced reads).
 
-    A list with known splice junctions is supplied.
+    Parameters
+    ----------
 
-    If tophat fails with an error such as::
+    infiles: list
+        contains 3 filenames -
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
 
-       Error: segment-based junction search failed with err =-6
-       what():  std::bad_alloc
+    infiles[1]: str
+        :term:`fasta` filename, suffix .fa
+        reference transcriptome
 
-    it means that it ran out of memory.
+    infiles[2]: str
+        filename with suffix .junctions containing a list of known
+        splice junctions.
+
+    tophat2_threads: int
+        :term:`PARAMS`
+        number of threads with which to run tophat2
+
+    tophat2_options: str
+        :term:`PARAMS`
+        string containing options to pass to tophat2
+
+    tophat2_memory: str
+        :term:`PARAMS`
+        memory required for tophat2 job
+
+    tophat2_executable: str
+        :term:`PARAMS`
+        path to tophat2 executable
+
+    tophat2_library_type
+        :term:`PARAMS`
+        fr-unstranded, fr-firststrand or fr-secondstrand see
+        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+
+    tophat2_include_reference_transcriptome: bool
+        :term:`PARAMS`
+        if set, map to reference transcriptome
+
+    tophat2_mate_inner_dist: int
+        :term:`PARAMS`
+        insert length (2 * read length)
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
+
+    .. note::
+       If tophat fails with an error such as::
+
+          Error: segment-based junction search failed with err =-6
+          what():  std::bad_alloc
+
+       it means that it ran out of memory.
 
     '''
     job_threads = PARAMS["tophat2_threads"]
@@ -755,10 +941,54 @@ def mapReadsWithTophat2(infiles, outfile):
            add_inputs(buildJunctions),
            r"hisat.dir/\1.hisat.bam")
 def mapReadsWithHisat(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+    Map reads using Hisat  (spliced reads).
 
-    A list with known splice junctions is supplied.
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
 
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        filename with suffix .junctions containing a list of known
+        splice junctions.
+
+    hisat_threads: int
+        :term:`PARAMS`
+        number of threads with which to run hisat
+
+    hisat_memory: str
+        :term:`PARAMS`
+        memory required for hisat job
+
+    hisat_executable: str
+        :term:`PARAMS`
+        path to hisat executable
+
+    hisat_library_type: str
+        :term:`PARAMS`
+        hisat rna-strandess parameter, see
+        https://ccb.jhu.edu/software/hisat/manual.shtml#command-line
+
+    hisat_options: str
+        options string for hisat, see
+        https://ccb.jhu.edu/software/hisat/manual.shtml#command-line
+
+    hisat_index_dir: str
+        path to directory containing hisat indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
+    .. note::
     If hisat fails with an error such as::
 
        Error: segment-based junction search failed with err =-6
@@ -767,6 +997,7 @@ def mapReadsWithHisat(infiles, outfile):
     it means that it ran out of memory.
 
     '''
+
     job_threads = PARAMS["hisat_threads"]
     job_memory = PARAMS["hisat_memory"]
 
@@ -788,8 +1019,37 @@ def mapReadsWithHisat(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @merge(mapReadsWithTophat, "tophat_stats.tsv")
 def buildTophatStats(infiles, outfile):
+    '''
+    Build stats about tophat runs.
 
+    Uses the log files from tophat mapping runs to build a table showing
+    counts for various statistics for each input file.
+    These statistics are: reads in, reads removed, reads out, junctions loaded,
+    junctions found, possible splices.
+
+    Parameters
+    ----------
+    infiles: list
+        list of filenames of :term:`bam` files containing mapped reads
+
+    paired_end: bool
+        :term:`PARAMS` if true, reads are paired end.
+
+    outfile: str
+        :term:`tsv` file to write the stats about the run
+
+    '''
     def _select(lines, pattern):
+        '''
+        Looks for a pattern in each line of the bam file
+
+        Parameters
+        ----------
+        lines: list
+            readlines object from log file from the tophat run
+        pattern: str
+            regex specifying the pattern to search for.
+        '''
         x = re.compile(pattern)
         for line in lines:
             r = x.search(line)
@@ -863,6 +1123,17 @@ def buildTophatStats(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @transform(buildTophatStats, suffix(".tsv"), ".load")
 def loadTophatStats(infile, outfile):
+    '''
+    Loads statistics about a tophat run from a tsv file to a database table -
+    tophat_stats.
+    The columns are track, reads in, reads removed, reads out, junctions loaded
+    , junctions found, possible splices.
+
+    Parameters
+    ----------
+    infile: term:`tsv` file containing a table of tophat statistics.
+    outfile: .load file
+    '''
     P.load(infile, outfile)
 
 
@@ -873,8 +1144,50 @@ def loadTophatStats(infile, outfile):
            add_inputs(buildGSNAPSpliceSites),
            r"gsnap.dir/\1.gsnap.bam")
 def mapReadsWithGSNAP(infiles, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+    Maps reads using GSNAP (mRNA and EST sequences).
 
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        filename of type iit containing all known splice sites
+
+    gsnap_memory: str
+        :term:`PARAMS`
+        memory required for gsnap job
+
+    gsnap_node_threads: int
+        :term:`PARAMS`
+        number of threads to use on the node
+
+    gsnap_worker_threads: int
+        :term:`PARAMS`
+        --nthreads option for GSNAP described in
+        http://research-pub.gene.com/gmap/src/README
+        this number of threads plus 2 will be used
+
+    gsnap_options: str
+        :term:`PARAMS`
+        string containing command line options for GSNAP,
+        details at http://research-pub.gene.com/gmap/src/README
+
+    gsnap_executable: str
+        :term:`PARAMS`
+        path to gsnap executable
+
+    gsnap_mapping_genome: str
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
     '''
 
     infile, infile_splices = infiles
@@ -901,7 +1214,45 @@ def mapReadsWithGSNAP(infiles, outfile):
            SEQUENCEFILES_REGEX,
            r"star.dir/\1.star.bam")
 def mapReadsWithSTAR(infile, outfile):
-    '''map reads from .fastq or .sra files.
+    '''
+    Maps reads using STAR (spliced reads).
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    star_memory: str
+        :term:`PARAMS`
+        memory required for STAR job
+
+    star_threads: int
+        :term:`PARAMS`
+        number of threads with which to run STAR
+
+    star_genome: str
+        :term:`PARAMS`
+        path to genome if using a splice junction database sjdb
+
+    genome: str
+        :term:`PARAMS`
+        path to genome if not using a splice junction database
+
+    star_executable: str
+        :term:`PARAMS`
+        path to star executable
+
+    star_index_dir: str
+        :term:`PARAMS`
+        path to directory containing star indices.
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
 
     '''
 
@@ -921,7 +1272,18 @@ def mapReadsWithSTAR(infile, outfile):
 @active_if(SPLICED_MAPPING)
 @merge(mapReadsWithSTAR, "star_stats.tsv")
 def buildSTARStats(infiles, outfile):
-    '''load stats from STAR run.'''
+    '''Compile statistics from STAR run
+
+    Concatenates log files from STAR runs and reformats them as a tab
+    delimited table.
+
+    Parameters
+    ----------
+    infile: list
+        :term:`bam` files generated with STAR.
+    outfile: str
+        :term: `tsv` file containing statistics about STAR run
+    '''
 
     data = collections.defaultdict(list)
     for infile in infiles:
@@ -950,7 +1312,15 @@ def buildSTARStats(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @transform(buildSTARStats, suffix(".tsv"), ".load")
 def loadSTARStats(infile, outfile):
-    '''load stats from STAR run.'''
+    '''
+    Loads statistics about a star run from a tsv file to a database table -
+    star_stats.
+
+    Parameters
+    ----------
+    infile: term:`tsv` file containing a table of tophat statistics.
+    outfile: .load file logging database loading
+    '''
     P.load(infile, outfile)
 
 
@@ -961,7 +1331,44 @@ def loadSTARStats(infile, outfile):
            add_inputs(buildReferenceTranscriptome),
            r"transcriptome.dir/\1.trans.bam")
 def mapReadsWithBowtieAgainstTranscriptome(infiles, outfile):
-    '''map reads using bowtie against transcriptome data.
+    '''
+    Map reads using bowtie against transcriptome data.
+
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        :term:`fasta` file containing reference genome
+
+    bowtie_threads: int
+        :term:`PARAMS`
+        number of threads with which to run bowtie
+
+    bowtie_memory: str
+        :term:`PARAMS`
+        memory required for bowtie job
+
+    bowtie_executable: str
+        :term:`PARAMS`
+        path to bowtie executable
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+
     '''
 
     # Mapping will permit up to one mismatches. This is sufficient
@@ -994,7 +1401,48 @@ def mapReadsWithBowtieAgainstTranscriptome(infiles, outfile):
                             PARAMS["genome"] + ".fa")),
            r"bowtie.dir/\1.bowtie.bam")
 def mapReadsWithBowtie(infiles, outfile):
-    '''map reads with bowtie. For bowtie2 set executable apppropriately.'''
+    '''
+    Map reads with bowtie (short reads).
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        :term:`fasta` file containing reference genome
+
+    bowtie_threads: int
+        :term:`PARAMS`
+        number of threads with which to run bowtie
+
+    bowtie_memory: str
+        :term:`PARAMS`
+        memory required for bowtie job
+
+    bowtie_executable: str
+        :term:`PARAMS`
+        path to bowtie executable
+
+    bowtie_options: str
+        :term:`PARAMS`
+        string containing command line options for bowtie - refer
+        to http://bowtie-bio.sourceforge.net/index.shtml
+
+    bowtie_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bowtie indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["bowtie_threads"]
     job_memory = PARAMS["bowtie_memory"]
@@ -1016,7 +1464,44 @@ def mapReadsWithBowtie(infiles, outfile):
                             PARAMS["genome"] + ".fa")),
            r"bowtie2.dir/\1.bowtie2.bam")
 def mapReadsWithBowtie2(infiles, outfile):
-    '''map reads with bowtie. For bowtie2 set executable apppropriately.'''
+    '''
+    Map reads with bowtie2.
+    Parameters
+    ----------
+    infiles: list
+        contains two filenames -
+
+    infiles[0]: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    infiles[1]: str
+        :term:`fasta` file containing reference genome
+
+    bowtie2_threads: int
+        :term:`PARAMS`
+        number of threads with which to run bowtie2
+
+    bowtie2_memory: str
+        :term:`PARAMS`
+        memory required for bowtie2 job
+
+    bowtie2_executable: str
+        :term:`PARAMS`
+        path to bowtie2 executable
+
+    bowtie2_options: str
+        :term:`PARAMS`
+        string containing command line options for bowtie2 -
+        refer to http://bowtie-bio.sourceforge.net/bowtie2/index.shtml
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["bowtie2_threads"]
     job_memory = PARAMS["bowtie2_memory"]
@@ -1035,7 +1520,66 @@ def mapReadsWithBowtie2(infiles, outfile):
            SEQUENCEFILES_REGEX,
            r"bwa.dir/\1.bwa.bam")
 def mapReadsWithBWA(infile, outfile):
-    '''map reads with bwa'''
+    '''
+    Map reads with bwa
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    bwa_threads: int
+        :term:`PARAMS`
+        number of threads with which to run BWA
+
+    bwa_memory: str
+        :term:`PARAMS`
+        memory required for BWA job
+
+    bwa_algorithm: str
+        :term:`PARAMS`
+        two options - 'aln' or 'mem' - refer to
+        http://bio-bwa.sourceforge.net/bwa.shtml
+
+    bwa_set_nh: str
+        :term:`PARAMS`
+        sets the NH tag    which specifies multiple hits in sam format
+        otherwise not set by bwa
+
+    bwa_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bwa indices
+
+    bwa_aln_options: str
+        :term:`PARAMS`
+        string containing parameters for bwa if run using the
+        'aln' algorithm - refer to
+        http://bio-bwa.sourceforge.net/bwa.shtml
+
+    bwa_samse_options: str
+        :term:`PARAMS`
+        string containing single end read options for bwa - refer
+        to http://bio-bwa.sourceforge.net/bwa.shtml
+
+    bwa_mem_options: str
+        :term:`PARAMS`
+        string containing parameters for bwa if run using the
+        'mem' algorithm    - refer to
+        http://bio-bwa.sourceforge.net/bwa.shtml
+
+    remove_non_unique
+        :term:`PARAMS`
+        If true, a filtering step is included in postprocess, which removes
+        reads that have more than 1 best hit
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["bwa_threads"]
     job_memory = PARAMS["bwa_memory"]
@@ -1062,7 +1606,42 @@ def mapReadsWithBWA(infile, outfile):
            SEQUENCEFILES_REGEX,
            r"stampy.dir/\1.stampy.bam")
 def mapReadsWithStampy(infile, outfile):
-    '''map reads with stampy'''
+
+    '''
+    Map reads with stampy
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    genome
+        :term:`PARAMS`
+        path to reference genome
+
+    stampy_threads: int
+        :term:`PARAMS`
+        number of threads with which to run Stampy
+
+    stampy_memory: str
+        :term:`PARAMS`
+        memory required for stampy job
+
+    stampy_index_dir: str
+        :term:`PARAMS`
+        path to directory containing stampy indices
+
+    bwa_index_dir: str
+        :term:`PARAMS`
+        path to directory containing bwa indices
+
+    strip_sequence: bool
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
 
     job_threads = PARAMS["stampy_threads"]
     job_memory = PARAMS["stampy_memory"]
@@ -1083,7 +1662,45 @@ def mapReadsWithStampy(infile, outfile):
            SEQUENCEFILES_REGEX,
            r"butter.dir/\1.butter.bam")
 def mapReadsWithButter(infile, outfile):
-    '''map reads with butter'''
+    '''
+    Map reads with butter
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    butter_threads: int
+        :term:`PARAMS`
+        number of threads with which to run butter
+
+    butter_memory: str
+        :term:`PARAMS`
+        memory required for butter job
+
+    butter_options: str
+        :term:`PARAMS`
+        string containing command line options to pass to Butter -
+        refer to https://github.com/MikeAxtell/butter
+
+    butter_index_dir: str
+        :term:`PARAMS`
+        path to directory containing butter indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    butter_set_nh: str
+        :term:`PARAMS`
+        sets the NH tag    which specifies multiple hits in sam format
+        otherwise not set by butter
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
+
     # easier to check whether infiles are paired reads here
     if infile.endswith(".sra"):
         outdir = P.getTempDir()
@@ -1102,6 +1719,7 @@ def mapReadsWithButter(infile, outfile):
     m = PipelineMapping.Butter(
         strip_sequence=PARAMS["strip_sequence"],
         set_nh=PARAMS["butter_set_nh"])
+    statement = m.build((infile,), outfile)
 
     P.run()
 
@@ -1132,6 +1750,7 @@ for x in P.asList(PARAMS["mappers"]):
 
 @follows(*MAPPINGTARGETS)
 def mapping():
+    ''' dummy task to define upstream mapping tasks'''
     pass
 
 
@@ -1148,7 +1767,21 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
                               PARAMS["merge_pattern_input"].count("(") + 1),
              )
     def mergeBAMFiles(infiles, outfile):
-        '''merge BAM files from the same experiment.'''
+        '''merge BAM files from the same experiment using user-defined regex
+
+        For the mapping stages it is beneficial to perform mapping
+        seperately for each sequence read infile(s) per sample so that
+        the consistency can be checked. However, for downstream tasks,
+        the merged :term:`bam` alignment files are required.
+
+        Parameters
+        ----------
+        infiles : list
+           list of :term:`bam` format alignment files
+        outfile : str
+           Output filename in :term:`bam` format
+        '''
+
         if len(infiles) == 1:
             E.info(
                 "%(outfile)s: only one file for merging - creating "
@@ -1172,7 +1805,21 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
              r"%s.nreads" % PARAMS["merge_pattern_output"],
              )
     def mergeReadCounts(infiles, outfile):
-        '''merge BAM files from the same experiment.'''
+        '''merge read counts files from the same experiment using
+        user-defined regex
+
+        For the mapping stages it is beneficial to perform mapping
+        seperately for each sequence read infile(s) so that the
+        consistency can be checked. However, for downstream tasks, the
+        merged counts per sample are required.
+
+        Parameters
+        ----------
+        infiles : list of str
+           list of filenames containing read counts per sequence read infile
+        outfile : str
+           Output filename containing total counts for a sample
+        '''
 
         nreads = 0
         for infile in infiles:
@@ -1194,7 +1841,7 @@ else:
                r"nreads.dir/\1.nreads")
     # this decorator for the dummy mergeReadCounts is needed to prevent
     # rerunning of all downstream functions.
-    def mergeReadCounts():
+    def mergeReadCounts(infiles, outfiles):
         pass
 
 ###################################################################
@@ -1229,16 +1876,14 @@ else:
 ############################################################
 
 
+@P.add_doc(PipelineMappingQC.buildPicardAlignmentStats)
 @transform(MAPPINGTARGETS,
            suffix(".bam"),
            add_inputs(os.path.join(PARAMS["genome_dir"],
                                    PARAMS["genome"] + ".fa")),
            ".picard_stats")
 def buildPicardStats(infiles, outfile):
-    '''build alignment stats using picard.
-
-    Note that picards counts reads but they are in fact alignments.
-    '''
+    ''' build Picard alignment stats '''
     infile, reffile = infiles
 
     # patch for mapping against transcriptome - switch genomic reference
@@ -1251,6 +1896,7 @@ def buildPicardStats(infiles, outfile):
                                                 reffile)
 
 
+@P.add_doc(PipelineMappingQC.loadPicardAlignmentStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildPicardStats, "picard_stats.load")
 def loadPicardStats(infiles, outfile):
@@ -1258,22 +1904,16 @@ def loadPicardStats(infiles, outfile):
     PipelineMappingQC.loadPicardAlignmentStats(infiles, outfile)
 
 
+@P.add_doc(PipelineMappingQC.buildPicardDuplicationStats)
 @transform(MAPPINGTARGETS,
            suffix(".bam"),
            ".picard_duplication_metrics")
 def buildPicardDuplicationStats(infile, outfile):
-    '''Get duplicate stats from picard MarkDuplicates.
-
-    Pair duplication is properly handled, including inter-chromosomal
-    cases. SE data is also handled.  These stats also contain a
-    histogram that estimates the return from additional sequecing.  No
-    marked bam files are retained (/dev/null...)  Note that picards
-    counts reads but they are in fact alignments.
-
-    '''
+    '''Get duplicate stats from picard MarkDuplicates '''
     PipelineMappingQC.buildPicardDuplicationStats(infile, outfile)
 
 
+@P.add_doc(PipelineMappingQC.loadPicardDuplicationStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildPicardDuplicationStats, ["picard_duplication_stats.load",
                                      "picard_duplication_histogram.load"])
@@ -1290,6 +1930,22 @@ def loadPicardDuplicationStats(infiles, outfiles):
            r"\1/\2.\3.readstats")
 def buildBAMStats(infiles, outfile):
     '''count number of reads mapped, duplicates, etc.
+
+    Excludes regions overlapping repetitive RNA sequences
+
+    Parameters
+    ----------
+    infiles : list
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str
+       Input filename with number of reads per sample
+
+    outfile : str
+       Output filename with read stats
+
+    annotations_interface_rna_gtf : str
+        :term:`PARMS`. :term:`gtf` format file with repetitive rna
     '''
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
@@ -1330,38 +1986,32 @@ def buildBAMStats(infiles, outfile):
     P.run()
 
 
+@P.add_doc(PipelineMappingQC.loadBAMStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildBAMStats, "bam_stats.load")
 def loadBAMStats(infiles, outfile):
-    '''import bam statisticis.'''
+    ''' load bam statistics into bam_stats table '''
     PipelineMappingQC.loadBAMStats(infiles, outfile)
 
 
+@P.add_doc(PipelineWindows.summarizeTagsWithinContext)
 @transform(MAPPINGTARGETS,
            suffix(".bam"),
            add_inputs(
                PARAMS["annotations_interface_genomic_context_bed"]),
            ".contextstats.tsv.gz")
 def buildContextStats(infiles, outfile):
-    '''build mapping context stats.
-
-    Examines the genomic context to where reads align.
-
-    A read is assigned to the genomic context that it overlaps by at
-    least 50%. Thus some reads that map across several non-overlapping
-    contexts might be dropped.
-
-    '''
+    ''' build mapping context stats '''
     PipelineWindows.summarizeTagsWithinContext(
         infiles[0], infiles[1], outfile)
 
 
+@P.add_doc(PipelineWindows.loadSummarizedContextStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(loadBAMStats)
 @merge(buildContextStats, "context_stats.load")
 def loadContextStats(infiles, outfile):
-    """
-    load context mapping statistics."""
+    ''' load context mapping statistics into context_stats table '''
     PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 ###################################################################
@@ -1379,7 +2029,21 @@ def loadContextStats(infiles, outfile):
            add_inputs(buildCodingExons),
            ".exon.validation.tsv.gz")
 def buildExonValidation(infiles, outfile):
-    '''count number of reads mapped, duplicates, etc.
+    '''Compare the alignments to the exon models to quantify exon
+    overrun/underrun
+
+    Expectation is that reads should not extend beyond known exons.
+
+    Parameters
+    ----------
+    infiles : list
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str
+       Input filename in :term:`gtf` format
+
+    outfile : str
+       Output filename in :term:`gtf` format with exon validation stats
     '''
 
     infile, exons = infiles
@@ -1400,8 +2064,25 @@ def buildExonValidation(infiles, outfile):
 @active_if(SPLICED_MAPPING)
 @merge(buildExonValidation, "exon_validation.load")
 def loadExonValidation(infiles, outfile):
-    '''merge alignment stats into single tables.'''
+    ''' load individual and merged exon validation stats
+
+    For each sample, the exon validation stats are loaded into a table
+    named by sample and mapper
+    [sample]_[mapper]_overrun
+
+    The merge alignment stats for all samples are merged and loaded
+    into single table called exon_validation
+
+    Parameters
+    ----------
+    infiles : list
+       Input filenames with exon validation stats
+    outfile : str
+       Output filename
+    '''
+
     suffix = ".exon.validation.tsv.gz"
+
     P.mergeAndLoad(infiles, outfile, suffix=suffix)
     for infile in infiles:
         track = P.snip(infile, suffix)
@@ -1415,8 +2096,23 @@ def loadExonValidation(infiles, outfile):
            add_inputs(buildCodingGeneSet),
            r"\1.transcript_counts.tsv.gz")
 def buildTranscriptLevelReadCounts(infiles, outfile):
-    '''count reads falling into transcripts of protein coding
-       gene models.
+    '''count reads in gene models
+
+    Count the reads from a :term:`bam` file which overlap the
+    positions of protein coding transcripts in a :term:`gtf` format
+    transcripts file.
+
+    Parameters
+    ----------
+    infiles : list of str
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str
+       Input filename in :term:`gtf` format
+
+    outfile : str
+       Output filename in :term:`tsv` format
+
 
     .. note::
        In paired-end data sets each mate will be counted. Thus
@@ -1453,6 +2149,16 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
            suffix(".tsv.gz"),
            ".load")
 def loadTranscriptLevelReadCounts(infile, outfile):
+    ''' load the transcript level read counts and index on the transcript_id
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`tsv` format
+    outfile : str
+       Output filename, the table name is derived from `outfile`
+
+    '''
     P.load(infile, outfile,
            options="--add-index=transcript_id --allow-empty-file")
 
@@ -1463,9 +2169,27 @@ def loadTranscriptLevelReadCounts(infile, outfile):
            add_inputs(buildIntronGeneModels),
            ".intron_counts.tsv.gz")
 def buildIntronLevelReadCounts(infiles, outfile):
-    '''compute coverage of exons with reads.
-    '''
+    '''count reads in gene models
 
+    Count the reads from a :term:`bam` file which overlap the
+    positions of introns in a :term:`gtf` format transcripts file.
+
+    Parameters
+    ----------
+    infiles : list of str
+       infile :term:`str`
+          Input filename in :term:`bam` format
+       geneset :term:`str`
+          Input filename in :term:`gtf` format
+    outfile : str
+       Output filename in :term:`tsv` format
+
+    .. note::
+       In paired-end data sets each mate will be counted. Thus
+       the actual read counts are approximately twice the fragment
+       counts.
+
+    '''
     infile, exons = infiles
 
     job_memory = "4G"
@@ -1498,12 +2222,34 @@ def buildIntronLevelReadCounts(infiles, outfile):
            suffix(".tsv.gz"),
            ".load")
 def loadIntronLevelReadCounts(infile, outfile):
+    ''' load the intron level read counts and index on the transcript_id
+
+    Parameters
+    ----------
+    infiles : str
+       Input filename in :term:`tsv` format
+    outfile : str
+       Output filename, the table name is derived from `outfile`
+
+    '''
     P.load(infile, outfile, options="--add-index=gene_id --allow-empty-file")
 
 
 @merge((countReads, mergeReadCounts), "reads_summary.load")
 def loadReadCounts(infiles, outfile):
-    '''load read counts into database.'''
+    ''' load the read counts
+
+    individual read counts are merged and loaded into a table called
+    reads_summary
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`tsv` format
+    outfile : str
+       Output filename, the table name is derived from `outfile`
+
+    '''
 
     outf = P.getTempFile(".")
     outf.write("track\ttotal_reads\n")
@@ -1525,7 +2271,27 @@ def loadReadCounts(infiles, outfile):
            add_inputs(buildCodingExons),
            ".transcriptprofile.gz")
 def buildTranscriptProfiles(infiles, outfile):
-    '''build gene coverage profiles.'''
+    '''build gene coverage profiles
+
+    PolyA-RNA-Seq is expected to show a bias towards the 3' end of
+    transcripts. Here we generate a meta-profile for each sample for
+    the read depth from the :term:`bam` file across the gene models
+    defined in the :term:`gtf` gene set
+
+    In addition to the outfile specified by the task, plots will be
+    saved with full and focus views of the meta-profile
+
+    Parameters
+    ----------
+    infiles : list of str
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str`
+       Input filename in :term:`gtf` format
+
+    outfile : str
+       Output filename in :term:`tsv` format
+    '''
 
     bamfile, gtffile = infiles
 
@@ -1554,12 +2320,27 @@ def buildTranscriptProfiles(infiles, outfile):
            regex(".bam"),
            ".bw")
 def buildBigWig(infile, outfile):
-    '''build wiggle files from bam files.'''
+    '''build wiggle files from bam files.
+
+    Generate :term:`bigWig` format file from :term:`bam` alignment file
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`bam` format
+    outfile : str
+       Output filename in :term:`bigwig` format
+
+    annotations_interface_contigs : str
+       :term:`PARAMS`
+       Input filename in :term:`bed` format
+
+    '''
 
     if SPLICED_MAPPING:
         # use bedtools for RNASEQ data
 
-        # scale by Mio reads mapped
+        # scale by Million reads mapped
         reads_mapped = BamTools.getNumberOfAlignments(infile)
         scale = 1000000.0 / float(reads_mapped)
         tmpfile = P.getTempFilename()
@@ -1592,7 +2373,18 @@ def buildBigWig(infile, outfile):
 @merge(buildBigWig,
        "bigwig_stats.load")
 def loadBigWigStats(infiles, outfile):
-    '''load bigwig summary for all wiggle files.'''
+    '''merge and load bigwig summary for all wiggle files.
+
+    Summarise and merge bigwig files for all samples and load into a
+    table called bigwig_stats
+
+    Parameters
+    ----------
+    infiles : list
+       Input filenames in :term:`bigwig` format
+    outfile : string
+        Output filename, the table name is derived from `outfile`.
+    '''
 
     data = " ".join(
         ['<( bigWigInfo %s | perl -p -e "s/:/\\t/; s/ //g; s/,//g")' %
@@ -1623,7 +2415,15 @@ def loadBigWigStats(infiles, outfile):
            regex(".bam"),
            ".bed.gz")
 def buildBed(infile, outfile):
-    '''build bed files from bam files.'''
+    ''' Generate :term:`bed` format file from :term:`bam` alignment file
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`bam` format
+    outfile : str
+       Output filename in :term:`bed` format
+    '''
 
     statement = '''
     cat %(infile)s
@@ -1641,7 +2441,15 @@ def buildBed(infile, outfile):
 
 @merge(buildBigWig, "igv_sample_information.tsv")
 def buildIGVSampleInformation(infiles, outfile):
-    '''build a file with IGV sample information.'''
+    '''build a file with IGV sample information
+
+    Parameters
+    ----------
+    infiles : str
+       Input filenames in :term:`bigwig` format
+    outfile : str
+       Output filename in :term:`tsv` format
+    '''
 
     outf = IOTools.openFile(outfile, "w")
     first = True
@@ -1685,8 +2493,10 @@ def duplication():
     pass
 
 
-@follows(buildBigWig, loadBigWigStats)
-def wig():
+@follows(buildBed,
+         loadBigWigStats,
+         buildIGVSampleInformation)
+def export():
     pass
 
 
@@ -1727,11 +2537,6 @@ def full():
     pass
 
 
-@follows(buildCodingGeneSet)
-def test():
-    pass
-
-
 @follows(mapping)
 def map_only():
     pass
@@ -1760,6 +2565,17 @@ def publish():
         "bamfiles": glob.glob("*/*.bam") + glob.glob("*/*.bam.bai"),
         "bigwigfiles": glob.glob("*/*.bw"),
     }
+
+    if PARAMS['ucsc_exclude']:
+        for filetype, files in export_files.iteritems():
+            new_files = set(files)
+            for f in files:
+                for regex in P.asList(PARAMS['ucsc_exclude']):
+                    if re.match(regex, f):
+                        new_files.remove(f)
+                        break
+
+            export_files[filetype] = list(new_files)
 
     # publish web pages
     E.info("publishing report")
