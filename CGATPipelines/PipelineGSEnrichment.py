@@ -42,12 +42,16 @@ hpaQuery <- function(tissue, level, supportive=T){
 
 class AnnotationSet(object):
     '''
-    Class for sets of annotations (not specific to the gene list).
-    Generated for each set of annotations with a *_config.tsv ini
-    file in the working dir.
-    Stores mapping of genes to term IDs (currently only from a flat file)
-    and the ontology context of each term (if a .obo file is provided).
+    Class for any set of genes and a specific set of associated annotations,
+    e.g. human genes and their GO annotations.
+    
+    Generated using any list of genes and one of:
+    - the database specified in the pipeline.ini file
+    - a *_config.tsv annotation ini file in the working directory
+    - a *_mapped.tsv annotation file in the working directory
+
     '''
+
     def __init__(self, optionsfile=None, annots_from_config=None, onts=dict(),
                  descs=dict()):
         self.optionsfile = optionsfile
