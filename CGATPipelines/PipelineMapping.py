@@ -1243,6 +1243,7 @@ class SubsetHead(Mapper):
         infiles = infiles[0]
         if len(infiles) == 1:
             output_filename = output_prefix + ".fastq.gz"
+            f = infiles[0]
             statement.append(
                 '''zcat %(f)s
                 | awk 'NR > %(limit)i {exit} {print}'
