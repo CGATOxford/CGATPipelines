@@ -706,13 +706,14 @@ def mergeSailfishResults(infiles, outfiles):
 
     statement = """
     cat %(s_infiles)s
-     | awk -v OFS="\\t"
-    '/^Name/{ sample_id+=1;
+    | awk -v OFS="\\t"
+    '/^Name/
+    { sample_id+=1;
       if (sample_id == 1)
       {gsub(/Name/, "transcript_id");
-      printf("sample_id\\t%%s\\n", $0); next;}}
-    !/^Name/
-        {printf("%%i\\t%%s\\n", sample_id, $0);}'
+       printf("sample_id\\t%%s\\n", $0); next;}}
+    !/^#/
+        {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
     > %(outfile_transcripts)s
     """
@@ -727,10 +728,9 @@ def mergeSailfishResults(infiles, outfiles):
     '/^Name/
     { sample_id+=1;
       if (sample_id == 1)
-      {gsub(/Name/, "gene_id");
-      printf("sample_id\\t%%s\\n", $0); next;}}
-    !/^Name/
-        {printf("%%i\\t%%s\\n", sample_id, $0)}'
+      {gsub(/Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
+    !/^#/
+      {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
     > %(outfile_genes)s
     """
@@ -933,6 +933,7 @@ def summariseBias(infiles, outfile):
 
     atr["length"] = np.log2(atr["length"])
 
+    E.info("loading transcripts from {}".format(transcripts))
     exp = pd.read_csv(transcripts, sep='\t', index_col="transcript_id")
     exp['LogTPM'] = np.log2(exp['TPM']+0.1)
 
