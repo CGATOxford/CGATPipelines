@@ -708,7 +708,8 @@ def mergeSailfishResults(infiles, outfiles):
     cat %(s_infiles)s
      | awk -v OFS="\\t"
     '/^Name/{ sample_id+=1;
-      if (sample_id == 1) {gsub(/Name/, "transcript_id");
+      if (sample_id == 1)
+      {gsub(/Name/, "transcript_id");
       printf("sample_id\\t%%s\\n", $0); next;}}
     !/^Name/
         {printf("%%i\\t%%s\\n", sample_id, $0);}'
@@ -726,7 +727,8 @@ def mergeSailfishResults(infiles, outfiles):
     '/^Name/
     { sample_id+=1;
       if (sample_id == 1)
-    {gsub(/Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
+      {gsub(/Name/, "gene_id");
+      printf("sample_id\\t%%s\\n", $0); next;}}
     !/^Name/
         {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
