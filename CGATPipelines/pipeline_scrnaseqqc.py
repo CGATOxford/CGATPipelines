@@ -314,8 +314,9 @@ def quantifyWithSailfish(infiles, outfile):
 
     index_dir = infiles[1][0]
     out_dir = "/".join(outfile.split("/")[:-1])
-    job_threads = 8
+    job_threads = 6
     fastqs = ",".join([fastq1, fastq2])
+    job_memory = "1.5G"
 
     statement = '''
     python %(scriptsdir)s/fastq2tpm.py
@@ -668,9 +669,10 @@ def getCoverageStats(outfile):
 
     statement = '''
     python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
-    --table-name=%(mapping_coverage)s
+    --table-name=%(mapping_picard_dups)s
     > %(outfile)s
     '''
 
@@ -681,7 +683,81 @@ def getCoverageStats(outfile):
          getPicardAlignStats,
          getPicardInsertStats,
          getAlignmentStats,
-         getContextStats)
+         getContextStats,
+         getCoverageStats)
+@collate([getDuplicationStats,
+          getPicardAlignStats,
+          getPicardInsertStats,
+          getAlignmentStats,
+          getContextStats,
+          getCoverageStats],
+         regex("stats.dir/(.+)_stats.tsv"),
+         r"stats.dir/QC_measures.stats")
+def aggregateQcTables(infiles, outfile):
+    '''
+    Aggregate together all of the alignment stats
+    tables.  Need to remove duplicate
+    column names
+    '''
+
+    job_memory = "4G"
+
+    infiles = " ".join(infiles)
+
+    statement = '''
+    python %(scriptsdir)s/combine_tables.py
+    --columns=1
+    --skip-titles
+    --log=%(outfile)s.log
+    %(infiles)s
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+@follows(aggregateQcTables)
+@transform(aggregateQcTables,
+           suffix(".stats"),
+           ".clean")
+def cleanQcTable(infile, outfile):
+    '''
+    Clean duplicate columns from table
+    prior to database loading
+    '''
+
+    statement = '''
+    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    --task=clean_table
+    --log=%(outfile)s.log
+    %(infile)s
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+@follows(cleanQcTable)
+@transform(cleanQcTable,
+           suffix(".clean"),
+           ".load")
+def loadQcMeasures(infile, outfile):
+    '''
+    load QC measures into CSVDB
+    '''
+
+    P.load(infile, outfile,
+           options="--add-index=track")
+
+
+@follows(getDuplicationStats,
+         getPicardAlignStats,
+         getPicardInsertStats,
+         getAlignmentStats,
+         getContextStats,
+         aggregateQcTables,
+         cleanQcTable,
+         loadQcMeasures)
 def get_mapping_stats():
     pass
 
