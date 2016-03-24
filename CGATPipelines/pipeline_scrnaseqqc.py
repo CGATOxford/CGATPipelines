@@ -556,7 +556,7 @@ if BAMDIR != "?!":
         P.load(infile, outfile, "--add-index=gene_id")
 
 else:
-    E.Info("No alignment files specified, skipping all gene counting "
+    E.info("No alignment files specified, skipping all gene counting "
            "and deduping tasks")
 
 # ----------------------------------------------------#
