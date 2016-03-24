@@ -348,7 +348,7 @@ def transformSailfishOutput(infile, outfile):
     job_memory = "0.5G"
 
     statement = '''cat  %(infile)s |
-    awk 'BEGIN {printf("Name\\tLength\\tTPM\\tNumReads\\n")}
+    awk 'BEGIN {printf("Name\\tLength\\tEffectiveLength\\tTPM\\tNumReads\\n")}
      {if(NR > 11) {print $0}}' >  %(outfile)s'''
 
     P.run()
@@ -370,7 +370,7 @@ def mergeSailfishRuns(infiles, outfile):
     statement = '''
     python %(scriptsdir)s/combine_tables.py
     --columns=1
-    --take=3
+    --take=4
     --use-file-prefix
     --regex-filename='(.+).quant'
     --log=%(outfile)s.log
@@ -378,6 +378,19 @@ def mergeSailfishRuns(infiles, outfile):
     > %(outfile)s'''
 
     P.run()
+
+
+@follows(mergeSailfishRuns)
+@transform(mergeSailfishRuns,
+           suffix(".tpm"),
+           "tpm.load")
+def loadSailfishTpm(infile, outfile):
+    '''
+    load Sailfish TPM estimates into
+    CSVDB
+    '''
+
+    P.load(infile, outfile)
 
 
 @follows(transformSailfishOutput,
@@ -397,7 +410,7 @@ def mergeSailfishCounts(infiles, outfile):
     statement = '''
     python %(scriptsdir)s/combine_tables.py
     --columns=1
-    --take=4
+    --take=5
     --use-file-prefix
     --regex-filename='(.+).quant'
     --log=%(outfile)s.log
@@ -407,157 +420,171 @@ def mergeSailfishCounts(infiles, outfile):
     P.run()
 
 
+@follows(mergeSailfishCounts)
+@transform(mergeSailfishCounts,
+           suffix(".counts"),
+           ".load")
+def loadSailfishCounts(infile, outfile):
+    '''
+    load Sailfish gene counts data into
+    CSVDB
+    '''
+
+    P.load(infile, outfile)
+
 # ----------------------------------------------------------------#
 # Handling BAM files, dedup with picard before featureCounts
 # quantification. Retain multimapping reads when counting?
 
 BAMDIR = PARAMS['bam_dir']
-if BAMDIR != "?!":
-    BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
-    BAMREGEX = regex(r".*/(\d+)_([0-9]+)-([0-9]+).(\S+).bam$")
+BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
+BAMREGEX = regex(r".*/(\d+)_([0-9]+)-([0-9]+).(\S+).bam$")
 
-    @follows(mkdir("dedup.dir"))
-    @transform(BAMFILES,
-               BAMREGEX,
-               r"dedup.dir/\1_\2_\3.dedup.bam")
-    def dedupBamFiles(infile, outfile):
-        '''
-        Use Picard MarkDuplicates to remove
-        optical and sequencing duplicates
-        '''
+@follows(mkdir("dedup.dir"))
+@transform(BAMFILES,
+           BAMREGEX,
+           r"dedup.dir/\1_\2_\3.dedup.bam")
+def dedupBamFiles(infile, outfile):
+    '''
+    Use Picard MarkDuplicates to remove
+    optical and sequencing duplicates
+    '''
 
-        job_memory = "5G"
-        job_threads = 3
+    job_memory = "5G"
+    job_threads = 3
 
-        os.environ["CGAT_JAVA_OPTS"] = '''
-        -Xmx%s -XX:+UseParNewGC
-        -XX:UseConcMarkSweepGC''' % job_memory
+    os.environ["CGAT_JAVA_OPTS"] = '''
+    -Xmx%s -XX:+UseParNewGC
+    -XX:UseConcMarkSweepGC''' % job_memory
 
-        statement = '''
-        MarkDuplicates
-        INPUT=%(infile)s
-        ASSUME_SORTED=true
-        METRICS_FILE=%(outfile)s.stats
-        OUTPUT=%(outfile)s
-        VALIDATION_STRINGENCY=SILENT
-        REMOVE_DUPLICATES=true
-        '''
+    statement = '''
+    MarkDuplicates
+    INPUT=%(infile)s
+    ASSUME_SORTED=true
+    METRICS_FILE=%(outfile)s.stats
+    OUTPUT=%(outfile)s
+    VALIDATION_STRINGENCY=SILENT
+    REMOVE_DUPLICATES=true
+    '''
 
-        P.run()
+    P.run()
 
-    @follows(mkdir("feature_counts.dir"))
-    @product(dedupBamFiles,
-             formatter("(.bam)$"),
-             addSpikeInTranscripts,
-             formatter("(ercc.gtf)$"),
-             "feature_counts.dir/"
-             "{basename[0][0]}_vs_"
-             "{basename[1][0]}.tsv.gz")
-    def buildFeatureCounts(infiles, outfile):
-        '''counts reads falling into "features", which by default are genes.
+@follows(mkdir("feature_counts.dir"))
+@product(dedupBamFiles,
+         formatter("(.bam)$"),
+         addSpikeInTranscripts,
+         formatter("(ercc.gtf)$"),
+         "feature_counts.dir/"
+         "{basename[0][0]}_vs_"
+         "{basename[1][0]}.tsv.gz")
+def buildFeatureCounts(infiles, outfile):
+    '''counts reads falling into "features", which by default are genes.
 
-        A read overlaps if at least one bp overlaps.
+    A read overlaps if at least one bp overlaps.
 
-        Pairs and strandedness can be used to resolve reads falling into
-        more than one feature. Reads that cannot be resolved to a single
-        feature are ignored.
+    Pairs and strandedness can be used to resolve reads falling into
+    more than one feature. Reads that cannot be resolved to a single
+    feature are ignored.
 
-        '''
+    '''
 
-        infile, annotations = infiles
+    infile, annotations = infiles
 
-        # featureCounts cannot handle gzipped in or out files
-        outfile = P.snip(outfile, ".gz")
+    # featureCounts cannot handle gzipped in or out files
+    outfile = P.snip(outfile, ".gz")
 
-        # -p -B specifies count fragments rather than reads, and both
-        # reads must map to the feature
-        if PARAMS['featurecounts_paired'] == "1":
-            paired = "-p -B"
-        else:
-            paired = ""
+    # -p -B specifies count fragments rather than reads, and both
+    # reads must map to the feature
+    if PARAMS['featurecounts_paired'] == "1":
+        paired = "-p -B"
+    else:
+        paired = ""
 
-        job_threads = PARAMS['featurecounts_threads']
-        job_memory = "2G"
+    job_threads = PARAMS['featurecounts_threads']
+    job_memory = "2G"
 
-        statement = '''
-        checkpoint;
-        featureCounts %(featurecounts_options)s
-        -T %(featurecounts_threads)s
-        -s %(featurecounts_strand)s
-        -b
-        -a %(annotations)s
-        -o %(outfile)s
-        %(infile)s
-        > %(outfile)s.log;
-        checkpoint;
-        gzip %(outfile)s
-        '''
+    statement = '''
+    checkpoint;
+    featureCounts %(featurecounts_options)s
+    -T %(featurecounts_threads)s
+    -s %(featurecounts_strand)s
+    -b
+    -a %(annotations)s
+    -o %(outfile)s
+    %(infile)s
+    > %(outfile)s.log;
+    checkpoint;
+    gzip %(outfile)s
+    '''
 
-        P.run()
+    P.run()
 
-    @collate(buildFeatureCounts,
-             regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
-             r"feature_counts.dir/\1-\2-feature_counts.tsv.gz")
-    def aggregatePlateFeatureCounts(infiles, outfile):
-        ''' build a matrix of counts with genes and tracks dimensions.
-        '''
+@collate(buildFeatureCounts,
+         regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
+         r"feature_counts.dir/\1-\2-feature_counts.tsv.gz")
+def aggregatePlateFeatureCounts(infiles, outfile):
+    ''' build a matrix of counts with genes and tracks dimensions.
+    '''
 
-        # Use column 7 as counts. This is a possible source of bugs, the
-        # column position has changed before.
+    # Use column 7 as counts. This is a possible source of bugs, the
+    # column position has changed before.
 
-        infiles = " ".join(infiles)
-        statement = '''
-        python %(scriptsdir)s/combine_tables.py
-        --columns=1
-        --take=7
-        --use-file-prefix
-        --regex-filename='(.+)_vs.+.tsv.gz'
-        --log=%(outfile)s.log
-        %(infiles)s
-        | sed 's/Geneid/gene_id/'
-        | sed 's/\-/\./g'
-        | tee %(outfile)s.table.tsv
-        | gzip > %(outfile)s '''
+    infiles = " ".join(infiles)
+    statement = '''
+    python %(scriptsdir)s/combine_tables.py
+    --columns=1
+    --take=7
+    --use-file-prefix
+    --regex-filename='(.+)_vs.+.tsv.gz'
+    --log=%(outfile)s.log
+    %(infiles)s
+    | sed 's/Geneid/gene_id/'
+    | sed 's/\-/\./g'
+    | tee %(outfile)s.table.tsv
+    | gzip > %(outfile)s '''
 
-        P.run()
+    P.run()
 
-    @follows(aggregatePlateFeatureCounts)
-    @collate(buildFeatureCounts,
-             regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
-             r"feature_counts.dir/\1-feature_counts.tsv.gz")
-    def aggregateAllFeatureCounts(infiles, outfile):
-        ''' build a matrix of counts with genes and tracks dimensions,
-        aggregated over all plates
-        '''
+@follows(aggregatePlateFeatureCounts)
+@collate(buildFeatureCounts,
+         regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
+         r"feature_counts.dir/\1-feature_counts.tsv.gz")
+def aggregateAllFeatureCounts(infiles, outfile):
+    ''' build a matrix of counts with genes and tracks dimensions,
+    aggregated over all plates
+    '''
 
-        # Use column 7 as counts. This is a possible source of bugs, the
-        # column position has changed before.
+    # Use column 7 as counts. This is a possible source of bugs, the
+    # column position has changed before.
 
-        infiles = " ".join(infiles)
-        statement = '''
-        python %(scriptsdir)s/combine_tables.py
-        --columns=1
-        --take=7
-        --use-file-prefix
-        --regex-filename='(.+)_vs.+.tsv.gz'
-        --log=%(outfile)s.log
-        %(infiles)s
-        | sed 's/Geneid/gene_id/'
-        | sed 's/\-/\./g'
-        | tee %(outfile)s.table.tsv
-        | gzip > %(outfile)s '''
+    infiles = " ".join(infiles)
+    statement = '''
+    python %(scriptsdir)s/combine_tables.py
+    --columns=1
+    --take=7
+    --use-file-prefix
+    --regex-filename='(.+)_vs.+.tsv.gz'
+    --log=%(outfile)s.log
+    %(infiles)s
+    | sed 's/Geneid/gene_id/'
+    | sed 's/\-/\./g'
+    | tee %(outfile)s.table.tsv
+    | gzip > %(outfile)s '''
 
-        P.run()
+    P.run()
 
-    @transform(aggregateAllFeatureCounts,
-               suffix(".tsv.gz"),
-               ".load")
-    def loadFeatureCounts(infile, outfile):
-        P.load(infile, outfile, "--add-index=gene_id")
+@transform(aggregateAllFeatureCounts,
+           suffix(".tsv.gz"),
+            ".load")
+def loadFeatureCounts(infile, outfile):
+    P.load(infile, outfile, "--add-index=gene_id")
 
-else:
-    E.info("No alignment files specified, skipping all gene counting "
-           "and deduping tasks")
+
+@follows(loadFeatureCounts,
+         loadSailfishCounts,
+         loadSailfishTpm)
+def quantify_expression():
+    pass
 
 # ----------------------------------------------------#
 # fetch tables from mapping pipeline to use for QC
@@ -759,6 +786,29 @@ def loadQcMeasures(infile, outfile):
          cleanQcTable,
          loadQcMeasures)
 def get_mapping_stats():
+    pass
+
+# --------------------------------------------------- #
+# retrieve metadata and load in to CSVDB
+# --------------------------------------------------- #
+
+@transform("%s" % PARAMS['meta'],
+           suffix(".tsv"),
+           ".load")
+def loadMetaData(infile, outfile):
+    '''
+    load metadata into CSVDB
+    '''
+
+    P.load(infile, outfile)
+
+# ---------------------------------------------------
+# Generic pipeline tasks
+
+@follows(get_mapping_stats,
+         quantify_expression,
+         loadMetaData)
+def full():
     pass
 
 
