@@ -440,6 +440,7 @@ BAMDIR = PARAMS['bam_dir']
 BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
 BAMREGEX = regex(r".*/(\d+)_([0-9]+)-([0-9]+).(\S+).bam$")
 
+
 @follows(mkdir("dedup.dir"))
 @transform(BAMFILES,
            BAMREGEX,
@@ -468,6 +469,7 @@ def dedupBamFiles(infile, outfile):
     '''
 
     P.run()
+
 
 @follows(mkdir("feature_counts.dir"))
 @product(dedupBamFiles,
@@ -519,6 +521,7 @@ def buildFeatureCounts(infiles, outfile):
 
     P.run()
 
+
 @collate(buildFeatureCounts,
          regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
          r"feature_counts.dir/\1-\2-feature_counts.tsv.gz")
@@ -544,6 +547,7 @@ def aggregatePlateFeatureCounts(infiles, outfile):
     | gzip > %(outfile)s '''
 
     P.run()
+
 
 @follows(aggregatePlateFeatureCounts)
 @collate(buildFeatureCounts,
@@ -573,9 +577,10 @@ def aggregateAllFeatureCounts(infiles, outfile):
 
     P.run()
 
+
 @transform(aggregateAllFeatureCounts,
            suffix(".tsv.gz"),
-            ".load")
+           ".load")
 def loadFeatureCounts(infile, outfile):
     P.load(infile, outfile, "--add-index=gene_id")
 
@@ -792,6 +797,7 @@ def get_mapping_stats():
 # retrieve metadata and load in to CSVDB
 # --------------------------------------------------- #
 
+
 @transform("%s" % PARAMS['meta'],
            suffix(".tsv"),
            ".load")
@@ -804,6 +810,7 @@ def loadMetaData(infile, outfile):
 
 # ---------------------------------------------------
 # Generic pipeline tasks
+
 
 @follows(get_mapping_stats,
          quantify_expression,
