@@ -29,7 +29,6 @@ def runSailfishIndex(fasta_file, outdir, threads,
     sailfish index --transcripts %s --out %s --threads %i --kmerSize %i
     ''' % (fasta_file, outdir, threads, kmer)
 
-    print command
     os.system(command)
 
 
@@ -250,6 +249,7 @@ def cleanStatsTable(stats_file):
     # a hissy fit for same column names in different cases
     _df.columns = [cx.lower() for cx in _df.columns]
     _df = _df.T.drop_duplicates().T
+    _df.index = _df["track"]
     return _df
 
 

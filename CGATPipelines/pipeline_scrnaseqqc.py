@@ -606,7 +606,7 @@ def getContextStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
     --database=%(mapping_db)s
     --table-name=%(mapping_context_stats)s
@@ -624,7 +624,7 @@ def getAlignmentStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
     --database=%(mapping_db)s
     --table-name=%(mapping_alignment_stats)s
@@ -642,7 +642,7 @@ def getPicardAlignStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
     --database=%(mapping_db)s
     --table-name=%(mapping_picard_alignments)s
@@ -660,7 +660,7 @@ def getPicardInsertStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
     --database=%(mapping_db)s
     --table-name=%(mapping_picard_inserts)s
@@ -678,7 +678,7 @@ def getDuplicationStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
     --database=%(mapping_db)s
     --table-name=%(mapping_picard_dups)s
@@ -700,7 +700,7 @@ def getCoverageStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -759,7 +759,7 @@ def cleanQcTable(infile, outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --task=clean_table
     --log=%(outfile)s.log
     %(infile)s
