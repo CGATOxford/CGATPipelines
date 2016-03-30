@@ -643,3 +643,64 @@ def loadBAMStats(infiles, outfile):
         | %(load_statement)s
         >> %(outfile)s """
         P.run()
+
+
+def buildPicardRnaSeqMetrics(infiles, outfile):
+    '''run picard:RNASeqMetrics
+
+    
+
+    Arguments
+    ---------
+    infiles : string
+        Input filename in :term:`BAM` format.
+    outfile : string
+        Output filename with picard output.
+
+    '''
+    job_memory = PICARD_MEMORY
+    job_threads = 3
+    infile, genome = infiles
+
+    if BamTools.getNumReads(infile) == 0:
+        E.warn("no reads in %s - no metrics" % infile)
+        P.touch(outfile)
+        return
+
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
+    statement = '''CollectRnaSeqMetrics
+    REF_FLAT=%(genome)s
+    INPUT=%(infile)s
+    ASSUME_SORTED=true
+    OUTPUT=%(outfile)s
+    STRAND=SECOND_READ_TRANSCRIPTION_STRAND
+    VALIDATION_STRINGENCY=SILENT
+    '''
+    P.run()
+    os.unsetenv("CGAT_JAVA_OPTS")
+
+
+def loadPicardRnaSeqMetrics(infiles, outfile):
+    '''load picard rna stats into database.
+
+    Loads table into the database
+       * picard_rna_metrics
+
+    Arguments
+    ---------
+    infile : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.
+    '''
+
+    suffix = "picard_rna_metrics"
+
+    # the loading functions expect "infile_name.pipeline_suffix" as the infile
+    # names.
+    infile_names = [x[:-len("." + suffix)] for x in infiles]
+
+    loadPicardMetrics(infile_names, outfile, suffix, "",
+                      tablename="picard_rna_metrics")

@@ -381,6 +381,22 @@ def identifyProteinCodingGenes(outfile):
 @active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           "refflat.txt")
+def buildRefFlat(infile, outfile):
+    '''build flat geneset for Picard RnaSeqMetrics.
+    '''
+
+    statement = ''' 
+    gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s refFlat.tmp.txt;
+    paste <(cut -f 12 refFlat.tmp.txt) <(cut -f 1-10 refFlat.tmp.txt)
+    > %(outfile)s
+    '''
+    P.run()
+
+
+@active_if(SPLICED_MAPPING)
+@transform(buildReferenceGeneSet,
+           suffix("reference.gtf.gz"),
            add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
 def buildCodingGeneSet(infiles, outfile):
@@ -1923,6 +1939,26 @@ def loadPicardDuplicationStats(infiles, outfiles):
     PipelineMappingQC.loadPicardDuplicationStats(infiles, outfiles)
 
 
+@active_if(SPLICED_MAPPING)
+@P.add_doc(PipelineMappingQC.buildPicardRnaSeqMetrics)
+@transform(MAPPINGTARGETS,
+           suffix(".bam"),
+           add_inputs(buildRefFlat),
+           ".picard_rna_metrics")
+def buildPicardRnaSeqMetrics(infiles, outfile):
+    '''Get duplicate stats from picard RNASeqMetrics '''
+    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, outfile)
+
+
+@P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load"])
+def loadPicardRnaSeqMetrics(infiles, outfiles):
+    '''merge alignment stats into single tables.'''
+    # separate load function while testing
+    PipelineMappingQC.loadPicardRnaSeqMetrics(infiles, outfiles)
+
+
 @follows(countReads, mergeReadCounts)
 @transform(MAPPINGTARGETS,
            regex("(.*)/(.*)\.(.*).bam"),
@@ -2097,7 +2133,7 @@ def loadExonValidation(infiles, outfile):
            r"\1.transcript_counts.tsv.gz")
 def buildTranscriptLevelReadCounts(infiles, outfile):
     '''count reads in gene models
-
+    
     Count the reads from a :term:`bam` file which overlap the
     positions of protein coding transcripts in a :term:`gtf` format
     transcripts file.
@@ -2170,10 +2206,8 @@ def loadTranscriptLevelReadCounts(infile, outfile):
            ".intron_counts.tsv.gz")
 def buildIntronLevelReadCounts(infiles, outfile):
     '''count reads in gene models
-
     Count the reads from a :term:`bam` file which overlap the
     positions of introns in a :term:`gtf` format transcripts file.
-
     Parameters
     ----------
     infiles : list of str
@@ -2183,12 +2217,10 @@ def buildIntronLevelReadCounts(infiles, outfile):
           Input filename in :term:`gtf` format
     outfile : str
        Output filename in :term:`tsv` format
-
     .. note::
        In paired-end data sets each mate will be counted. Thus
        the actual read counts are approximately twice the fragment
        counts.
-
     '''
     infile, exons = infiles
 
@@ -2478,7 +2510,8 @@ def general_qc():
          loadGeneInformation,
          loadTranscriptLevelReadCounts,
          loadIntronLevelReadCounts,
-         buildTranscriptProfiles)
+         buildTranscriptProfiles,
+         loadPicardRnaSeqMetrics)
 def spliced_qc():
     pass
 
