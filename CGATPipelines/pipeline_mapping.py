@@ -787,10 +787,11 @@ def mapReadsWithTophat(infiles, outfile):
         :term:`PARAMS`
         path to tophat executable
 
-    tophat_library_type
+    strandness
         :term:`PARAMS`
-        fr-unstranded, fr-firststrand or fr-secondstrand see
-        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+        FR, RF, F or R or empty see
+        http://www.ccb.jhu.edu/software/hisat/manual.shtml#options
+        will be converted to tophat specific option
 
     tophat_include_reference_transcriptome: bool
         :term:`PARAMS`
@@ -819,6 +820,14 @@ def mapReadsWithTophat(infiles, outfile):
     """
 
     job_threads = PARAMS["tophat_threads"]
+
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        tophat_library_type = "fr-firststrand"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        tophat_library_type = "fr-secondstrand"
+    else:
+        tophat_library_type = ""
 
     if "--butterfly-search" in PARAMS["tophat_options"]:
         # for butterfly search - require insane amount of
@@ -888,10 +897,11 @@ def mapReadsWithTophat2(infiles, outfile):
         :term:`PARAMS`
         path to tophat2 executable
 
-    tophat2_library_type
+    strandness
         :term:`PARAMS`
-        fr-unstranded, fr-firststrand or fr-secondstrand see
-        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+        FR, RF, F or R or empty see
+        http://www.ccb.jhu.edu/software/hisat/manual.shtml#options
+        will be converted to tophat specific option
 
     tophat2_include_reference_transcriptome: bool
         :term:`PARAMS`
@@ -924,6 +934,14 @@ def mapReadsWithTophat2(infiles, outfile):
     '''
     job_threads = PARAMS["tophat2_threads"]
 
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        tophat2_library_type = "fr-firststrand"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        tophat2_library_type = "fr-secondstrand"
+    else:
+        tophat2_library_type = "fr-unstranded"
+
     if "--butterfly-search" in PARAMS["tophat2_options"]:
         # for butterfly search - require insane amount of
         # RAM.
@@ -936,7 +954,8 @@ def mapReadsWithTophat2(infiles, outfile):
         strip_sequence=PARAMS["strip_sequence"])
 
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = PARAMS["tophat2_options"] + "--raw-juncs %(reffile)s
+                                                   --" % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -988,7 +1007,7 @@ def mapReadsWithHisat(infiles, outfile):
         :term:`PARAMS`
         path to hisat executable
 
-    hisat_library_type: str
+    strandness: str
         :term:`PARAMS`
         hisat rna-strandess parameter, see
         https://ccb.jhu.edu/software/hisat/manual.shtml#command-line
@@ -1019,6 +1038,7 @@ def mapReadsWithHisat(infiles, outfile):
 
     job_threads = PARAMS["hisat_threads"]
     job_memory = PARAMS["hisat_memory"]
+    hisat_library_type = PARAMS["strandness"]
 
     m = PipelineMapping.Hisat(
         executable=P.substituteParameters(**locals())["hisat_executable"],
