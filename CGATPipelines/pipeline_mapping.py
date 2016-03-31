@@ -1952,7 +1952,8 @@ def buildPicardRnaSeqMetrics(infiles, outfile):
 
 @P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
-@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load"])
+@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load",
+                                  "picard_rna_histogram.load"])
 def loadPicardRnaSeqMetrics(infiles, outfiles):
     '''merge alignment stats into single tables.'''
     # separate load function while testing
