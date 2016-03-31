@@ -645,7 +645,7 @@ def loadBAMStats(infiles, outfile):
         P.run()
 
 
-def buildPicardRnaSeqMetrics(infiles, outfile):
+def buildPicardRnaSeqMetrics(infiles, strand, outfile):
     '''run picard:RNASeqMetrics
 
     
@@ -676,7 +676,7 @@ def buildPicardRnaSeqMetrics(infiles, outfile):
     INPUT=%(infile)s
     ASSUME_SORTED=true
     OUTPUT=%(outfile)s
-    STRAND=SECOND_READ_TRANSCRIPTION_STRAND
+    STRAND=%(strand)s
     VALIDATION_STRINGENCY=SILENT
     '''
     P.run()

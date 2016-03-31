@@ -1970,7 +1970,14 @@ def loadPicardDuplicationStats(infiles, outfiles):
            ".picard_rna_metrics")
 def buildPicardRnaSeqMetrics(infiles, outfile):
     '''Get duplicate stats from picard RNASeqMetrics '''
-    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, outfile)
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        strand = "SECOND_READ_TRANSCRIPTION_STRAND"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        strand = "FIRST_READ_TRANSCRIPTION_STRAND"
+    else:
+        strand = "NONE"
+    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, strand, outfile)
 
 
 @P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
@@ -1979,7 +1986,6 @@ def buildPicardRnaSeqMetrics(infiles, outfile):
                                   "picard_rna_histogram.load"])
 def loadPicardRnaSeqMetrics(infiles, outfiles):
     '''merge alignment stats into single tables.'''
-    # separate load function while testing
     PipelineMappingQC.loadPicardRnaSeqMetrics(infiles, outfiles)
 
 
