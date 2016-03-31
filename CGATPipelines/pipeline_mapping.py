@@ -1768,6 +1768,7 @@ def mapReadsWithButter(infile, outfile):
 # Create map reads tasks
 ###################################################################
 
+
 MAPPINGTARGETS = []
 mapToMappingTargets = {'tophat': (mapReadsWithTophat, loadTophatStats),
                        'tophat2': (mapReadsWithTophat2,),
@@ -1889,31 +1890,6 @@ else:
 # QC targets
 ###################################################################
 
-###################################################################
-###################################################################
-###################################################################
-#
-# This is not a pipelined task - remove?
-#
-# @active_if( SPLICED_MAPPING )
-# @transform( MAPPINGTARGETS,
-#             suffix(".bam" ),
-#             ".picard_inserts")
-# def buildPicardTranscriptomeInsertSize( infiles, outfile ):
-#     '''build alignment stats using picard.
-
-#     Note that picards counts reads but they are in fact alignments.
-#     '''
-#     infile, reffile = infiles
-
-#     PipelineMappingQC.buildPicardAlignmentStats( infile,
-#                                                  outfile,
-#                                                  reffile )
-
-############################################################
-###########################################################
-############################################################
-
 
 @P.add_doc(PipelineMappingQC.buildPicardAlignmentStats)
 @transform(MAPPINGTARGETS,
@@ -1960,33 +1936,6 @@ def loadPicardDuplicationStats(infiles, outfiles):
     '''merge alignment stats into single tables.'''
     # separate load function while testing
     PipelineMappingQC.loadPicardDuplicationStats(infiles, outfiles)
-
-
-@active_if(SPLICED_MAPPING)
-@P.add_doc(PipelineMappingQC.buildPicardRnaSeqMetrics)
-@transform(MAPPINGTARGETS,
-           suffix(".bam"),
-           add_inputs(buildRefFlat),
-           ".picard_rna_metrics")
-def buildPicardRnaSeqMetrics(infiles, outfile):
-    '''Get duplicate stats from picard RNASeqMetrics '''
-    # convert strandness to tophat-style library type
-    if PARAMS["strandness"] == ("RF" or "R"):
-        strand = "SECOND_READ_TRANSCRIPTION_STRAND"
-    elif PARAMS["strandness"] == ("FR" or "F"):
-        strand = "FIRST_READ_TRANSCRIPTION_STRAND"
-    else:
-        strand = "NONE"
-    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, strand, outfile)
-
-
-@P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
-@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load",
-                                  "picard_rna_histogram.load"])
-def loadPicardRnaSeqMetrics(infiles, outfiles):
-    '''merge alignment stats into single tables.'''
-    PipelineMappingQC.loadPicardRnaSeqMetrics(infiles, outfiles)
 
 
 @follows(countReads, mergeReadCounts)
@@ -2084,8 +2033,6 @@ def loadContextStats(infiles, outfile):
 ###################################################################
 ###################################################################
 # QC specific to spliced mapping
-###################################################################
-###################################################################
 ###################################################################
 
 
@@ -2374,10 +2321,39 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
+@active_if(SPLICED_MAPPING)
+@P.add_doc(PipelineMappingQC.buildPicardRnaSeqMetrics)
+@transform(MAPPINGTARGETS,
+           suffix(".bam"),
+           add_inputs(buildRefFlat),
+           ".picard_rna_metrics")
+def buildPicardRnaSeqMetrics(infiles, outfile):
+    '''Get duplicate stats from picard RNASeqMetrics '''
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        strand = "SECOND_READ_TRANSCRIPTION_STRAND"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        strand = "FIRST_READ_TRANSCRIPTION_STRAND"
+    else:
+        strand = "NONE"
+    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, strand, outfile)
+
+
+@P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load",
+                                  "picard_rna_histogram.load"])
+def loadPicardRnaSeqMetrics(infiles, outfiles):
+    '''merge alignment stats into single tables.'''
+    PipelineMappingQC.loadPicardRnaSeqMetrics(infiles, outfiles)
+
+###################################################################
 ###################################################################
 ###################################################################
 # various export functions
 ###################################################################
+
+
 @transform(MAPPINGTARGETS,
            regex(".bam"),
            ".bw")
