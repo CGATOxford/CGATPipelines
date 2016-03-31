@@ -386,12 +386,15 @@ def buildRefFlat(infile, outfile):
     '''build flat geneset for Picard RnaSeqMetrics.
     '''
 
+    tmpflat = P.getTempFilename(".")
+
     statement = ''' 
-    gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s refFlat.tmp.txt;
-    paste <(cut -f 12 refFlat.tmp.txt) <(cut -f 1-10 refFlat.tmp.txt)
+    gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s %(tmpflat)s;
+    paste <(cut -f 12 %(tmpflat)s) <(cut -f 1-10 %(tmpflat)s)
     > %(outfile)s
     '''
     P.run()
+    os.unlink(tmpflat)
 
 
 @active_if(SPLICED_MAPPING)
