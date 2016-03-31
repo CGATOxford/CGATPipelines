@@ -32,6 +32,7 @@ class PicardSummary(MappingTracker, SingleTableTrackerRows):
 class PicardDuplicationSummary(MappingTracker, SingleTableTrackerRows):
     table = "picard_duplication_metrics"
 
+
 class PicardRnaMetrics(MappingTracker, SingleTableTrackerRows):
     table = "picard_rna_metrics"
 
@@ -84,6 +85,7 @@ class DuplicationMetricsTable(MappingTracker, SingleTableTrackerHistogram):
         data = self.getAll(
             "SELECT %(fields)s FROM %(table)s ORDER BY coverage_multiple")
         return data
+
 
 class RnaBiasTable(MappingTracker, SingleTableTrackerHistogram):
 

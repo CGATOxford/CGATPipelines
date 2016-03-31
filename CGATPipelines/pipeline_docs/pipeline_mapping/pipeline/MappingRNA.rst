@@ -23,6 +23,7 @@ The y axis represents the relative coverage of that part of a transcript.
    :yrange: 0,
    :xrange: 0,100
    :ytitle: read coverage
+   :xtitle: 5' position 3'
 
    Individual plots
 
@@ -33,7 +34,7 @@ The y axis represents the relative coverage of that part of a transcript.
    :yrange: 0,
    :groupby: track
    :ytitle: read coverage
-   :xtitle: 
+   :xtitle: 5' position 3'
    :layout: column-3
    :width: 200
 
