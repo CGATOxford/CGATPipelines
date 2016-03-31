@@ -827,7 +827,7 @@ def mapReadsWithTophat(infiles, outfile):
     elif PARAMS["strandness"] == ("FR" or "F"):
         tophat_library_type = "fr-secondstrand"
     else:
-        tophat_library_type = ""
+        tophat_library_type = "fr-unstranded"
 
     if "--butterfly-search" in PARAMS["tophat_options"]:
         # for butterfly search - require insane amount of
