@@ -2272,7 +2272,7 @@ class Hisat(Mapper):
         num_files = [len(x) for x in infiles]
         if self.strandedness and not (self.strandedness in
                                       ['unstranded', 'fr-unstranded']):
-            stranded_option = '--rna-strandness %(hisat_library_type)s'
+            stranded_option = '--rna-strandness %%(hisat_library_type)s'
         else:
             stranded_option = ""
         if max(num_files) != min(num_files):

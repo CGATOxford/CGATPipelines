@@ -388,7 +388,7 @@ def buildRefFlat(infile, outfile):
 
     tmpflat = P.getTempFilename(".")
 
-    statement = ''' 
+    statement = '''
     gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s %(tmpflat)s;
     paste <(cut -f 12 %(tmpflat)s) <(cut -f 1-10 %(tmpflat)s)
     > %(outfile)s
@@ -954,8 +954,7 @@ def mapReadsWithTophat2(infiles, outfile):
         strip_sequence=PARAMS["strip_sequence"])
 
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + "--raw-juncs %(reffile)s
-                                                   --" % locals()
+    tophat2_options = PARAMS["tophat2_options"] + "--raw-juncs %(reffile)" % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -2157,7 +2156,7 @@ def loadExonValidation(infiles, outfile):
            r"\1.transcript_counts.tsv.gz")
 def buildTranscriptLevelReadCounts(infiles, outfile):
     '''count reads in gene models
-    
+
     Count the reads from a :term:`bam` file which overlap the
     positions of protein coding transcripts in a :term:`gtf` format
     transcripts file.
