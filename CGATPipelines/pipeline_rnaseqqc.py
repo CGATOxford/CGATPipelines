@@ -1,6 +1,6 @@
 """
 ====================
-ReadQc pipeline
+RNASeqQC pipeline
 ====================
 
 :Author: Tom Smith
@@ -706,14 +706,13 @@ def mergeSailfishResults(infiles, outfiles):
 
     statement = """
     cat %(s_infiles)s
-    | awk -v OFS="\\t"
-    '/^# Name/
-    { sample_id+=1;
+     | awk -v OFS="\\t"
+    '/^Name/{ sample_id+=1;
       if (sample_id == 1)
-      {gsub(/# Name/, "transcript_id");
-       printf("sample_id\\t%%s\\n", $0); next;}}
-    !/^#/
-        {printf("%%i\\t%%s\\n", sample_id, $0)}'
+      {gsub(/Name/, "transcript_id");
+      printf("sample_id\\t%%s\\n", $0); next;}}
+    !/^Name/
+        {printf("%%i\\t%%s\\n", sample_id, $0);}'
     | gzip
     > %(outfile_transcripts)s
     """
@@ -725,11 +724,12 @@ def mergeSailfishResults(infiles, outfiles):
     statement = """
     cat %(s_infiles)s
     | awk -v OFS="\\t"
-    '/^# Name/
+    '/^Name/
     { sample_id+=1;
       if (sample_id == 1)
-      {gsub(/# Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
-    !/^#/
+      {gsub(/Name/, "gene_id");
+      printf("sample_id\\t%%s\\n", $0); next;}}
+    !/^Name/
         {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
     > %(outfile_genes)s

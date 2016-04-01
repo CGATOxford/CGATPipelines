@@ -530,32 +530,47 @@ def plotMethFrequency(infile, outfile):
 
     df = read.table(infile, sep="\t", header=TRUE)
 
-    l_size = 20
-    l_txt = element_text(size = l_size)
+    plotter = function(df, plotname, facet='both'){
+    
+        l_size = 20
+        l_txt = element_text(size = l_size)
 
-    p = ggplot(df, aes(x=treatment_replicate,
-                        y=X0, fill=value)) +
-    geom_bar(position="fill", stat="identity") +
-    facet_grid(tissue~cpgi) +
-    xlab("") +
-    ylab("Fraction") +
-    scale_fill_gradientn(values=c(0, 0.4, 0.5, 0.6, 1),
-#                     colours=c("cadetblue3", "grey95", "grey95", "grey95", "indianred3"))
-    scale_fill_manual(name="Methylation (%)",
-                      values = rev(colorRampPalette(
-                                       brewer.pal(9, "RdBu"))(11))) +
-    theme_bw() +
-    theme(
-    axis.text.x = element_text(angle=90, size=l_size, hjust=1, vjust=0.5),
-    axis.text.y = l_txt,
-    axis.title.y = l_txt,
-    aspect.ratio=1,
-    legend.text = l_txt,
-    legend.title = l_txt,
-    strip.text = l_txt)
+        p = ggplot(df, aes(x=treatment_replicate,
+                            y=X0, fill=value)) +
+        geom_bar(position="fill", stat="identity") +
+        xlab("") +
+        ylab("Fraction") +
+        #scale_fill_gradientn(values=c(0, 0.4, 0.5, 0.6, 1),
+        #                 colours=c("cadetblue3", "grey95", "grey95", "grey95", "indianred3"))
+        scale_fill_manual(name="Methylation (%)",
+                          values = rev(colorRampPalette(
+                                           brewer.pal(9, "RdBu"))(11))) +
+        theme_bw() +
+        theme(
+        axis.text.x = element_text(angle=90, size=l_size, hjust=1, vjust=0.5),
+        axis.text.y = l_txt,
+        axis.title.y = l_txt,
+        aspect.ratio=1,
+        legend.text = l_txt,
+        legend.title = l_txt,
+        strip.text = l_txt)
 
-    ggsave(outfile, height=10, width=12)
-    }''')
+        if (facet=='both'){
+        p = p + facet_grid(tissue~cpgi)
+        ggsave(plotname, height=10, width=12)}
+        
+        else if (facet=='cpgi'){
+        p = p + facet_grid(~cpgi)
+        ggsave(plotname, height=7, width=12)}
+        }
+
+    plotter(df, outfile, facet='both')
+
+    for(tissue in levels(factor(df$tissue))){
+    tmp_df = df[df$tissue==tissue,]
+    plotfile = gsub(".png", paste0("_", tissue, ".png"), outfile)
+    plotter(tmp_df, plotfile, facet='cpgi')
+    }}''')
 
     plotMethFrequency(infile, outfile)
 
@@ -599,16 +614,20 @@ def calculateM3DStat(infile, outfile, design,
     conditions = '","'.join(conditions)
     r_df = com.convert_to_r_dataframe(df)
 
-    # out = open(outfile, "w")
-    # out.write("ncols: %s\n" % ncols)
-    # out.write("conditions: %s\n" % conditions)
-    # out.write("samples: %s\n" % samples)
-    # out.write("pair: %s\n" % pair)
-    # out.write("groups: %s\n" % groups)
-    func = r('''library(BiSeq)
-    library(M3D)
+    out = open(outfile, "w")
+    out.write("ncols: %s\n" % ncols)
+    out.write("conditions: %s\n" % conditions)
+    out.write("samples: %s\n" % samples)
+    out.write("pair: %s\n" % pair)
+    out.write("groups: %s\n" % groups)
+    out.write("%i, %i" % df.shape)
+    out.close()
+
+    func = r('''
     function(df){
-    rowData <- GRanges(seqnames = Rle(as.character(df$contig)),
+    library(M3D)
+    library(BiSeq)
+rowRanges <- GRanges(seqnames = Rle(as.character(df$contig)),
     ranges = IRanges(start = df$position, end= df$position))
     colData <- DataFrame(group = c("%(conditions)s"),
     row.names = c("%(samples)s"))
@@ -617,12 +636,12 @@ def calculateM3DStat(infile, outfile, design,
     unmethReads <- matrix(as.integer(unlist(df[,grep("*[.]unmeth",colnames(df),
     value=FALSE)])),ncol=%(ncols)i)
     totalReads <- methReads + unmethReads
-    rawData=BSraw(rowData = rowData, colData = colData,
+    rawData=BSraw(rowRanges = rowRanges, colData = colData,
     totalReads = totalReads, methReads = methReads)
     clust.unlim <-clusterSites(object = rawData,  perc.samples = 1,
     min.sites = 10, max.dist = 100)
     clust.unlim_GR <- clusterSitesToGR(clust.unlim)
-    overlaps<-findOverlaps(clust.unlim_GR,rowData(rawData))
+    overlaps<-findOverlaps(clust.unlim_GR,rowRanges(rawData))
     MMDlist<-M3D_Wrapper(rawData, overlaps)
     M3Dstat<-MMDlist$Full-MMDlist$Coverage
     adjusted_colnames <- gsub(" ", "_", colnames(M3Dstat))

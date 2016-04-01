@@ -609,8 +609,8 @@ class SequenceCollectionProcessor(object):
                     # CGAT Pipelines
                     infile = sra_extraction_files[0]
                     basename = os.path.basename(infile)
-                    if (len(sra_extraction_files) == 1
-                            and basename.endswith("_1.fastq.gz")):
+                    if ((len(sra_extraction_files) == 1 and
+                         basename.endswith("_1.fastq.gz"))):
                         basename = basename[:-11] + ".fastq.gz"
                         statement.append(
                             "mv %s %s/%s" % (infile, tmpdir_fastq, basename))
@@ -814,7 +814,6 @@ class Mapper(SequenceCollectionProcessor):
                  tool_options="",
                  *args, **kwargs):
         '''
-        
         '''
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
 
@@ -1103,6 +1102,7 @@ class Salmon(Mapper):
 
         statement.append('''
         -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
+        -k %%(salmon_kmer)s
         --numBootstraps %%(salmon_bootstrap)s
         --threads %%(job_threads)s %%(salmon_options)s;''' % locals())
 
@@ -1131,6 +1131,11 @@ class Kallisto(Mapper):
 
     '''run Kallisto to quantify transcript abundance from fastq files'''
 
+    def __init__(self, pseudobam=False, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+
+        self.pseudobam = pseudobam
+
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles'''
 
@@ -1148,7 +1153,9 @@ class Kallisto(Mapper):
 
         if nfiles == 1:
 
-            infiles = "--single " + " ".join([x[0] for x in infiles])
+            infiles = (" --fragment-length=%(kallisto_fragment_length)s" +
+                       " --sd=%(kallisto_fragment_sd)s" +
+                       " --single %s" % " ".join([x[0] for x in infiles]))
 
         elif nfiles == 2:
             infiles = " ".join([" ".join(x) for x in infiles])
@@ -1160,12 +1167,18 @@ class Kallisto(Mapper):
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
         kallisto quant %%(kallisto_options)s
+        -t %%(job_threads)s
         --bootstrap-samples=%%(kallisto_bootstrap)s
-        -i %%(index)s -o %(tmpdir)s %(infiles)s
-        > %(logfile)s &> %(logfile)s ;''' % locals()
+        -i %%(index)s -o %(tmpdir)s %(infiles)s''' % locals()
+
+        if self.pseudobam:
+            statement += '''
+            --pseudobam | samtools view -b -
+            > %(outfile)s.bam 2> %(logfile)s;''' % locals()
+        else:
+            statement += ''' > %(logfile)s &> %(logfile)s ;''' % locals()
 
         self.tmpdir = tmpdir
 
