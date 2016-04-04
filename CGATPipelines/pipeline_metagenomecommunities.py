@@ -1162,7 +1162,9 @@ def testDiversity(infile, outfile):
 
 
 @follows(testDiversity,
-         testRichness)
+         testRichness,
+         runRarefactionAnalysis,
+         barplotDiversity)
 def diversity():
     pass
 
