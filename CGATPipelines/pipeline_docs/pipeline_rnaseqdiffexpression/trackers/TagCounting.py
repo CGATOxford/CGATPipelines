@@ -9,10 +9,10 @@ class TagCountsCorrelations(ProjectTracker):
 
 
 class TagCountsSummaryAll(ProjectTracker):
-    pattern = "(.*)_counts_stats"
+    pattern = "(.*)counts_stats"
 
     def __call__(self, track):
-        return self.getAll("SELECT * FROM %(track)s_counts_stats")
+        return self.getAll("SELECT * FROM %(track)scounts_stats")
 
 
 class TagCountsSummaryPerDesign(ProjectTracker):
@@ -23,4 +23,4 @@ class TagCountsSummaryPerDesign(ProjectTracker):
 
 
 class FeatureCountsSummary(ProjectTracker, SingleTableTrackerRows):
-    table = "feature_counts_summary"
+    table = "featurecounts_summary"
