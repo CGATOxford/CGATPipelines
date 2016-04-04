@@ -1376,7 +1376,8 @@ def barchartGeneProportions(infile, outfile):
 
 
 @follows(mergeDiamondGeneCounts,
-         loadDiamondGeneCounts)
+         loadDiamondGeneCounts,
+         barchartGeneProportions)
 def Genes():
     pass
 
