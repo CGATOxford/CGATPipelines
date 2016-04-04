@@ -8,6 +8,7 @@
    pipeline/MappingContext.rst
    pipeline/MappingAlignmentStatistics.rst
    pipeline/MappingComplexity.rst
+   pipeline/MappingRNA.rst
    pipeline/ReferenceCoverage.rst
 
 .. need to sort out variables. Need to be in conf.py
