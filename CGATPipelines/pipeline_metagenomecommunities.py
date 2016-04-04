@@ -1162,7 +1162,9 @@ def testDiversity(infile, outfile):
 
 
 @follows(testDiversity,
-         testRichness)
+         testRichness,
+         runRarefactionAnalysis,
+         barplotDiversity)
 def diversity():
     pass
 
@@ -1376,7 +1378,8 @@ def barchartGeneProportions(infile, outfile):
 
 
 @follows(mergeDiamondGeneCounts,
-         loadDiamondGeneCounts)
+         loadDiamondGeneCounts,
+         barchartGeneProportions)
 def Genes():
     pass
 
