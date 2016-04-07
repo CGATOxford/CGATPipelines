@@ -29,6 +29,108 @@ Pipeline Enrichment
 :Date: |today|
 :Tags: Python
 
+This pipeline calculates if any of a list of "terms" (any list of identifiers
+which has been mapped to correspond to a list of genes) are significantly
+more often mapped to a gene in the "foreground" - a list of genes identified
+in an experiment, e.g. differentially expressed genes, than would be expected
+given the "background" - a list of all genes which could have been identified
+in the experiment.
+For example, if looking for enrichment in the list of genes which are
+differentially expressed in diseased vs control kidney samples, the
+foreground would be the list of significantly differentially expressed genes
+and the background could be, for example, a list of all genes known to be
+expressed in the kidney.
+
+Initially, the working directory should contain:
+a directory, "foregrounds.dir"
+This should contain a file for each list of foreground genes, with the
+suffix .tsv, with one gene per line.  Any gene identifier can be used, but
+there needs to be a table in the get_gene_info.py database named
+ensemblg2[identifier_type]$annot mapping ensemblg identifiers to this
+identifier type.  All foregrounds need to use the same identifier type.
+(Currently ensemblg, gene symbol and entrez id are implemented)
+
+optionally, a directory "backgrounds.dir"
+This should contain any user specific backgrounds to compare to the
+foregrounds.  These should be formatted as for the foregrounds and
+should all have the same identifier type to each other (but not necessarily
+to the foregrounds).
+All foregrounds will automatically be compared to a background of all genes
+with annotations of the specified type, so these backgrounds do not need
+to be provided.
+
+
+Annotations
+Annotations are stored in AnnotationSet objects.
+These contain all the annotations associated with a particular
+annotation source.
+
+Annotations from a Database
+AnnotationSets are predominantly generated from a database using an
+AnnotationParser method.
+which is produced using the get_get_info.py script.
+
+The tables in this database corresponding to annotations are in sets of two
+or three, named prefix$annot, prefix$details and prefix$ont, where prefix
+is the name of the annotation source.
+
+$annot contains each gene and each term it is annotated to.  There should be
+one gene and term per row, genes mapped to multiple terms are
+repeated multiple times e.g.
+    gene term
+    A    1
+    A    2
+    B    2
+
+$details has one row for each term, the remaining columns are metadata
+associated with the term in the annotation source.
+
+$ont contains each term mapped to its parent terms (in an ontology) - if
+the annotation source is not hierarchical this is not needed.
+
+
+Annotations from a Flat File
+The user can specify additional annotations to use which are not in the
+database as long as a file exists containing all the required information.
+Processing of this file requires users to specify a set of
+"annotations2annotations.py" options in the pipeline.ini.
+
+
+AnnotationSets
+Annotations are converted to AnnotationSet objects.
+
+An AnnotationSet consists of four dictionaries:
+1. GenesToTerms - keys are gene names, values are sets of terms mapped to
+these genes.
+
+2. TermsToGenes - keys are term names, values are sets of genes mapped to
+these terms (and their descendents if an ontology is provided)
+
+3. TermsToOnt - if an ontology file is provided, keys are terms, values are
+sets of terms which are direct parents of these terms (the is_a property
+in an obo or owl file)
+
+4. TermsToDetails -the annotation source usually provided other information
+besides a list of terms and the genes they are mapped to, e.g. each
+term will have a description.  TermsToDetails has a row for each
+term, the columns are any metadata about the term.
+
+
+Enrichment Testing
+Every foreground will be tested for enrichment against every background using
+every available annotation.
+
+There are various ways to test for enrichment, these are contained in
+EnrichmentTester objects.  The standard is to test for enrichment of each
+term individually, however alternatives can be added as subclasses of
+EnrichmentTester and specified in the pipeline.ini.
+
+Statistical tests for enrichment are called by the EnrichmentTester class
+and specified as StatsTest subclasses.  The test type, multiple testing
+correction and signficance threshold are specified in the pipeline.ini.
+(Only FisherExactTest currently implemented)  
+
+
 """
 from ruffus import *
 from ruffus.combinatorics import *
@@ -80,6 +182,14 @@ def connect():
 @split(dbname, ["annotations.dir/*%s" % r for r in outfilesuffixes])
 def getDBAnnotations(infile, outfiles):
     '''
+    Takes a database (generated using get_gene_annotations.py) and uses this
+    to build a series of AnnotationSets.
+
+    One AnnotationSet is generated for each table in the database with
+    the $annot suffix.
+
+    AnnotationSets are stored in output files in the annotations.dir
+    directory.
     '''
     dbname = PARAMS['db_name']
     PipelineEnrichment.getDBAnnotations(infile, outfiles, dbname, submit=True)
@@ -89,6 +199,10 @@ def getDBAnnotations(infile, outfiles):
 @originate(unmappedouts)
 def mapUnmappedAnnotations(outfiles):
     '''
+    Allows the user to easily add annotations not in the database.
+    Requires an "annotations2annotations.py" command specified in the
+    pipeline.ini providing details of a flat file containing the necessary
+    information to build the AnnotationSet.
     '''
     ua = "untranslated_annotations.dir/"
     outstem = outfiles[0].replace(ua, "")
@@ -108,6 +222,8 @@ def mapUnmappedAnnotations(outfiles):
           for x in outfilesuffixes])
 def translateAnnotations(infiles, outfiles):
     '''
+    User specified annotations may not use the ensemblg gene identifier,
+    this step in the pipeline corrects for this.
     '''
     dbname = PARAMS['db_name']
     PipelineEnrichment.translateAnnotations(infiles, outfiles, dbname,
@@ -119,6 +235,7 @@ def translateAnnotations(infiles, outfiles):
            r"clean_foregrounds.dir/\1.tsv")
 def cleanForegrounds(infile, outfile):
     '''
+    Removes duplicates from the foreground and converts IDs to ensemblg.
     '''
     idtype = PARAMS['foreground_idtype']
     dbname = PARAMS['db_name']
@@ -132,6 +249,8 @@ def cleanForegrounds(infile, outfile):
            r"clean_backgrounds.dir/\1.tsv")
 def cleanUserBackgrounds(infile, outfile):
     '''
+    Removes duplicates from user specified backgrounds and converts IDs to
+    ensemblg.
     '''
     idtype = PARAMS['background_idtype']
     dbname = PARAMS['db_name']
@@ -145,7 +264,8 @@ def cleanUserBackgrounds(infile, outfile):
 def buildHPABackground(outfile):
     '''
     Builds a background geneset based on human protein atlas expression values
-    specified in pipeline.ini.
+    specified in pipeline.ini - allows the user to use a tissue specific
+    background
     '''
     PipelineEnrichment.HPABackground(PARAMS['hpa_tissue'],
                                      PARAMS['hpa_minlevel'],
@@ -159,6 +279,9 @@ def buildHPABackground(outfile):
        "clean_backgrounds.dir/allgenes.tsv")
 def buildStandardBackground(infiles, outfile):
     '''
+    Builds a standard background of all possible genes with any kind of
+    annotation.  Genes not mapped for a specific annotation source
+    are omitted later, during enrichment testing for that source.
     '''
     statement = "cut -f1 %s | sort | uniq > %s" % (" ".join(infiles), outfile)
     P.run()
@@ -180,6 +303,12 @@ def buildStandardBackground(infiles, outfile):
           r'results.dir/{NAM[0][0]}_v_{NAM[1][0]}_{NAM[2][0]}_sig.tsv'])
 def foregroundsVsBackgrounds(infiles, outfiles):
     '''
+    Takes every possible set of one foreground, one background and one
+    AnnotationSet and performs enrichment analysis.  Analysis is
+    performed based on the "stats" parameters in the pipeline.ini.
+    Results are written to tab delimited files in results.dir, the _sig.tsv
+    output file contains signficantly enriched terms only, the other output
+    file contains all terms.
     '''
     PipelineEnrichment.foregroundsVsBackgrounds(infiles,
                                                 outfiles[0], outfiles[1],
