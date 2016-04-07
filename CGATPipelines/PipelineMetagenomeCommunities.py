@@ -609,7 +609,7 @@ def barchartProportions(infile, outfile, order, dtype="pathways"):
     R('''dat.percent["other",] <- unlist(other)''')
     R('''dat.percent$taxa <- rownames(dat.percent)''')
     R('''dat.percent$taxa[dat.percent$taxa == "other"] <- "bother"''')
-    R('''dat.percent$taxa[dat.percent$taxa == "Function unknown"]
+    R('''dat.percent$taxa[dat.percent$taxa == "Function unknown"] \
                           <- "aFunction unknown"''')
 
     # reshape and plot
@@ -618,8 +618,7 @@ def barchartProportions(infile, outfile, order, dtype="pathways"):
                                            dat.percent$taxa),]''')
     R('''plot1 <- ggplot(dat.percent,
                           aes(x=factor(variable, levels=variable),
-                              y=value, fill=taxa, stat="identity"))
-                              + geom_bar(stat="identity")''')
+                              y=value, fill=taxa, stat="identity")) + geom_bar(stat="identity")''')
     R('''plot1 + theme(axis.text.x=element_text(angle=90))''')
     R('''ggsave("%s")''' % outfile)
 
@@ -634,7 +633,7 @@ def annotate(infile, outfile, geneset):
     '''
     annotation = {}
     E.info("loading geneset")
-    anno = open(geneset)
+    anno = IOTools.openFile(geneset)
     for line in anno.readlines():
         data = line[:-1].split("\t")
         nog, funccat = data[1], data[3]

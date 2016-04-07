@@ -383,6 +383,9 @@ def readTrackFile(infile):
                 track = value
                 continue
             block.append((key, value))
+        # T.S need to yield final block too
+        yield track, block
+
     return list(_yielder(data))
 
 

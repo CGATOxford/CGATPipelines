@@ -730,7 +730,7 @@ def runDiamondOnRawSequences(infile, outfile):
                    --db %(db)s
                    --query %(temp)s.fastq
                    --daa %(temp)s.daa
-                   --threads(job_threads)s
+                   --threads %(job_threads)s
                    --log
                    %(diamond_options)s
                    &> %(outfile)s.log;
@@ -1162,7 +1162,9 @@ def testDiversity(infile, outfile):
 
 
 @follows(testDiversity,
-         testRichness)
+         testRichness,
+         runRarefactionAnalysis,
+         barplotDiversity)
 def diversity():
     pass
 
@@ -1199,7 +1201,7 @@ def runDiamondOnGenes(infile, outfile):
                    diamond blastx
                    --db %(db)s
                    --query %(temp)s.fastq
-                   --threads(job_threads)s
+                   --threads %(job_threads)s
                    --daa %(temp)s.daa
                    --log
                    %(diamond_options)s
@@ -1376,7 +1378,8 @@ def barchartGeneProportions(infile, outfile):
 
 
 @follows(mergeDiamondGeneCounts,
-         loadDiamondGeneCounts)
+         loadDiamondGeneCounts,
+         barchartGeneProportions)
 def Genes():
     pass
 

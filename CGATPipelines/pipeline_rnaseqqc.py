@@ -1,6 +1,6 @@
 """
 ====================
-ReadQc pipeline
+RNASeqQC pipeline
 ====================
 
 :Author: Tom Smith
@@ -707,11 +707,12 @@ def mergeSailfishResults(infiles, outfiles):
     statement = """
     cat %(s_infiles)s
     | awk -v OFS="\\t"
-    '/^# Name/
+    '/^Name/
     { sample_id+=1;
-      if (sample_id == 1)
-      {gsub(/# Name/, "transcript_id");
-       printf("sample_id\\t%%s\\n", $0); next;}}
+      if (sample_id == 1) {
+         gsub(/Name/, "transcript_id");
+         printf("sample_id\\t%%s\\n", $0)};
+      next;}
     !/^#/
         {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
@@ -725,12 +726,12 @@ def mergeSailfishResults(infiles, outfiles):
     statement = """
     cat %(s_infiles)s
     | awk -v OFS="\\t"
-    '/^# Name/
+    '/^Name/
     { sample_id+=1;
       if (sample_id == 1)
-      {gsub(/# Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
+      {gsub(/Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
     !/^#/
-        {printf("%%i\\t%%s\\n", sample_id, $0)}'
+      {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
     > %(outfile_genes)s
     """
@@ -855,7 +856,7 @@ def buildFactorTable(infiles, outfile):
     factor_names = factor_names.split("-")
 
     with IOTools.openFile(outfile, "w") as outf:
-        outf.write("sample_name\tfactor\tfactor_value\n")
+        outf.write("sample_id\tfactor\tfactor_value\n")
 
         for sample_id, filename in enumerate(sorted(infiles)):
             sample_name, suffix = os.path.basename(filename).split(".", 1)
@@ -933,8 +934,9 @@ def summariseBias(infiles, outfile):
 
     atr["length"] = np.log2(atr["length"])
 
+    E.info("loading transcripts from {}".format(transcripts))
     exp = pd.read_csv(transcripts, sep='\t', index_col="transcript_id")
-    exp['LogTPM'] = np.log2(exp['TPM']+0.1)
+    exp['LogTPM'] = np.log2(exp['TPM'] + 0.1)
 
     merged = atr.join(exp[['sample_id', 'LogTPM']])
 
