@@ -1,20 +1,24 @@
 import pandas as pd
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
-from CGATPipelines.Pipeline import cluster_runnable
 import CGAT.IOTools as IOTools
-import ast
+import sqlite3
 import os
 import rpy2
+import copy
 import rpy2.robjects as robjects
 import rpy2.interactive as r
 import rpy2.interactive.packages
-r.packages.importr("hpar")
 import scipy.stats as stats
-import shutil
+from CGATPipelines.Pipeline import cluster_runnable
+import CGAT.Experiment as E
+from toposort import toposort_flatten
+r.packages.importr("hpar")
+
 
 robjects.r('''
 library("hpar")
+# Uses the r hpar library to find human protein atlas terms
+# meeting the criteria specified in the pipeline.ini
+
 hpaQuery <- function(tissue, level, supportive=T){
     data(hpaNormalTissue)
     intissue = grep(paste0("^", tissue, "*"),
@@ -40,287 +44,267 @@ hpaQuery <- function(tissue, level, supportive=T){
 ''')
 
 
+def removeNonAscii(s):
+    '''
+    Removes non-ascii characters from database terms (as some downloaded
+    information has special characters which cause errors)
+    '''
+    return "".join(i for i in s if ord(i) < 128)
+
+
+def getUnmapped(params):
+    '''
+    Parses the PARAMS['annotation_flatfiles'] strings from the pipeline.ini
+    to find out which output files to create
+    '''
+    unmapped = dict()
+    for p in params:
+        if "_".join(p.split("_")[0:2]) == "annotation_flatfiles":
+            L = [x.strip() for x in params[p].split("-")]
+            for l in L:
+                l = l.split(" ")
+                if l[0] == "p":
+                    pref = l[1]
+                elif l[0] == "ids":
+                    ids = l[1]
+            r = "%s_%s" % (pref, ids)
+            unmapped[r] = params[p]
+    return unmapped
+
+
+def getTables(dbname):
+    '''
+    Retrieves the names of all tables in the database.
+    Groups tables into dictionaries by annotation
+    '''
+    dbh = sqlite3.connect(dbname)
+    c = dbh.cursor()
+    statement = "SELECT name FROM sqlite_master WHERE type='table'"
+    c.execute(statement)
+    tables = c.fetchall()
+    c.close()
+    dbh.close()
+    D = {}
+    for t in tables:
+        tname = t[0].replace("ensemblg2", "").split("$")
+        E.info(tname)
+        ttype = tname[0]
+        D.setdefault(ttype, [])
+        D[ttype].append(tname[1])
+    return D
+
+
+def readDBTable(dbname, tablename):
+    '''
+    Reads the specified table from the specified database.
+    Returns a list of tuples representing each row
+    '''
+    dbh = sqlite3.connect(dbname)
+    c = dbh.cursor()
+    statement = "SELECT * FROM %s" % tablename
+    c.execute(statement)
+    allresults = c.fetchall()
+    c.close()
+    dbh.close()
+    return allresults
+
+
+def getDBColumnNames(dbname, tablename):
+    '''
+    Returns the column names of the specified table in the
+    specified database
+    '''
+    # Returns the command used to generate the table
+    statement = """SELECT sql FROM sqlite_master
+    WHERE tbl_name = '%s' AND type = 'table'""" % tablename
+    dbh = sqlite3.connect(dbname)
+    c = dbh.cursor()
+    c.execute(statement)
+    res = c.fetchall()
+    c.close()
+    dbh.close()
+    # Parses the command used to generate the table to get the column names
+    cnames = str(res[0][0]).replace(
+        "CREATE TABLE %s (" % tablename, "").split(",")
+    cnames = [str(cname.split(" ")[0]) for cname in cnames]
+    return cnames
+
+
+@cluster_runnable
+def translateGenelist(dbname, genelistfile, idtype):
+    '''
+    Translates a list of gene names from idtype to ensemblg based
+    on the ensemblg2idtype$geneid database table.  This table needs
+    to exist in the database.
+    '''
+    genelist = [line.strip() for line in
+                IOTools.openFile(genelistfile).readlines()]
+    trans = pd.DataFrame(
+        readDBTable(dbname, "ensemblg2%s$geneid" % idtype))
+    trans.columns = ['ensemblg', idtype]
+    trans = trans[trans[idtype].isin(genelist)]
+    newgenelist = trans['ensemblg']
+    return set(newgenelist.values)
+
+
+@cluster_runnable
+def writeList(genelist, outfile):
+    '''
+    Writes a list or set of genes to an output file, one per line
+    '''
+    outf = IOTools.openFile(outfile, "w")
+    for gene in genelist:
+        outf.write("%s\n" % gene)
+    outf.close()
+
+
+def getAllAncestorsDescendants(term, ontologyDict):
+    '''
+    Returns all the ancestors or descendents of a term at all levels of
+    an ontology.
+    ontologyDict should be a dictionary where keys are terms and values
+    are sets of all the immediate children (for descendents) or parents
+    (for ancestors) of those terms.
+    '''
+    ids = ontologyDict[term]
+    allids = set()
+    done = set()
+
+    while len(ids) != 0:
+        allids = allids | ids
+        for item in allids:
+            if item in ontologyDict:
+                newids = ontologyDict[item]
+            else:
+                newids = set()
+            ids = ids | newids
+            done.add(item)
+        ids = ids - done
+
+    return allids
+
+
 class AnnotationSet(object):
     '''
-    Class for any set of genes and a specific set of associated annotations,
-    e.g. human genes and their GO annotations.
-    
-    Generated using any list of genes and one of:
-    - the database specified in the pipeline.ini file
-    - a *_config.tsv annotation ini file in the working directory
-    - a *_mapped.tsv annotation file in the working directory
+    Used to contain all the annotations associated with a particular
+    annotation source.
+    Consists of four dictionaries:
+    1. GenesToTerms - keys are gene names, values are sets of terms mapped to
+    these genes.
 
+    2. TermsToGenes - keys are term names, values are sets of genes mapped to
+    these terms (and their descendents if an ontology is provided)
+
+    3. TermsToOnt - if an ontology file is provided, keys are terms, values are
+    sets of terms which are direct parents of these terms (the is_a property
+    in an obo or owl file)
+
+    4. TermsToDetails -the annotation source usually provided other information
+    besides a list of terms and the genes they are mapped to, e.g. each
+    term will have a description.  TermsToDetails has a row for each
+    term, the columns are any metadata about the term.
+
+    An AnnotationSet also has a prefix used to store and regenerate the set,
+    this is the stem of the output file names.
+    e.g. prefix annotations.dir/hpo will generate
+    annotations.dir/hpo_genestoterms.tsv
+    annotations.dir/hpo_termstogenes.tsv
+    annotations.dir/hpo_termstodetails.tsv
+    annotations.dir/hpo_termstoont.tsv
+
+    DetailsColumns contains the column names of the metadata in the
+    TermsToDetails dictionary.  This is stored as the first row of the
+    TermsToDetails output file.
+
+    Methods allow the AnnotationSet to be:
+    - Saved into a standard format (stow, stowSetDict, stowDetails)
+    - Regenerated from this format (unstow, unstowSetDict, unstowDetails)
+    - Reformatted (translateIDs, ontologise)
     '''
-
-    def __init__(self, optionsfile=None, annots_from_config=None, onts=dict(),
-                 descs=dict()):
-        self.optionsfile = optionsfile
-        self.annots_from_config = annots_from_config
-        self.onts = onts
-        self.descs = descs
-        self.prefix = str()
+    def __init__(self, prefix):
+        self.prefix = prefix
         self.GenesToTerms = dict()
         self.TermsToGenes = dict()
         self.TermsToOnt = dict()
-        self.MappingFilePath = str()
-        self.OntFilePath = str()
-        self.Genes = set()
+        self.TermsToDetails = dict()
+        self.DetailsColumns = []
 
-    def build(self):
+    def unstow(self):
         '''
-        Reads and builds an annotation set from a mapping table and,
-        if specified, an ontology file.
+        Regenerates an AnnotationSet which has been stored as four
+        files by stow().
         '''
-        if self.annots_from_config is True:
-            self.AnnotationsFromConfig(self.optionsfile)
-        elif self.annots_from_config is False:
-            self.AnnotationsFromAnnotations(self.optionsfile)
+        prefix = self.prefix
+        self.GenesToTerms = self.unstowSetDict("%s_genestoterms.tsv" % prefix)
+        self.TermsToGenes = self.unstowSetDict("%s_termstogenes.tsv" % prefix)
+        self.TermsToOnt = self.unstowSetDict("%s_termstoont.tsv" % prefix)
+        self.TermsToDetails, self.DetailsColumns = self.unstowDetails(
+            "%s_termstodetails.tsv" % prefix)
 
-        prefix = self.optionsfile.split("/")[-1]
-        prefix = prefix.split("_")[0]
-        self.prefix = prefix
-        self.G2TFile = "%s_mapped.tsv" % prefix
-        self.mapGenesAndTerms()
-        self.Genes = set(self.GenesToTerms.keys())
-
-        if "ontologies_%s" % prefix in self.onts:
-            self.OntFilePath = self.onts["ontologies_%s" % prefix]
-        else:
-            self.OntFilePath = ""
-        if "descs_%s" % prefix in self.descs:
-            self.descfile = self.descs["termdescs_%s" % prefix]
-        else:
-            self.descfile = ""
-        if os.path.exists(self.descfile):
-            dDict = dict()
-            id_desc = [x.strip().split("\t")
-                       for x in open(self.descfile).readlines()]
-            for pair in id_desc:
-                dDict[pair[0]] = set([pair[1]])
-            self.dDict = dDict
-        else:
-            self.dDict = dict()
-
-        #  read ontology file if one is listed
-        if self.OntFilePath is not None and len(self.OntFilePath) != 0:
-            self.readOntFile()
-            self.addChildren()
-            self.reMap()
-
-    def AnnotationsFromConfig(self, infile):
-        opts = []
-        for line in IOTools.openFile(self.optionsfile).readlines():
-            line = line.replace(" ", "").strip()
-            if len(line) != 0 and line[0] != "#":
-                line = line.split("=")
-                if len(line) != 1:
-                    opts.append(line[1])
-        if opts[2] != "0":
-            statement = """
-            python /ifs/devel/katherineb/cgat/scripts/annotations2annotations.py \
-            -m standardise \
-            -p %s \
-            -l %s \
-            --translate_ids %s \
-            --translate_file %s \
-            --translate_from %s \
-            --translate_to %s \
-            -k %s \
-            -o %s \
-            --delim1 "%s" \
-            --delim2 "%s" \
-            --ignore_delim_key %s \
-            --ignore_delim_other %s \
-            """ % tuple(opts)
-        else:
-            statement = """
-            python /ifs/devel/katherineb/cgat/scripts/annotations2annotations.py \
-            -m standardise \
-            -p %s \
-            -l %s \
-            -k %s \
-            -o %s \
-            --delim1 "%s" \
-            --delim2 "%s" \
-            --ignore_delim_key %s \
-            --ignore_delim_other %s \
-            """ % tuple(opts[:2] + opts[6:])
-        P.run()
-
-    def AnnotationsFromAnnotations(self, mapped):
-        GenesToTerms = self.unstowSetDict(mapped)
-        TermsToGenes = dict()
-        for gene in GenesToTerms:
-            terms = GenesToTerms[gene]
-            for term in terms:
-                if term not in TermsToGenes:
-                    TermsToGenes[term] = set()
-                TermsToGenes[term].add(gene)
-        self.GenesToTerms = GenesToTerms
-        self.TermsToGenes = TermsToGenes
-        shutil.copy(mapped, mapped.replace("mapping", "mapped"))
-
-    def stow(self, outGenesToTerms, outTermsToGenes, outOnt=None,
-             outGenes=None, noOnt=False):
+    def stow(self, outprefix):
         '''
         Writes the object to a set of output files so that it can be easily
         regenerated
         '''
-        self.stowSetDict(self.GenesToTerms, outGenesToTerms)
-        self.stowSetDict(self.TermsToGenes, outTermsToGenes)
-        if outGenes is not None:
-            self.stowGeneSet(outGenes)
-        if self.OntFilePath is not None and noOnt is False:
-            self.stowOnt(outOnt)
-        elif noOnt is False:
-            os.system("touch %s" % outOnt)
+        outGenesToTerms = "%s_genestoterms.tsv" % outprefix
+        outTermsToGenes = "%s_termstogenes.tsv" % outprefix
+        outTermsToOnt = "%s_termstoont.tsv" % outprefix
+        outTermsToDetails = "%s_termstodetails.tsv" % outprefix
+
+        self.stowSetDict(self.GenesToTerms, outGenesToTerms, ["gene", "term"])
+        self.stowSetDict(self.TermsToGenes, outTermsToGenes, ["term", "gene"])
+
+        if self.TermsToOnt is not None:
+            self.stowSetDict(self.TermsToOnt, outTermsToOnt, ['term', 'is_a'])
         else:
-            pass
+            os.system("touch %s" % outTermsToOnt)
 
-        dDict = self.dDict
-        if len(dDict) != 0:
-            self.stowSetDict(dDict, "%s_translate.tsv" % self.prefix)
-
-    def rebuild(self, inGenesToTerms, inTermsToGenes, inOnt=None,
-                inGenes=None):
-        '''
-        Regenerates the Annotation Set from the output files generated by
-        stow().
-        '''
-        self.GenesToTerms = self.unstowSetDict(inGenesToTerms)
-        self.TermsToGenes = self.unstowSetDict(inTermsToGenes)
-        prefix = inGenesToTerms.split("/")[-1]
-        prefix = prefix.split("_")[0]
-        self.prefix = prefix
-        if inOnt is not None:
-            self.unstowOnt(inOnt)
-        self.Genes = set(self.GenesToTerms.keys())
-        if os.path.exists("%s_translate.tsv" % self.prefix):
-            self.dDict = self.unstowSetDict("%s_translate.tsv" % self.prefix)
+        if self.TermsToDetails is not None:
+            self.stowDetails(self.TermsToDetails, outTermsToDetails,
+                             self.DetailsColumns)
         else:
-            self.dDict = dict()
+            os.system("touch %s" % outTermsToDetails)
 
-    def mapGenesAndTerms(self):
+    def stowSetDict(self, adict, outfile, cnames):
         '''
-        Builds a GenesToTerms dictionary based on the MappingDF from the
-        mapping file.
-        '''
-        self.GenesToTerms = self.unstowSetDict(self.G2TFile)
-        for key in self.GenesToTerms:
-            terms = self.GenesToTerms[key]
-            for term in terms:
-                if term not in self.TermsToGenes:
-                    self.TermsToGenes[term] = set()
-                self.TermsToGenes[term].add(key)
-
-    def reMap(self):
-        TermsToOnt = self.TermsToOnt
-        TermsToGenes = self.TermsToGenes
-        Adict = dict()
-        for term in TermsToGenes:
-            Adict[term] = set()
-            if term in TermsToOnt:
-                A = TermsToOnt[term]
-                A.getAll(TermsToOnt, "D")
-                allT = set([A.ID]) | A.alldescendents
-                for term2 in allT:
-                    if term2 in TermsToGenes:
-                        Adict[term] = Adict[term] | TermsToGenes[term2]
-
-        Bdict = dict()
-        for term in Adict:
-            genes = Adict[term]
-            for gene in genes:
-                if gene not in Bdict:
-                    Bdict[gene] = set()
-                Bdict[gene].add(term)
-        self.TermsToGenes = Adict
-        self.GenesToTerms = Bdict
-
-    def readOntFile(self):
-        '''
-        Reads an obo formatted file.
-        Generates a dictionary - self.TermsToOnt
-        '''
-        TermsToOnt = self.TermsToOnt
-
-        T = None
-        s = 0
-        with IOTools.openFile(self.OntFilePath) as infile:
-            for line in infile:
-                line = line.strip()
-                if line.startswith("[Typedef]"):
-                    s = 1
-                if line.startswith("[Term]"):
-                    T = ontologyTerm()
-                if T is not None:
-                    if s == 1:
-                        if len(line) == 0:
-                            s = 0
-                    elif len(line) == 0:
-                        TermsToOnt[T.ID] = T
-                    else:
-                        segs = line.split(": ")
-                        if len(segs) >= 2:
-                            T.add_var(segs[0], ":".join(segs[1:]))
-        TermsToOnt[T.ID] = T
-        self.TermsToOnt = TermsToOnt
-
-    def addChildren(self):
-        '''
-        Adds "child" terms to each ID in a TermsToOnt attribute generated
-        from an obo file.
-        '''
-        TermsToOnt = self.TermsToOnt
-        for termid, term in self.TermsToOnt.items():
-            parents = term.parents
-            if parents is not None:
-                for parent in parents:
-                    self.TermsToOnt[parent].add_var("includes", termid)
-        self.TermsToOnt = TermsToOnt
-
-    def stowSetDict(self, adict, outfile):
-        '''
-        Stores a parsed mapping file in a flat file to load into the database
-        and easily re-read later
+        Stores a dictionary where values are sets or lists in a flat file with
+        one column as the dictionary keys and the other a comma delimited
+        list of the set of values for that key.
+        e.g. {A:set("a", "b", "c")} would be stored as
+        A    a,b,c
         '''
         out = IOTools.openFile(outfile, "w")
-        out.write("id1\tid2\n")
+        out.write("%s\n" % ("\t".join(cnames)))
 
         for id1, id2 in adict.items():
-            if len(id1) != 0:
-                out.write("%s\t%s\n" % (id1,
-                                        ",".join(id2)
-                                        if len(id2) != 0 else "-"))
+            out.write("%s\t%s\n" % (removeNonAscii(id1),
+                                    removeNonAscii(",".join(id2))))
         out.close()
 
-    def stowOnt(self, outfile):
+    def stowDetails(self, adict, outfile, cnames):
         '''
-        Stores a parsed ontology file in a flat file to load into the database
-        and easily re-read later
+        Stores the TermsToDetails dictionary in a flat file
+        This is slightly different to the other AnnotationSet dictionaries
+        because order is important in the values in the dictionary so they
+        are tuples rather than sets.
+        The first line of the output file is the DetailsColumns column names
         '''
         out = IOTools.openFile(outfile, "w")
-        SB = self.TermsToOnt
-        if len(SB.keys()) != 0:
-            out.write("ID\tTerm\tDefinition\tParents\tChildren\n")
-        for key in SB.keys():
-            out.write("%s\t%s\t%s\t" % (SB[key].ID,
-                                        SB[key].name,
-                                        SB[key].defi))
-            if len(SB[key].parents) == 0:
-                out.write("-\t")
-            else:
-                out.write("%s\t" % (",".join(SB[key].parents)))
-            if len(SB[key].children) == 0:
-                out.write("-\n")
-            else:
-                out.write("%s\n" % (",".join(SB[key].children)))
+        out.write("%s\n" % ("\t".join(cnames)))
+        for nam, val in adict.items():
+                tval = removeNonAscii("\t".join(val))
+                out.write("%s\t%s\n" % (removeNonAscii(nam),
+                                        tval))
         out.close()
 
     def unstowSetDict(self, infile):
         '''
         Regenerates a dictionary using a file generated by
         stowSetDict
+        Reads a flat file where column one is dictionary keys and column two
+        a comma delimited list of values for that key and generates a
+        dictionary of sets.
+        e.g. A    a,b,c would become  {A:set("a", "b", "c")}
         '''
         D = dict()
         i = 0
@@ -328,249 +312,608 @@ class AnnotationSet(object):
             for line in inf:
                 if i != 0:
                     line = line.strip().split("\t")
-                    if line[0] not in D:
+                    if line[0] not in D and len(line) > 1:
                         D[line[0]] = set()
                         for part in line[1].split(","):
                             D[line[0]].add(part)
                 i += 1
         return D
 
-    def unstowOnt(self, infile):
+    def unstowDetails(self, infile):
         '''
-        Regenerates the TermsToOnt dictionary using the file generated by
-        writeOntFlatFile.
+        Regenerates the dictionary stored by stowDetails.
         '''
-        SB = self.TermsToOnt
+        D = dict()
         i = 0
         with IOTools.openFile(infile) as inf:
             for line in inf:
-                if i != 0:
-                    line = line.strip().split("\t")
-                    T = ontologyTerm()
-                    T.ID, T.name, T.defi = line[0:3]
-                    T.parents = set(line[3].split(","))
-                    T.children = set(line[4].split(","))
-                    SB[T.ID] = T
+                line = line.strip().split("\t")
+                if i == 0:
+                    cnames = line
+                else:
+                    D[line[0]] = tuple(line[1:])
                 i += 1
-        self.TermsToOnt = SB
+        return D, cnames
 
-    def subSetAnnotations(self, genelist):
+    def translateIDs(self, dbname, idtype):
         '''
-        Removes all but a specified set of genes from the AnnotationSet
+        Converts IDs throughout an AnnotationSet from idtype
+        to ensemblg using information stored in the dbname database
+        table ensemblg2idtype$geneid
         '''
-        GenesToTerms = self.GenesToTerms
-        genes_subset = set(GenesToTerms.keys()) & genelist
+        tab = readDBTable(dbname, "ensemblg2%s$geneid" % idtype)
+        tabpd = pd.DataFrame(tab, columns=["ensemblg", "id"])
 
-        subGenesToTerms = dict()
-        subTermsToGenes = dict()
+        genes = self.GenesToTerms
+        tempdict = dict()
+        for gene in self.GenesToTerms:
+            tempdict[gene] = ",".join(genes[gene])
+        df = pd.DataFrame.from_dict(tempdict, 'index')
+        T = tabpd.merge(df, left_on='id', right_index=True)
+        T = T.drop('id', 1)
+        T.columns = ['ensemblg', 'terms']
+        g2t = dict(zip(T['ensemblg'], T['terms']))
+        for key in g2t:
+            g2t[key] = g2t[key].split(",")
 
-        for gene in genes_subset:
-            terms = GenesToTerms[gene]
-            subGenesToTerms[gene] = terms
-            for term in terms:
-                if term not in subTermsToGenes:
-                    subTermsToGenes[term] = set()
-                subTermsToGenes[term].add(gene)
+        #  Replace the GenesToTerms and TermsToGenes dictionaries
+        #  with copies with the translated gene names.  TermsToDetails
+        #  and TermsToOnt don't contain gene names so they can stay the same.
+        self.GenesToTerms = g2t
+        self.TermsToGenes = self.reverseDict(self.GenesToTerms)
 
-        self.TermsToGenes = subTermsToGenes
-        self.GenesToTerms = subGenesToTerms
+    def reverseDict(self, D):
+        '''
+        Inverts a dictionary of sets so that values are keys and
+        keys are values
+        e.g.
+        {A: set(1, 2, 3) B: set(2, 3, 4)}
+        -->
+        {1: set(A), 2: set(A, B), 3: set(A, B), 4: set(B)}
+        '''
+        rD = dict()
+        for key in D:
+            res = D[key]
+            for s in res:
+                rD.setdefault(s, set())
+                rD[s].add(key)
+        return rD
 
-    def getGenesAnnotatedToTerm(self, term):
-        if term in self.TermsToGenes:
-            return self.TermsToGenes[term]
-        else:
-            return set()
+    def ontologise(self):
+        '''
+        Takes the TermsToGenes and GenesToTerms dictionaries and
+        corrects them for an AnnotationSet with a hierarchical ontology.
+        If a gene is associated with a term, e.g. gene ENSG00000144061 is
+        associated with the HPO term Nephropathy, it is also associated with
+        all the ancestors of that term, e.g. ENSG00000144061 must also be
+        associated with Abnormality of the Kidney.
+        This function deals with this by taking the TermsToGenes
+        dictionary and, for each term, taking the descendent terms,
+        looking up their associated genes and adding them to the TermsToGenes
+        set for the original term.
 
-    def getGenesNotAnnotatedToTerm(self, term):
-        if term in self.TermsToGenes:
-            return set(self.Genes - self.TermsToGenes[term])
-        else:
-            return set()
+        '''
+        TermsToGenes = self.TermsToGenes
+        TermsToOntP = copy.copy(self.TermsToOnt)
+        TermsToOntC = self.reverseDict(TermsToOntP)
+
+        Adict = dict()
+        # topologically sorts the terms in the ontology so that
+        # every term is earlier in the list than all of its ancestors.
+        sortedterms = toposort_flatten(self.TermsToOnt)
+        sortedterms_p = []
+        for s in sortedterms:
+            if s in TermsToGenes:
+                sortedterms_p.append(s)
+        for term in sortedterms_p:
+            Adict[term] = set()
+            if term in TermsToOntC:
+                # return descendents
+                allids = getAllAncestorsDescendants(term, TermsToOntC)
+
+                allids.add(term)
+                for term2 in allids:
+                    if term2 in TermsToGenes:
+                        Adict[term] = Adict[term] | TermsToGenes[term2]
+
+        self.TermsToGenes = Adict
+        self.GenesToTerms = self.reverseDict(Adict)
 
 
-class ontologyTerm(object):
+class AnnotationParser(object):
     '''
-    Class for a term from an ontology file and associated information.
-    Corresponds to one stanza from an obo file.
+    Base class for parsing an existing set of annotations into an
+    AnnotationSet object
     '''
-    def __init__(self):
-        self.ID = None
-        self.parents = set()
-        self.name = None
-        self.defi = None
-        self.children = set()
+    def __init__(self, infile, prefix, options):
+        self.infile = infile
+        self.options = options
+        self.AS = AnnotationSet(prefix)
 
-    def add_var(self, nam, var):
-        '''
-        adds attributes to the ontologyTerm based on the id, is_a, name,
-        def and includes tags in the obo file.
-        '''
-        if nam == "id":
-            self.ID = var
-        if nam == "is_a":
-            var = var.split(" ")[0]
-            self.parents.add(var)
-        elif nam == "name":
-            self.name = var
-        elif nam == "def":
-            self.defi = var
-        elif nam == "includes":
-            self.children.add(var)
 
-    def getAll(self, SB, ad):
-        '''
-        Adds all the ancestors of a term (if ad = "A") or all the
-        descendents of a term (if ad = "D") to the term as
-        self.allancestors or self.alldescendents.  Takes time so only
-        run when required.
-        '''
-        children = self.children
-        parents = self.parents
+class DBTableParser(AnnotationParser):
+    '''
+    Parses a set of database tables into an AnnotationSet
 
-        if ad == "A":
-            ids = parents
-        elif ad == "D":
-            ids = children
-        allids = set()
-        done = set()
+    3 table names are needed in the "options" dictionary:
 
-        while len(ids) != 0:
-            allids = allids | ids
-            for item in allids:
-                if ad == "A":
-                    newids = SB[item].parents
-                elif ad == "D":
-                    newids = SB[item].children
-                ids = ids | newids
-                done.add(item)
-            ids = ids - done
-        if ad == "A":
-            self.allancestors = allids
-        elif ad == "D":
-            self.alldescendents = allids
+    annot - each gene and each term it is annotated to.  There should be
+    one gene and term per row, genes mapped to multiple terms are
+    repeated multiple times e.g.
+    gene term
+    A    1
+    A    2
+    B    2
+    details - each term and its metadata
+
+    ont - each term and its parent terms (in an ontology) - can be None if the
+    annotation is not hierarchical.
+
+    prefix is the prefix for the output files, so files will be named
+    prefix_genestoterms.tsv
+    prefix_termstogenes.tsv
+    prefix_termstoont.tsv
+    prefix_termstodetails.tsv
+    '''
+    def __init__(self, infile, prefix, options):
+        AnnotationParser.__init__(self, infile, prefix, options)
+        self.annot = options['annot']
+        self.details = options['details']
+        self.ont = options['ont']
+
+    def run(self):
+        '''
+        Runs the functions to convert the database into an AnnotationSet.
+        '''
+        self.AS.GenesToTerms, self.AS.TermsToGenes = self.annotsToDicts()
+        if self.details is not None:
+            (self.AS.TermsToDetails,
+             self.AS.DetailsColumns) = self.detailsToDict()
+        else:
+            self.AS.TermsToDetails = None
+        if self.ont is not None:
+            self.AS.TermsToOnt = self.ontToDict()
+            self.AS.ontologise()
+
+        else:
+            self.AS.TermsToOnt = None
+
+    def annotsToDicts(self):
+        '''
+        Takes the annot table and builds two dictionaries to represent it.
+        In rdict1 each gene is a key and each value is a set listing the
+        terms associated with that gene.
+        In rdict2 each term is a key and each value is a set listing the
+        genes associated with that term.
+        These become the GenesToTerms and TermsToGenes dictionaries of the
+        AnnotationSet.
+        '''
+        allresults = readDBTable(self.infile, self.annot)
+        rdict1 = {}
+        rdict2 = {}
+        for result in allresults:
+            rdict1.setdefault(result[0], set())
+            rdict1[result[0]].add(result[1])
+            rdict2.setdefault(result[1], set())
+            rdict2[result[1]].add(result[0])
+        return rdict1, rdict2
+
+    def detailsToDict(self):
+        '''
+        Takes the details table and builds a dictionary to represent it.
+        Each dictionary value is a list corresponding to a table row
+        (this needs to be ordered) and contains "-" where a column is blank.
+        Each dictionary key is a term ID.
+        '''
+        allresults = readDBTable(self.infile, self.details)
+        D = {}
+        for line in allresults:
+            res = []
+            for x in line[1:]:
+                if x is None:
+                    res.append("-")
+                else:
+                    res.append(x)
+            D[line[0]] = res
+
+        cnames = getDBColumnNames(self.infile, self.details)
+        return D, cnames
+
+    def ontToDict(self):
+        '''
+        Reads the ontology table from the database into a dictionary
+        Each dictionary key is a term and each value a set containing the
+        direct parents of that term (the is_a attribute of the ontology)
+        '''
+        allresults = readDBTable(self.infile, self.ont)
+        D = {}
+        for result in allresults:
+            D.setdefault(result[0], set())
+            D[result[0]].add(result[1])
+        return D
+
+
+class EnrichmentTester(object):
+    '''
+    Runs statistical tests for enrichment in the "foreground" gene list
+    compared to the "background" gene list for all terms in an AnnotationSet
+    which are mapped to one or more genes in the foreground list.
+    Outputs these results to a file in a standard format.
+    '''
+    def __init__(self, foreground, background, AS, runtype,
+                 testtype, correction, thresh, outfile, outfile2):
+        allgenes = set(AS.GenesToTerms.keys())
+
+        #  read the list of background genes, remove genes not in the
+        #  AnnotationSet
+        self.background = (set([line.strip()
+                               for line in
+                               IOTools.openFile(background).readlines()]) &
+                           allgenes)
+
+        # read the list of background genes, remove genes not in the
+        # AnnotationSet and genes not in the background (all genes in
+        # the foreground should also be in the background)
+        self.foreground = (set([line.strip()
+                               for line in
+                               IOTools.openFile(foreground).readlines()]) &
+                           allgenes) & self.background
+        self.AS = AS
+        self.runtype = runtype
+        self.testtype = testtype
+        self.correction = correction
+        self.thresh = thresh
+        terms = set()
+        # Only terms which are associated with a gene in the foreground
+        # are tested
+        for gene in self.foreground:
+            terms = terms | AS.GenesToTerms[gene]
+        self.terms = terms
+        self.outfile = outfile
+        self.outfile2 = outfile2
+
+    def writeStats(self, resultsdict, outfile, outfile2):
+        '''
+        Writes the stats test results to an output table
+        Each row has all the detail from the TermsToDetails table appended
+        to it.  If the original table this was generated from did not have
+        column names, the columns are named c1 to cn.
+        outfile2 has the same information but only for significant tests
+        and sorted by oddsratio.
+        '''
+        parsedresults = []
+        for term in resultsdict:
+            res = resultsdict[term]
+            # odds ratio
+            OR = round(res[0], 4)
+            # p value
+            p = round(res[1], 4)
+            # adjusted p value
+            padj = round(res[2], 4)
+            # significance
+            sig = "*" if res[3] is True else "-"
+            # n genes associated with and not associated with
+            # this term in the foreground
+            A, B = res[4][0]
+            # n genes associated with and not associated with
+            # this term in the background
+            C, D = res[4][1]
+
+            L = [term, str(A), str(B), str(C), str(D),
+                 str(OR), str(p), str(padj), sig]
+
+            # add metadata
+            L += self.AS.TermsToDetails[term]
+            parsedresults.append(L)
+
+        cols = ['term', 'fg_genes_mapped_to_term',
+                'fg_genes_not_mapped_to_term',
+                'bg_genes_mapped_to_term',
+                'bg_genes_not_mapped_to_term', 'odds_ratio',
+                'pvalue', 'padj', 'significant'] + self.AS.DetailsColumns[1:]
+        df = pd.DataFrame(parsedresults, columns=cols)
+        df = df.sort_values('padj')
+        df2 = df[df['significant'] == "*"]
+        df2 = df2.sort_values('odds_ratio', ascending=False)
+        df.to_csv(outfile, sep="\t", index=False)
+        df2.to_csv(outfile2, sep="\t", index=False)
+
+
+class TermByTermET(EnrichmentTester):
+    '''
+    Standard method to look for enrichment - test each term
+    individually.
+    '''
+    def __init__(self, foreground, background, AS, runtype,
+                 testtype, correction, thresh, outfile, outfile2):
+
+        EnrichmentTester.__init__(self, foreground, background, AS, runtype,
+                                  testtype, correction, thresh, outfile,
+                                  outfile2)
+
+    def run(self):
+        results = dict()
+        for term in self.terms:
+            GenesWith = self.AS.TermsToGenes[term]
+            GenesWithout = set(self.AS.GenesToTerms.keys()) - GenesWith
+
+            if self.testtype == "Fisher":
+                ST = FisherExactTest(term,
+                                     self.foreground,
+                                     self.background,
+                                     GenesWith,
+                                     GenesWithout,
+                                     self.correction,
+                                     self.thresh,
+                                     len(self.terms))
+                res = ST.run()
+                results[term] = res
+        self.writeStats(results, self.outfile, self.outfile2)
+
+
+class EliminateET(EnrichmentTester):
+    '''
+    Implementation of the "elim" method of looking for enriched groups
+    described in
+    http://bioinformatics.oxfordjournals.org/content/22/13/1600.full.pdf
+    Starts at the bottom of an ontology and works up towards the root - if
+    a term at the bottom of the tree is significantly enriched
+    in a geneset, its ancestors are eliminated from the analysis
+    as these will also be enrihced but are less informative.
+    '''
+    def __init__(self, foreground, background, AS, runtype, testtype,
+                 correction, thresh, outfile, outfile2):
+        EnrichmentTester.__init__(self, foreground, background, AS, runtype,
+                                  testtype, correction, thresh, outfile,
+                                  outfile2)
+
+    def run(self):
+        TermsToOntP = copy.copy(self.AS.TermsToOnt)
+        TermsToOntC = self.AS.reverseDict(TermsToOntP)
+
+        # sort terms into "topological" order - every term comes earlier in the
+        # list than all of its descendents
+        sortedL = toposort_flatten(TermsToOntC)[::-1]
+
+        # exclude terms not associated with any foreground genes
+        p_sortedL = []
+        for s in sortedL:
+            if s in self.terms:
+                p_sortedL.append(s)
+
+        # find the "level" of each gene in the ontology - the number of
+        # steps in the longest path from the node to the root
+        levels = dict()
+        results = dict()
+        for term in p_sortedL:
+            levels.setdefault(term, 0)
+            if term in TermsToOntP:
+                # what are the immediate parents of this term
+                parents = TermsToOntP[term]
+                maxi = 0
+                if len(parents) != 0:
+                    for parent in parents:
+                        levels.setdefault(parent, 0)
+                        if levels[parent] > maxi:
+                            maxi = levels[parent]
+                # the level of the term is 1 more than the maximum level of
+                # its parents
+                levels[term] = levels[term] + maxi + 1
+
+        # invert the "levels" dictionary to give a dictionary where keys
+        # are levels (integers) and values are sets of terms at that
+        # level
+        bylevel = dict()
+        for term in levels:
+            if term in self.terms:
+                level = levels[term]
+                bylevel.setdefault(level, set())
+                bylevel[level].add(term)
+
+        # find the highest level in the ontology
+        maxLevel = max(bylevel.keys())
+        markedGenes = dict()
+        allgenes = set(self.AS.GenesToTerms.keys())
+        for term in self.terms:
+            markedGenes[term] = set()
+
+        # iterate through the levels starting at the highest level - the
+        # bottom of the tree
+        for j in range(1, maxLevel)[::-1]:
+            for term in bylevel[j]:
+                genes = self.AS.TermsToGenes[term]
+
+                # remove "marked genes" from the list of genes associated
+                # with the term - these are genes which have already been
+                # associated with a descendent of the term
+                GenesWith = genes - markedGenes[term]
+                GenesWithout = allgenes - genes
+                if self.testtype == "Fisher":
+                    ST = FisherExactTest(term, self.foreground,
+                                         self.background,
+                                         GenesWith,
+                                         GenesWithout,
+                                         self.correction,
+                                         self.thresh,
+                                         len(self.terms))
+                    R = ST.run()
+                    results[term] = R
+
+                if R[3] is True:
+                    # "mark" the genes mapped to this term so
+                    # they are not also mapped to ancestors of the term
+                    ancs = getAllAncestorsDescendants(term, TermsToOntP)
+                    for anc in ancs:
+                        if anc in self.terms:
+                            markedGenes[anc] = markedGenes[anc] | GenesWith
+        self.writeStats(results, self.outfile, self.outfile2)
 
 
 class StatsTest(object):
-    def __init__(self, foregroundfiles, backgroundfiles):
-        foreground = AnnotationSet()
-        background = AnnotationSet()
-        if len(foregroundfiles) == 2:
-            foregroundfiles.append(None)
-        if len(backgroundfiles) == 2:
-            backgroundfiles.append(None)
-        foreground.rebuild(foregroundfiles[0], foregroundfiles[1],
-                           foregroundfiles[2])
-        background.rebuild(backgroundfiles[0], backgroundfiles[1],
-                           backgroundfiles[2])
+    '''
+    Container for StatsTest objects corresponding to different types
+    of statistical test for enrichment.
+    '''
+    def __init__(self, term, foreground, background, GenesWith, GenesWithout,
+                 correction, thresh, ntests):
+        self.term = term
         self.foreground = foreground
         self.background = background
+        # Genes which are associated with the term
+        self.GenesWith = GenesWith
+        # Genes which are not associated with the term
+        self.GenesWithout = GenesWithout
+        self.correction = correction
+        self.thresh = thresh
+        self.ntests = ntests
 
-    def FisherExactTest(self, term):
-        foreground = self.foreground
-        background = self.background
-        A = len(foreground.getGenesAnnotatedToTerm(term))
-        B = len(foreground.getGenesNotAnnotatedToTerm(term))
-        C = len(background.getGenesAnnotatedToTerm(term))
-        D = len(background.getGenesNotAnnotatedToTerm(term))
+    def correct(self, pvalue):
+        '''
+        Correction for multiple testing
+        '''
+        # Bonferroni correction
+        if self.correction == "bon":
+            return pvalue * self.ntests
+
+    def sig(self, pvalue):
+        '''
+        Test for significance
+        '''
+        if pvalue <= self.thresh:
+            return True
+
+
+class FisherExactTest(StatsTest):
+    '''
+    Runs a Fisher Exact Test (as implemented in scipy.stats)
+    on a term.
+    Uses a 2x2 contingency table with counts of:
+    A - Genes in foreground annotated to term
+    B - Genes in foreground not annotated to term
+    C - Genes in background annotated to term
+    D - Genes in background not annotated to term
+
+    '''
+    def __init___(self, term, foreground, background, GenesWith, GenesWithout,
+                  correction, thresh, ntests):
+        StatsTest.__init__(self, term, foreground, background, GenesWith,
+                           GenesWithout, correction, thresh, ntests)
+
+    def run(self):
+        A = len(self.GenesWith & self.foreground)
+        B = len(self.GenesWithout & self.foreground)
+        C = len(self.GenesWith & self.background)
+        D = len(self.GenesWithout & self.background)
+
         fishlist = ((A, B), (C, D))
-        dDict = background.dDict
-        if os.path.exists("%s_translate.tsv" % background.prefix):
-            termtrans = str(dDict[term])
-        else:
-            termtrans = term
-        return (stats.fisher_exact(fishlist), fishlist, termtrans)
 
-    def TermForTerm(self):
-        '''
-        standard test for overrepresented GO term in foreground vs background
-        FC = fold change
-        '''
-        allterms = self.background.TermsToGenes.keys()
-        D = dict()
-        for term in allterms:
-            res = self.FisherExactTest(term)
-            D[term] = res
-        self.termscores = D
+        FT = stats.fisher_exact(fishlist)
+        OR, p = FT
+        padj = self.correct(p)
+        if padj > 1:
+            padj = 1
+        significant = self.sig(padj)
 
-    def writeScores(self, outfile, bgnam):
-        out = IOTools.openFile(outfile, "w")
-        termscores = self.termscores
-        n = len(termscores.keys())
-        for pair in termscores.items():
-            name = pair[0]
-            result = pair[1]
-            trans = result[2]
-            pvalue = result[0][1]
-            oddsratio = result[0][0]
-            c1, c2 = str(result[1][0][0]), str(result[1][0][1])
-            c3, c4 = str(result[1][1][0]), str(result[1][1][1])
-            counts = "\t".join([c1, c2, c3, c4])
-            bf_pvalue = pvalue * n
-            out.write("%s\t%s\t%s\t%s\t%s\t%s\t%s\n"
-                      % (bgnam, name, trans, counts, oddsratio,
-                         pvalue, bf_pvalue))
-        out.close()
+        return OR, p, padj, significant, fishlist
 
 
-def HPABackground(tissue, level, supportive=1):
+# functions below here correspond to specific steps in the
+# pipeline_enrichment pipeline - they are written as functions
+# so the cluster_runnable decorater can be used.
+
+@cluster_runnable
+def getDBAnnotations(infile, outfiles, dbname):
+    '''
+    Retrieves the database tables and runs DBTableParser as
+    appropriate to generate AnnotationSets.
+    '''
+    dbtabs = getTables(dbname)
+    for tab in dbtabs:
+        if 'annot' in dbtabs[tab]:
+            stem = tab
+            Tdict = {'stem': stem,
+                     'annot': "ensemblg2%s$annot" % stem,
+                     'details': None,
+                     'ont': None}
+            if 'ont' in dbtabs[tab]:
+                Tdict['ont'] = "%s$ont" % stem
+            if 'details' in dbtabs[tab]:
+                Tdict['details'] = "%s$details" % stem
+            D = DBTableParser(dbname, stem, Tdict)
+            D.run()
+            D.AS.stow("annotations.dir/%s" % stem)
+
+
+@cluster_runnable
+def translateAnnotations(infiles, outfiles, dbname):
+    '''
+    Translate a set of user specified annotations to use
+    ensemblg identifiers, so all annotations have a consistent
+    identifier type.
+    '''
+    parts = infiles[0].split("_")
+    # regenerate the stored AnnotationSet
+    AS = AnnotationSet("_".join(parts[0:3]))
+    AS.unstow()
+    AS.translateIDs(dbname, parts[2])
+    AS.stow(parts[1])
+
+
+@cluster_runnable
+def cleanGeneLists(infile, outfile, idtype, dbname):
+    '''
+    Cleans a list of genes - removes duplicates and translates
+    from idtype to ensemblg
+    '''
+    if idtype == "ensemblg":
+        cleangenes = set([line.strip()
+                          for line in IOTools.openFile(infile).readlines()])
+    else:
+        cleangenes = translateGenelist(dbname, infile, idtype)
+    writeList(cleangenes, outfile)
+
+
+@cluster_runnable
+def HPABackground(tissue, level, supportive, outfile):
     '''
     Generates a background set using human protein atlas annotations using the
-    R hpar package.
+    R hpar package and thresholds set in pipeline.ini
     '''
     if int(supportive) == "1":
         supp = "T"
     else:
         supp = "F"
     genes = set(robjects.r.hpaQuery(tissue, level, supp))
-    return genes
+    writeList(genes, outfile)
 
 
-def translateGeneSet(genes, translatetab, fromcol, tocol):
+@cluster_runnable
+def foregroundsVsBackgrounds(infiles, outfile, outfile2,
+                             testtype, runtype, correction, thresh):
     '''
-    Translates a geneset from one set of identifiers to another using data
-    in translatetab.
-    fromcol = original ID type (column heading in translatetab)
-    tocol = final ID (column heading in translatetab)
+    Runs the appropriate EnrichmentTester method according to
+    the parameters specified in the pipeline.ini.
     '''
-    i = 0
-    tID = dict()
-    with IOTools.openFile(translatetab) as inf:
-        for line in inf:
-            line = line.strip().split("\t")
-            if i == 0:
-                ind1 = line.index(fromcol)
-                ind2 = line.index(tocol)
+    annots = infiles[-1].replace("_genestoterms.tsv", "")
 
-            else:
-                if (len(line) > ind1) and (len(line[ind1]) != 0) and (
-                        line[ind1] in genes):
-                    if line[ind1] not in tID:
-                        tID[line[ind1]] = set()
-                    if len(line) > ind2:
-                        tID[line[ind1]].add(line[ind2])
+    # Regenerate the appropriate AnnotationSet
+    AS = AnnotationSet(annots)
+    AS.unstow()
+    foreground = infiles[1]
+    background = infiles[0]
 
-            i += 1
-    tgenes = set()
-    for gene in genes:
-        if gene in tID:
-            tgene = tID[gene]
-            tgenes = tgenes | tgene
-    return tgenes
+    # Elim method doesn't work if there is no ontology - term by
+    # term is used instead
+    if runtype == "elim":
+        if len(AS.TermsToOnt) == 0:
+            runtype = "termbyterm"
 
-
-def outputSet(alist, outfile):
-    '''
-    Writes a list of genes to an output file, one gene per line.
-    '''
-
-    out = IOTools.openFile(outfile, "w")
-    for item in alist:
-        out.write("%s\n" % item)
-    out.close()
-
-
-def inputSet(infile):
-    '''
-    Reads a set of genes from a file with one gene per line.
-    '''
-    return set(line.strip() for line in IOTools.openFile(infile).readlines())
+    if runtype == "termbyterm":
+        ET = TermByTermET(foreground, background, AS,
+                          runtype, testtype, correction, thresh,
+                          outfile, outfile2)
+    elif runtype == "elim":
+        ET = EliminateET(foreground, background, AS,
+                         runtype, testtype, correction, thresh,
+                         outfile, outfile2)
+    ET.run()
