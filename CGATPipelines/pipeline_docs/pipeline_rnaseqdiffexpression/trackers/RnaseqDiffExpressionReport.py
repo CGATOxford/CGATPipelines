@@ -1,13 +1,12 @@
 import re
 import glob
-
 from CGATReport.Tracker import *
-from CGATReport.Utils import PARAMS as P
-
+import CGATReport.Utils
 from CGATPipelines.PipelineGeneset import mapUCSCToEnsembl
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 # get from config file
+P = CGATReport.Utils.get_parameters()
 UCSC_DATABASE = P["genome"]
 
 ###################################################################

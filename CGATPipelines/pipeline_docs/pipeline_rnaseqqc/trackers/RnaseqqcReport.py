@@ -68,7 +68,7 @@ class SampleOverlap(RnaseqqcTracker):
 
 class SampleHeatmap(RnaseqqcTracker):
 
-    table = "transcript_quantification"
+    table = "sailfish_transcripts"
     py2ri.activate()
 
     def getTracks(self, subset=None):
@@ -93,7 +93,7 @@ class SampleHeatmap(RnaseqqcTracker):
         '''
 
         # set sample_id to index
-        pivot = dataframe.pivot(index="sample_id",
+        pivot = dataframe.pivot(index="sample_name",
                                 columns="transcript_id",
                                 values="TPM")
         transpose = pivot.T
@@ -109,30 +109,34 @@ class SampleHeatmap(RnaseqqcTracker):
         return corr_frame
 
     def getFactors(self, dataframe, factor):
-        '''
-        Get factor/experimental design levels
-        from table
+        '''Get factor/experimental design levels from table
         '''
 
-        statement = ("SELECT factor_value, sample_id FROM factor "
-                     "WHERE factor = '%(factor)s';" % locals())
+        statement = ("SELECT factor_value, sample_name "
+                     "FROM factors AS f, samples AS s "
+                     "WHERE f.sample_id = s.id "
+                     "AND factor = '%(factor)s'" % locals())
 
-        factor_df = pd.DataFrame.from_dict(self.getAll(statement))
+        factor_df = self.getDataFrame(statement)
 
-        merged = pd.merge(dataframe, factor_df,
-                          left_index=True, right_on="sample_id",
+        merged = pd.merge(dataframe,
+                          factor_df,
+                          left_index=True,
+                          right_on="sample_name",
                           how='outer')
         return merged
 
     def __call__(self, track, slice=None):
-        statement = ("SELECT sample_id,transcript_id,TPM from %(table)s "
-                     "WHERE transcript_id != 'Transcript';")
-        df = pd.DataFrame.from_dict(self.getAll(statement))
 
+        statement = ("SELECT s.sample_name, t.transcript_id, t.TPM "
+                     "FROM %(table)s AS t, samples AS s "
+                     "WHERE transcript_id != 'Transcript' "
+                     "AND t.sample_id = s.id")
+        df = self.getDataFrame(statement)
         mdf = self.getCorrelations(df)
 
-        mdf.columns = set(df["sample_id"])
-        mdf.index = set(df["sample_id"])
+        mdf.columns = set(df["sample_name"])
+        mdf.index = set(df["sample_name"])
 
         all_df = self.getFactors(mdf, 'replicate')
         return all_df
@@ -145,13 +149,11 @@ class TranscriptQuantificationHeatmap(object):
 
     def getColorBar(self, data):
 
-        # factors are the columns after the total
-        # number of samples
+        # factors are the columns after the total number of samples
         factors = data.iloc[:, data.shape[0]:]
         unique = set(factors.iloc[:, 0])
 
-        # select a random set of colours from the xkcd
-        # palette
+        # select a random set of colours from the xkcd palette
         random.seed(5648546)
         xkcd = random.sample(seaborn.xkcd_rgb.keys(),
                              len(unique))
@@ -167,10 +169,8 @@ class TranscriptQuantificationHeatmap(object):
         colorbar = self.getColorBar(data)
         n_samples = data.shape[0]
         data = data.iloc[:, :n_samples]
-        print colorbar
         ax = seaborn.clustermap(data,
                                 row_colors=colorbar)
-
         return ResultBlocks(ResultBlock(
             '''#$mpl %i$#\n''' % ax.cax.figure.number,
             title='ClusterMapPlot'))
@@ -212,7 +212,7 @@ class sampleMDS(RnaseqqcTracker):
         return pos
 
 
-class samplePCA(RnaseqqcTracker):
+class SamplePCA(RnaseqqcTracker):
     '''
     Perform Principal component analysis on dataframe of
     expression values using sklearn PCA function. Takes expression
@@ -224,7 +224,7 @@ class samplePCA(RnaseqqcTracker):
     # - ability to use rlog or variance stabalising transformation instead log2
     # - ability to change filter threshold for lowly expressed transcripts
 
-    components = 10
+    n_components = None
     table = "sailfish_transcripts"
 
     def pca(self):
@@ -253,7 +253,7 @@ class samplePCA(RnaseqqcTracker):
         logscaled_df.index = list(logdf.index)
 
         # Now do the PCA - can change n_components
-        sklearn_pca = sklearnPCA(n_components=self.components)
+        sklearn_pca = sklearnPCA(n_components=self.n_components)
         sklearn_pca.fit(logscaled_df)
 
         index = logdf.columns
@@ -261,7 +261,7 @@ class samplePCA(RnaseqqcTracker):
         return sklearn_pca, index
 
 
-class samplePCAprojections(samplePCA):
+class SamplePCAProjections(SamplePCA):
     '''
     Perform Principal component analysis on dataframe of
     expression values using sklearn PCA function. Takes expression
@@ -291,25 +291,30 @@ class samplePCAprojections(samplePCA):
         # these are the principle componets row 0 = PC1, 1 =PC2 etc
         PC_df = pd.DataFrame(sklearn_pca.components_)
         PC_df = PC_df.T
-        PC_df.columns = ["PC%i" % x for x in range(1, self.components+1)]
+
+        PC_df.columns = ["PC%i" % x for x in
+                         range(1, sklearn_pca.n_components_ + 1)]
         PC_df.index = index
 
         # This is what want for ploting bar graph
         # y = sklearn_pca.explained_variance_ratio_
 
-        factor_statement = '''select * from factor'''
+        factor_df = self.getDataFrame("SELECT * FROM factors")
+        factor_df.set_index("sample_id", inplace=True)
+        if "replicate" in set(factor_df.factor):
+            replicate_df = factor_df[factor_df.factor == "replicate"]
+            replicate_df.columns = ["x", "replicate"]
+            factor_df = factor_df.join(replicate_df).drop("x", axis=1)
+            factor_df = factor_df[factor_df.factor != "replicate"]
+        else:
+            factor_df["replicate"] = "R0"
 
-        # fetch factor data-THIS NEEDS TO BE ADJUSTED IF FACTORS table corrected
-        factor_df = self.getDataFrame(factor_statement)
-        factor_df.set_index("sample_id", drop=True, inplace=True)
-
+        # remove factors with a single level
         full_df = PC_df.join(factor_df)
-
-        return collections.OrderedDict({x: full_df[full_df['factor'] == x] for
-                                        x in set(full_df['factor'].tolist())})
+        return full_df.reset_index().set_index(["factor", "sample_id"])
 
 
-class samplePCAvariance(samplePCA):
+class SamplePCAVariance(SamplePCA):
     '''
     Perform Principal component analysis on dataframe of
     expression values using sklearn PCA function. Takes expression
@@ -337,8 +342,9 @@ class samplePCAvariance(samplePCA):
 
         variance = sklearn_pca.explained_variance_ratio_
 
-        final_df = pd.DataFrame({"variance": variance,
-                                 "PC": range(1, self.components+1)})
+        final_df = pd.DataFrame(
+            {"variance": variance,
+             "PC": range(1, sklearn_pca.n_components_ + 1)})
 
         return final_df
 
@@ -365,9 +371,6 @@ class BiasFactors(RnaseqqcTracker):
         factor_df = self.getDataFrame(factor_statement)
         factor_df.set_index("sample_name", drop=True, inplace=True)
         factor_df.index.name = "sample_id"
-
-        print factor_df.head()
-        print df.head()
 
         full_df = df.join(factor_df)
 
