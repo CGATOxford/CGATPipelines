@@ -1023,7 +1023,9 @@ def barchartLcaProportions(infile, outfile):
     if PARAMS["heatmaps_order"]:
         order = PARAMS.get("heatmaps_order")
     else:
-        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+        order = open(infile).readline()[:-1].split("\t")[:-1]
+        order.sort()
+        order = ",".join(order)
     PipelineMetagenomeCommunities.barchartProportions(infile,
                                                       outfile,
                                                       order,
@@ -1361,7 +1363,9 @@ def barchartGeneProportions(infile, outfile):
     if PARAMS["heatmaps_order_genes"]:
         order = PARAMS.get("heatmaps_order_genes")
     else:
-        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+        order = open(infile).readline()[:-1].split("\t")[:-1]
+        order.sort()
+        order = ",".join(order)
     PipelineMetagenomeCommunities.barchartProportions(infile,
                                                       outfile,
                                                       order,
