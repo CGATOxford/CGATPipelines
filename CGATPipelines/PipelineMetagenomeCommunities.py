@@ -608,7 +608,7 @@ def barchartProportions(infile, outfile, order, dtype="pathways"):
     # so that it appears at the bottom of the plot
     # there will be cases where this does not
     # hold
-    R('''dat.percent$taxa[dat.percent$taxa == "other"] <- "afother"''')
+    R('''dat.percent$taxa[dat.percent$taxa == "other"] <- "afxOther"''')
     R('''dat.percent$taxa[dat.percent$taxa == "Function unknown"] \
                           <- "aFunction unknown"''')
 

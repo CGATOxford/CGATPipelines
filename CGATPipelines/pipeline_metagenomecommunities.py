@@ -2001,7 +2001,8 @@ def Differential_abundance():
          Differential_abundance,
          diversity,
          MDS,
-         proportions)
+         proportions,
+         Genes)
 def full():
     pass
 
