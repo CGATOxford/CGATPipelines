@@ -128,7 +128,7 @@ EnrichmentTester and specified in the pipeline.ini.
 Statistical tests for enrichment are called by the EnrichmentTester class
 and specified as StatsTest subclasses.  The test type, multiple testing
 correction and signficance threshold are specified in the pipeline.ini.
-(Only FisherExactTest currently implemented)  
+(Only FisherExactTest currently implemented)
 
 
 """
