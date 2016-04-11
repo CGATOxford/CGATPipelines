@@ -62,6 +62,7 @@ from rpy2.robjects.vectors import FloatVector
 def hjoin(items):
     return "-".join(items)
 
+
 def nullConvert(start, end, strand, seq):
     ''' define a convert function so the positions for sequences
     on the '-' strand remain relative to the start of the
@@ -75,6 +76,7 @@ def getCpGs(seq):
     seq = seq.upper()
     CpGs = [x.start() for x in re.finditer("CG", seq)]
     return CpGs
+
 
 @cluster_runnable
 def plotReadBias(infile, outfile):
@@ -371,7 +373,6 @@ def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
             GC, OE = getGC(prom_seq[seq_start: seq_start+window])
 
             if GC >= 0.55 and OE >= 0.6:
-                HCP = True
                 return "HCP"
 
             elif OE >= 0.4:
@@ -379,7 +380,7 @@ def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
 
             if GC:
                 LCP = True
-                
+
         if MCP:
             return "MCP"
         elif LCP:
@@ -836,7 +837,7 @@ def plotMethFrequency(infile, outfile):
     df = read.table(infile, sep="\t", header=TRUE)
 
     plotter = function(df, plotname, facet='both'){
-    
+
         l_size = 20
         l_txt = element_text(size = l_size)
 
@@ -863,7 +864,7 @@ def plotMethFrequency(infile, outfile):
         if (facet=='both'){
         p = p + facet_grid(tissue~cpgi)
         ggsave(plotname, height=10, width=12)}
-        
+
         else if (facet=='cpgi'){
         p = p + facet_grid(~cpgi)
         ggsave(plotname, height=7, width=12)}

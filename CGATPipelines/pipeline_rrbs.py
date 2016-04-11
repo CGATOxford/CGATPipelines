@@ -588,7 +588,7 @@ def findCpGs(outfile):
 
     RRBS.fasta2CpG(genome_infile, outfile,
                    submit=True, job_options=job_options)
-    
+
 
 @follows(findCpGs)
 @merge([callMethylationStatus,
