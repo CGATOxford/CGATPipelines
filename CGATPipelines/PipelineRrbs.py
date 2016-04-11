@@ -37,12 +37,15 @@ Code
 '''
 import os
 import re
+import sqlite3
+import collections
 import itertools
 import copy
 import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGAT.FastaIterator as FastaIterator
+import CGAT.IndexedFasta as IndexedFasta
 import pandas as pd
 from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
@@ -58,6 +61,21 @@ from rpy2.robjects.vectors import FloatVector
 
 def hjoin(items):
     return "-".join(items)
+
+
+def nullConvert(start, end, strand, seq):
+    ''' define a convert function so the positions for sequences
+    on the '-' strand remain relative to the start of the
+    contig. Otherwise PysamIndexedFasta will perform this
+    conversion(!)'''
+    return start, end
+
+
+def getCpGs(seq):
+    '''return postions of CpGs'''
+    seq = seq.upper()
+    CpGs = [x.start() for x in re.finditer("CG", seq)]
+    return CpGs
 
 
 @cluster_runnable
@@ -207,7 +225,7 @@ def fasta2CpG(infile, outfile):
     outfile = IOTools.openFile(outfile, "w")
     outfile.write("contig\tposition\tstrand\tread_position\n")
 
-    while len(temp_contig[1]) > 1:
+    while len(temp_contig.seq) > 1:
         contig, contig_seq = temp_contig.title, temp_contig.sequence
         # find MspI sites
         iter_pos = re.finditer("[cC][cC][gG][gG]", contig_seq)
@@ -320,6 +338,294 @@ def subsetToCovered(infile, outfile, cov_threshold=10):
     high_cov = raw[meth_df['min_cov'] >= cov_threshold]
     high_cov['cpgi'].fillna('Non-CpGIsland', inplace=True)
     high_cov.to_csv(outfile, sep="\t", index=False, na_rep="NA")
+
+
+@cluster_runnable
+def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
+    '''extract promoter sequences and categorise them by CpG density'''
+
+    def getGC(sequence):
+        ''' calculate the O/E and GC content for a given sequence'''
+        sequence = sequence.upper()
+        C = sequence.count("C")
+        G = sequence.count("G")
+        seq_length = float(len(sequence)) - sequence.count("N")
+
+        # sequence may be all Ns(!)
+        if seq_length == 0 or C == 0 or G == 0:
+            return None, None
+
+        GC = (C + G) / seq_length
+
+        OE = sequence.count("CG") * seq_length / float(C*G)
+
+        return GC, OE
+
+    def categorisePromoter(prom_seq, window=500, slide=1):
+        ''' identify Low/Mid/High CpG promoters
+        HCPs - At lease on 500bp interval with a GC fraction >=0.55 and O/E >= 0.6
+        LCPs - No 500bp interval with CpG O/E >= 0.4
+        MCPs - the rest'''
+        HCP = False
+        MCP = False
+        LCP = False
+        for seq_start in range(0, len(prom_seq)-window, slide):
+            GC, OE = getGC(prom_seq[seq_start: seq_start+window])
+
+            if GC >= 0.55 and OE >= 0.6:
+                return "HCP"
+
+            elif OE >= 0.4:
+                MCP = True
+
+            if GC:
+                LCP = True
+
+        if MCP:
+            return "MCP"
+        elif LCP:
+            return "LCP"
+        else:
+            return None
+
+    IxFA = IndexedFasta.PysamIndexedFasta(genome_fasta)
+    IxFA.mConverter = nullConvert
+
+    connect = sqlite3.connect(annotations_database)
+    select_cmd = '''SELECT gene_id, contig, start, end, strand FROM
+    geneset_all_gtf_genome_coordinates'''
+    select = connect.execute(select_cmd)
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(
+            ("contig", "position", "feature", "CpG_density")))
+
+        for promoter in select:
+            gene_id, contig, start, end, strand = map(str, promoter)
+
+            if strand == "+":
+                if int(start) >= 2000:
+                    prom_seq = IxFA.getSequence(
+                        contig, strand, int(start)-2000, int(start)+500)
+                    CpGs = getCpGs(prom_seq)
+                    CpGs = [x + int(start) - 2000 for x in CpGs]
+
+                else:
+                    prom_seq = IxFA.getSequence(contig, strand, 0, int(start)+500)
+                    CpGs = getCpGs(prom_seq)
+
+            elif strand == "-":
+                # if the gene ends within 2000 bp of the contig end,
+                # this will skip the gene
+                try:
+                    prom_seq = IxFA.getSequence(
+                        contig, strand, int(end)-500, int(end)+2000)
+                except:
+                    pass
+
+                prom_seq = prom_seq[::-1]
+                CpGs = getCpGs(prom_seq)
+
+                CpGs = [int(end) + 2000 - x for x in CpGs[::-1]]
+
+            prom_type = categorisePromoter(prom_seq)
+
+            total_CG = len(CpGs)
+
+            if total_CG == 0:
+                CpG_density = "0"
+            else:
+                CpG_density = str(float(total_CG) / len(prom_seq))
+
+            for CpG in CpGs:
+                outf.write("%s\n" % "\t".join(
+                    (contig, str(CpG), prom_type, CpG_density)))
+
+
+@cluster_runnable
+def findRepeatCpGs(outfile, genome_fasta, repeats_gff):
+    '''extract repeats sequences and identify CpG locations'''
+
+    IxFA = IndexedFasta.PysamIndexedFasta(genome_fasta)
+    IxFA.mConverter = nullConvert
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(
+            ("contig", "position", "feature", "CpG_density")))
+
+        with IOTools.openFile(repeats_gff, "r") as inf:
+            for line in inf:
+                line = line.strip().split("\t")
+                contig = line[0]
+                start, stop = line[3:5]
+                atr = line[8].split("; ")
+                repeat_class = atr[0].split(" ")[1].replace('"', '')
+                repeat_family = atr[1].split(" ")[1].replace('"', '')
+
+                repeat_seq_f = IxFA.getSequence(contig, "+", int(start), int(stop))
+
+                CpGs_f = getCpGs(repeat_seq_f)
+
+                CpGs = [x + int(start) for x in CpGs_f]
+                total_CG = len(CpGs)
+
+                CpGs.extend([x + 1 for x in CpGs])
+
+                if total_CG == 0:
+                    CpG_density = "0"
+                else:
+                    CpG_density = str(float(total_CG) / len(repeat_seq_f))
+
+                for CpG in CpGs:
+                    outf.write("%s\n" % "\t".join(
+                        (contig, str(CpG), repeat_class, CpG_density)))
+
+                    outf.write("%s\n" % "\t".join(
+                        (contig, str(CpG), repeat_family, CpG_density)))
+
+
+@cluster_runnable
+def findCpGsFromBed(outfile, genome_fasta, bed, feature, both_strands=True):
+    '''extract sequences for bed entries and identify CpG locations'''
+
+    IxFA = IndexedFasta.PysamIndexedFasta(genome_fasta)
+    IxFA.mConverter = nullConvert
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(
+            ("contig", "position", "feature", "CpG_density")))
+
+        with IOTools.openFile(bed, "r") as inf:
+            for line in inf:
+                line = line.strip().split("\t")
+                contig, start, stop = line[0:3]
+
+                seq = IxFA.getSequence(contig, "+", int(start), int(stop))
+
+                CpGs = getCpGs(seq)
+
+                CpGs = [x + int(start) for x in CpGs]
+
+                seq_length = len(seq)
+
+                if both_strands:
+                    CpGs.extend([x + 1 for x in CpGs])
+                    seq_length *= 2
+
+                total_CG = len(CpGs)
+
+                if total_CG == 0:
+                    CpG_density = "0"
+                else:
+                    CpG_density = str(float(total_CG) / seq_length)
+
+                for CpG in CpGs:
+                    outf.write("%s\n" % "\t".join(
+                        (contig, str(CpG), feature, CpG_density)))
+
+
+@cluster_runnable
+def mergeCpGAnnotations(meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf,
+                        outfile):
+    '''merge together the CpG annotations for plotting'''
+
+    df = pd.read_table(meth_inf, usecols=[
+        "Germline-Dex-mean", "Germline-Veh-mean", "Liver-Dex-mean",
+        "Liver-Veh-mean", "contig", "position"])
+    df.columns = [x.replace("-mean", "") for x in df.columns]
+    df['position'] = df['position']-1
+    df.set_index(["contig", "position"], inplace=True)
+
+    def readAndMerge(df, cpg_annotations_inf):
+        tmp_df = pd.read_table(cpg_annotations_inf)
+        tmp_df.set_index(["contig", "position"], inplace=True)
+        tmp_df = tmp_df.join(df, how="inner")
+        tmp_df = pd.melt(tmp_df, id_vars=["feature", "CpG_density"])
+        return tmp_df
+
+    df_promoter = readAndMerge(df, prom_inf)
+    df_repeats = readAndMerge(df, repeat_inf)
+    df_hcne = readAndMerge(df, hcne_inf)
+    df_dmr = readAndMerge(df, dmr_inf)
+
+    final_df = pd.concat([df_promoter, df_repeats, df_hcne, df_dmr])
+    final_df.to_csv(outfile, sep="\t")
+
+
+def plotCpGAnnotations(infile, outfile_hist, outfile_box):
+    ''' make histogram and boxplots for the CpGs facetted per annotation'''
+    df = pd.read_table(infile, sep="\t")
+    r_df = com.convert_to_r_dataframe(df)
+
+    plotter = r('''
+    function(df){
+    library(scales)
+    library(plyr)
+    library(ggplot2)
+
+    # shouldn't hard code the features to retain
+    retain_features = c("HCP", "MCP", "LCP", "HCNE", "DMR", "LTR",
+                        "SINE", "Alu", "LINE", "ERVK")
+    df = df[df$feature %%in%% retain_features,]
+    df$feature = factor(df$feature, levels = retain_features)
+
+    # count instances per facet
+    df.n <- ddply(.data=df, .(variable, feature),
+    summarize, n=paste("n =", length(value)))
+
+    # we just want counts in the top row
+    df.n = df.n[df.n$variable=="Germline-Dex",]
+
+    ltxt = element_text(size = 20)
+    mtxt = element_text(size = 15)
+    mtxt90 = element_text(size = 15, angle=90, vjust=0.5, hjust=1)
+
+    theme_custom = theme(aspect.ratio=1,
+    axis.text.y = mtxt, axis.text.x = mtxt90,
+    axis.title.y = ltxt, axis.title.x = ltxt,
+    strip.text.x=ltxt, strip.text.y=mtxt,
+    strip.background = element_rect(colour="grey60", fill="grey90"))
+
+    p = ggplot(df, aes(value)) +
+    geom_histogram(aes(y=100*(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..]),
+    binwidth=10, fill="midnightblue") +
+    facet_grid(variable~feature) +
+    geom_text(data=df.n, aes(x=60, y=90, label=n),
+    colour="black", inherit.aes=FALSE, parse=FALSE, size=5) +
+    theme_bw() +
+    theme_custom +
+    xlab("Methylation (%%)") +
+    ylab("CpGs (%%)") +
+    scale_x_continuous(breaks=c(0,50,100)) +
+    scale_y_continuous(breaks=c(0,25, 50, 75, 100))
+
+    ggsave("%(outfile_hist)s", width=16, height=8)
+
+    # for the box plot we need to bin the density values
+    df['binned_density'] <- .bincode(x = 100*df$CpG_density,
+                                     breaks = c(0,1,3,5,7,10,1000))
+
+    df['binned_density'] = revalue(as.factor(df$binned_density),
+                                   c("1"="<1", "2"="1-3", "3"="3-5",
+                                     "4"="5-7", "5"="7-10", "6"=">10"))
+
+    p = ggplot(df, aes(as.factor(binned_density), value, group=binned_density)) +
+    stat_boxplot(geom ='errorbar') +
+    geom_boxplot(notch=TRUE, outlier.shape = NA, fill="grey80", width = 0.8) +
+    stat_summary(fun.y="median", colour="red", geom="point", size=1) +
+    coord_flip() +
+    facet_grid(variable~feature) +
+    theme_bw() +
+    theme_custom +
+    ylab("Methylation (%%)") +
+    xlab("CpG Density (%%)") +
+    scale_y_continuous(breaks=c(0,50,100))
+
+    ggsave("%(outfile_box)s", width=16, height=8)
+
+    }''' % locals())
+
+    plotter(r_df)
 
 
 def identifyExperimentalFactors(df):
@@ -531,7 +837,7 @@ def plotMethFrequency(infile, outfile):
     df = read.table(infile, sep="\t", header=TRUE)
 
     plotter = function(df, plotname, facet='both'){
-    
+
         l_size = 20
         l_txt = element_text(size = l_size)
 
@@ -558,7 +864,7 @@ def plotMethFrequency(infile, outfile):
         if (facet=='both'){
         p = p + facet_grid(tissue~cpgi)
         ggsave(plotname, height=10, width=12)}
-        
+
         else if (facet=='cpgi'){
         p = p + facet_grid(~cpgi)
         ggsave(plotname, height=7, width=12)}
@@ -647,7 +953,7 @@ rowRanges <- GRanges(seqnames = Rle(as.character(df$contig)),
     adjusted_colnames <- gsub(" ", "_", colnames(M3Dstat))
     M3Dstat_df <- as.data.frame(M3Dstat)
     colnames(M3Dstat_df) <- adjusted_colnames
-    ranges_df <- data.frame(seqnames=seqnames(clust.unlim_GR),
+    ranges_df <- data.frame(seqnames=seqnames(clust.unlim_GR,
     start=start(clust.unlim_GR)-1,end=end(clust.unlim_GR))
     complete_df <- cbind(ranges_df, M3Dstat_df)
     write.table(complete_df,file="%(outfile)s",sep="\t",quote=F,row.names=F)
