@@ -4,7 +4,7 @@
 #
 #   $Id$
 #
-#   Copyright (C) 2009 Tildon Grant Belgard
+#   Copyright (C) 2009 Andreas Heger
 #
 #   This program is free software; you can redistribute it and/or
 #   modify it under the terms of the GNU General Public License
@@ -543,7 +543,6 @@ def make1basedCpgIslands(infile, outfile):
 @transform(callMethylationStatus,
            suffix(".bismark.cov"),
            r".bismark.subset10.cov")
-# this is just for testing BiSeq etc, delete in future
 def subsetCoverage(infile, outfile):
     statement = '''awk '($5+$6)>=10' %(infile)s > %(outfile)s''' % locals()
     P.run()
@@ -589,7 +588,7 @@ def findCpGs(outfile):
 
     RRBS.fasta2CpG(genome_infile, outfile,
                    submit=True, job_options=job_options)
-
+    
 
 @follows(findCpGs)
 @merge([callMethylationStatus,
@@ -850,8 +849,50 @@ def subsetCpGsToCovered(infile, outfile):
 
     job_options = "-l mem_free=48G"
 
-    RRBS.subsetToCovered(infile, outfile,
+    RRBS.subsetToCovered(infile, outfile, cov_threshold=10,
                          submit=True, job_options=job_options)
+
+
+@originate("methylation.dir/promoter_cpgs.tsv")
+def categorisePromoterCpGs(outfile):
+    '''extract promoter sequences and categorise them by CpG density'''
+
+    RRBS.categorisePromoterCpGs(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS['annotation_database'],
+        submit=True, job_memory="4G")
+
+
+@originate("methylation.dir/repeat_cpgs.tsv")
+def extractRepeatCpGs(outfile):
+    '''extract repeats sequences and identify CpG locations'''
+
+    RRBS.findRepeatCpGs(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS["annotation_repeats_gff"],
+        submit=True, job_memory="4G")
+
+
+@originate("methylation.dir/hnce_cpgs.tsv")
+def extractHCNECpGs(outfile):
+    '''extract sequences for Highly conserved non-coding element and
+    identify CpG locations'''
+
+    RRBS.findCpGsFromBed(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS["annotation_hcne"], "HCNE", both_strands=True,
+        submit=True, job_memory="4G")
+
+
+@originate("methylation.dir/dmr_cpgs.tsv")
+def extractDMRCpGs(outfile):
+    '''extract sequences for Highly conserved non-coding element and
+    identify CpG locations'''
+
+    RRBS.findCpGsFromBed(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS["annotation_dmr"], "DMR", both_strands=True,
+        submit=True, job_memory="4G")
 
 
 @transform(subsetCpGsToCovered,
@@ -863,6 +904,30 @@ def addTreatmentMeans(infile, outfile):
 
     RRBS.addTreatmentMean(infile, outfile,
                           submit=True, job_options=job_options)
+
+
+@merge((addTreatmentMeans,
+        categorisePromoterCpGs,
+        extractRepeatCpGs,
+        extractHCNECpGs,
+        extractDMRCpGs),
+       "methylation.dir/annotatedCpGs.tsv")
+def mergeCpGAnnotations(infiles, outfile):
+    '''merge together the CpG annotations for plotting'''
+
+    meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf = infiles
+
+    RRBS.mergeCpGAnnotations(meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf,
+                             outfile, submit=True, job_memory="4G")
+
+
+@transform(mergeCpGAnnotations,
+           suffix(".tsv"),
+           ["_hist.png", "_box.png"])
+def plotCpGAnnotations(infile, outfiles):
+    ''' make histogram and boxplots for the CpGs facetted per annotation'''
+    outfile_hist, outfile_box = outfiles
+    RRBS.plotCpGAnnotations(infile, outfile_hist, outfile_box)
 
 
 @transform(addTreatmentMeans,
@@ -945,6 +1010,12 @@ def makeSummaryPlots(infile, outfile):
                       submit=True, job_options=job_options)
     P.touch(outfile)
 
+
+@follows(plotMethylationFrequency,
+         makeSummaryPlots,
+         plotCpGAnnotations)
+def summarise():
+    pass
 ########################################################################
 ########################################################################
 ########################################################################
