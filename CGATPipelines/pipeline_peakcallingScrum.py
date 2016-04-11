@@ -48,7 +48,7 @@ import glob
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
-
+import CGATPipelines.PeakcallingScrum as PipelinePeakcalling
 
 #########################################################################
 #########################################################################
@@ -69,7 +69,7 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
-
+BAMS = ['*.bam']
 ###################################################################
 # Helper functions mapping tracks to conditions, etc
 ###################################################################
@@ -90,6 +90,23 @@ def connect():
 
     return dbh
 
+###############################################################
+# Preprocessing Steps
+@follows(mkdir("filtered_bams.dir"))
+@transform(BAMS, regex("(.*).bam"), r"filtered_bams.dir/\1")
+def filter(infile, outfile):
+    filters = PARAMS['filters_bamfilters']
+    PipelinePeakcalling.filterBams(infile, outfile, filters)
+
+################################################################
+# Peakcalling Steps
+
+
+################################################################
+# QC Steps
+
+
+################################################################
 
 def full():
     pass
