@@ -184,7 +184,7 @@ SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
-    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
+    r".*/*(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
     "csfasta.gz|csfasta.F3.gz|export.txt.gz)")
 
 
