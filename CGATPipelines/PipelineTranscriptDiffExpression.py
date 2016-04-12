@@ -331,7 +331,7 @@ def loadSleuthTableGenes(infile, outfile, gene_info, gene_biotypes,
         os.unlink(tmpfile)
 
 
-def convertFish(infile, outfile):
+def convertFromFish(infile, outfile):
     ''' convert sailfish/salmon output to Sleuth compatible h5 file'''
 
     infile = os.path.dirname(infile)
