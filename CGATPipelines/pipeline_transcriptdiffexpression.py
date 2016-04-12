@@ -1306,13 +1306,14 @@ def mergeCounts(infiles, outfiles):
     df_tpm = pd.DataFrame()
 
     def addSampleColumn(df, infile, index, column, sample,
-                        no_header=False, col_names=None, index_name=None):
+                        col_names=None, index_name=None):
         ''' add a single column called <sample> from the infile'''
 
-        if no_header:
+        if col_names:
             tmp_df = pd.read_table(
                 infile, sep="\t", header=None,
-                names=col_names, index_col=index,  comment="#")
+                names=col_names, index_col=index,
+                usecols=[index, column], comment="#")
 
         else:
             tmp_df = pd.read_table(
@@ -1320,7 +1321,10 @@ def mergeCounts(infiles, outfiles):
                 index_col=index,  comment="#")
 
         tmp_df.columns = [sample]
-        tmp_df.index.name = index_name
+
+        if index_name:
+            tmp_df.index.name = index_name
+
         df = pd.merge(df, tmp_df, left_index=True, right_index=True,
                       how="outer")
         return df
@@ -1330,9 +1334,12 @@ def mergeCounts(infiles, outfiles):
 
         if "kallisto" in infile:
             df_counts = addSampleColumn(
-                df_counts, infile, "target_id", "est_counts", sample)
+                df_counts, infile, "target_id", "est_counts", sample,
+                index_name="transcript_id")
             df_tpm = addSampleColumn(
-                df_tpm, infile, "target_id", "tpm", sample)
+                df_tpm, infile, "target_id", "tpm", sample,
+                index_name="transcript_id")
+
         elif "salmon" in infile or "sailfish" in infile:
             df_counts = addSampleColumn(
                 df_counts, infile, "transcript_id", "est_counts", sample,
@@ -1441,7 +1448,7 @@ def loadGeneWiseAggregates(infile, outfile):
 @transform(mergeCounts,
            suffix(".tsv"),
            ".load")
-def loadSleuthTablesAll(infiles, outfile):
+def loadMergedCounts(infiles, outfile):
     ''' load tables from Sleuth collation of all estimates '''
 
     for infile in infiles:
@@ -1509,7 +1516,7 @@ def loadSleuthResults(infile, outfile):
 @follows(runSleuth,
          loadSleuthTables,
          loadSleuthResults,
-         loadSleuthTablesAll,
+         loadMergedCounts,
          loadGeneWiseAggregates,
          loaddiffExpressionDESeq2)
 def differentialExpression():
