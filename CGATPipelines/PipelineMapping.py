@@ -2306,7 +2306,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            %(stranded_option)s
+            --rna-strandness %%(hisat_library_type)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -1 %(infiles1)s
