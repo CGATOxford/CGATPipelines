@@ -78,8 +78,8 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     for t in tracks:
         table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
 
-        query = "SELECT Possible_Source, Sequence FROM "
-        "%s_fastqc_Overrepresented_sequences;" % table
+        query = '''SELECT Possible_Source, Sequence FROM
+        %s_fastqc_Overrepresented_sequences;''' % table
 
         cc = dbh.cursor()
         try:

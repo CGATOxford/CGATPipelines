@@ -609,8 +609,8 @@ class SequenceCollectionProcessor(object):
                     # CGAT Pipelines
                     infile = sra_extraction_files[0]
                     basename = os.path.basename(infile)
-                    if (len(sra_extraction_files) == 1
-                            and basename.endswith("_1.fastq.gz")):
+                    if ((len(sra_extraction_files) == 1 and
+                         basename.endswith("_1.fastq.gz"))):
                         basename = basename[:-11] + ".fastq.gz"
                         statement.append(
                             "mv %s %s/%s" % (infile, tmpdir_fastq, basename))
@@ -814,7 +814,6 @@ class Mapper(SequenceCollectionProcessor):
                  tool_options="",
                  *args, **kwargs):
         '''
-        
         '''
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
 
@@ -1107,6 +1106,7 @@ class Salmon(Mapper):
 
         statement.append('''
         -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
+        -k %%(salmon_kmer)s
         --numBootstraps %%(salmon_bootstrap)s
         --threads %%(job_threads)s %%(salmon_options)s;''' % locals())
 
@@ -1135,6 +1135,11 @@ class Kallisto(Mapper):
 
     '''run Kallisto to quantify transcript abundance from fastq files'''
 
+    def __init__(self, pseudobam=False, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+
+        self.pseudobam = pseudobam
+
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles'''
 
@@ -1152,7 +1157,9 @@ class Kallisto(Mapper):
 
         if nfiles == 1:
 
-            infiles = "--single " + " ".join([x[0] for x in infiles])
+            infiles = (" --fragment-length=%(kallisto_fragment_length)s" +
+                       " --sd=%(kallisto_fragment_sd)s" +
+                       " --single %s" % " ".join([x[0] for x in infiles]))
 
         elif nfiles == 2:
             infiles = " ".join([" ".join(x) for x in infiles])
@@ -1164,12 +1171,18 @@ class Kallisto(Mapper):
         if not os.path.exists(outdir):
             os.makedirs(outdir)
 
-        # when upgraded to >v0.42.1 add "-t %%(job_threads)s"
         statement = '''
         kallisto quant %%(kallisto_options)s
+        -t %%(job_threads)s
         --bootstrap-samples=%%(kallisto_bootstrap)s
-        -i %%(index)s -o %(tmpdir)s %(infiles)s
-        > %(logfile)s &> %(logfile)s ;''' % locals()
+        -i %%(index)s -o %(tmpdir)s %(infiles)s''' % locals()
+
+        if self.pseudobam:
+            statement += '''
+            --pseudobam | samtools view -b -
+            > %(outfile)s.bam 2> %(logfile)s;''' % locals()
+        else:
+            statement += ''' > %(logfile)s &> %(logfile)s ;''' % locals()
 
         self.tmpdir = tmpdir
 
@@ -1211,6 +1224,43 @@ class Counter(Mapper):
                 '''zcat %(x)s
                 | awk '{n+=1;} END {printf("nreads\\t%%%%i\\n",n/4);}'
                 >> %(outfile)s;''' % locals())
+        return " ".join(statement)
+
+
+class SubsetHead(Mapper):
+    """subset fastq files by taking the first n sequences"""
+
+    compress = True
+
+    def __init__(self, limit=1000000, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.limit = limit
+
+    def mapper(self, infiles, outfile):
+        '''count number of reads by counting number of lines
+        in fastq files.
+        '''
+        limit = self.limit * 4  # 4 lines per fastq entry
+        statement = []
+        output_prefix = P.snip(outfile, ".subset")
+        assert len(infiles) == 1
+        infiles = infiles[0]
+        if len(infiles) == 1:
+            output_filename = output_prefix + ".fastq.gz"
+            f = infiles[0]
+            statement.append(
+                '''zcat %(f)s
+                | awk 'NR > %(limit)i {exit} {print}'
+                | gzip
+                > %(output_filename)s;''' % locals())
+        elif len(infiles) > 1:
+            for x, f in enumerate(infiles):
+                output_filename = output_prefix + ".fastq.%i.gz" % (x + 1)
+                statement.append(
+                    '''zcat %(f)s
+                    | awk 'NR > %(limit)i {exit} {print}'
+                    | gzip
+                    > %(output_filename)s;''' % locals())
         return " ".join(statement)
 
 
@@ -2184,15 +2234,14 @@ class Hisat(Mapper):
     # hisat can work of compressed files
     compress = True
 
-    executable = "tophat"
+    executable = "hisat"
 
     def __init__(self, remove_non_unique=False, strip_sequence=False,
-                 strandedness=True, *args, **kwargs):
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.remove_non_unique = remove_non_unique
         self.strip_sequence = strip_sequence
-        self.strandedness = strandedness
 
     def mapper(self, infiles, outfile):
         '''
@@ -2225,15 +2274,9 @@ class Hisat(Mapper):
         executable = self.executable
 
         num_files = [len(x) for x in infiles]
-        if self.strandedness and not (self.strandedness in
-                                      ['unstranded', 'fr-unstranded']):
-            stranded_option = '--rna-strandness %(hisat_library_type)s'
-        else:
-            stranded_option = ""
         if max(num_files) != min(num_files):
             raise ValueError(
                 "mixing single and paired-ended data not possible.")
-
         nfiles = max(num_files)
 
         tmpdir_hisat = os.path.join(self.tmpdir_fastq + "hisat")
@@ -2249,7 +2292,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            %(stranded_option)s
+            --rna-strandness %%(hisat_library_type)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -U %(infiles)s
@@ -2267,7 +2310,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            %(stranded_option)s
+            --rna-strandness %%(hisat_library_type)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -1 %(infiles1)s

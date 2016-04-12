@@ -381,6 +381,25 @@ def identifyProteinCodingGenes(outfile):
 @active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           "refflat.txt")
+def buildRefFlat(infile, outfile):
+    '''build flat geneset for Picard RnaSeqMetrics.
+    '''
+
+    tmpflat = P.getTempFilename(".")
+
+    statement = '''
+    gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s %(tmpflat)s;
+    paste <(cut -f 12 %(tmpflat)s) <(cut -f 1-10 %(tmpflat)s)
+    > %(outfile)s
+    '''
+    P.run()
+    os.unlink(tmpflat)
+
+
+@active_if(SPLICED_MAPPING)
+@transform(buildReferenceGeneSet,
+           suffix("reference.gtf.gz"),
            add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
 def buildCodingGeneSet(infiles, outfile):
@@ -768,10 +787,11 @@ def mapReadsWithTophat(infiles, outfile):
         :term:`PARAMS`
         path to tophat executable
 
-    tophat_library_type
+    strandness
         :term:`PARAMS`
-        fr-unstranded, fr-firststrand or fr-secondstrand see
-        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+        FR, RF, F or R or empty see
+        http://www.ccb.jhu.edu/software/hisat/manual.shtml#options
+        will be converted to tophat specific option
 
     tophat_include_reference_transcriptome: bool
         :term:`PARAMS`
@@ -800,6 +820,14 @@ def mapReadsWithTophat(infiles, outfile):
     """
 
     job_threads = PARAMS["tophat_threads"]
+
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        tophat_library_type = "fr-firststrand"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        tophat_library_type = "fr-secondstrand"
+    else:
+        tophat_library_type = "fr-unstranded"
 
     if "--butterfly-search" in PARAMS["tophat_options"]:
         # for butterfly search - require insane amount of
@@ -869,10 +897,11 @@ def mapReadsWithTophat2(infiles, outfile):
         :term:`PARAMS`
         path to tophat2 executable
 
-    tophat2_library_type
+    strandness
         :term:`PARAMS`
-        fr-unstranded, fr-firststrand or fr-secondstrand see
-        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+        FR, RF, F or R or empty see
+        http://www.ccb.jhu.edu/software/hisat/manual.shtml#options
+        will be converted to tophat specific option
 
     tophat2_include_reference_transcriptome: bool
         :term:`PARAMS`
@@ -905,6 +934,14 @@ def mapReadsWithTophat2(infiles, outfile):
     '''
     job_threads = PARAMS["tophat2_threads"]
 
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        tophat2_library_type = "fr-firststrand"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        tophat2_library_type = "fr-secondstrand"
+    else:
+        tophat2_library_type = "fr-unstranded"
+
     if "--butterfly-search" in PARAMS["tophat2_options"]:
         # for butterfly search - require insane amount of
         # RAM.
@@ -917,7 +954,8 @@ def mapReadsWithTophat2(infiles, outfile):
         strip_sequence=PARAMS["strip_sequence"])
 
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = PARAMS["tophat2_options"] + \
+        " --raw-juncs %(reffile)s" % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -969,7 +1007,7 @@ def mapReadsWithHisat(infiles, outfile):
         :term:`PARAMS`
         path to hisat executable
 
-    hisat_library_type: str
+    strandness: str
         :term:`PARAMS`
         hisat rna-strandess parameter, see
         https://ccb.jhu.edu/software/hisat/manual.shtml#command-line
@@ -1000,6 +1038,7 @@ def mapReadsWithHisat(infiles, outfile):
 
     job_threads = PARAMS["hisat_threads"]
     job_memory = PARAMS["hisat_memory"]
+    hisat_library_type = PARAMS["strandness"]
 
     m = PipelineMapping.Hisat(
         executable=P.substituteParameters(**locals())["hisat_executable"],
@@ -1729,6 +1768,7 @@ def mapReadsWithButter(infile, outfile):
 # Create map reads tasks
 ###################################################################
 
+
 MAPPINGTARGETS = []
 mapToMappingTargets = {'tophat': (mapReadsWithTophat, loadTophatStats),
                        'tophat2': (mapReadsWithTophat2,),
@@ -1849,31 +1889,6 @@ else:
 ###################################################################
 # QC targets
 ###################################################################
-
-###################################################################
-###################################################################
-###################################################################
-#
-# This is not a pipelined task - remove?
-#
-# @active_if( SPLICED_MAPPING )
-# @transform( MAPPINGTARGETS,
-#             suffix(".bam" ),
-#             ".picard_inserts")
-# def buildPicardTranscriptomeInsertSize( infiles, outfile ):
-#     '''build alignment stats using picard.
-
-#     Note that picards counts reads but they are in fact alignments.
-#     '''
-#     infile, reffile = infiles
-
-#     PipelineMappingQC.buildPicardAlignmentStats( infile,
-#                                                  outfile,
-#                                                  reffile )
-
-############################################################
-###########################################################
-############################################################
 
 
 @P.add_doc(PipelineMappingQC.buildPicardAlignmentStats)
@@ -2018,8 +2033,6 @@ def loadContextStats(infiles, outfile):
 ###################################################################
 ###################################################################
 # QC specific to spliced mapping
-###################################################################
-###################################################################
 ###################################################################
 
 
@@ -2170,10 +2183,8 @@ def loadTranscriptLevelReadCounts(infile, outfile):
            ".intron_counts.tsv.gz")
 def buildIntronLevelReadCounts(infiles, outfile):
     '''count reads in gene models
-
     Count the reads from a :term:`bam` file which overlap the
     positions of introns in a :term:`gtf` format transcripts file.
-
     Parameters
     ----------
     infiles : list of str
@@ -2183,12 +2194,10 @@ def buildIntronLevelReadCounts(infiles, outfile):
           Input filename in :term:`gtf` format
     outfile : str
        Output filename in :term:`tsv` format
-
     .. note::
        In paired-end data sets each mate will be counted. Thus
        the actual read counts are approximately twice the fragment
        counts.
-
     '''
     infile, exons = infiles
 
@@ -2312,10 +2321,39 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
+@active_if(SPLICED_MAPPING)
+@P.add_doc(PipelineMappingQC.buildPicardRnaSeqMetrics)
+@transform(MAPPINGTARGETS,
+           suffix(".bam"),
+           add_inputs(buildRefFlat),
+           ".picard_rna_metrics")
+def buildPicardRnaSeqMetrics(infiles, outfile):
+    '''Get duplicate stats from picard RNASeqMetrics '''
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        strand = "SECOND_READ_TRANSCRIPTION_STRAND"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        strand = "FIRST_READ_TRANSCRIPTION_STRAND"
+    else:
+        strand = "NONE"
+    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, strand, outfile)
+
+
+@P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load",
+                                  "picard_rna_histogram.load"])
+def loadPicardRnaSeqMetrics(infiles, outfiles):
+    '''merge alignment stats into single tables.'''
+    PipelineMappingQC.loadPicardRnaSeqMetrics(infiles, outfiles)
+
+###################################################################
 ###################################################################
 ###################################################################
 # various export functions
 ###################################################################
+
+
 @transform(MAPPINGTARGETS,
            regex(".bam"),
            ".bw")
@@ -2478,7 +2516,8 @@ def general_qc():
          loadGeneInformation,
          loadTranscriptLevelReadCounts,
          loadIntronLevelReadCounts,
-         buildTranscriptProfiles)
+         buildTranscriptProfiles,
+         loadPicardRnaSeqMetrics)
 def spliced_qc():
     pass
 
@@ -2565,6 +2604,17 @@ def publish():
         "bamfiles": glob.glob("*/*.bam") + glob.glob("*/*.bam.bai"),
         "bigwigfiles": glob.glob("*/*.bw"),
     }
+
+    if PARAMS['ucsc_exclude']:
+        for filetype, files in export_files.iteritems():
+            new_files = set(files)
+            for f in files:
+                for regex in P.asList(PARAMS['ucsc_exclude']):
+                    if re.match(regex, f):
+                        new_files.remove(f)
+                        break
+
+            export_files[filetype] = list(new_files)
 
     # publish web pages
     E.info("publishing report")

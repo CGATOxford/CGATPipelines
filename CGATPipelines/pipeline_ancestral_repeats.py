@@ -43,7 +43,7 @@ the input data from directories specified in the configuration files.
 
 The genomic alignment can both be build from :term:`axt` formatted
 pairwise alignments and from :term:`maf` formatted multiple
-alignmentns. However, the latter currently only works if the
+alignments. However, the latter currently only works if the
 :term:`query` genome is the reference species in the maf files.
 
 This is a consequence of :file:`maf2Axt` requiring that the strand of
@@ -138,10 +138,6 @@ def getGenomes():
     genome_target = os.path.join(PARAMS["genome_dir"], PARAMS["target"])
     return genome_query, genome_target
 
-#########################################################################
-#########################################################################
-#########################################################################
-
 
 @files([("%s/%s.idx" % (PARAMS["genome_dir"], x), "%s.sizes" % x)
         for x in (PARAMS["query"], PARAMS["target"])])
@@ -155,9 +151,7 @@ def buildSizes(infile, outfile):
             outf.write("%s\t%s\n" % (contig, data[3]))
     outf.close()
 
-#########################################################################
-#########################################################################
-#########################################################################
+
 if "axt_dir" in PARAMS:
     # build pairwise alignment from axt formatted data.'''
     @follows(buildSizes)
