@@ -1282,9 +1282,9 @@ def generate_sleuth_parameters_on_the_fly():
 
     for design, quantifier in itertools.product(designs, quantifiers):
         outfiles = [
-            r"DEresults.dir/%s_%s_salmon_results.tsv" % (design, quantifier),
-            r"DEresults.dir/%s_%s_salmon_counts.tsv" % (design, quantifier),
-            r"DEresults.dir/%s_%s_salmon_tpm.tsv" % (design, quantifier)]
+            r"DEresults.dir/%s_%s_sleuth_results.tsv" % (design, quantifier),
+            r"DEresults.dir/%s_%s_sleuth_counts.tsv" % (design, quantifier),
+            r"DEresults.dir/%s_%s_sleuth_tpm.tsv" % (design, quantifier)]
         parameters.append(
             (design, outfiles, quantifier, "index.dir/transcripts.fa"))
 
@@ -1356,19 +1356,12 @@ def mergeCounts(infiles, outfiles):
     df_tpm = pd.DataFrame()
 
     def addSampleColumn(df, infile, index, column, sample,
-                        col_names=None, index_name=None):
+                        index_name=None):
         ''' add a single column called <sample> from the infile'''
 
-        if col_names:
-            tmp_df = pd.read_table(
-                infile, sep="\t", header=None,
-                names=col_names, index_col=index,
-                usecols=[index, column], comment="#")
-
-        else:
-            tmp_df = pd.read_table(
-                infile, sep="\t", usecols=[index, column],
-                index_col=index,  comment="#")
+        tmp_df = pd.read_table(
+            infile, sep="\t", usecols=[index, column],
+            index_col=index,  comment="#")
 
         tmp_df.columns = [sample]
 
@@ -1392,11 +1385,11 @@ def mergeCounts(infiles, outfiles):
 
         elif "salmon" in infile or "sailfish" in infile:
             df_counts = addSampleColumn(
-                df_counts, infile, "transcript_id", "est_counts", sample,
-                col_names=["transcript_id", "length", "tpm", "est_counts"])
+                df_counts, infile, "Name", "NumReads", sample,
+                index_name="transcript_id")
             df_tpm = addSampleColumn(
-                df_tpm, infile, "transcript_id", "tpm", sample,
-                col_names=["transcript_id", "length", "tpm", "est_counts"])
+                df_tpm, infile, "Name", "TPM", sample,
+                index_name="transcript_id")
 
     df_counts.to_csv(counts, sep="\t", index=True)
     df_tpm.to_csv(tpm, sep="\t", index=True)
@@ -1435,9 +1428,8 @@ def diffExpressionDESeq2(infiles, outfile):
     outfile_pattern = P.snip(outfile, ".tsv")
 
     design_id = P.snip(design_inf, ".design.tsv")
-    model = PARAMS["deseq_model_%s" % design_id]
-
-    contrasts = PARAMS["deseq_contrasts_%s" % design_id]
+    model = PARAMS["deseq2_model_%s" % design_id]
+    contrasts = PARAMS["deseq2_contrasts_%s" % design_id]
 
     outfile_pattern = P.snip(outfile, ".tsv")
 
@@ -1447,7 +1439,7 @@ def diffExpressionDESeq2(infiles, outfile):
     df = df.applymap(lambda x: round(x, 0))
     df.to_csv(tmp_counts, sep="\t", index=True)
 
-    ref_group = PARAMS["deseq_ref_group_%s" % design_id]
+    ref_group = PARAMS["deseq2_ref_group_%s" % design_id]
     if ref_group:
         ref_group_cmd = "--reference-group=%s" % ref_group
     else:
@@ -1460,7 +1452,7 @@ def diffExpressionDESeq2(infiles, outfile):
     --output-filename-pattern=%(outfile_pattern)s
     --log=%(outfile_pattern)s.log
     --method=deseq2
-    --fdr=%(deseq_fdr)s
+    --fdr=%(deseq2_fdr)s
     --model=%(model)s
     --contrasts=%(contrasts)s
     %(ref_group_cmd)s
@@ -1477,7 +1469,7 @@ def diffExpressionDESeq2(infiles, outfile):
 def loaddiffExpressionDESeq2(infile, outfile):
     TranscriptDiffExpression.loadSleuthTableGenes(
         infile, outfile,
-        PARAMS["annotations_interface_table_genes_info"],
+        PARAMS["annotations_interface_table_gene_info"],
         PARAMS["geneset_gene_biotypes"],
         PARAMS["database"],
         PARAMS["annotations_database"])
@@ -1529,9 +1521,11 @@ def loadSleuthTables(infile, outfile):
 @transform(runSleuth,
            suffix("_results.tsv"),
            "_DEresults.load")
-def loadSleuthResults(infile, outfile):
+def loadSleuthResults(infiles, outfile):
     ''' load Sleuth results '''
-
+    # List of three Sleuth outputs received as infiles due to generator
+    # First file is results list
+    infile = infiles[0]
     tmpfile = P.getTempFilename("/ifs/scratch")
 
     table = os.path.basename(
