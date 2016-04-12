@@ -48,7 +48,7 @@ import glob
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
-import CGATPipelines.PeakcallingScrum as PipelinePeakcalling
+import CGATPipelines.PipelinePeakcallingScrum as PipelinePeakcalling
 
 #########################################################################
 #########################################################################
@@ -101,6 +101,27 @@ def filter(infile, outfile):
 ################################################################
 # Peakcalling Steps
 
+###############################################################
+# The following are variable created just for testing purposes
+###############################################################
+
+test_inf = "./neural-SMC3-1.genome.bam"
+control_inf = "./neural-input-1.genome.bam"
+#control_inf = None
+contigsfile = "/ifs/mirror/annotations/hg19_ensembl75_hierarchical/assembly.dir/contigs.tsv"
+
+
+@transform(test_inf,
+           regex("./neural-SMC3-1.genome.bam"),
+           "./test.out")
+def callMacs2peaks(infile, outfile):
+
+    peakcaller = PipelinePeakcalling.Macs2Peakcaller(
+        threads=1, paired_end=True, output_all=True,
+        tool_options=PARAMS['macs2_options'], tagsize=None)
+    statement = peakcaller.build(infile, outfile, contigsfile, control_inf)
+
+    P.run()
 
 ################################################################
 # QC Steps
