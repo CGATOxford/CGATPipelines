@@ -184,7 +184,7 @@ SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
-    r".*/*(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
+    r"(.*\/)*(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
     "csfasta.gz|csfasta.F3.gz|export.txt.gz)")
 
 
@@ -431,7 +431,7 @@ def buildJunctions(infile, outfile):
 @follows(mkdir("fastq.dir"))
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
-           r"fastq.dir/\1.subset")
+           r"fastq.dir/\2.subset")
 def subsetSequenceData(infile, outfile):
     """subset fastq files"""
     ignore_pipe_erors = True
@@ -526,7 +526,7 @@ def mapReadsWithHisat(infiles, outfile):
 @follows(mkdir("nreads.dir"))
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
-           r"nreads.dir/\1.nreads")
+           r"nreads.dir/\2.nreads")
 def countReads(infile, outfile):
     '''Count number of reads in input files.'''
     m = PipelineMapping.Counter()
@@ -675,7 +675,7 @@ def buildTranscriptGeneMap(infile, outfile):
            add_inputs(indexForSailfish,
                       buildCodingGeneSet,
                       buildTranscriptGeneMap),
-           r"sailfish.dir/\1/quant.sf")
+           r"sailfish.dir/\2/quant.sf")
 def runSailfish(infiles, outfile):
     '''quantify abundance'''
 
