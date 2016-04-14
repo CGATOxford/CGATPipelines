@@ -68,7 +68,7 @@ with factors separated by ``-``, for example::
 
 and then set the ``factors`` variable in :file:`pipeline.ini` to::
 
-   factors=_,experiment,source,replicate,lane
+   factors=experiment-source-replicate-lane
 
 Pipeline output
 ===============
