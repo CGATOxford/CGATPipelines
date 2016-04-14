@@ -28,8 +28,8 @@ Transcript Expression
    Counts per sample
 
 
-Transcript Expression
-=====================
+Gene Expression
+===============
 
 .. report:: Results.SleuthTpmAllGenes
    :render: xls-table
