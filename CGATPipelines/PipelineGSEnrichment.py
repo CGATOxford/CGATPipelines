@@ -533,6 +533,58 @@ class DBTableParser(AnnotationParser):
         return D
 
 
+class FlatFileParser(AnnotationParser):
+    def __init__(self, instring, prefix):
+        options = self.readOptions(instring)
+        AnnotationParser.__init__(self, instring, prefix, options)
+        self.annot = str()
+        self.details = str()
+        self.ont = str()
+
+    def readOptions(optionsstring):
+        '''
+        Reads an "optionsstring" from the pipeline.ini file and parses
+        this into a dictionary.
+        The options string needs to contain these options:
+        -p -  prefix for output files
+
+        -l - path to the flat file
+
+        -k - this can be either the column number (0 indexed) or the column
+        heading for the column containing the names of the genes
+
+        -o - this can be either the column number or the column heading for
+        the column containing the term IDs
+
+        These options are optional:
+        -d1 - this is the column delimiter
+        If nothing is specified "\t" or tab delimited will be assumed.
+        Otherwise give the option in double quotes e.g. -d1 "|"
+
+        -d2 - the within column delimiter used when multiple genes and terms
+        are specified in the same table row
+        e.g. gene1,gene2,gene3   term1,term2 would need
+        a -d2 parameter of ","
+
+        -idk - if this is 1, ignore the column delimiter in the column
+        containing the gene names
+        -ido - if this is 1, ignore column delimiter in the column
+        sometimes a within column delimiter is used not as a delimiter in
+        another column e.g. in the line A1,A2,A3    Kidney, Abnormality
+        of - you may want to
+        seperate A1,A2,A3 based on the comma but ignore the comma in
+        Kidney, Abnormality of.  These parameters allow you to ignore the
+        delimiter in the gene or the term column. containing the term names
+
+        -ids - type of ID, e.g. symbol, entrez, ensemblg - default is ensemblg
+        '''
+        options = dict()
+        sections = optionsstring.strip().split("-")
+        for section in sections:
+            t, v = section.split(" ")
+            options[t] = v
+            
+
 class EnrichmentTester(object):
     '''
     Runs statistical tests for enrichment in the "foreground" gene list
