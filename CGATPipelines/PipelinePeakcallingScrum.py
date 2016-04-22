@@ -21,37 +21,86 @@ import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
+import pandas as pd
 
 ##############################################
 # Preprocessing Functions
-def filterBams(infile, outfile, filters):
 
-    F = ""
+def filterBams(infile, outfiles, filters, pe):
+    bamout, out = outfiles
+    tabout = open(out, "w")
+    tabout.write("unmapped\t%s\n" % ("\t".join(filters)))
+    tabout.close()
+
+    F = []
     if 'unmapped' in filters:
-        F += str(4)
-    if 'unpaired' in filters:
-        F += str(12)
+        F.append(str(4))
+    if 'unpaired' in filters and pe is True:
+        F.append(str(12))
+    else:
+        E.warn("""Bam file is not paired-end so unpaired reads have not been
+        filtered""")
 
-    T1 = P.getTempFilename(".")
-    T2 = P.getTempFilename(".")
+    inT = infile
+    outT = P.getTempFilename(".")
+
     # ensure bamfile is sorted,
-    statement = """samtools sort %(infile)s %(T1)s;
-           samtools index %(T1)s;
-           samtools view %(T1)s -b -F %(F)s > %(T2)s;"""
+    statement = """samtools sort %(inT)s %(outT)s; """ % locals()
+    statement += """samtools view -c %(outT)s.bam >> %(out)s; """ % locals()
+
+
+    tempfiles = []
+    i = 0
+
+    for num in F:
+        T = P.getTempFilename(".")
+        if i == 0:
+            inT = outT
+            outT = P.getTempFilename(".")
+        else:
+            inT = outT
+            outT = P.getTempFilename(".")
+
+        statement += """samtools view -b -F %(num)s %(inT)s.bam
+        > %(outT)s.bam; """ % locals()
+        statement += """samtools view -c %(outT)s.bam >> %(out)s; """ % locals()
+        tempfiles.append(T)
+        i += 1
 
     # remove duplicates, if requested
+    inT = outT
+    outT = P.getTempFilename(".")
     if 'duplicates' in filters:
         statement += """
         MarkDuplicates \
-        INPUT=%(T2)s \
+        INPUT=%(inT)s.bam \
         ASSUME_SORTED=true \
         REMOVE_DUPLICATES=true \
-        OUTPUT=%(outfile)s \
+        OUTPUT=%(outT)s.bam \
         METRICS_FILE=/dev/null \
         VALIDATION_STRINGENCY=SILENT \
-        2> %(outfile)s.log"""
+        2> %(outT)s.log; """ % locals()
 
-    P.run()
+        statement += """samtools view -c %(outT)s.bam >> %(out)s; """ % locals()
+
+    statement = statement.replace("\n", "")
+    print statement
+#    P.run()
+
+
+def estimateInsertSize(infiles, outfile, insert_params):
+    res = []
+    for infile in infiles:
+        fragment_length = BamTools.estimateInsertSizeDistribution(
+            infile,
+            alignments=insert_params['alignments'],
+            n=insert_params['n'],
+            method='picard',
+            similarity_threshold=insert_params['st'])
+        res.append(fragment_length)
+    res = pd.DataFrame(res, columns=['mean_insert_size', 'standard_dev',
+                                     'pairs_used_for_estimation'])
+    res.to_csv(outfile, sep="\t")
 
 #############################################
 # Peakcalling Functions

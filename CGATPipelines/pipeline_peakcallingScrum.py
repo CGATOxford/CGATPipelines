@@ -36,7 +36,7 @@ Code
 # load modules
 from ruffus import transform, merge, mkdir, follows, \
     regex, suffix, add_inputs, collate
-
+from ruffus.combinatorics import *
 import sys
 import os
 import re
@@ -49,6 +49,7 @@ import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelinePeakcallingScrum as PipelinePeakcalling
+import CGAT.BamTools as Bamtools
 
 #########################################################################
 #########################################################################
@@ -68,6 +69,9 @@ PARAMS.update(P.peekParameters(
     "pipeline_annotations.py",
     prefix="annotations_",
     update_interface=True))
+
+if Bamtools.isPaired is True:
+    PARAMS['paired_end'] = True
 
 BAMS = ['*.bam']
 ###################################################################
@@ -93,11 +97,24 @@ def connect():
 ###############################################################
 # Preprocessing Steps
 @follows(mkdir("filtered_bams.dir"))
-@transform(BAMS, regex("(.*).bam"), r"filtered_bams.dir/\1")
-def filter(infile, outfile):
+@transform(BAMS, regex("(.*).bam"), [r"filtered_bams.dir/\1_filtered.bam",
+                                     r"filtered_bams.dir\1_counts.tsv"])
+def filterBAM(infile, outfiles):
     filters = PARAMS['filters_bamfilters']
-    PipelinePeakcalling.filterBams(infile, outfile, filters)
+    PipelinePeakcalling.filterBams(infile, outfiles, filters,
+                                   PARAMS['paired_end'])
 
+
+@active_if(PARAMS['paired_end'] is True)
+@merge(filterBAM, regex("filtered_bams/(.).bam"), "insert_size.tsv")
+def estimateInsertSize(infiles, outfile):
+    # reading insert size estimation parameters from PARAMS
+    insert_params = {"alignments": PARAMS['insert_alignments'],
+                     "n": PARAMS['insert_n'],
+                     "similarity_threshold": PARAMS['insert_st']}
+    # estimate insert size
+    PipelinePeakcalling.estimateInsertSize(infiles, outfile, insert_params)
+    
 ################################################################
 # Peakcalling Steps
 
