@@ -955,7 +955,7 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
 
 
 @jobs_limit(1, "R")
-@transform(mergeLcaCountsAcrossSamples,
+@transform([mergeLcaCountsAcrossSamples, mergeKrakenCountsAcrossSamples],
            suffix(".counts.tsv.gz"),
            ".counts.rarefied.tsv")
 def rarefyTaxa(infile, outfile):
@@ -970,7 +970,7 @@ def rarefyTaxa(infile, outfile):
 ###############################################
 ###############################################
 
-rarefy = {0: (mergeLcaCountsAcrossSamples, ".counts.tsv.gz"),
+rarefy = {0: ([mergeLcaCountsAcrossSamples, mergeKrakenCountsAcrossSamples], ".counts.tsv.gz"),
           1: (rarefyTaxa, ".counts.rarefied.tsv")}
 RAREFY_FUNC = rarefy[PARAMS.get("rarefy_rarefy_taxa")][0]
 RAREFY_SUFFIX = rarefy[PARAMS.get("rarefy_rarefy_taxa")][1]
@@ -1023,7 +1023,9 @@ def barchartLcaProportions(infile, outfile):
     if PARAMS["heatmaps_order"]:
         order = PARAMS.get("heatmaps_order")
     else:
-        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+        order = open(infile).readline()[:-1].split("\t")[:-1]
+        order.sort()
+        order = ",".join(order)
     PipelineMetagenomeCommunities.barchartProportions(infile,
                                                       outfile,
                                                       order,
@@ -1361,7 +1363,9 @@ def barchartGeneProportions(infile, outfile):
     if PARAMS["heatmaps_order_genes"]:
         order = PARAMS.get("heatmaps_order_genes")
     else:
-        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+        order = open(infile).readline()[:-1].split("\t")[:-1]
+        order.sort()
+        order = ",".join(order)
     PipelineMetagenomeCommunities.barchartProportions(infile,
                                                       outfile,
                                                       order,
@@ -1997,7 +2001,8 @@ def Differential_abundance():
          Differential_abundance,
          diversity,
          MDS,
-         proportions)
+         proportions,
+         Genes)
 def full():
     pass
 
