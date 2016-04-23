@@ -759,7 +759,7 @@ def runLCA(infile, outfile):
     # filtering options
     filter_list = P.asList(PARAMS.get("lca_filter"))
     if filter_list:
-        filter_stmt = "grep -v " + " | grep -v ".join(filter_list)
+        filter_stmt = " | grep -v " + " | grep -v ".join(filter_list)
     else:
         filter_stmt = ""
 
@@ -774,7 +774,7 @@ def runLCA(infile, outfile):
                    -gt %(gi2taxid)s
                    -o %(outf_tax)s > %(outfile)s.log
                    ; cat %(outf_tax)s
-                  | %(filter_stmt)s
+                  %(filter_stmt)s
                   | gzip > %(outfile)s
                   ; checkpoint
                   ; rm -rf %(outf_tax)s'''
@@ -1416,7 +1416,7 @@ def countAlignments(infiles, outfile):
 
     # assume that files are named without any other R[0-9]
     track = os.path.basename(re.match(
-        "(.*-R[0-9]).(.*.counts.load)", infile).groups()[0])
+        "(.*-R[0-9]*).(.*.counts.load)", infile).groups()[0])
     table = P.toTable(infile)
 
     # connect to database
