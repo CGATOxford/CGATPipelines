@@ -57,6 +57,22 @@ def filterBams(infile, outfile, filters):
 # Peakcalling Functions
 
 
+# TS - move to top of file later:
+def getMacsPeakShiftEstimate(infile):
+    ''' parse the peak shift estimate file from macs,
+    return the fragment size '''
+
+    with IOTools.openFile(infile, "r") as inf:
+
+        header = inf.next().strip().split("\t")
+        values = inf.next().strip().split("\t")
+
+        fragment_size_mean_ix = header.index("fragmentsize_mean")
+
+        fragment_size = int(float(values[fragment_size_mean_ix]))
+
+        return fragment_size
+
 class Peakcaller(object):
     ''' base class for peakcallers
     Peakcallers call peaks from a BAM file and then post-process peaks
@@ -98,12 +114,14 @@ class Peakcaller(object):
     def build(self, infile, outfile, contigsfile=None, controlfile=None):
         ''' build complete command line statement'''
 
-        peaks_cmd = self.callPeaks(infile, outfile, controlfile)
+        peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
         compress_cmd = self.compressOutput(
-            infile, outfile, contigsfile, controlfile)
-        postprocess_cmd = self.postProcessPeaks(infile, outfile)
+            infile, outfile,  contigsfile, controlfile)
+        postprocess_cmd = self.postProcessPeaks(
+            infile, outfile, controlfile)
 
-        full_cmd = "; checkpoint ;".join((peaks_cmd, compress_cmd, postprocess_cmd))
+        full_cmd = " checkpoint ;".join((
+            peaks_cmd, compress_cmd, postprocess_cmd))
 
         return full_cmd
 
@@ -162,12 +180,14 @@ class Macs2Peakcaller(Peakcaller):
         --bdg
         --SPMR
         %(options)s
-        >& %%(outfile)s
+        >& %(outfile)s ;
+        mv %(outfile)s %(outfile)s_raw;
         ''' % locals()
 
-        return statement
+        return outfile, statement
 
-    def compressOutput(self, infile, outfile, contigsfile, controlfile=None):
+    def compressOutput(self, infile, outfile,
+                       contigsfile, controlfile):
         ''' build command line statement to compress outfiles'''
 
         statement = []
@@ -178,7 +198,7 @@ class Macs2Peakcaller(Peakcaller):
             if os.path.exists(bedfile):
                 statement.append('''
                      bgzip -f %(bedfile)s;
-                     tabix -f -p bed %(bedfile)s.gz
+                     tabix -f -p bed %(bedfile)s.gz;
                 ''' % locals())
 
         # convert normalized bed graph to bigwig
@@ -205,7 +225,114 @@ class Macs2Peakcaller(Peakcaller):
 
         return "; checkpoint ;".join(statement)
 
+    def postProcessPeaks(self, infile, outfile, controlfile):
+        ''' build command line statement to postprocess peaks'''
 
+        filename_bed = outfile + "_peaks.xls.gz"
+        filename_diag = outfile + "_diag.xls"
+        filename_r = outfile + "_model.r"
+        filename_rlog = outfile + ".r.log"
+        filename_pdf = outfile + "_model.pdf"
+
+        filename_subpeaks = outfile + "_summits.bed"
+        outfile_subpeaks = P.snip(
+            outfile, ".macs2", ) + ".subpeaks.macs_peaks.bed"
+
+        filename_broadpeaks = P.snip(outfile, ".macs2") + ".broadpeaks.macs_peaks.bed"
+        outfile_broadpeaks = P.snip(
+            outfile, ".macs2", ) + ".broadpeaks.macs_peaks.bed"
+
+        # TS - will bedfile ever not be created?
+        # previous pipeline had a test to check. IS there an option
+        # which prevents bedfile output?
+        # PREVIOUS CODE:
+        #if not os.path.exists(filename_bed):
+        #    E.warn("could not find %s" % filename_bed)
+        #    P.touch(outfile)
+        #    return
+
+        # TS - hardcodes "fragment.dir" and ".fragment_size" suffix
+        # another option is to set fragment_dir and fragment suffix attributes
+
+        peak_est_inf = os.path.join(
+            "fragment_size.dir", "%s.fragment_size" % P.snip(infile, ".genome.bam"))
+        shift = getMacsPeakShiftEstimate(peak_est_inf)
+        assert shift is not None,\
+            "could not determine peak shift from file %s" % peak_est_inf
+
+        peaks_headers = ",".join((
+            "contig", "start", "end",
+            "interval_id",
+            "pvalue", "fold", "qvalue",
+            "macs_nprobes"))
+
+        if controlfile:
+            control = '''--control-bam-file=%(controlfile)s
+                         --control-offset=%(shift)s''' % locals()
+        else:
+            control = ""
+
+        statement = '''
+        zcat %(filename_bed)s |
+        awk '$1!="chr"' |
+        python %%(scriptsdir)s/bed2table.py
+        --counter=peaks
+        --bam-file=%(infile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(peaks_headers)s
+        --log=%(outfile)s.log
+        > %(outfile)s ;
+        ''' % locals()
+
+        # check masc2 running mode
+        if "--broad" in self.tool_options:
+
+            broad_headers = ",".join((
+                "contig", "start", "end",
+                "interval_id",
+                "Height"))
+
+            # add a peak identifier and remove header
+            statement += '''
+            cat %(filename_broadpeaks)s |
+            awk '/Chromosome/ {next; } {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n", $1,$2,$3,++a,$4)}'
+            | python %%(scriptsdir)s/bed2table.py
+            --counter=peaks
+            --bam-file=%(infile)s
+            --offset=%(shift)i
+            %(control)s
+            --output-all-fields
+            --output-bed-headers=%(broad_headers)s
+            --log=%(outfile)s.log
+            > %(outfile_broadpeaks)s;
+            ''' % locals()
+
+        # if not broad, will generate subpeaks
+        else:
+
+            subpeaks_headers = ",".join((
+                "contig", "start", "end",
+                "interval_id",
+                "Height",
+                "SummitPosition"))
+
+            # add a peak identifier and remove header
+            statement += '''
+            cat %(filename_subpeaks)s |
+            awk '/Chromosome/ {next; } {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n", $1,$2,$3,++a,$4,$5)}'
+            | python %%(scriptsdir)s/bed2table.py
+            --counter=peaks
+            --bam-file=%(infile)s
+            --offset=%(shift)i
+            %(control)s
+            --output-all-fields
+            --output-bed-headers=%(subpeaks_headers)s
+            --log=%(outfile)s.log
+            > %(outfile_subpeaks)s ;''' % locals()
+
+        return statement
 
 
 #############################################
