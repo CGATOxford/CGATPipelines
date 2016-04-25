@@ -24,6 +24,8 @@ import CGAT.BamTools as BamTools
 
 ##############################################
 # Preprocessing Functions
+
+
 def filterBams(infile, outfile, filters):
 
     F = ""
@@ -72,6 +74,7 @@ def getMacsPeakShiftEstimate(infile):
         fragment_size = int(float(values[fragment_size_mean_ix]))
 
         return fragment_size
+
 
 class Peakcaller(object):
     ''' base class for peakcallers
@@ -141,7 +144,12 @@ class Macs2Peakcaller(Peakcaller):
         self.tagsize = tagsize
 
     def callPeaks(self, infile,  outfile, controlfile=None):
-        ''' build command line statement to call peaks'''
+        ''' build command line statement to call peaks.
+        the _raw file represents the unadulterated output from
+        MACS2. The actual output is then processed by the
+        postProcess method.  This _raw file is retained for
+        reproducibility.
+        '''
 
         if self.tool_options:
             options = [self.tool_options]
@@ -162,7 +170,8 @@ class Macs2Peakcaller(Peakcaller):
         if self.paired_end:
             if not BamTools.isPaired(infile):
                 raise ValueError(
-                    "paired end has been specified but BAM is not paired %" % infile)
+                    "paired end has been specified but "
+                    "BAM is not paired %" % infile)
             format_options = '--format=BAMPE'
         else:
             format_options = '--format=BAM'
@@ -238,7 +247,8 @@ class Macs2Peakcaller(Peakcaller):
         outfile_subpeaks = P.snip(
             outfile, ".macs2", ) + ".subpeaks.macs_peaks.bed"
 
-        filename_broadpeaks = P.snip(outfile, ".macs2") + ".broadpeaks.macs_peaks.bed"
+        filename_broadpeaks = P.snip(outfile,
+                                     ".macs2") + ".broadpeaks.macs_peaks.bed"
         outfile_broadpeaks = P.snip(
             outfile, ".macs2", ) + ".broadpeaks.macs_peaks.bed"
 
@@ -246,7 +256,7 @@ class Macs2Peakcaller(Peakcaller):
         # previous pipeline had a test to check. IS there an option
         # which prevents bedfile output?
         # PREVIOUS CODE:
-        #if not os.path.exists(filename_bed):
+        # if not os.path.exists(filename_bed):
         #    E.warn("could not find %s" % filename_bed)
         #    P.touch(outfile)
         #    return
@@ -255,7 +265,8 @@ class Macs2Peakcaller(Peakcaller):
         # another option is to set fragment_dir and fragment suffix attributes
 
         peak_est_inf = os.path.join(
-            "fragment_size.dir", "%s.fragment_size" % P.snip(infile, ".genome.bam"))
+            "fragment_size.dir", "%s.fragment_size" % P.snip(infile,
+                                                             ".genome.bam"))
         shift = getMacsPeakShiftEstimate(peak_est_inf)
         assert shift is not None,\
             "could not determine peak shift from file %s" % peak_est_inf
@@ -297,7 +308,9 @@ class Macs2Peakcaller(Peakcaller):
             # add a peak identifier and remove header
             statement += '''
             cat %(filename_broadpeaks)s |
-            awk '/Chromosome/ {next; } {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n", $1,$2,$3,++a,$4)}'
+            awk '/Chromosome/ {next; }
+            {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
+            $1,$2,$3,++a,$4)}'
             | python %%(scriptsdir)s/bed2table.py
             --counter=peaks
             --bam-file=%(infile)s
@@ -321,7 +334,9 @@ class Macs2Peakcaller(Peakcaller):
             # add a peak identifier and remove header
             statement += '''
             cat %(filename_subpeaks)s |
-            awk '/Chromosome/ {next; } {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n", $1,$2,$3,++a,$4,$5)}'
+            awk '/Chromosome/ {next; }
+            {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
+            $1,$2,$3,++a,$4,$5)}'
             | python %%(scriptsdir)s/bed2table.py
             --counter=peaks
             --bam-file=%(infile)s
