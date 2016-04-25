@@ -534,9 +534,10 @@ def prepareBAMForPeakCalling(infile, outfile):
 
     '''
     if PARAMS["calling_filter_regions"]:
+
+        mask = PARAMS["calling_filter_regions"]
         if not os.path.exists(mask):
             raise IOError("filter file '%s' does not exist")
-        mask = PARAMS["calling_filter_regions"]
     else:
         mask = None
 
