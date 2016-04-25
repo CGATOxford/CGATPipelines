@@ -10,6 +10,7 @@ import rpy2.interactive.packages
 import scipy.stats as stats
 from CGATPipelines.Pipeline import cluster_runnable
 import CGAT.Experiment as E
+import ast as ast
 from toposort import toposort_flatten
 r.packages.importr("hpar")
 
@@ -534,14 +535,19 @@ class DBTableParser(AnnotationParser):
 
 
 class FlatFileParser(AnnotationParser):
-    def __init__(self, instring, prefix):
+    def __init__(self, instring):
         options = self.readOptions(instring)
-        AnnotationParser.__init__(self, instring, prefix, options)
-        self.annot = str()
-        self.details = str()
-        self.ont = str()
+        AnnotationParser.__init__(self, options['loc'],
+                                  options['p'], options)
 
-    def readOptions(optionsstring):
+    def run(self):
+        self.readFile()
+        self.AS.TermsToGenes = self.AS.reverseDict(self.AS.GenesToTerms)
+        if self.options['ont'] is not None:
+            self.AS.TermsToOnt = self.readOntFile()
+            self.AS.ontologise()
+
+    def readOptions(self, optionsstring):
         '''
         Reads an "optionsstring" from the pipeline.ini file and parses
         this into a dictionary.
@@ -580,10 +586,128 @@ class FlatFileParser(AnnotationParser):
         '''
         options = dict()
         sections = optionsstring.strip().split("-")
+        print sections
         for section in sections:
-            t, v = section.split(" ")
-            options[t] = v
-            
+            section = section.strip()
+            if len(section) != 0:
+                t, v = section.split(" ")
+                options[t] = v
+        options.setdefault('loc', None)
+        options.setdefault('kcol', '0')
+        options.setdefault('ocol', '1')
+        options.setdefault('d1', "\t")
+        options.setdefault('d2', None)
+        options.setdefault('idk', 0)
+        options.setdefault('ido', 0)
+        options.setdefault('ont', None)
+        options.setdefault('ids', 'ensemblg')
+
+        options['d1'] = ast.literal_eval("'%s'" % options['d1'])
+        options['d2'] = ast.literal_eval("'%s'" % options['d2'])
+
+        assert options['loc'] is not None, """Location of annotation file is
+        required"""
+        return options
+
+    def readFile(self):
+        '''
+        Reads the input files to memory.
+        '''
+        # Determines parameters depending if columns are specified with
+        # integers or with column names
+        isd = False
+        options = self.options
+        if options['kcol'].isdigit():
+            usecols = [int(s) for s in [options['kcol'], options['ocol']]]
+            isd = True
+
+        else:
+            allcols = IOTools.openFile(
+                options['loc']).readline().split(options['d1'])
+            k = allcols.index(options['kcol'])
+            o = allcols.index(options['ocol'])
+            usecols = [k, o]
+
+        inf = IOTools.openFile(options['loc']).readlines()
+        (self.AS.GenesToTerms, self.AS.TermsToDetails,
+         self.AS.DetailsColumns) = self.makeDict(inf, usecols, isd)
+
+    def makeDict(self, inf, usecols, isd):
+        '''
+        Builds dictionaries based on the input files
+        Dictionary keys are strings and values are sets.
+        '''
+        delim1 = self.options['d1']
+        delim2 = self.options['d2']
+        ignore1 = self.options['idk']
+        ignore2 = self.options['ido']
+
+        D = dict()
+        detaildict = dict()
+        i = 0
+        for line in inf:
+            line = line.strip().split(delim1)
+            idpart = line[usecols[0]]
+            termpart = line[usecols[1]]
+            # if at line 0 and there are column headings
+            if i == 0 and isd is False:
+                cnames = copy.copy(line)
+                cnames.remove(idpart)
+                i += 1
+                continue
+
+            if delim2 is not None:
+                if ignore1 == 0:
+                    idparts = idpart.split(delim2)
+                else:
+                    idparts = [idpart]
+                if ignore2 == 0:
+                    termparts = termpart.split(delim2)
+                else:
+                    termparts = [termpart]
+
+            # metadata needs to be stored in order
+            for id in idparts:
+                id = id.replace(" ", "")
+                D.setdefault(id, set())
+                for term in termparts:
+                    term = term.replace(" ", "_")
+                    term = term.replace(",", "")
+                    D[id].add(term)
+                    if term not in detaildict:
+                        w = copy.copy(line)
+                        w.remove(idpart)
+                        w.remove(termpart)
+                        w = tuple(w)
+                        detaildict[term] = w
+        # add default column names if none in the file
+        if isd is True:
+            cnames = tuple(["c_%s" % j for j in range(len(line)-1)])
+        return D, detaildict, cnames
+
+    def readOntFile(self):
+        '''
+        Reads an obo formatted file.
+        Generates a dictionary - self.TermsToOnt
+        Keys are terms, values are all immediate parents of that term - the
+        "is_a" argument in the obo file.
+        '''
+        TermsToOnt = dict()
+        Tname = None
+        isas = set()
+        with IOTools.openFile(self.options['ont']) as infile:
+            for line in infile:
+                line = line.strip()
+                if line.startswith("id"):
+                    if Tname is not None:
+                        TermsToOnt[Tname] = isas
+                        isas = set()
+                    Tname = line.split(": ")[1]
+                elif line.startswith("is_a"):
+                    isas.add(":".join(line.split(": ")[1:]).split(" ! ")[0])
+        TermsToOnt[Tname] = isas
+        return TermsToOnt
+
 
 class EnrichmentTester(object):
     '''
@@ -894,6 +1018,17 @@ def getDBAnnotations(infile, outfiles, dbname):
             D = DBTableParser(dbname, stem, Tdict)
             D.run()
             D.AS.stow("annotations.dir/%s" % stem)
+
+
+@cluster_runnable
+def getFlatFileAnnotations(optionsstring, outstem, dbname):
+    '''
+    Retrieves annotations from a flat file.
+    '''
+    D = FlatFileParser(optionsstring)
+    D.run()
+    D.AS.translateIDs(dbname, D.options['ids'])
+    D.AS.stow(outstem)
 
 
 @cluster_runnable

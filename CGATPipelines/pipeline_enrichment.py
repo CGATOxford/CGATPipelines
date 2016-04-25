@@ -139,7 +139,7 @@ import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import sys
-import PipelineGSEnrichment_t2 as PipelineEnrichment
+import CGATPipelines.PipelineGSEnrichment as PipelineEnrichment
 
 
 # load options from the config file
@@ -208,10 +208,8 @@ def mapUnmappedAnnotations(outfiles):
     outstem = outfiles[0].replace(ua, "")
     outstem = outstem.replace("_genestoterms.tsv", "")
     substatement = unmapped[outstem]
-    statement = """python %s/annotations2annotations.py
-    -m standardise
-    %s --dir %s""" % (PARAMS['scriptsdir'], substatement, ua)
-    P.run()
+    outstem2 = outfiles[0].replace("_genestoterms.tsv", "")
+    PipelineEnrichment.getFlatFileAnnotations(substatement, outstem2, dbname)
 
 
 @follows(getDBAnnotations)
