@@ -78,6 +78,7 @@ BAMS = ['*.bam']
 ###################################################################
 # load all tracks - exclude input/control tracks
 
+
 def connect():
     '''connect to database.
 
@@ -95,6 +96,8 @@ def connect():
 
 ###############################################################
 # Preprocessing Steps
+
+
 @follows(mkdir("filtered_bams.dir"))
 @transform(BAMS, regex("(.*).bam"), r"filtered_bams.dir/\1")
 def filter(infile, outfile):
@@ -110,8 +113,9 @@ def filter(infile, outfile):
 
 test_inf = "neural-SMC3-1.genome.bam"
 control_inf = "neural-input-1.genome.bam"
-#control_inf = None
-contigsfile = "/ifs/mirror/annotations/hg19_ensembl75_hierarchical/assembly.dir/contigs.tsv"
+# control_inf = None
+contigsfile = ("/ifs/mirror/annotations/"
+               "hg19_ensembl75_hierarchical/assembly.dir/contigs.tsv")
 
 
 @transform(test_inf,
