@@ -185,11 +185,62 @@ def predictFragmentSize(infile, outfile):
     outf.write("\t".join(
         map(str, (mode, mean, std, tagsize))) + "\n")
     outf.close()
+
+
 ################################################################
 # QC Steps
 
 
 ################################################################
+# Fragment GC% distribution
+################################################################
+
+
+@follows(mkdir("QC.dir"))
+@transform(BAMS, regex("(.*).bam"), r"QC.dir/\1.tsv")
+def fragLenDist(infile, outfile):
+
+    if PARAMS["paired_end"] == 1:
+        function = "--merge-pairs"
+    else:
+        function = "--fragment"
+
+    genome = os.path.join(PARAMS["general_genome_dir"],
+                          PARAMS["general_genome"])
+    genome = genome + ".fasta"
+
+    statement = ''' 
+    samtools view -s 0.2 -ub %(infile)s |
+    python %(scriptsdir)s/bam2bed.py  %(function)s | 
+    python %(scriptsdir)s/bed2table.py --counter=composition-na -g %(genome)s > %(outfile)s
+    '''
+    P.run()
+
+@merge(BAMS, regex("(.*).bam"), r"QC.dir/genomic_coverage.tsv")
+def buildReferenceNAComposition(infiles, outfile):
+
+    infile = infiles[0]
+    contig_sizes = os.path.join(PARAMS["annotations_dir"],
+                                PARAMS["annotations_interface_contigs"])
+    gaps_bed = os.path.join(PARAMS["annotations_dir"].
+                            PARAMS["annotations_interface_gaps_bed"])
+
+    statement = '''bedtools shuffle
+    -i %(infile)s
+    -g %(contig_sizes)s
+    -excl %(gaps_bed)s
+    -chromFirst
+    | python %(scriptsdir)s/bed2table.py
+    --counter=composition-na
+    -g %(genome)s > %(outfile)s
+    '''
+
+    P.run()
+################################################################
+
+
+
+
 
 def full():
     pass
