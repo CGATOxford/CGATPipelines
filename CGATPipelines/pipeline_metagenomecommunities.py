@@ -532,6 +532,7 @@ def Metaphlan():
 ###################################################################
 
 
+@active_if("kraken" in PARAMS.get("classifiers"))
 @follows(mkdir("kraken.dir"))
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
@@ -556,6 +557,7 @@ def classifyReadsWithKraken(infile, outfile):
 ###################################################################
 
 
+@active_if("kraken" in PARAMS.get("classifiers"))
 @transform(classifyReadsWithKraken,
            suffix(".classified.tsv.gz"),
            ".counts.tsv.gz")
@@ -600,6 +602,7 @@ def loadKrakenCounts(infile, outfile):
 ###################################################################
 
 
+@active_if("kraken" in PARAMS.get("classifiers"))
 @follows(mkdir("counts.dir"))
 @split(loadKrakenCounts, "counts.dir/*.kraken.counts.tsv.gz")
 def buildKrakenLevelCounts(infiles, outfiles):
@@ -650,6 +653,7 @@ def loadKrakenLevelCounts(infile, outfile):
 ###################################################################
 
 
+@active_if("kraken" in PARAMS.get("classifiers"))
 @split(buildKrakenLevelCounts, "counts.dir/*kraken.aggregated.counts.tsv.gz")
 def mergeKrakenCountsAcrossSamples(infiles, outfiles):
     '''
@@ -1078,6 +1082,11 @@ for classifier in P.asList(PARAMS.get("classifiers")):
     COUNT_DATA.append(classifiers[classifier])
 
 
+###################################################################
+###################################################################
+###################################################################
+
+
 @jobs_limit(1, "R")
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
@@ -1128,6 +1137,29 @@ def testRichness(infile, outfile):
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
+           r"diversity.dir/\2.diversity.tsv")
+def buildDiversity(infile, outfile):
+    '''
+    build flat file with diversity calculation
+    '''
+    rdir = PARAMS.get("rscriptsdir")
+    ind = PARAMS.get("diversity_index")
+    PipelineMetagenomeCommunities.buildDiversity(infile,
+                                                 outfile,
+                                                 rdir,
+                                                 ind=ind)
+    
+
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
+@follows(mkdir("diversity.dir"))
+@transform(COUNT_DATA,
+           regex("(\S+)/(\S+).counts.tsv.gz"),
            r"diversity.dir/\2.diversity.pdf")
 def barplotDiversity(infile, outfile):
     '''
@@ -1166,7 +1198,8 @@ def testDiversity(infile, outfile):
 @follows(testDiversity,
          testRichness,
          runRarefactionAnalysis,
-         barplotDiversity)
+         barplotDiversity,
+         buildDiversity)
 def diversity():
     pass
 

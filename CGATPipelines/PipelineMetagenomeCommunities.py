@@ -325,7 +325,6 @@ def annotate(infile, annotation_file, outfile):
             outf.write("\t".join(data + ["NA", "NA", "NA"]) + "\n")
     outf.close()
 
-
 ###################################################################
 ###################################################################
 ###################################################################
@@ -395,6 +394,31 @@ def testRichness(infile,
                     file = "%s",
                     sep = "\t",
                     row.names = F)''' % outfile)
+
+###################################################################
+###################################################################
+###################################################################
+
+
+def buildDiversity(infile,
+                   outfile,
+                   rdir,
+                   ind="shannon"):
+    '''
+    barplot diversity
+    '''
+    R('''source("%s/metagenomic_diversity.R")''' % rdir)
+    R('''library(gtools)''')
+    R('''library(ggplot2)''')
+    R('''dat <- read.csv("%s",
+                         header = T,
+                         stringsAsFactors = F,
+                         sep = "\t")''' % infile)
+    R('''rownames(dat) <- dat$taxa''')
+    R('''dat <- dat[,2:ncol(dat)]''')
+    R('''tdat <- data.frame(t(dat))''')
+    R('''tdat <- tdat[mixedsort(rownames(tdat)),]''')
+    R('''buildDiversity(tdat, "%s", index="%s")''' % (outfile, ind))
 
 ###################################################################
 ###################################################################
