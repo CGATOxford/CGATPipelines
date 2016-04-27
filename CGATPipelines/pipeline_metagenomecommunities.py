@@ -784,6 +784,52 @@ def runLCA(infile, outfile):
                   ; rm -rf %(outf_tax)s'''
     P.run()
 
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@follows(mkdir("taxa_map.dir"))
+@transform(runLCA, regex("(\S+)/(\S+).lca.gz"), r"taxa_map.dir/\2.map.gz")
+def buildTaxaMap(infile, outfile):
+    '''
+    build a map from kingdom through species for
+    each lca file - allows to map clades in downstream
+    analysis
+    '''
+    statement = '''zcat %(infile)s
+                   | python %(scriptsdir)s/lca2table.py 
+                   --output-map
+                   --log=%(outfile)s.log
+                   | gzip > %(outfile)s'''
+    P.run()
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@merge(buildTaxaMap, "taxa_map.dir/aggregated_taxa.map.gz")
+def aggregateTaxaMaps(infiles, outfile):
+    '''
+    build a union of taxa mappings from kingdom through species
+    '''
+    found = []
+    outf = IOTools.openFile(outfile, "w")
+    outf.write("kingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\n")
+    for infile in infiles:
+        inf = IOTools.openFile(infile)
+        # skip header
+        header = inf.readline()
+        for line in inf.readlines():
+            if line in found:
+                continue
+            else:
+                found.append(line)
+                outf.write(line)
+    outf.close()
+
 ###################################################################
 ###################################################################
 ###################################################################
@@ -1062,7 +1108,8 @@ def loadAggregatedCounts(infile, outfile):
 ############################
 
 
-@follows(mergeLcaCountsAcrossSamples)
+@follows(mergeLcaCountsAcrossSamples,
+         aggregateTaxaMaps)
 def Lca():
     pass
 
