@@ -50,6 +50,7 @@ import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelinePeakcallingScrum as PipelinePeakcalling
 import CGAT.BamTools as Bamtools
 
+import CGAT.BamTools as BamTools
 #########################################################################
 #########################################################################
 #########################################################################
@@ -83,6 +84,7 @@ if Bamtools.isPaired(testbam) is True:
 ###################################################################
 # load all tracks - exclude input/control tracks
 
+
 def connect():
     '''connect to database.
 
@@ -100,6 +102,8 @@ def connect():
 
 ###############################################################
 # Preprocessing Steps
+
+
 @follows(mkdir("filtered_bams.dir"))
 @transform(BAMS, regex("(.*).bam"), [r"filtered_bams.dir/\1_filtered.bam",
                                      r"filtered_bams.dir/\1_counts.tsv"])
@@ -191,29 +195,135 @@ def preprocessing(infile, outfile):
 # The following are variable created just for testing purposes
 ###############################################################
 
-test_inf = "./neural-SMC3-1.genome.bam"
-control_inf = "./neural-input-1.genome.bam"
-#control_inf = None
-contigsfile = "/ifs/mirror/annotations/hg19_ensembl75_hierarchical/assembly.dir/contigs.tsv"
+test_inf = "neural-SMC3-1.genome.bam"
+control_inf = "neural-input-1.genome.bam"
+# control_inf = None
+contigsfile = ("/ifs/mirror/annotations/"
+               "hg19_ensembl75_hierarchical/assembly.dir/contigs.tsv")
 
 
 @transform(test_inf,
-           regex("./neural-SMC3-1.genome.bam"),
-           "./test.out")
+           regex("neural-SMC3-1.genome.bam"),
+           "test.out.macs2")
 def callMacs2peaks(infile, outfile):
 
     peakcaller = PipelinePeakcalling.Macs2Peakcaller(
-        threads=1, paired_end=True, output_all=True,
-        tool_options=PARAMS['macs2_options'], tagsize=None)
+        threads=1,
+        paired_end=True,
+        output_all=True,
+        tool_options=PARAMS['macs2_options'],
+        tagsize=None)
     statement = peakcaller.build(infile, outfile, contigsfile, control_inf)
 
+    print statement
     P.run()
+
+
+# TS - delete when Preprocess fragment size estimation had been performed
+@follows(mkdir('fragment_size.dir'))
+@transform(test_inf,
+           regex("(\S+).genome.bam"),
+           r"fragment_size.dir/\1.fragment_size")
+def predictFragmentSize(infile, outfile):
+    '''predict fragment size.
+
+    For single end data, use MACS2, for paired-end data
+    use the bamfile.
+
+    In some BAM files the read length (rlen) attribute
+    is not set, which causes MACS2 to predict a 0.
+
+    Thus it is computed here from the CIGAR string if rlen is 0.
+    '''
+    tagsize = BamTools.estimateTagSize(infile, multiple="mean")
+
+    if BamTools.isPaired(infile):
+        mode = "PE"
+        mean, std, n = BamTools.estimateInsertSizeDistribution(infile, 10000)
+    else:
+        mode = "SE"
+        statement = '''macs2 predictd
+        --format BAM
+        --ifile %(infile)s
+        --outdir %(outfile)s.dir
+        --verbose 2
+        %(macs2_predictd_options)s
+        >& %(outfile)s.tsv
+        '''
+        P.run()
+
+        with IOTools.openFile(outfile + ".tsv") as inf:
+            lines = inf.readlines()
+            line = [x for x in lines
+                    if "# predicted fragment length is" in x]
+            if len(line) == 0:
+                raise ValueError(
+                    'could not find predicted fragment length')
+            mean = re.search(
+                "# predicted fragment length is (\d+)",
+                line[0]).groups()[0]
+            std = 'na'
+
+    outf = IOTools.openFile(outfile, "w")
+    outf.write("mode\tfragmentsize_mean\tfragmentsize_std\ttagsize\n")
+    outf.write("\t".join(
+        map(str, (mode, mean, std, tagsize))) + "\n")
+    outf.close()
+
 
 ################################################################
 # QC Steps
 
 
 ################################################################
+# Fragment GC% distribution
+################################################################
+
+
+@follows(mkdir("QC.dir"))
+@transform(BAMS, regex("(.*).bam"), r"QC.dir/\1.tsv")
+def fragLenDist(infile, outfile):
+
+    if PARAMS["paired_end"] == 1:
+        function = "--merge-pairs"
+    else:
+        function = "--fragment"
+
+    genome = os.path.join(PARAMS["general_genome_dir"],
+                          PARAMS["general_genome"])
+    genome = genome + ".fasta"
+
+    statement = '''
+    samtools view -s 0.2 -ub %(infile)s |
+    python %(scriptsdir)s/bam2bed.py  %(function)s |
+    python %(scriptsdir)s/bed2table.py --counter=composition-na -g %(genome)s\
+    > %(outfile)s
+    '''
+    P.run()
+
+
+@merge(BAMS, regex("(.*).bam"), r"QC.dir/genomic_coverage.tsv")
+def buildReferenceNAComposition(infiles, outfile):
+
+    infile = infiles[0]
+    contig_sizes = os.path.join(PARAMS["annotations_dir"],
+                                PARAMS["annotations_interface_contigs"])
+    gaps_bed = os.path.join(PARAMS["annotations_dir"].
+                            PARAMS["annotations_interface_gaps_bed"])
+
+    statement = '''bedtools shuffle
+    -i %(infile)s
+    -g %(contig_sizes)s
+    -excl %(gaps_bed)s
+    -chromFirst
+    | python %(scriptsdir)s/bed2table.py
+    --counter=composition-na
+    -g %(genome)s > %(outfile)s
+    '''
+
+    P.run()
+################################################################
+
 
 def full():
     pass
