@@ -34,8 +34,7 @@ Code
 """
 
 # load modules
-from ruffus import transform, merge, mkdir, follows, \
-    regex, suffix, add_inputs, collate
+from ruffus import *
 from ruffus.combinatorics import *
 import sys
 import os
@@ -70,10 +69,15 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
-if Bamtools.isPaired is True:
+BAMS = ['*.bam']
+
+for fname in os.listdir("."):
+    if fname.endswith('bam'):
+        testbam = fname
+        break
+if Bamtools.isPaired(testbam) is True:
     PARAMS['paired_end'] = True
 
-BAMS = ['*.bam']
 ###################################################################
 # Helper functions mapping tracks to conditions, etc
 ###################################################################
@@ -98,23 +102,88 @@ def connect():
 # Preprocessing Steps
 @follows(mkdir("filtered_bams.dir"))
 @transform(BAMS, regex("(.*).bam"), [r"filtered_bams.dir/\1_filtered.bam",
-                                     r"filtered_bams.dir\1_counts.tsv"])
+                                     r"filtered_bams.dir/\1_counts.tsv"])
 def filterBAM(infile, outfiles):
-    filters = PARAMS['filters_bamfilters']
-    PipelinePeakcalling.filterBams(infile, outfiles, filters,
-                                   PARAMS['paired_end'])
+    '''
+    Applies various filters specified in the pipeline.ini to the bam file
+    Currently implemented are filtering unmapped, unpaired and duplicate
+    reads and filtering reads overlapping with blacklisted regions
+    based on a list of bam files.
+    '''
+    filters = PARAMS['filters_bamfilters'].split(",")
+    bedfiles = PARAMS['filters_bedfiles'].split(",")
+    blthresh = PARAMS['filters_blacklistthresh']
+    PipelinePeakcalling.filterBams(infile, outfiles, filters, bedfiles,
+                                   float(blthresh),
+                                   PARAMS['paired_end'],
+                                   PARAMS['filters_strip'],
+                                   PARAMS['filters_keepint'])
 
 
-@active_if(PARAMS['paired_end'] is True)
-@merge(filterBAM, regex("filtered_bams/(.).bam"), "insert_size.tsv")
+@transform(filterBAM, suffix("_filtered.bam"), "_insertsize.tsv")
 def estimateInsertSize(infiles, outfile):
-    # reading insert size estimation parameters from PARAMS
-    insert_params = {"alignments": PARAMS['insert_alignments'],
-                     "n": PARAMS['insert_n'],
-                     "similarity_threshold": PARAMS['insert_st']}
-    # estimate insert size
-    PipelinePeakcalling.estimateInsertSize(infiles, outfile, insert_params)
-    
+    '''
+    Predicts insert size using MACS2 for single end data and using Bamtools
+    for paired end data.
+    Output is stored in insert_size.tsv
+    '''
+    infile = infiles[0]
+    PipelinePeakcalling.estimateInsertSize(infile, outfile,
+                                           PARAMS['paired_end'],
+                                           PARAMS['insert_alignments'],
+                                           PARAMS['insert_macs2opts'])
+
+
+@merge(estimateInsertSize, "insert_sizes.tsv")
+def mergeInsertSizes(infiles, outfile):
+    '''
+    Combines insert size outputs into one file
+    '''
+    out = IOTools.openFile(outfile, "w")
+    out.write("filename\tmode\tfragmentsize_mean\tfragmentsize_std\ttagsize\n")
+    for infile in infiles:
+        res = IOTools.openFile(infile).readlines()
+        out.write("%s\t%s\n" % (infile, res[-1].strip()))
+    out.close()
+
+
+if int(PARAMS['IDR_run']) == 1:
+    @follows(mkdir("pseudo_bams.dir"))
+    @subdivide(filterBAM, regex("filtered_bams.dir/(.*).bam"),
+               [r"pseudo_bams.dir/\1_pseudo_1.bam",
+                r"pseudo_bams.dir/\1_pseudo_2.bam"])
+    def makePseudoBams(infiles, outfiles):
+        '''
+        Generates pseudo bam files each containing approximately 50% of reads
+        from the original bam file for IDR analysis.
+
+        '''
+        infile = infiles[0]
+        PipelinePeakcalling.makePseudoBams(infile, outfiles,
+                                           PARAMS['paired_end'],
+                                           PARAMS['IDR_randomseed'],
+                                           submit=True)
+else:
+    @transform(filterBAM, regex("filtered_bams.dir/(.*).bam"),
+               r'filtered_bams.dir/\1.bam')
+    def makePseudoBams(infile, outfile):
+        '''
+        Dummy task if IDR not requested.
+        '''
+        pass
+
+
+@follows(mergeInsertSizes)
+@transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),
+           r"\1_bams.dir/\2.bam")
+def preprocessing(infile, outfile):
+    '''
+    Dummy task to ensure all preprocessing has run and
+    bam files are passed individually to the next stage.
+    '''
+    pass
+
+
 ################################################################
 # Peakcalling Steps
 
