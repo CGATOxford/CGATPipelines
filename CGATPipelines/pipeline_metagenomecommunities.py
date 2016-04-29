@@ -1749,10 +1749,44 @@ def runPathwaysAnalysis(infiles, outfiles):
 
 
 @jobs_limit(1, "R")
+@transform(runMetagenomeSeq, suffix(".diff.tsv"), ".pca.tsv")
+def runPCA(infile, outfile):
+    '''
+    run principle components analysis
+    '''
+    # the infile is a separate file output by
+    # run_metagenomeseq = normalised counts
+    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    PipelineMetagenomeCommunities.runPCA(inf, outfile)
+
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
+@transform(runPCA, suffix(".tsv"), ".pdf")
+def plotPCA(infile, outfile):
+    '''
+    plot principle components
+    '''
+    # also outputted a separate file for variance explained
+    scores, ve = infile, P.snip(infile, ".tsv") + ".ve.tsv"
+    PipelineMetagenomeCommunities.plotPCA(scores,
+                                          ve,
+                                          outfile)
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
 @transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.pdf")
 def runMDS(infile, outfile):
     '''
-    run MDS analysis on genes
+    run MDS analysis
     '''
     # the infile is a separate file output by
     # run_metagenomeseq = normalised counts
@@ -1780,9 +1814,9 @@ def runPermanova(infile, outfile):
 ###################################################################
 
 
-@follows(runMDS,
+@follows(plotPCA,
          runPermanova)
-def MDS():
+def PCA():
     pass
 
 ###################################################################
@@ -1865,7 +1899,7 @@ def plotDiffHeatmap(infile, outfile):
 ################################
 
 
-@follows(runMDS, loadDifferentialAbundance)
+@follows(PCA, loadDifferentialAbundance)
 def Differential_abundance():
     pass
 

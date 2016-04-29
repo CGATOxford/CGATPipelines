@@ -89,6 +89,116 @@ def countContributingReads(infile, outfile):
 ###################################################################
 
 
+def runPCA(infile, outfile):
+    '''
+    run principle components analysis on 
+    normalised matrix
+    '''
+    ncol = len(open(infile).readline().strip("\n").split("\t"))
+    # read in and format data
+    R('''dat <- read.csv("%s",
+                          header=T,
+                          stringsAsFactors=F,
+                          sep="\t",
+                          row.names=%i)''' % (infile, ncol))
+    # run PCA
+    R('''pc.dat <- prcomp(as.matrix(t(dat)))''')
+    
+    # get scores
+    R('''pc.dat.scores <- data.frame(pc.dat$x)''')
+    R('''pc.dat.scores$sample <- rownames(pc.dat.scores)''')
+    R('''pc.dat.scores <- pc.dat.scores[, c("sample", 
+                                          colnames(pc.dat.scores)[1:ncol(pc.dat.scores)-1])]''')
+    R('''write.table(pc.dat.scores,
+                     file="%s",
+                     sep="\t",
+                     quote=F,
+                     row.names=F)''' % outfile)
+
+    # get the variance explained
+    outf_ve = P.snip(outfile, ".tsv") + ".ve.tsv"
+    R('''ve <- data.frame(summary(pc.dat)$importance)''')
+    R('''ve <- ve[2,]''')
+    R('''write.table(ve,
+                     file="%s",
+                     sep="\t",
+                     quote=F,
+                     row.names=F)''' % outf_ve)
+    
+
+###################################################################
+###################################################################
+###################################################################
+
+
+def plotPCA(scores,
+            variance_explained,
+            outfile):
+    '''
+    plot pca results
+    '''
+    R('''library(gtools)''')
+    R('''library(ggplot2)''')
+    R('''library(gridExtra)''')
+    
+    # read scores
+    R('''dat <- read.csv("%s",
+                         header=T,
+                         stringsAsFactors=F,
+                         sep="\t",
+                         row.names=1)''' % scores)
+
+    # read variance explained
+    R('''ve <- read.csv("%s",
+                        header=T,
+                        stringsAsFactors=F,
+                        sep="\t")''' % variance_explained)
+    R('''ve <- data.frame(t(ve))''')
+    
+    # condition colours
+    R('''dat <- dat[mixedsort(rownames(dat)),]''')
+    R('''conds <- unlist(strsplit(rownames(dat),
+                         ".R[0-9]"))[seq(1, ncol(dat)*2, 2)]
+         conds <- unlist(strsplit(conds, ".",
+                         fixed = T))[seq(2, length(conds)*2, 2)]''')
+    R('''dat$cond <- conds''')
+
+    R('''plotPCA <- function(scores, ve, pcs=c("PC1", "PC2")){
+                xve <- round(ve[pcs[1],][1],2)*100
+                yve <- round(ve[pcs[2],][1],2)*100
+                xlab <- paste(xve, "%", sep="")
+                xlab <- paste(pcs[1], xlab)
+                ylab <- paste(yve, "%", sep="")
+                ylab <- paste(pcs[2], ylab)
+                plot1 <- ggplot(scores, aes(x=get(pcs[1]), 
+                                            y=get(pcs[2]), 
+                                            colour=cond))
+                plot2 <- plot1 + geom_point(pch=18, size=4)
+                plot3 <- plot2 + xlab(xlab) + ylab(ylab)
+                return(plot3)
+    }''')
+
+    # plot first 3 princliple components
+    R('''p1 <- plotPCA(dat, ve, pcs=c("PC1", "PC2"))''')
+    R('''p2 <- plotPCA(dat, ve, pcs=c("PC1", "PC3"))''')
+    R('''p3 <- plotPCA(dat, ve, pcs=c("PC2", "PC3"))''')
+    R('''grid.arrange(p1, p2, p3, ncol=3)''')
+    R('''g <- arrangeGrob(p1, p2, p3, ncol=3)''')
+    R('''ggsave("%s", g, width=15, height=5)''' % outfile)
+    
+###################################################################
+###################################################################
+###################################################################
+
+
+
+
+
+###################################################################
+###################################################################
+###################################################################
+
+
 def plotMDS(infile, outfile):
     '''
     perform multidimensional scaling of normalised
@@ -105,7 +215,7 @@ def plotMDS(infile, outfile):
          dat <- dat[,1:ncol(dat)-1]
          dat <- dat[, mixedsort(colnames(dat))]
          conds <- unlist(strsplit(colnames(dat),
-                         ".R[0-9]"))[seq(1, ncol(dat)*2, 2)]
+                         ".R[0-9].*"))[seq(1, ncol(dat)*2, 2)]
          conds <- unlist(strsplit(conds, ".",
                          fixed = T))[seq(2, length(conds)*2, 2)]
          dat <- as.matrix(t(dat))
