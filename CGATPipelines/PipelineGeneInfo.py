@@ -661,7 +661,7 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
         Ent = EntrezTaxonomyAnnotation(self.outdb, self.email)
         Ent.download(asp)
         res = Ent.dataset
-        
+
         # translate taxonomy IDs into scientific names
         names = dict()
         for r in res:
@@ -886,7 +886,8 @@ class MGIAnnotation(DataMineAnnotation):
                  "ontologyAnnotations.ontologyTerm.namespace",
                  "ontologyAnnotations.ontologyTerm.identifier"]
         constraints = [
-            ("Gene.ontologyAnnotations.ontologyTerm.namespace=MPheno.ontology")]
+            ("Gene.ontologyAnnotations\
+            .ontologyTerm.namespace=MPheno.ontology")]
         hostid = 'M. musculus'
         DataMineAnnotation.__init__(self, prefix, source, outdb,
                                     chost, ind, views, constraints, hostid)

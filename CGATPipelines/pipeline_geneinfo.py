@@ -178,6 +178,7 @@ def AnnotateWithGO(infile, outfile):
                                               PARAMS['db_name'])
     PipelineGeneInfo.runall(ont, genelist, submit=True)
 
+
 @active_if('pathway' in mgiannotations)
 @transform(GetAndTranslateAllGenes, suffix(".tsv"),
            'ensemblg2%s$annot.load' % example_pw)
