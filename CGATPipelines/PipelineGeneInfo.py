@@ -8,7 +8,6 @@ from intermine.webservice import Service
 import string
 import re
 import os
-import datetime
 import xml.etree.ElementTree as ET
 import pandas as pd
 import CGAT.Experiment as E
@@ -16,29 +15,38 @@ import CGAT.IOTools as IOTools
 import urllib2 as urllib2
 from CGATPipelines.Pipeline import cluster_runnable
 
-def removeNonAscii(s):
-    '''
-    Removes non-ascii characters from database terms (as some downloaded
-    information has special characters which cause errors)
-    '''
-    if type(s) is str:
-        return "".join(i for i in s if ord(i) < 128)
-    else:
-        return s
-
 
 def readGeneList(filename):
+    '''
+    Reads a file containing one gene ID per line into a list
+    '''
     return [line.strip() for line in IOTools.openFile(filename).readlines()]
 
 
 def getSymbols(hostfile):
+    '''
+    Reads a file containing pairs of gene symbols and another ID type and
+    returns a list of gene symbols
+    '''
     return [line.strip().split("\t")[0]
             for line in IOTools.openFile(hostfile).readlines()]
 
 
 class APIAnnotation(object):
+    '''
+    Parent class for any annotation type to be downloaded via an API,
+    parsed and loaded into a database.
+    '''
     def __init__(self, prefix, datasource, outdb, options=None, ohost=None,
                  email=None):
+        '''
+        prefix - prefix used to recognise which annotation is being performed
+        datasource - link used for API
+        outdb - output database
+        options - optional string to be parsed by the APIAnnotation subclass
+        ohost - original species of interest used by some subclasses
+        email - entrez requires an email address to use its API
+        '''
         self.prefix = prefix
         self.datasource = datasource
         self.outdb = outdb
@@ -48,16 +56,28 @@ class APIAnnotation(object):
         self.resultsz = dict()
         self.resultspd = dict()
 
-    def runall(self, genelist, fields=None, load=True):
+    def runall(self, genelist, fields=None):
+        '''
+        Basic method to take the details of an API annotation and:
+        - test connectivity to the API
+        - download the data
+        - parse the data into a useable format
+        - load the data into a database
+        '''
         T = self.test()
         assert T == 1, "API test failed for %s" % self.prefix
         self.download(genelist, fields)
         self.parse()
-        if load is True:
-            self.loadPDTables()
-            self.loadZippedTables()
+        self.loadPDTables()
+        self.loadZippedTables()
 
     def translate(self, dataframe, tfrom, tto):
+        '''
+        Translates a column of geneids in a dataframe from type
+        tfrom to type tto
+        Requires both ID types to have been downloaded in a previous
+        step - uses an existing stored dataframe with tfrom and tto columns
+        '''
         assert ((os.path.exists('%s2%s.tsv' % (tfrom, tto))) |
                 (os.path.exists('%s2%s.tsv' % (tto, tfrom)))), """
                 translation from %s to %s needs to be available prior
@@ -66,38 +86,40 @@ class APIAnnotation(object):
             ensdf = self.getTranslation('%s2%s.tsv' % (tfrom, tto))
         except:
             ensdf = self.getTranslation('%s2%s.tsv' % (tto, tfrom))
-
+        # dataframe is the pandas dataframe to be translated
         dataframe[tfrom] = dataframe[tfrom].astype(str)
+        # ensdf is the pandas dataframe used to translate
         ensdf[tfrom] = ensdf[tfrom].astype(str)
+        # use pandas merge to append the columns from ensdf to dataframe
+        # then remove unneeded columns
         return dataframe.merge(
             ensdf, left_on=tfrom, right_on=tfrom).drop(tfrom, 1)
 
-    def loadZippedTables(self, PS=False):
+    def loadZippedTables(self):
         '''
-        Adds a database table, named tablename, to the database dbname.
-        Cnames - column names as a Python list
-        Ctypes - column types as strings in a Python list
-        e.g. ['varchar (250)', 'varchar(25)', 'int']
-        zipped - a list of tuples to fill the table, each item in the list
-        should correspond to a row and should be a tuple of the value for
-        each column in that row
+        Adds a table to the database for each key in the self.resultsz
+        dictionary.
+        Each key is the name of the database table and consists of a list of
+        three items:
+        self.resultsz[key][0] - a list of tuples containing the data to load,
+        where each tuple corresponds to one row and each item within the tuple
+        one column
+        self.resultsz[key][1] - table column names as a Python list
+        self.resultsz[key][2] -  column types as strings in a Python list
 
         E.g.
-        add_db_table(
-        "csvdb", "entrez2symbol",
-        ["entrez_id", "gene_symbol"],
-        ['int', 'varchar (25)'],
-        [(1111, 'aaa'), (2222, 'bbb'), (3333, 'ccc)])
+        self.resultsz[key] = [[(1111, 'aaa'), (2222, 'bbb'), (3333, 'ccc)],
+                              ["entrez_id", "gene_symbol"],
+                              ['int', 'varchar (25)']]
 
-        would create the table "entrez2symbol" in the database "csvdb" with the
+        would create the table "entrez2symbol" in the database with the
         layout
         entrez_id    gene_symbol
         1111         aaa
         2222         bbb
         3333         ccc
 
-        If PS is True SQL statements are printed before they are run - used for
-        debugging.
+
         '''
         dbname = self.outdb
         # connect to the database
@@ -122,7 +144,8 @@ class APIAnnotation(object):
             qs = ",".join("?" * len(cnames))
 
             # create the table with the appropriate columns and column types
-            statement = 'CREATE TABLE IF NOT EXISTS %s (%s);' % (tablename, cnamestypes)
+            statement = 'CREATE TABLE IF NOT EXISTS %s (%s);' % (
+                tablename, cnamestypes)
             c.execute(statement)
 
             # populate the table with the data
@@ -130,8 +153,7 @@ class APIAnnotation(object):
                                                                   cnamestring,
                                                                   qs)
             outf.write("%s\n" % statement)
-            if PS is True:
-                E.info(statement)
+
             c.executemany(statement, zipped)
             outf.write("%s\n" % statement)
             dbh.commit()
@@ -141,42 +163,63 @@ class APIAnnotation(object):
         dbh.close()
 
     def loadPDTables(self):
+        '''
+        Loads a table to the database corresponding to every key in the
+        self.resultspd dictionary.
+        Keys are the names of the tables and values are the data to upload.
+        '''
         dbh = sqlite3.connect(self.outdb)
         for tabkey in self.resultspd:
             tab = self.resultspd[tabkey]
             tab.to_sql(tabkey, dbh, index=False, if_exists='replace')
-            try:
-                tab.to_csv("%s.load" % tabkey, sep="\t", index=False)
-            except:
-                for col in tab.columns:
-                    for ind in tab.index:
-                        tab.loc[ind, col] = removeNonAscii(tab.loc[ind, col])
-                tab.to_csv("%s.load" % tabkey, sep="\t", index=False)
+            tab.to_csv("%s.load" % tabkey, sep="\t", index=False,
+                       encoding='utf-8')
         dbh.close()
 
     def storeTranslation(self, genelist1, genelist2, cnames, out):
+        '''
+        When an object is parsed containing a translation from one type
+        of gene id to another (e.g. entrez ID to ensemblg ID) it is sometimes
+        useful to have it available easily later - this stores a basic
+        tab delimited file containing this information.
+        '''
         df = pd.DataFrame(zip(genelist1, genelist2), columns=cnames)
         df.to_csv(out, sep="\t", index=False)
 
     def getTranslation(self, translation):
+        '''
+        Reads the tab delimited files generated by storeTranslation and
+        regenerates the pandas dataframe.
+        '''
         df = pd.read_csv(translation, sep="\t")
         return df
 
 
 class EntrezAnnotation(APIAnnotation):
+    '''
+    Used to read, parse and load data from the Entrez API, which is accessed
+    via the Entrez BioPython package.
+    '''
     def __init__(self, prefix, outdb, email):
+        '''
+        Prefix - used to reconise the annotation currently running
+        outdb - output database
+        email - entrez requires an email address to use its API, this
+        should be provided in the pipeline.ini file.
+        '''
         APIAnnotation.__init__(self, prefix, "Entrez", outdb)
         Entrez.email = email
 
     def test(self):
         '''
-        Test Entrez API - Look up symbol APOBEC3G, Entrez ID 60489 should be
+        Test Entrez API is connecting and working.
+        Looks up symbol APOBEC3G, Entrez ID 60489 should be
         amongst the results
             '''
-        E = Entrez.esearch(db="gene", term="(APOBEC3G[Preferred+Symbol])",
-                           retmode="text", retmax=1000000)
-        res = Entrez.read(E)
-        E.close()
+        Ent = Entrez.esearch(db="gene", term="(APOBEC3G[Preferred+Symbol])",
+                             retmode="text", retmax=1000000)
+        res = Entrez.read(Ent)
+        Ent.close()
         if "60489" in res['IdList']:
             return 1
         else:
@@ -184,6 +227,9 @@ class EntrezAnnotation(APIAnnotation):
 
 
 class EntrezGeneAnnotation(EntrezAnnotation):
+    '''
+    Entrez Gene annotation object
+    '''
     def __init__(self, outdb, email):
         EntrezAnnotation.__init__(self, "entrezgene", outdb, email)
 
@@ -195,25 +241,39 @@ class EntrezGeneAnnotation(EntrezAnnotation):
         # Limited to IDs which are current and not obsolete (i.e. "alive")
         term = '("alive"[Properties]) AND %s[Taxonomy ID]' % host
 
-        E = Entrez.esearch(db="gene", term=term, retmode="text",
-                           retmax=1000000)
-        res = Entrez.read(E)
-        E.close()
+        Ent = Entrez.esearch(db="gene", term=term, retmode="text",
+                             retmax=1000000)
+        res = Entrez.read(Ent)
+        Ent.close()
 
         return res['IdList']
 
 
 class EntrezTaxonomyAnnotation(EntrezAnnotation):
+    '''
+    Entrez Taxonomy Annotation object
+    '''
     def __init__(self, outdb, email):
         EntrezAnnotation.__init__(self, "entreztaxonomy", outdb, email)
 
     def download(self, ids):
-        E = Entrez.efetch(db="taxonomy", id=ids, retmode="xml", retmax=1000000)
-        res = Entrez.read(E)
+        '''
+        Fetch data from the Entrez Taxonomy database for the Taxonomy IDs in
+        ids
+        '''
+        Ent = Entrez.efetch(db="taxonomy",
+                            id=ids, retmode="xml", retmax=1000000)
+        res = Entrez.read(Ent)
         self.dataset = res
 
 
 class MyGeneInfoAnnotation(APIAnnotation):
+    '''
+    Used to download, parse and load data from the mygene.info API.
+    Data is provided in nested dictionaries, the number of levels
+    and data types are not consistent for different annotations so
+    a different parser is currently needed for each annotation type.
+    '''
     def __init__(self, prefix, source, outdb, options=None, ohost=None,
                  email=None):
         APIAnnotation.__init__(self, prefix, source, outdb, options, ohost,
@@ -246,8 +306,7 @@ class MyGeneInfoAnnotation(APIAnnotation):
         http://docs.mygene.info/en/latest/doc/data.html#available-fields
         Each MyGeneInfo 'object' is formatted slightly differently, depending
         on the field and host, so adding another field means writing a new
-        function to parse the information retrieved (similar to the
-        ParseAndLoad functions below).
+        function to parse the information retrieved.
         '''
 
         DB = dict()
@@ -280,12 +339,26 @@ class MyGeneInfoAnnotation(APIAnnotation):
 
 
 class SymbolAnnotation(MyGeneInfoAnnotation):
+    '''
+    Gene symbol annotation from mygene.info
+    '''
     def __init__(self, source, outdb, host, shost):
+        '''
+        host is the entrez taxonomy ID of the species to download symbols for
+        shost is the scientific name of this species, seperated by "_" e.g.
+        Homo_sapiens
+        '''
         MyGeneInfoAnnotation.__init__(self, "symbol", source, outdb,
                                       ohost=host)
         self.shost = shost
 
     def parse(self):
+        '''
+        Parse the symbol annotation stored by self.download as
+        self.dataset['symbol'] into a pandas dataframe with one line
+        per unique gene ID (either ensemblg or entrez).
+        Store the translation as a tsv formatted file to use later.
+        '''
         entrez, symbol = [], []
         res = self.dataset['symbol']
         for item in res.items():
@@ -300,10 +373,18 @@ class SymbolAnnotation(MyGeneInfoAnnotation):
 
 
 class EnsemblAnnotation(MyGeneInfoAnnotation):
+    '''
+    Used to parse Ensembl data from mygene.info
+    '''
     def __init__(self, source, outdb):
         MyGeneInfoAnnotation.__init__(self, "ensembl", source, outdb)
 
     def parse(self):
+        '''
+        Parse the dictionary of dictionaries stored by self.download() in
+        self.dataset['ensembl'] into lists of tuples to upload into the
+        database
+        '''
         ensembldict = self.dataset['ensembl']
 
         # store the relationships between various gene ids as lists of tuples
@@ -356,6 +437,8 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                         else:
                             g2p.append(gene)
                             p2g.append(L['protein'])
+        # load everything into the self.resultsz dictionary so that
+        # self.loadZippedTables will put it into the database
         self.resultsz['ensemblg2entrez$geneid'] = [zip(entrez2ensembl,
                                                        ensembl2entrez),
                                                    ['ensemblg', 'entrez'],
@@ -369,17 +452,29 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                                                     ['ensemblg', 'ensemblp'],
                                                     ['varchar(25)',
                                                      'varchar(25)']]
+        # store the entrez to ensemblg translation for later
         self.storeTranslation(ensembl2entrez, entrez2ensembl, ['ensemblg',
                                                                'entrez'],
                               'ensemblg2entrez.tsv')
 
 
 class GoAnnotation(MyGeneInfoAnnotation):
+    '''
+    GO gene ontology annotation downloaded from mygene.info
+    '''
     def __init__(self, source, outdb, options):
+        '''
+        options can be BP, CC, MF or any combination of these, stored as a
+        string and comma delimited (from pipeline.ini)
+        '''
         MyGeneInfoAnnotation.__init__(self, "go", source, outdb)
         self.options = options
 
     def parse(self):
+        '''
+        Parses the dictionary of dictionaries stored by self.download() into
+        lists of tuples to load into the database.
+        '''
         gores = self.dataset['go']
         godict = dict()
         # options from pipeline.ini for which go namespaces are of interest
@@ -416,7 +511,11 @@ class GoAnnotation(MyGeneInfoAnnotation):
                                     godict[subterm].append("")
         dfs = pd.DataFrame(zip(entrez2go, allgoids), columns=['entrez', 'go'])
         results = self.translate(dfs, 'entrez', 'ensemblg')
+        # add the ensemblg to go term dataframe to resultspd for
+        # self.loadPDTables to load into the database
         self.resultspd['ensemblg2go$annot'] = results
+        # add the metadata to the resultsz dictionary for
+        # self.loadZippedTables() to load into the database.
         self.resultsz['go$details'] = [zip(goids, gotypes, godict['term'],
                                            godict['evidence']),
                                        ['go',
@@ -430,7 +529,17 @@ class GoAnnotation(MyGeneInfoAnnotation):
 
 
 class PathwayAnnotation(MyGeneInfoAnnotation):
+    '''
+    Pathway Annotations from mygene.info.  The 'pathway' dictionary returned
+    by self.parse() contains annotations from a number of pathway
+    database, those of interest (or
+    all) can be specified in the pipeline.ini.
+    '''
     def __init__(self, source, outdb, options):
+        '''
+        options - which pathway databases to keep (as a comma delimited
+        string from pipeline.ini)
+        '''
         MyGeneInfoAnnotation.__init__(self, "pathway", source, outdb)
         self.options = options
 
@@ -489,7 +598,8 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
                             D["%s_name" % db].append(b['name'])
                             idset.add(b['id'])
 
-        # put these into the database
+        # put these into self.resultsz and self.resultspd for
+        # self.loadxxx to put into the database
         for db in typelist:
             ids2entrez = D["%s_ids2entrez" % db]
             entrez2ids = D["%s_entrez2ids" % db]
@@ -506,23 +616,21 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
 
 
 class HomologeneAnnotation(MyGeneInfoAnnotation):
+    '''
+    Uses information from the homologene dataset retrieved from MyGeneInfo
+    to link entrez IDs from the host organism to those of homologous genes
+    in other organisms of interest.
+    The organisms of interest can be specified in pipeline.ini or, if 'all'
+    is specified, every available organism is used (~25 organisms).
+    '''
     def __init__(self, source, outdb, options, ohost, email):
         MyGeneInfoAnnotation.__init__(self, "homologene", source, outdb,
                                       options, ohost, email)
 
     def parse(self):
         '''
-        Uses information from the homologene dataset retrieved from MyGeneInfo
-        to link entrez IDs from the host organism to those of homologous genes
-        in other organisms of interest.
-        The organisms of interest can be specified in pipeline.ini or, if 'all'
-        is specified, every available organism is used (~25 organisms).
-        A summary table "species_ids" is generated showing which
-        host taxonomy id corresponds to which host scientific name.
-        For each taxon a table is generated, taxonname_entrez, linking host
-        entrez ids to those of the taxon.
         Entrez ids for each taxon are translated into gene symbols, these are
-        stored in tables as entrez_taxonname_symbol.
+        stored in tables as ensemblg2taxonname_symbol.
         '''
         homodb = self.dataset['homologene']
         taxa = str(self.options).split(",")
@@ -550,45 +658,72 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
         # retrieve species names of the taxa from entrez taxonomy
 
         asp = ",".join(allspp)
-        E = EntrezTaxonomyAnnotation(self.outdb, self.email)
-        E.download(asp)
-        res = E.dataset
-
+        Ent = EntrezTaxonomyAnnotation(self.outdb, self.email)
+        Ent.download(asp)
+        res = Ent.dataset
+        
+        # translate taxonomy IDs into scientific names
         names = dict()
         for r in res:
             names[r['TaxId']] = "_".join(r['ScientificName'].split(" "))
 
+        # entrezdict will contain two lists of each species
+        # list 0 is the entrez ID in the original species
+        # list 1 is the entrez ID in the species with the homologue
         entrezdict = dict()
         for spp in allspp:
             entrezdict[spp] = (([], []))
 
         i = 0
+        # for each entrez id in the original species
         for q in homodb.keys():
+            # retrieve the list of genes (stored as a list of lists as
+            # [[host, id], [host, id], [host, id]])
             for item in homodb[q]['genes']:
                 hostid = str(item[0])
                 if hostid in allspp:
                     hostgeneid = str(item[1])
+                    # append the original species entrez to entrezdict[0] for
+                    # the current species
                     entrezdict[hostid][0].append(q)
+                    # append the current species entrez to entrezdict[1]
+                    # for the current species
                     entrezdict[hostid][1].append(hostgeneid)
             i += 1
+
+        # sort everything into pandas dataframes
+        # for the original species, ensemblg IDs are needed as these are
+        # use as the standard in the output database
+        # for the other species, gene symbols are needed as these are used
+        # by the "mine" databases mined by the "DataMineAnnotation" object.
+        # The following code is to translate all the IDs into the appropriate
+        # types
         for host in entrezdict:
+            # zip original species entrez and other species entrez
             R = zip(entrezdict[host][0], entrezdict[host][1])
+            # transalate original species entrez into ensemblg
             R = pd.DataFrame(R, columns=['entrez', 'entrez_%s' % host])
             R = self.translate(R, 'entrez', 'ensemblg')
+            # download the symbol annotations for the other species
             Sym = SymbolAnnotation('http://mygene.info/v2/gene', self.outdb,
                                    host=host, shost=names[host])
             Sym.download(entrezdict[host][1], ['symbol'])
             Sym.parse()
+            # coerce gene symbols and entrez ids for the other species into a
+            # pandas dataframe
             df = Sym.dataset['symbol']
             df = [((key, df[key])) for key in df]
             df = pd.DataFrame(df, columns=['entrez_%s' % host,
                                            'symbol_%s' % host])
             R['entrez_%s' % host] = R['entrez_%s' % host].astype(int)
             df['entrez_%s' % host] = df['entrez_%s' % host].astype(int)
+            # merge the two dataframes to generate a translation from original
+            # species ensemblg ID to other species gene symbol
             df = df.merge(R,
                           left_on='entrez_%s' % host,
                           right_on='entrez_%s' % host)
             df = df.drop('entrez_%s' % host, 1)
+
             self.resultspd['ensemblg2symbol_%s$geneid' % names[host]] = df
             self.storeTranslation(df['ensemblg'],
                                   df['symbol_%s' % host],
@@ -597,8 +732,29 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
 
 
 class DataMineAnnotation(APIAnnotation):
+    '''
+    Downloads data from the standardised "mine" databases which provide
+    many annotations for a number of species.
+    At least humanmine, mousemine, ratmine, xenmine (xenopus),
+    flymine (Drosophila), zebrafishmine and wormmine (C. elegans)
+    exist.
+    Annotations from these databases can easily be added below.
+    The easiest way to find the appropriate views and constraints is using the
+    QueryBuilder on the various websites.
+    '''
     def __init__(self, prefix, source, outdb, chost, ind, views, constraints,
                  hostid):
+        '''
+        views - which fields to download from the database
+        constraints - filters on the data to download e.g. list of genes
+        these are very specific to the species and the data downloaded so
+        should be provided as subclasses below
+        host - some databases require a host name in the query, formatted
+        e.g. as M. musculus, H. sapiens
+        ind - regardless of the order the "views" are listed in, the
+        columns in the results will be in a standard order.  ind is the
+        column number (0 indexed) which contains the annotation ID.
+        '''
         APIAnnotation.__init__(self, prefix, source, outdb)
         self.chost = chost
         self.ind = ind
@@ -607,6 +763,10 @@ class DataMineAnnotation(APIAnnotation):
         self.constraints = constraints
 
     def test(self):
+        '''
+        Tests the HumanMine API
+        Look up symbol for APOBEC3G, should return APOBEC3G.
+        '''
         service = Service('http://www.humanmine.org/humanmine/service')
         query = service.new_query("Gene")
         query.add_view("symbol")
@@ -619,6 +779,9 @@ class DataMineAnnotation(APIAnnotation):
             return 0
 
     def download(self, genes, fields):
+        '''
+        Retrives the data depending on self.constraints and self.view
+        '''
         constraints = self.constraints
         views = self.views
         glist = np.array(genes)
@@ -670,10 +833,18 @@ class DataMineAnnotation(APIAnnotation):
         self.dataset = z
 
     def parse(self):
+        '''
+        Parses the data downloaded using self.download()
+        Gene symbols in mouse are translated into ensemblg ids in the original
+        species.
+        '''
         z = self.dataset
         symbols = []
         terms = []
         other = []
+        # ind specifies which column of self.dataset contains the term ID
+        # this is used to put the columns into the same order as the column
+        # names in the output
         ind = self.ind
         for k in z:
             symbols.append(k[0])
@@ -685,18 +856,27 @@ class DataMineAnnotation(APIAnnotation):
             k2 += L
             other.append(tuple(k2))
 
+        # translate symbols into ensemblg IDs in the original species
         dfs = pd.DataFrame(zip(symbols, terms),
                            columns=['symbol_%s' % self.chost, 'term'])
         dfs = self.translate(dfs, 'symbol_%s' % self.chost, 'ensemblg')
+        # use views to generate column names
         views = self.views
         cols = [v.replace(".", "_") for v in views[0:ind] + views[(ind+1):]]
         cols = ['term'] + cols
         other = pd.DataFrame(other, columns=cols)
+        # store results in the resultspd dictionary to load into the
+        # database using self.loadPDTables()
         self.resultspd["%s$details" % self.prefix] = other
         self.resultspd["ensemblg2%s$annot" % self.prefix] = dfs
 
 
 class MGIAnnotation(DataMineAnnotation):
+    '''
+    Provides the required options to download, parse and load
+    mouse phenotype data using the DataMineAnnotation methods above,
+    identified using the mousemine QueryBuilder tool.
+    '''
     def __init__(self, source, outdb):
         prefix = "mgi"
         chost = "Mus_musculus"
@@ -713,6 +893,11 @@ class MGIAnnotation(DataMineAnnotation):
 
 
 class MousePathwayAnnotation(DataMineAnnotation):
+    '''
+    Provides the required options to load mouse pathway data using
+    the DataMineAnnotation methods above, identified using the
+    mousemine QueryBuilder tool.
+    '''
     def __init__(self, source, outdb):
         prefix = "mousepathway"
         chost = "Mus_musculus"
@@ -725,6 +910,11 @@ class MousePathwayAnnotation(DataMineAnnotation):
 
 
 class HPOAnnotation(DataMineAnnotation):
+    '''
+    Provides the required options to load human phenotype ontology
+    data using the DataMineAnnotation methods above, identifed using
+    the humanmine QueryBuilder tool.
+    '''
     def __init__(self, source, outdb):
         prefix = "hpo"
         chost = "Homo_sapiens"
@@ -757,6 +947,9 @@ class OntologyAnnotation(APIAnnotation):
         APIAnnotation.__init__(self, prefix, datasource, outdb)
 
     def test(self):
+        '''
+        Tests that it is possibly to connect to the URL.
+        '''
         try:
             urllib2.urlopen('http://purl.obolibrary.org/obo/go.owl',
                             timeout=1)
@@ -765,8 +958,10 @@ class OntologyAnnotation(APIAnnotation):
             pass
 
     def download(self, genes=None, fields=None):
-        # download an up to date ontology file, parse the xml data into a
-        # Python "ElementTree" and delete the ontology file.
+        '''
+        download an up to date ontology file, parse the xml data into a
+        Python "ElementTree" and delete the ontology file.
+        '''
         ontologyfile = P.getTempFilename(".")
         os.system("wget -O %s %s" % (ontologyfile, self.datasource))
         tree = ET.parse(ontologyfile)
@@ -774,7 +969,9 @@ class OntologyAnnotation(APIAnnotation):
         self.dataset = tree
 
     def parse(self):
-        # Traverse the tree and identify the classes and subclasses
+        '''
+        Traverse the tree and identify the classes and subclasses
+        '''
         # The ns dictionary links "prefixes" of xml tags to the full tag
         # names, see here for more info -
         # https://docs.python.org/2/library/xml.etree.elementtree.html
@@ -807,14 +1004,7 @@ class OntologyAnnotation(APIAnnotation):
 
 @cluster_runnable
 def runall(obj, genelist=None, fields=None):
+    '''
+    Runs object.runall on the cluster
+    '''
     obj.runall(genelist, fields)
-
-
-
-
-
-
-
-
-
-
