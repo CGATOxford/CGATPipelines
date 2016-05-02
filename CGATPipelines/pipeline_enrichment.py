@@ -154,7 +154,7 @@ outfilesuffixes = ["_genestoterms.tsv",
                    "_termstogenes.tsv",
                    "_termstodetails.tsv",
                    "_termstoont.tsv"]
-unmappedouts = [["untranslated_annotations.dir/%s%s" % (u, s)
+unmappedouts = [["annotations.dir/%s%s" % (u, s)
                  for s in outfilesuffixes]
                 for u in unmapped]
 
@@ -195,7 +195,7 @@ def getDBAnnotations(infile, outfiles):
     PipelineEnrichment.getDBAnnotations(infile, outfiles, dbname, submit=True)
 
 
-@follows(mkdir("untranslated_annotations.dir"))
+@follows(getDBAnnotations)
 @originate(unmappedouts)
 def mapUnmappedAnnotations(outfiles):
     '''
@@ -204,28 +204,13 @@ def mapUnmappedAnnotations(outfiles):
     pipeline.ini providing details of a flat file containing the necessary
     information to build the AnnotationSet.
     '''
-    ua = "untranslated_annotations.dir/"
+    ua = "annotations.dir/"
     outstem = outfiles[0].replace(ua, "")
     outstem = outstem.replace("_genestoterms.tsv", "")
     substatement = unmapped[outstem]
     outstem2 = outfiles[0].replace("_genestoterms.tsv", "")
     PipelineEnrichment.getFlatFileAnnotations(substatement, outstem2, dbname)
 
-
-@follows(getDBAnnotations)
-@follows(mapUnmappedAnnotations)
-@collate("untranslated_annotations.dir/*.tsv",
-         regex("untranslated_annotations.dir/(.*)_(.*)_(.*).tsv"),
-         [r"annotations.dir/\1%s" % x
-          for x in outfilesuffixes])
-def translateAnnotations(infiles, outfiles):
-    '''
-    User specified annotations may not use the ensemblg gene identifier,
-    this step in the pipeline corrects for this.
-    '''
-    dbname = PARAMS['db_name']
-    PipelineEnrichment.translateAnnotations(infiles, outfiles, dbname,
-                                            submit=True)
 
 
 @follows(mkdir("clean_foregrounds.dir"))
@@ -272,7 +257,7 @@ def buildHPABackground(outfile):
                                      submit=True)
 
 
-@follows(translateAnnotations)
+@follows(mapUnmappedAnnotations)
 @merge("annotations.dir/*_genestoterms.tsv",
        "clean_backgrounds.dir/allgenes.tsv")
 def buildStandardBackground(infiles, outfile):
@@ -288,7 +273,7 @@ def buildStandardBackground(infiles, outfile):
 @follows(buildHPABackground)
 @follows(cleanUserBackgrounds)
 @follows(cleanForegrounds)
-@follows(translateAnnotations)
+@follows(mapUnmappedAnnotations)
 @follows(buildStandardBackground)
 @follows(mkdir("results.dir"))
 @product("clean_backgrounds.dir/*",
