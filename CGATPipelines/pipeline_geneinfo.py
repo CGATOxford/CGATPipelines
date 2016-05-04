@@ -300,7 +300,7 @@ def annotate(infile, outfile):
 @follows(mkdir('genesetdbs.dir'))
 @follows(annotate)
 @active_if(int(PARAMS['db_subset']) == 1)
-@transform("genesets.dir/*.tsv", regex("genesets.dir/(.*).tsv"),
+@transform("genelists.dir/*.tsv", regex("genelists.dir/(.*).tsv"),
            r"genesetdbs.dir/\1")
 def MakeSubDBs(infile, outfile):
     '''
