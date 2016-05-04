@@ -34,11 +34,8 @@ Code
 """
 
 # load modules
-from ruffus import transform, merge, mkdir, follows, \
-    regex, suffix, add_inputs, collate
-
 from ruffus import *
-
+from ruffus.combinatorics import *
 import sys
 import os
 import re
@@ -51,6 +48,7 @@ import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelinePeakcallingScrum as PipelinePeakcalling
+import CGAT.BamTools as Bamtools
 
 import CGAT.BamTools as BamTools
 #########################################################################
@@ -73,6 +71,14 @@ PARAMS.update(P.peekParameters(
     update_interface=True))
 
 BAMS = ['*.bam']
+
+for fname in os.listdir("."):
+    if fname.endswith('bam'):
+        testbam = fname
+        break
+if Bamtools.isPaired(testbam) is True:
+    PARAMS['paired_end'] = True
+
 ###################################################################
 # Helper functions mapping tracks to conditions, etc
 ###################################################################
@@ -99,10 +105,88 @@ def connect():
 
 
 @follows(mkdir("filtered_bams.dir"))
-@transform(BAMS, regex("(.*).bam"), r"filtered_bams.dir/\1")
-def filter(infile, outfile):
-    filters = PARAMS['filters_bamfilters']
-    PipelinePeakcalling.filterBams(infile, outfile, filters)
+@transform(BAMS, regex("(.*).bam"), [r"filtered_bams.dir/\1_filtered.bam",
+                                     r"filtered_bams.dir/\1_counts.tsv"])
+def filterBAM(infile, outfiles):
+    '''
+    Applies various filters specified in the pipeline.ini to the bam file
+    Currently implemented are filtering unmapped, unpaired and duplicate
+    reads and filtering reads overlapping with blacklisted regions
+    based on a list of bam files.
+    '''
+    filters = PARAMS['filters_bamfilters'].split(",")
+    bedfiles = PARAMS['filters_bedfiles'].split(",")
+    blthresh = PARAMS['filters_blacklistthresh']
+    PipelinePeakcalling.filterBams(infile, outfiles, filters, bedfiles,
+                                   float(blthresh),
+                                   PARAMS['paired_end'],
+                                   PARAMS['filters_strip'],
+                                   PARAMS['filters_keepint'])
+
+
+@transform(filterBAM, suffix("_filtered.bam"), "_insertsize.tsv")
+def estimateInsertSize(infiles, outfile):
+    '''
+    Predicts insert size using MACS2 for single end data and using Bamtools
+    for paired end data.
+    Output is stored in insert_size.tsv
+    '''
+    infile = infiles[0]
+    PipelinePeakcalling.estimateInsertSize(infile, outfile,
+                                           PARAMS['paired_end'],
+                                           PARAMS['insert_alignments'],
+                                           PARAMS['insert_macs2opts'])
+
+
+@merge(estimateInsertSize, "insert_sizes.tsv")
+def mergeInsertSizes(infiles, outfile):
+    '''
+    Combines insert size outputs into one file
+    '''
+    out = IOTools.openFile(outfile, "w")
+    out.write("filename\tmode\tfragmentsize_mean\tfragmentsize_std\ttagsize\n")
+    for infile in infiles:
+        res = IOTools.openFile(infile).readlines()
+        out.write("%s\t%s\n" % (infile, res[-1].strip()))
+    out.close()
+
+
+if int(PARAMS['IDR_run']) == 1:
+    @follows(mkdir("pseudo_bams.dir"))
+    @subdivide(filterBAM, regex("filtered_bams.dir/(.*).bam"),
+               [r"pseudo_bams.dir/\1_pseudo_1.bam",
+                r"pseudo_bams.dir/\1_pseudo_2.bam"])
+    def makePseudoBams(infiles, outfiles):
+        '''
+        Generates pseudo bam files each containing approximately 50% of reads
+        from the original bam file for IDR analysis.
+
+        '''
+        infile = infiles[0]
+        PipelinePeakcalling.makePseudoBams(infile, outfiles,
+                                           PARAMS['paired_end'],
+                                           PARAMS['IDR_randomseed'],
+                                           submit=True)
+else:
+    @transform(filterBAM, regex("filtered_bams.dir/(.*).bam"),
+               r'filtered_bams.dir/\1.bam')
+    def makePseudoBams(infile, outfile):
+        '''
+        Dummy task if IDR not requested.
+        '''
+        pass
+
+
+@follows(mergeInsertSizes)
+@transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),
+           r"\1_bams.dir/\2.bam")
+def preprocessing(infile, outfile):
+    '''
+    Dummy task to ensure all preprocessing has run and
+    bam files are passed individually to the next stage.
+    '''
+    pass
+
 
 ################################################################
 # Peakcalling Steps
@@ -185,11 +269,61 @@ def predictFragmentSize(infile, outfile):
     outf.write("\t".join(
         map(str, (mode, mean, std, tagsize))) + "\n")
     outf.close()
+
+
 ################################################################
 # QC Steps
 
 
 ################################################################
+# Fragment GC% distribution
+################################################################
+
+
+@follows(mkdir("QC.dir"))
+@transform(BAMS, regex("(.*).bam"), r"QC.dir/\1.tsv")
+def fragLenDist(infile, outfile):
+
+    if PARAMS["paired_end"] == 1:
+        function = "--merge-pairs"
+    else:
+        function = "--fragment"
+
+    genome = os.path.join(PARAMS["general_genome_dir"],
+                          PARAMS["general_genome"])
+    genome = genome + ".fasta"
+
+    statement = '''
+    samtools view -s 0.2 -ub %(infile)s |
+    python %(scriptsdir)s/bam2bed.py  %(function)s |
+    python %(scriptsdir)s/bed2table.py --counter=composition-na -g %(genome)s\
+    > %(outfile)s
+    '''
+    P.run()
+
+
+@merge(BAMS, regex("(.*).bam"), r"QC.dir/genomic_coverage.tsv")
+def buildReferenceNAComposition(infiles, outfile):
+
+    infile = infiles[0]
+    contig_sizes = os.path.join(PARAMS["annotations_dir"],
+                                PARAMS["annotations_interface_contigs"])
+    gaps_bed = os.path.join(PARAMS["annotations_dir"].
+                            PARAMS["annotations_interface_gaps_bed"])
+
+    statement = '''bedtools shuffle
+    -i %(infile)s
+    -g %(contig_sizes)s
+    -excl %(gaps_bed)s
+    -chromFirst
+    | python %(scriptsdir)s/bed2table.py
+    --counter=composition-na
+    -g %(genome)s > %(outfile)s
+    '''
+
+    P.run()
+################################################################
+
 
 def full():
     pass
