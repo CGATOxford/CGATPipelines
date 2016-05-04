@@ -14,8 +14,13 @@ Overview
 This pipeline generates a database of annotations mapped to ensembl gene ids
 for all current genes in Entrez Gene for a chosen species.
 The annotations are downloaded from various APIs.
+This database provides annotation information about the genes and is used
+as an input for pipeline_enrichment.py
 
-full - load all annotations specified in pipeline.ini
+annotate - load all annotations specified in pipeline.ini
+full - load all annotations and if specified in pipeline.ini, generate
+a database for each list of genes in genelists.dir containing annotations
+for genes in this list
 
 Usage and Inputs
 ================
@@ -155,7 +160,7 @@ def GetAndTranslateAllGenes(outfile):
 
 @active_if('go' in mgiannotations)
 @transform(GetAndTranslateAllGenes, suffix(".tsv"),
-           'ensemblg2go$annot.load')
+           'ensemblg2go\$annot.load')
 def AnnotateWithGO(infile, outfile):
     '''
     Annotates all genes in allgenes.tsv with GO ontology terms using
@@ -181,7 +186,7 @@ def AnnotateWithGO(infile, outfile):
 
 @active_if('pathway' in mgiannotations)
 @transform(GetAndTranslateAllGenes, suffix(".tsv"),
-           'ensemblg2%s$annot.load' % example_pw)
+           'ensemblg2%s\$annot.load' % example_pw)
 def AnnotateWithPathway(infile, outfile):
     '''
     Annotates all genes in allgenes.tsv with pathway details, either
@@ -200,7 +205,7 @@ def AnnotateWithPathway(infile, outfile):
 
 @active_if('homologene' in mgiannotations)
 @transform(GetAndTranslateAllGenes, suffix(".tsv"),
-           'ensemblg2symbol_Homo_sapiens$annot.load')
+           'ensemblg2symbol_Homo_sapiens\$annot.load')
 def AnnotateWithHomologene(infile, outfile):
     '''
     Annotates all genes in allgenes.tsv with homologous gene symbols from
@@ -222,7 +227,7 @@ def AnnotateWithHomologene(infile, outfile):
 @follows(AnnotateWithHomologene)
 @active_if(int(PARAMS['homologues_mgi']) == 1)
 @transform('ensemblg2symbol_Mus_musculus$geneid.load', suffix(".load"),
-           'ensemblg2mousepathway$annot.load')
+           'ensemblg2mousepathway\$annot.load')
 def AnnotateWithMousePathway(infile, outfile):
     '''
     Uses the list of mouse gene symbols generated using homologene above
@@ -242,7 +247,7 @@ def AnnotateWithMousePathway(infile, outfile):
 @follows(AnnotateWithHomologene)
 @active_if(int(PARAMS['homologues_mousepathway']) == 1)
 @transform('ensemblg2symbol_Mus_musculus$geneid.load', suffix(".load"),
-           'ensemblg2mgi$annot.load')
+           'ensemblg2mgi\$annot.load')
 def AnnotateWithMGI(infile, outfile):
     '''
     Uses the list of mouse gene symbols generated using homologene above
@@ -261,7 +266,7 @@ def AnnotateWithMGI(infile, outfile):
 @follows(AnnotateWithHomologene)
 @active_if(int(PARAMS['homologues_hpo']) == 1)
 @transform('ensemblg2symbol_Homo_sapiens$geneid.load', suffix(".load"),
-           'ensemblg2hpo$annot.load')
+           'ensemblg2hpo\$annot.load')
 def AnnotateWithHPO(infile, outfile):
     '''
     Uses the list of human gene symbols generated using homologene above
@@ -288,7 +293,29 @@ def AnnotateWithHPO(infile, outfile):
 @follows(AnnotateWithMousePathway)
 @follows(AnnotateWithHPO)
 @transform("allgenes.tsv", suffix(".tsv"), '.tsv')
-def full(infile, outfile):
+def annotate(infile, outfile):
+    pass
+
+
+@follows(mkdir('genesetdbs.dir'))
+@follows(annotate)
+@active_if(int(PARAMS['db_subset']) == 1)
+@transform("genesets.dir/*.tsv", regex("genesets.dir/(.*).tsv"),
+           r"genesetdbs.dir/\1")
+def MakeSubDBs(infile, outfile):
+    '''
+    Takes any lists of genes provided in genesets.dir and makes a database
+    in genesetdbs.dir containing only annotations for genes in the list.
+    These will have the same gene ID type as the input lists
+    and allow the user to quickly see the annotations for their genes
+    of interest.
+    '''
+    PipelineGeneInfo.MakeSubDBs(infile, outfile, PARAMS['db_subsettype'],
+                                PARAMS['db_name'], submit=True)
+
+
+@follows(MakeSubDBs)
+def full():
     pass
 
 if __name__ == "__main__":

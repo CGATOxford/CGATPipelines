@@ -68,7 +68,8 @@ annotation source.
 Annotations from a Database
 AnnotationSets are predominantly generated from a database using an
 AnnotationParser method.
-which is produced using the get_get_info.py script.
+The Database is generated using the pipeline pipeline_geneinfo.py.
+This database is required to run pipeline_enrichment
 
 The tables in this database corresponding to annotations are in sets of two
 or three, named prefix$annot, prefix$details and prefix$ont, where prefix
@@ -158,6 +159,10 @@ unmappedouts = [["annotations.dir/%s%s" % (u, s)
                  for s in outfilesuffixes]
                 for u in unmapped]
 
+hpatissues = PARAMS['hpa_tissue'].split(",")
+hpatissues = ['clean_backgrounds.dir/%s_hpa_background.tsv' % tissue
+              for tissue in hpatissues]
+
 
 def connect():
     '''utility function to connect to database.
@@ -212,7 +217,6 @@ def mapUnmappedAnnotations(outfiles):
     PipelineEnrichment.getFlatFileAnnotations(substatement, outstem2, dbname)
 
 
-
 @follows(mkdir("clean_foregrounds.dir"))
 @transform("foregrounds.dir/*.tsv", regex("foregrounds.dir/(.*).tsv"),
            r"clean_foregrounds.dir/\1.tsv")
@@ -243,14 +247,15 @@ def cleanUserBackgrounds(infile, outfile):
 
 @follows(cleanUserBackgrounds)
 @active_if(int(PARAMS['hpa_run']) == 1)
-@originate("clean_backgrounds.dir/hpa_background.tsv")
+@originate(hpabackgrounds)
 def buildHPABackground(outfile):
     '''
     Builds a background geneset based on human protein atlas expression values
     specified in pipeline.ini - allows the user to use a tissue specific
     background
     '''
-    PipelineEnrichment.HPABackground(PARAMS['hpa_tissue'],
+    tissue = outfile.split("/")[1].split("_")[0]
+    PipelineEnrichment.HPABackground(tissue,
                                      PARAMS['hpa_minlevel'],
                                      PARAMS['hpa_supportive'],
                                      outfile,

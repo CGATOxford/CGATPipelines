@@ -65,7 +65,9 @@ class APIAnnotation(object):
         - load the data into a database
         '''
         T = self.test()
-        assert T == 1, "API test failed for %s" % self.prefix
+        if T != 1:
+            E.warn("API test failed for %s" % self.prefix)
+            return None
         self.download(genelist, fields)
         self.parse()
         self.loadPDTables()
@@ -439,8 +441,8 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                             p2g.append(L['protein'])
         # load everything into the self.resultsz dictionary so that
         # self.loadZippedTables will put it into the database
-        self.resultsz['ensemblg2entrez$geneid'] = [zip(entrez2ensembl,
-                                                       ensembl2entrez),
+        self.resultsz['ensemblg2entrez$geneid'] = [zip(ensembl2entrez,
+                                                       entrez2ensembl),
                                                    ['ensemblg', 'entrez'],
                                                    ['int', 'varchar(25)']]
 
@@ -608,7 +610,7 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
             identrez = zip(entrez2ids, ids2entrez)
             idname = zip(id, name)
             dfs = pd.DataFrame(identrez, columns=['entrez', db])
-            self.translate(dfs, 'entrez', 'ensemblg')
+            dfs = self.translate(dfs, 'entrez', 'ensemblg')
             self.resultspd['ensemblg2%s$annot' % db] = dfs
             self.resultsz['%s$details' % db] = [idname, [db, 'term'],
                                                 ['varchar(25)',
@@ -621,7 +623,7 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
     to link entrez IDs from the host organism to those of homologous genes
     in other organisms of interest.
     The organisms of interest can be specified in pipeline.ini or, if 'all'
-    is specified, every available organism is used (~25 organisms).
+    is specified, every available organism is used ($25 organisms).
     '''
     def __init__(self, source, outdb, options, ohost, email):
         MyGeneInfoAnnotation.__init__(self, "homologene", source, outdb,
@@ -886,8 +888,7 @@ class MGIAnnotation(DataMineAnnotation):
                  "ontologyAnnotations.ontologyTerm.namespace",
                  "ontologyAnnotations.ontologyTerm.identifier"]
         constraints = [
-            ("Gene.ontologyAnnotations\
-            .ontologyTerm.namespace=MPheno.ontology")]
+            ("Gene.ontologyAnnotations.ontologyTerm.namespace=MPheno.ontology")]
         hostid = 'M. musculus'
         DataMineAnnotation.__init__(self, prefix, source, outdb,
                                     chost, ind, views, constraints, hostid)
@@ -1009,3 +1010,96 @@ def runall(obj, genelist=None, fields=None):
     Runs object.runall on the cluster
     '''
     obj.runall(genelist, fields)
+
+
+def getTables(dbname):
+    '''
+    Retrieves the names of all tables in the database.
+    Groups tables into dictionaries by annotation
+    '''
+    dbh = sqlite3.connect(dbname)
+    c = dbh.cursor()
+    statement = "SELECT name FROM sqlite_master WHERE type='table'"
+    c.execute(statement)
+    tables = c.fetchall()
+    c.close()
+    dbh.close()
+    tables = [tab[0] for tab in tables]
+    D = dict()
+    for tab in tables:
+        ttype = tab.split("$")[1]
+        D.setdefault(ttype, [])
+        D[ttype].append(tab)
+    return D
+
+
+def readDBTable(dbname, tablename):
+    '''
+    Reads the specified table from the specified database.
+    Returns a list of tuples representing each row
+    '''
+    dbh = sqlite3.connect(dbname)
+    c = dbh.cursor()
+    statement = "SELECT * FROM %s" % tablename
+    c.execute(statement)
+    allresults = c.fetchall()
+    c.close()
+    dbh.close()
+    return allresults
+
+
+def getDBColumnNames(dbname, tablename):
+    dbh = sqlite3.connect(dbname)
+    res = pd.read_sql('SELECT * FROM %s' % tablename, dbh)
+    dbh.close()
+    return res.columns
+
+
+@cluster_runnable
+def MakeSubDBs(infile, newdb, idtype, db):
+    '''
+    Subsets the database for user specified lists of genes - generates a new
+    database for each input file containing annotations for the genes in the
+    input only - allows the user to quickly see details of their genes.
+    '''
+    dbh = sqlite3.connect(newdb)
+    genelist = readGeneList(infile)
+    translation = "ensemblg2%s.tsv" % idtype
+    trans = pd.read_csv(translation, sep="\t")
+    translation = trans['ensemblg'][trans[idtype].isin(genelist)]
+    tgenelist = list(translation)
+    tabs = getTables(db)
+
+    for tab in tabs['geneid'] + tabs['other']:
+        res = readDBTable(db, tab)
+        cnames = getDBColumnNames(db, tab)
+        res = pd.DataFrame(res, columns=cnames)
+        subtab = res[res['ensemblg'].isin(tgenelist)]
+        tname = tab.split("$")[0].replace("ensemblg2", "")
+        subtab = subtab.merge(trans, 'left', left_on='ensemblg',
+                              right_on='ensemblg')
+        subtab = subtab.drop('ensemblg', 1)
+        subtab.to_sql(tname, dbh, index=False, if_exists='replace')
+
+    for tab in tabs['annot']:
+        annot = readDBTable(db, tab)
+        cnames = getDBColumnNames(db, tab)
+        annot = pd.DataFrame(annot, columns=cnames)
+        detailstab = tab.replace("annot", "details").replace("ensemblg2", "")
+        details = readDBTable(db, detailstab)
+        cnames = getDBColumnNames(db, detailstab)
+        details = pd.DataFrame(details, columns=cnames)
+
+        mergeon = set(annot.columns)
+        mergeon.remove('ensemblg')
+        mergeon = list(mergeon)[0]
+        subannot = annot[annot['ensemblg'].isin(tgenelist)]
+        details = details[details[mergeon].isin(subannot[mergeon])]
+        tname = tab.split("$")[0].replace("ensemblg2", "")
+        subannot = subannot.merge(
+            trans, 'left', left_on='ensemblg', right_on='ensemblg')
+        subannot = subannot.drop('ensemblg', 1)
+        subannot.to_sql("%s_annotations" % (tname), dbh,
+                        index=False, if_exists='replace')
+        details.to_sql("%s_details" % (tname), dbh,
+                       index=False, if_exists='replace')
