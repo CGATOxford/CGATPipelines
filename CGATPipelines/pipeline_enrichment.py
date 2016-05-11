@@ -247,7 +247,7 @@ def cleanUserBackgrounds(infile, outfile):
 
 @follows(cleanUserBackgrounds)
 @active_if(int(PARAMS['hpa_run']) == 1)
-@originate(hpabackgrounds)
+@originate(hpatissues)
 def buildHPABackground(outfile):
     '''
     Builds a background geneset based on human protein atlas expression values
@@ -305,6 +305,11 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 PARAMS['stats_correction'],
                                                 PARAMS['stats_thresh'],
                                                 submit=True)
+
+
+@follows(foregroundsVsBackgrounds)
+def full():
+    pass
 
 
 @follows(mkdir("report"))

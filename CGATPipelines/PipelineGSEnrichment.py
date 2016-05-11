@@ -66,10 +66,7 @@ def getUnmapped(params):
                 l = l.split(" ")
                 if l[0] == "p":
                     pref = l[1]
-                elif l[0] == "ids":
-                    ids = l[1]
-            r = "%s_%s" % (pref, ids)
-            unmapped[r] = params[p]
+            unmapped[pref] = params[p]
     return unmapped
 
 
@@ -111,24 +108,10 @@ def readDBTable(dbname, tablename):
 
 
 def getDBColumnNames(dbname, tablename):
-    '''
-    Returns the column names of the specified table in the
-    specified database
-    '''
-    # Returns the command used to generate the table
-    statement = """SELECT sql FROM sqlite_master
-    WHERE tbl_name = '%s' AND type = 'table'""" % tablename
     dbh = sqlite3.connect(dbname)
-    c = dbh.cursor()
-    c.execute(statement)
-    res = c.fetchall()
-    c.close()
+    res = pd.read_sql('SELECT * FROM %s' % tablename, dbh)
     dbh.close()
-    # Parses the command used to generate the table to get the column names
-    cnames = str(res[0][0]).replace(
-        "CREATE TABLE %s (" % tablename, "").split(",")
-    cnames = [str(cname.split(" ")[0]) for cname in cnames]
-    return cnames
+    return res.columns
 
 
 @cluster_runnable
@@ -142,8 +125,11 @@ def translateGenelist(dbname, genelistfile, idtype):
                 IOTools.openFile(genelistfile).readlines()]
     trans = pd.DataFrame(
         readDBTable(dbname, "ensemblg2%s$geneid" % idtype))
-    trans.columns = ['ensemblg', idtype]
-    trans = trans[trans[idtype].isin(genelist)]
+    trans.columns = getDBColumnNames(dbname, "ensemblg2%s$geneid" % idtype)
+    mergeon = set(trans.columns)
+    mergeon.remove('ensemblg')
+    mergeon = list(mergeon)[0]
+    trans = trans[trans[mergeon].isin(genelist)]
     newgenelist = trans['ensemblg']
     return set(newgenelist.values)
 
@@ -343,20 +329,23 @@ class AnnotationSet(object):
         table ensemblg2idtype$geneid
         '''
         tab = readDBTable(dbname, "ensemblg2%s$geneid" % idtype)
-        tabpd = pd.DataFrame(tab, columns=["ensemblg", "id"])
+        cols = getDBColumnNames(dbname, "ensemblg2%s$geneid" % idtype)
+        mergeon = set(cols)
+        mergeon.remove('ensemblg')
+        mergeon = list(mergeon)[0]
+        tabpd = pd.DataFrame(tab, columns=cols)
 
         genes = self.GenesToTerms
         tempdict = dict()
         for gene in self.GenesToTerms:
             tempdict[gene] = ",".join(genes[gene])
         df = pd.DataFrame.from_dict(tempdict, 'index')
-        T = tabpd.merge(df, left_on='id', right_index=True)
-        T = T.drop('id', 1)
+        T = tabpd.merge(df, left_on=mergeon, right_index=True)
+        T = T.drop(mergeon, 1)
         T.columns = ['ensemblg', 'terms']
         g2t = dict(zip(T['ensemblg'], T['terms']))
         for key in g2t:
             g2t[key] = g2t[key].split(",")
-
         #  Replace the GenesToTerms and TermsToGenes dictionaries
         #  with copies with the translated gene names.  TermsToDetails
         #  and TermsToOnt don't contain gene names so they can stay the same.
@@ -490,13 +479,25 @@ class DBTableParser(AnnotationParser):
         AnnotationSet.
         '''
         allresults = readDBTable(self.infile, self.annot)
+        cnames = getDBColumnNames(self.infile, self.annot)
+
+        if cnames[0] == "ensemblg":
+            ind0 = 0
+            ind1 = 1
+        else:
+            ind0 = 1
+            ind1 = 0
         rdict1 = {}
         rdict2 = {}
+
+        print allresults
         for result in allresults:
-            rdict1.setdefault(result[0], set())
-            rdict1[result[0]].add(result[1])
-            rdict2.setdefault(result[1], set())
-            rdict2[result[1]].add(result[0])
+            rdict1.setdefault(result[ind0], set())
+            rdict1[result[ind0]].add(result[ind1])
+
+            rdict2.setdefault(result[ind1], set())
+            rdict2[result[ind1]].add(result[ind0])
+
         return rdict1, rdict2
 
     def detailsToDict(self):
@@ -535,17 +536,30 @@ class DBTableParser(AnnotationParser):
 
 
 class FlatFileParser(AnnotationParser):
+    '''
+    Used to add annotations from flat files outside of the database
+    and parse them with the annotations from the database.
+    Allows the user to add custom annotations.
+    '''
     def __init__(self, instring):
+        '''
+        Reads options strings as specfied in self.readOptions()
+        '''
         options = self.readOptions(instring)
-        AnnotationParser.__init__(self, options['loc'],
+        AnnotationParser.__init__(self, options['l'],
                                   options['p'], options)
 
-    def run(self):
+    def run(self, dbname):
+        '''
+        Reads the flat file into the four AnnotationParser dictionaries.
+        '''
         self.readFile()
         self.AS.TermsToGenes = self.AS.reverseDict(self.AS.GenesToTerms)
         if self.options['ont'] is not None:
             self.AS.TermsToOnt = self.readOntFile()
             self.AS.ontologise()
+        if self.options['ids'] != "ensemblg":
+            self.AS.translateIDs(dbname, self.options['ids'])
 
     def readOptions(self, optionsstring):
         '''
@@ -582,19 +596,19 @@ class FlatFileParser(AnnotationParser):
         Kidney, Abnormality of.  These parameters allow you to ignore the
         delimiter in the gene or the term column. containing the term names
 
+        -ont - path to ontology hierarchy
         -ids - type of ID, e.g. symbol, entrez, ensemblg - default is ensemblg
         '''
         options = dict()
         sections = optionsstring.strip().split("-")
-        print sections
         for section in sections:
             section = section.strip()
             if len(section) != 0:
                 t, v = section.split(" ")
                 options[t] = v
-        options.setdefault('loc', None)
-        options.setdefault('kcol', '0')
-        options.setdefault('ocol', '1')
+        options.setdefault('l', None)
+        options.setdefault('k', '0')
+        options.setdefault('o', '1')
         options.setdefault('d1', "\t")
         options.setdefault('d2', None)
         options.setdefault('idk', 0)
@@ -605,8 +619,6 @@ class FlatFileParser(AnnotationParser):
         options['d1'] = ast.literal_eval("'%s'" % options['d1'])
         options['d2'] = ast.literal_eval("'%s'" % options['d2'])
 
-        assert options['loc'] is not None, """Location of annotation file is
-        required"""
         return options
 
     def readFile(self):
@@ -617,18 +629,18 @@ class FlatFileParser(AnnotationParser):
         # integers or with column names
         isd = False
         options = self.options
-        if options['kcol'].isdigit():
-            usecols = [int(s) for s in [options['kcol'], options['ocol']]]
+        if options['k'].isdigit():
+            usecols = [int(s) for s in [options['k'], options['o']]]
             isd = True
 
         else:
             allcols = IOTools.openFile(
-                options['loc']).readline().split(options['d1'])
-            k = allcols.index(options['kcol'])
-            o = allcols.index(options['ocol'])
+                options['l']).readline().split(options['d1'])
+            k = allcols.index(options['k'])
+            o = allcols.index(options['o'])
             usecols = [k, o]
 
-        inf = IOTools.openFile(options['loc']).readlines()
+        inf = IOTools.openFile(options['l']).readlines()
         (self.AS.GenesToTerms, self.AS.TermsToDetails,
          self.AS.DetailsColumns) = self.makeDict(inf, usecols, isd)
 
@@ -665,7 +677,9 @@ class FlatFileParser(AnnotationParser):
                     termparts = termpart.split(delim2)
                 else:
                     termparts = [termpart]
-
+            else:
+                idparts = [idpart]
+                termparts = [termpart]
             # metadata needs to be stored in order
             for id in idparts:
                 id = id.replace(" ", "")
@@ -1026,8 +1040,7 @@ def getFlatFileAnnotations(optionsstring, outstem, dbname):
     Retrieves annotations from a flat file.
     '''
     D = FlatFileParser(optionsstring)
-    D.run()
-    D.AS.translateIDs(dbname, D.options['ids'])
+    D.run(dbname)
     D.AS.stow(outstem)
 
 

@@ -1064,10 +1064,13 @@ def MakeSubDBs(infile, newdb, idtype, db):
     '''
     dbh = sqlite3.connect(newdb)
     genelist = readGeneList(infile)
-    translation = "ensemblg2%s.tsv" % idtype
-    trans = pd.read_csv(translation, sep="\t")
-    translation = trans['ensemblg'][trans[idtype].isin(genelist)]
-    tgenelist = list(translation)
+    if idtype == "ensemblg":
+        tgenelist = genelist
+    else:
+        translation = "ensemblg2%s.tsv" % idtype
+        trans = pd.read_csv(translation, sep="\t")
+        translation = trans['ensemblg'][trans[idtype].isin(genelist)]
+        tgenelist = list(translation)
     tabs = getTables(db)
 
     for tab in tabs['geneid'] + tabs['other']:
@@ -1076,9 +1079,10 @@ def MakeSubDBs(infile, newdb, idtype, db):
         res = pd.DataFrame(res, columns=cnames)
         subtab = res[res['ensemblg'].isin(tgenelist)]
         tname = tab.split("$")[0].replace("ensemblg2", "")
-        subtab = subtab.merge(trans, 'left', left_on='ensemblg',
-                              right_on='ensemblg')
-        subtab = subtab.drop('ensemblg', 1)
+        if idtype != 'ensemblg':
+            subtab = subtab.merge(trans, 'left', left_on='ensemblg',
+                                  right_on='ensemblg')
+            subtab = subtab.drop('ensemblg', 1)
         subtab.to_sql(tname, dbh, index=False, if_exists='replace')
 
     for tab in tabs['annot']:
@@ -1096,9 +1100,10 @@ def MakeSubDBs(infile, newdb, idtype, db):
         subannot = annot[annot['ensemblg'].isin(tgenelist)]
         details = details[details[mergeon].isin(subannot[mergeon])]
         tname = tab.split("$")[0].replace("ensemblg2", "")
-        subannot = subannot.merge(
-            trans, 'left', left_on='ensemblg', right_on='ensemblg')
-        subannot = subannot.drop('ensemblg', 1)
+        if idtype != 'ensemblg':
+            subannot = subannot.merge(
+                trans, 'left', left_on='ensemblg', right_on='ensemblg')
+            subannot = subannot.drop('ensemblg', 1)
         subannot.to_sql("%s_annotations" % (tname), dbh,
                         index=False, if_exists='replace')
         details.to_sql("%s_details" % (tname), dbh,
