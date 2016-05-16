@@ -85,35 +85,17 @@ def runSleuthAll(samples, base_dir, counts, tpm):
     '''
 
     design = pd.DataFrame({
-        "sample": samples,
-        "group": ([0, 1] * ((len(samples)+1)/2))[0:len(samples)]})
+        "group": ([0, 1] * ((len(samples)+1)/2))[0:len(samples)],
+        "include": [1, ] * len(samples),
+        "pair": [0, ] * len(samples)})
 
-    r_design_df = pandas2ri.py2ri(design)
+    design.index = samples
 
-    createSleuthTables = R('''
-    function(design_df){
+    Design = Expression.ExperimentalDesign(design)
+    exp = Expression.DEExperiment_Sleuth()
 
-    suppressMessages(library('sleuth'))
-    suppressMessages(library('reshape'))
-    sample_id = design_df$sample
-    kal_dirs <- sapply(sample_id,
-    function(id) file.path('%(base_dir)s', id))
-
-    design_df <- dplyr::select(design_df, sample = sample, group)
-    design_df <- dplyr::mutate(design_df, path = kal_dirs)
-
-    so <- sleuth_prep(design_df, ~group)
-
-    df = cast(so$obs_raw, target_id~sample, value = "est_counts")
-    colnames(df)[1] <- "transcript_id"
-    write.table(df, "%(counts)s", sep="\t", row.names=F, quote=F)
-
-    df = cast(so$obs_raw, target_id~sample, value = "tpm")
-    colnames(df)[1] <- "transcript_id"
-    write.table(df, "%(tpm)s", sep="\t", row.names=F, quote=F)
-    }''' % locals())
-
-    createSleuthTables(r_design_df)
+    res = exp.run(Design, base_dir, counts=counts, tpm=tpm,
+                  model="~group", dummy_run=True)
 
 
 @cluster_runnable
@@ -209,7 +191,7 @@ def mergeAbundanceCounts(infile, outfile, counts):
 
 
 @cluster_runnable
-def calculateCorrelations(infiles, outfile):
+def calculateCorrelations(infiles, outfile, bin_step=1):
     ''' calculate correlation across simulation iterations per transcript'''
 
     abund, kmers = infiles
@@ -240,8 +222,11 @@ def calculateCorrelations(infiles, outfile):
                       left_index=True, right_index=True)
     df_final = pd.merge(df_kmer, df_agg, left_index=True, right_index=True)
     df_final['fraction_bin'] = (
-        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, 1),
+        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, bin_step),
                     right=True))/100.0
+
+    # Multiply bin number by step size to get the fraction for the bin
+    df_final['fraction_bin'] = df_final['fraction_bin'] * bin_step
 
     df_abund_tpm_sum = df_abund.groupby(level=0)["est_tpm", "tpm"].sum()
     df_abund_count_sum = df_abund.groupby(level=0)[
