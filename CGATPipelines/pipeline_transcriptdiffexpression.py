@@ -991,7 +991,8 @@ if PARAMS['simulation_run']:
         ''' calculate correlation across simulation iterations per transcript'''
 
         TranscriptDiffExpression.calculateCorrelations(
-            infiles, outfile, job_memory="8G", submit=True)
+            infiles, outfile, PARAMS['simulation_bin_step'],
+            job_memory="8G", submit=True)
 
     @transform(calculateCorrelations,
                suffix(".tsv"),
