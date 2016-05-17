@@ -1232,47 +1232,6 @@ def estimateSleuthMemory(bootstraps, samples, transcripts):
     return job_memory
 
 
-# @follows(*QUANTTARGETS)
-# @mkdir("DEresults.dir")
-# @subdivide(["%s.design.tsv" % x.asFile() for x in DESIGNS],
-#            regex("(\S+).design.tsv"),
-#            add_inputs(buildReferenceTranscriptome),
-#            [r"DEresults.dir/\1_kallisto_results.tsv",
-#             r"DEresults.dir/\1_kallisto_counts.tsv",
-#             r"DEresults.dir/\1_kallisto_tpm.tsv"])
-# def runSleuthKallisto(infiles, outfiles):
-#     ''' run Sleuth to perform differential testing '''
-
-#     design, transcripts = infiles
-#     outfile, counts, tpm = outfiles
-
-#     Design = Expression.ExperimentalDesign(design)
-#     number_samples = sum(Design.table['include'])
-
-#     number_transcripts = 0
-#     with IOTools.openFile(transcripts, "r") as inf:
-#         for line in inf:
-#             if line.startswith(">"):
-#                 number_transcripts += 1
-
-#     quantifier = P.snip(os.path.basename(tpm), ".tsv").replace("all_tpm_", "")
-#     job_memory = estimateSleuthMemory(
-#         PARAMS["%(quantifier)s_bootstrap" % locals()],
-#         len(samples), number_transcripts)
-
-#     design_id = P.snip(design, ".design.tsv")
-#     model = PARAMS["sleuth_model_%s" % design_id]
-
-#     contrasts = PARAMS["sleuth_contrasts_%s" % design_id].split(",")
-
-#     for contrast in contrasts:
-
-#         TranscriptDiffExpression.runSleuth(
-#             design, "quant.dir/kallisto", model, contrast,
-#             outfile, counts, tpm, PARAMS["sleuth_fdr"],
-#             submit=True, job_memory=job_memory)
-
-
 # note: location of transcripts fasta is hardcoded here!
 def generate_sleuth_parameters_on_the_fly():
 
@@ -1316,14 +1275,26 @@ def runSleuth(design, outfiles, quantifier, transcripts):
     design_id = P.snip(design, ".design.tsv")
 
     model = PARAMS["sleuth_model_%s" % design_id]
-    contrasts = PARAMS["sleuth_contrasts_%s" % design_id].split(",")
+    contrasts = PARAMS["sleuth_contrasts_%s" % design_id]
 
-    for contrast in contrasts:
+    outfile_pattern = P.snip(outfile, ".tsv")
 
-        TranscriptDiffExpression.runSleuth(
-            design, "quant.dir/%s" % quantifier, model, contrast,
-            outfile, counts, tpm, PARAMS["sleuth_fdr"],
-            submit=True, job_memory=job_memory)
+    statement = '''
+    python %(scriptsdir)s/counts2table.py
+    --design-tsv-file=%(design)s
+    --output-filename-pattern=%(outfile_pattern)s
+    --log=%(outfile_pattern)s.log
+    --method=sleuth
+    --fdr=%(sleuth_fdr)s
+    --model=%(model)s
+    --contrasts=%(contrasts)s
+    --sleuth-counts-dir=quant.dir/%(quantifier)s
+    --outfile-sleuth-count=%(counts)s
+    --outfile-sleuth-tpm=%(tpm)s
+    >%(outfile)s
+    '''
+
+    P.run()
 
 
 # # define sleuth targets
