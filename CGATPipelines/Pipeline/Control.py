@@ -90,12 +90,14 @@ PARAMS = {}
 GLOBAL_OPTIONS, GLOBAL_ARGS = None, None
 
 
-def writeConfigFiles(path):
+def writeConfigFiles(pipeline_path, general_path):
     '''create default configuration files in `path`.
     '''
 
-    for dest in ("pipeline.ini", "conf.py"):
-        src = os.path.join(path, dest)
+    for src in [
+            os.path.join(pipeline_path, "pipeline.ini"),
+            os.path.join(general_path, "conf.py")]:
+        dest = os.path.basename(src)
         if os.path.exists(dest):
             E.warn("file `%s` already exists - skipped" % dest)
             continue
@@ -999,8 +1001,10 @@ def main(args=sys.argv):
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
         caller = inspect.getargvalues(f).locals["__file__"]
-        prefix = os.path.splitext(caller)[0]
-        writeConfigFiles(prefix)
+        pipeline_path = os.path.splitext(caller)[0]
+        general_path = os.path.join(os.path.dirname(pipeline_path),
+                                    "configuration")
+        writeConfigFiles(pipeline_path, general_path)
 
     elif options.pipeline_action == "clone":
         clonePipeline(options.pipeline_targets[0])

@@ -33,7 +33,7 @@ class SleuthResults(IsoformTracker):
         A.p_value_adj, A.significant, A.transcript_biotype
         FROM %(track)s_DEresults AS A
         LEFT JOIN kallisto_flagged_transcripts AS B
-        ON A.test_id = B.transcript_id
+        ON A.transcript_id = B.transcript_id
         %(where)s
         ORDER BY A.significant DESC, A.l2fold ASC
         '''
@@ -111,8 +111,35 @@ class SleuthAllGenes(IsoformTracker):
 
 
 class SleuthCountsAllGenes(SleuthAllGenes):
-    table = "all_counts"
+    table = "all_counts_gene_expression"
 
 
 class SleuthTpmAllGenes(SleuthAllGenes):
-    table = "all_tpm"
+    table = "all_tpm_gene_expression"
+
+
+class Deseq2Results(IsoformTracker):
+
+    pattern = "(.*)_deseq2_DE_results.tsv$"
+    direction = ""
+    where = "WHERE p_value NOT NULL"
+
+    def __call__(self, track, slice=None):
+
+        statement = '''
+        SELECT gene_name, gene_id, transcript_id,
+        control_mean AS expression, fold, l2fold, p_value,
+        p_value_adj, significant, transcript_biotype
+        FROM %(track)s_deseq2_DE_results.tsv
+        WHERE p_value NOT NULL
+        ORDER BY significant DESC, l2fold ASC
+        '''
+
+        return self.getAll(statement)
+
+
+class Deseq2ResultsSig(Deseq2Results):
+
+    pattern = "(.*)_deseq2_DE_results.tsv$"
+    direction = ""
+    where = "WHERE p_value NOT NULL AND significant == 1 AND ABS(l2fold) > 1"

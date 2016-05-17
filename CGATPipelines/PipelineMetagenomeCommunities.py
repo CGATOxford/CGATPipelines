@@ -589,12 +589,7 @@ def barchartProportions(infile, outfile, order, dtype="pathways"):
 
     # take average across samples
     R('''dat.percent$average <- rowMeans(dat.percent)''')
-
-    # plot all pathways cos there
-    # aren't many
-    # if dtype=="pathways":
-    #     R('''to_other = c()''')
-
+    
     # add taxa column with "other" = < 5% in any sample
     R('''dat.percent$taxa <- rownames(dat.percent)''')
     R('''dat.percent$taxa <- ifelse(dat.percent$taxa %in% to_other,
@@ -608,19 +603,31 @@ def barchartProportions(infile, outfile, order, dtype="pathways"):
     R('''dat.percent <- dat.percent[,1:ncol(dat.percent)-1,]''')
     R('''dat.percent["other",] <- unlist(other)''')
     R('''dat.percent$taxa <- rownames(dat.percent)''')
-    R('''dat.percent$taxa[dat.percent$taxa == "other"] <- "bother"''')
-    R('''dat.percent$taxa[dat.percent$taxa == "Function unknown"]
+
+    # for plotting purposes change the name of other
+    # so that it appears at the bottom of the plot
+    # there will be cases where this does not
+    # hold
+    R('''dat.percent$taxa[dat.percent$taxa == "other"] <- "afxOther"''')
+    R('''dat.percent$taxa[dat.percent$taxa == "Function unknown"] \
                           <- "aFunction unknown"''')
+
+    # change colours
+    R('''ncols <- length(unique(dat.percent$taxa))''')
+    R('''cols <- rainbow(ncols, s=1, v=0.75)''')
 
     # reshape and plot
     R('''dat.percent <- melt(dat.percent)''')
-    R('''dat.percent <-  dat.percent[order(dat.percent$variable,
+    R('''dat.percent <-  dat.percent[order(-dat.percent$variable,
                                            dat.percent$taxa),]''')
     R('''plot1 <- ggplot(dat.percent,
                           aes(x=factor(variable, levels=variable),
-                              y=value, fill=taxa, stat="identity"))
-                              + geom_bar(stat="identity")''')
-    R('''plot1 + theme(axis.text.x=element_text(angle=90))''')
+                              y=value, 
+                              fill=taxa, 
+                              stat="identity"))''')
+    R('''plot2 <- plot1 + geom_bar(stat="identity")''')
+    R('''plot3 <- plot2 + scale_fill_manual(values=cols)''')
+    R('''plot3 + theme(axis.text.x=element_text(angle=90))''')
     R('''ggsave("%s")''' % outfile)
 
 ###############################################
@@ -634,7 +641,7 @@ def annotate(infile, outfile, geneset):
     '''
     annotation = {}
     E.info("loading geneset")
-    anno = open(geneset)
+    anno = IOTools.openFile(geneset)
     for line in anno.readlines():
         data = line[:-1].split("\t")
         nog, funccat = data[1], data[3]

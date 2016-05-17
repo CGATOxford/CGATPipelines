@@ -1,4 +1,4 @@
-C=============
+=============
 Tag counting
 =============
 
@@ -22,7 +22,7 @@ counting method.
 
 .. report:: Tracker.TrackerImages
    :render: gallery-plot
-   :glob: *_counts.dir/*_counts_stats_heatmap.svg
+   :glob: *counts.dir/*.stats_heatmap.svg
    :width: 200
 
    Heatmap of overall sample similarity based on all samples
@@ -37,7 +37,7 @@ gene set and for each counting method.
 
 .. report:: Tracker.TrackerImages
    :render: gallery-plot
-   :glob: designs.dir/design*_stats_heatmap.svg
+   :glob: designs.dir/design*.stats_heatmap.svg
    :width: 200
    :layout: column-2
 
