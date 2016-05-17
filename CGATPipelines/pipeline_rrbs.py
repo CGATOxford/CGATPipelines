@@ -4,7 +4,7 @@
 #
 #   $Id$
 #
-#   Copyright (C) 2009 Tildon Grant Belgard
+#   Copyright (C) 2009 Andreas Heger
 #
 #   This program is free software; you can redistribute it and/or
 #   modify it under the terms of the GNU General Public License
@@ -335,6 +335,7 @@ def mapReadsWithBismark(infile, outfile):
     # print statement
     P.run()
 
+
 #########################################################################
 # Call Methylation
 #########################################################################
@@ -408,6 +409,84 @@ def sortAndIndexBams(infile, outfile):
     print statement
     P.run()
 
+###################################################################
+###################################################################
+# various export functions
+###################################################################
+
+
+@transform(sortAndIndexBams,
+           regex(".bam"),
+           ".bw")
+def buildBigWig(infile, outfile):
+    '''build wiggle files from bam files.
+
+    Generate :term:`bigWig` format file from :term:`bam` alignment file
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`bam` format
+    outfile : str
+       Output filename in :term:`bigwig` format
+
+    annotations_interface_contigs : str
+       :term:`PARAMS`
+       Input filename in :term:`bed` format
+
+    '''
+
+    # wigToBigWig observed to use 16G
+    job_memory = "16G"
+    statement = '''python %(scriptsdir)s/bam2wiggle.py
+    --output-format=bigwig
+    %(bigwig_options)s
+    %(infile)s
+    %(outfile)s
+    > %(outfile)s.log'''
+    P.run()
+
+
+@merge(buildBigWig,
+       "bigwig_stats.load")
+def loadBigWigStats(infiles, outfile):
+    '''merge and load bigwig summary for all wiggle files.
+
+    Summarise and merge bigwig files for all samples and load into a
+    table called bigwig_stats
+
+    Parameters
+    ----------
+    infiles : list
+       Input filenames in :term:`bigwig` format
+    outfile : string
+        Output filename, the table name is derived from `outfile`.
+    '''
+
+    data = " ".join(
+        ['<( bigWigInfo %s | perl -p -e "s/:/\\t/; s/ //g; s/,//g")' %
+         x for x in infiles])
+    headers = ",".join([P.snip(os.path.basename(x), ".bw")
+                        for x in infiles])
+
+    load_statement = P.build_load_statement(
+        P.toTable(outfile),
+        options="--add-index=track")
+
+    statement = '''python %(scriptsdir)s/combine_tables.py
+    --header-names=%(headers)s
+    --skip-titles
+    --missing-value=0
+    --ignore-empty
+    %(data)s
+    | perl -p -e "s/bin/track/"
+    | python %(scriptsdir)s/table2table.py --transpose
+    | %(load_statement)s
+    > %(outfile)s
+    '''
+
+    P.run()
+
 ########################################################################
 ########################################################################
 ########################################################################
@@ -464,10 +543,39 @@ def make1basedCpgIslands(infile, outfile):
 @transform(callMethylationStatus,
            suffix(".bismark.cov"),
            r".bismark.subset10.cov")
-# this is just for testing BiSeq etc, delete in future
 def subsetCoverage(infile, outfile):
     statement = '''awk '($5+$6)>=10' %(infile)s > %(outfile)s''' % locals()
     P.run()
+
+
+@originate("fa_sizes.tsv")
+def getChromSizes(outfile):
+    ''' get contig sizes '''
+    statement = "/ifs/apps/bio/ucsc/fetchChromSizes %(genome)s > %(outfile)s"
+    P.run()
+
+
+@transform(subsetCoverage,
+           regex("methylation.dir/(\S+).bismark.subset10.cov"),
+           add_inputs(getChromSizes),
+           r"methylation.dir/\1.bismark.bigwig")
+def bed2BigWig(infiles, outfile):
+    infile, sizes = infiles
+    infile = infile.replace(".bismark.cov", ".bedGraph")
+
+    # need to sort first, can do this with tmp file
+    tmp_infile = P.getTempFilename()
+
+    statement = '''
+    sort -k1,1 -k2,2n %(infile)s |
+    awk '{OFS="\t"; $3 = $3 + 1; print $1,$2,$3,$4}' > %(tmp_infile)s;
+    checkpoint;
+    bedGraphToBigWig %(tmp_infile)s %(sizes)s %(outfile)s;
+    checkpoint;
+    rm -rf %(tmp_infile)s'''
+
+    P.run()
+
 ##########################################################################
 
 
@@ -741,8 +849,50 @@ def subsetCpGsToCovered(infile, outfile):
 
     job_options = "-l mem_free=48G"
 
-    RRBS.subsetToCovered(infile, outfile,
+    RRBS.subsetToCovered(infile, outfile, cov_threshold=10,
                          submit=True, job_options=job_options)
+
+
+@originate("methylation.dir/promoter_cpgs.tsv")
+def categorisePromoterCpGs(outfile):
+    '''extract promoter sequences and categorise them by CpG density'''
+
+    RRBS.categorisePromoterCpGs(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS['annotation_database'],
+        submit=True, job_memory="4G")
+
+
+@originate("methylation.dir/repeat_cpgs.tsv")
+def extractRepeatCpGs(outfile):
+    '''extract repeats sequences and identify CpG locations'''
+
+    RRBS.findRepeatCpGs(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS["annotation_repeats_gff"],
+        submit=True, job_memory="4G")
+
+
+@originate("methylation.dir/hnce_cpgs.tsv")
+def extractHCNECpGs(outfile):
+    '''extract sequences for Highly conserved non-coding element and
+    identify CpG locations'''
+
+    RRBS.findCpGsFromBed(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS["annotation_hcne"], "HCNE", both_strands=True,
+        submit=True, job_memory="4G")
+
+
+@originate("methylation.dir/dmr_cpgs.tsv")
+def extractDMRCpGs(outfile):
+    '''extract sequences for Highly conserved non-coding element and
+    identify CpG locations'''
+
+    RRBS.findCpGsFromBed(
+        outfile, PARAMS["methylation_summary_genome_fasta"],
+        PARAMS["annotation_dmr"], "DMR", both_strands=True,
+        submit=True, job_memory="4G")
 
 
 @transform(subsetCpGsToCovered,
@@ -754,6 +904,30 @@ def addTreatmentMeans(infile, outfile):
 
     RRBS.addTreatmentMean(infile, outfile,
                           submit=True, job_options=job_options)
+
+
+@merge((addTreatmentMeans,
+        categorisePromoterCpGs,
+        extractRepeatCpGs,
+        extractHCNECpGs,
+        extractDMRCpGs),
+       "methylation.dir/annotatedCpGs.tsv")
+def mergeCpGAnnotations(infiles, outfile):
+    '''merge together the CpG annotations for plotting'''
+
+    meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf = infiles
+
+    RRBS.mergeCpGAnnotations(meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf,
+                             outfile, submit=True, job_memory="4G")
+
+
+@transform(mergeCpGAnnotations,
+           suffix(".tsv"),
+           ["_hist.png", "_box.png"])
+def plotCpGAnnotations(infile, outfiles):
+    ''' make histogram and boxplots for the CpGs facetted per annotation'''
+    outfile_hist, outfile_box = outfiles
+    RRBS.plotCpGAnnotations(infile, outfile_hist, outfile_box)
 
 
 @transform(addTreatmentMeans,
@@ -822,7 +996,7 @@ def calculateMethylationFrequency(infile, outfile):
            suffix("_frequency.tsv"),
            "_frequency.png")
 def plotMethylationFrequency(infile, outfile):
-    RRBS.plotMethFrequency(infile, outfile, job_memory="6G", submit=True)
+    RRBS.plotMethFrequency(infile, outfile, job_memory="2G", submit=True)
 
 
 @transform(addTreatmentMeans,
@@ -836,6 +1010,12 @@ def makeSummaryPlots(infile, outfile):
                       submit=True, job_options=job_options)
     P.touch(outfile)
 
+
+@follows(plotMethylationFrequency,
+         makeSummaryPlots,
+         plotCpGAnnotations)
+def summarise():
+    pass
 ########################################################################
 ########################################################################
 ########################################################################
@@ -1093,13 +1273,8 @@ def M3D():
     pass
 
 
-# add this to full once start summarising functions have been refactored
-@follows(loadStartSummary)
-def startSummary():
-    pass
-
-
-@follows(loadStartSummary,
+@follows(loadBigWigStats,
+         loadStartSummary,
          loadCoverage,
          loadCpGOverlap,
          loadRemainingReads,
@@ -1115,7 +1290,8 @@ def startSummary():
          M3D,
          loadCoveredCpGs,
          plotCoverage,
-         plotMethylationFrequency)
+         plotMethylationFrequency,
+         bed2BigWig)
 def full():
     pass
 
@@ -1148,10 +1324,31 @@ def callMeth():
 #########################################################################
 
 
-@follows()
+@follows(mkdir("%s/bigwigfiles" % PARAMS["web_dir"]))
 def publish():
     '''publish files.'''
-    P.publish_report()
+
+    # directory, files
+
+    export_files = {"bigwigfiles": glob.glob("*/*.bigwig")}
+
+    if PARAMS['ucsc_exclude']:
+        for filetype, files in export_files.iteritems():
+            new_files = set(files)
+            for f in files:
+                for regex in P.asList(PARAMS['ucsc_exclude']):
+                    if re.match(regex, f):
+                        new_files.remove(f)
+                        break
+
+            export_files[filetype] = list(new_files)
+
+    # publish web pages
+    E.info("publishing report")
+    P.publish_report(export_files=export_files)
+
+    E.info("publishing UCSC data hub")
+    P.publish_tracks(export_files)
 
 
 @follows(mkdir("report"))

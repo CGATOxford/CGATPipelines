@@ -730,7 +730,7 @@ def runDiamondOnRawSequences(infile, outfile):
                    --db %(db)s
                    --query %(temp)s.fastq
                    --daa %(temp)s.daa
-                   --threads(job_threads)s
+                   --threads %(job_threads)s
                    --log
                    %(diamond_options)s
                    &> %(outfile)s.log;
@@ -955,7 +955,7 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
 
 
 @jobs_limit(1, "R")
-@transform(mergeLcaCountsAcrossSamples,
+@transform([mergeLcaCountsAcrossSamples, mergeKrakenCountsAcrossSamples],
            suffix(".counts.tsv.gz"),
            ".counts.rarefied.tsv")
 def rarefyTaxa(infile, outfile):
@@ -970,7 +970,7 @@ def rarefyTaxa(infile, outfile):
 ###############################################
 ###############################################
 
-rarefy = {0: (mergeLcaCountsAcrossSamples, ".counts.tsv.gz"),
+rarefy = {0: ([mergeLcaCountsAcrossSamples, mergeKrakenCountsAcrossSamples], ".counts.tsv.gz"),
           1: (rarefyTaxa, ".counts.rarefied.tsv")}
 RAREFY_FUNC = rarefy[PARAMS.get("rarefy_rarefy_taxa")][0]
 RAREFY_SUFFIX = rarefy[PARAMS.get("rarefy_rarefy_taxa")][1]
@@ -1023,7 +1023,9 @@ def barchartLcaProportions(infile, outfile):
     if PARAMS["heatmaps_order"]:
         order = PARAMS.get("heatmaps_order")
     else:
-        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+        order = open(infile).readline()[:-1].split("\t")[:-1]
+        order.sort()
+        order = ",".join(order)
     PipelineMetagenomeCommunities.barchartProportions(infile,
                                                       outfile,
                                                       order,
@@ -1162,7 +1164,9 @@ def testDiversity(infile, outfile):
 
 
 @follows(testDiversity,
-         testRichness)
+         testRichness,
+         runRarefactionAnalysis,
+         barplotDiversity)
 def diversity():
     pass
 
@@ -1199,7 +1203,7 @@ def runDiamondOnGenes(infile, outfile):
                    diamond blastx
                    --db %(db)s
                    --query %(temp)s.fastq
-                   --threads(job_threads)s
+                   --threads %(job_threads)s
                    --daa %(temp)s.daa
                    --log
                    %(diamond_options)s
@@ -1359,7 +1363,9 @@ def barchartGeneProportions(infile, outfile):
     if PARAMS["heatmaps_order_genes"]:
         order = PARAMS.get("heatmaps_order_genes")
     else:
-        order = ",".join(open(infile).readline()[:-1].split("\t")[:-1])
+        order = open(infile).readline()[:-1].split("\t")[:-1]
+        order.sort()
+        order = ",".join(order)
     PipelineMetagenomeCommunities.barchartProportions(infile,
                                                       outfile,
                                                       order,
@@ -1376,7 +1382,8 @@ def barchartGeneProportions(infile, outfile):
 
 
 @follows(mergeDiamondGeneCounts,
-         loadDiamondGeneCounts)
+         loadDiamondGeneCounts,
+         barchartGeneProportions)
 def Genes():
     pass
 
@@ -1994,7 +2001,8 @@ def Differential_abundance():
          Differential_abundance,
          diversity,
          MDS,
-         proportions)
+         proportions,
+         Genes)
 def full():
     pass
 

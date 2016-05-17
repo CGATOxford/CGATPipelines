@@ -1,6 +1,6 @@
 """
 ====================
-ReadQc pipeline
+RNASeqQC pipeline
 ====================
 
 :Author: Tom Smith
@@ -68,7 +68,7 @@ with factors separated by ``-``, for example::
 
 and then set the ``factors`` variable in :file:`pipeline.ini` to::
 
-   factors=_,experiment,source,replicate,lane
+   factors=experiment-source-replicate-lane
 
 Pipeline output
 ===============
@@ -184,7 +184,7 @@ SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
-    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
+    r"(.*\/)*(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
     "csfasta.gz|csfasta.F3.gz|export.txt.gz)")
 
 
@@ -431,7 +431,7 @@ def buildJunctions(infile, outfile):
 @follows(mkdir("fastq.dir"))
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
-           r"fastq.dir/\1.subset")
+           r"fastq.dir/\2.subset")
 def subsetSequenceData(infile, outfile):
     """subset fastq files"""
     ignore_pipe_erors = True
@@ -526,7 +526,7 @@ def mapReadsWithHisat(infiles, outfile):
 @follows(mkdir("nreads.dir"))
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
-           r"nreads.dir/\1.nreads")
+           r"nreads.dir/\2.nreads")
 def countReads(infile, outfile):
     '''Count number of reads in input files.'''
     m = PipelineMapping.Counter()
@@ -675,7 +675,7 @@ def buildTranscriptGeneMap(infile, outfile):
            add_inputs(indexForSailfish,
                       buildCodingGeneSet,
                       buildTranscriptGeneMap),
-           r"sailfish.dir/\1/quant.sf")
+           r"sailfish.dir/\2/quant.sf")
 def runSailfish(infiles, outfile):
     '''quantify abundance'''
 
@@ -707,11 +707,12 @@ def mergeSailfishResults(infiles, outfiles):
     statement = """
     cat %(s_infiles)s
     | awk -v OFS="\\t"
-    '/^# Name/
+    '/^Name/
     { sample_id+=1;
-      if (sample_id == 1)
-      {gsub(/# Name/, "transcript_id");
-       printf("sample_id\\t%%s\\n", $0); next;}}
+      if (sample_id == 1) {
+         gsub(/Name/, "transcript_id");
+         printf("sample_id\\t%%s\\n", $0)};
+      next;}
     !/^#/
         {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
@@ -725,12 +726,12 @@ def mergeSailfishResults(infiles, outfiles):
     statement = """
     cat %(s_infiles)s
     | awk -v OFS="\\t"
-    '/^# Name/
+    '/^Name/
     { sample_id+=1;
       if (sample_id == 1)
-      {gsub(/# Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
+      {gsub(/Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
     !/^#/
-        {printf("%%i\\t%%s\\n", sample_id, $0)}'
+      {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
     > %(outfile_genes)s
     """
@@ -855,7 +856,7 @@ def buildFactorTable(infiles, outfile):
     factor_names = factor_names.split("-")
 
     with IOTools.openFile(outfile, "w") as outf:
-        outf.write("sample_name\tfactor\tfactor_value\n")
+        outf.write("sample_id\tfactor\tfactor_value\n")
 
         for sample_id, filename in enumerate(sorted(infiles)):
             sample_name, suffix = os.path.basename(filename).split(".", 1)
@@ -933,8 +934,9 @@ def summariseBias(infiles, outfile):
 
     atr["length"] = np.log2(atr["length"])
 
+    E.info("loading transcripts from {}".format(transcripts))
     exp = pd.read_csv(transcripts, sep='\t', index_col="transcript_id")
-    exp['LogTPM'] = np.log2(exp['TPM']+0.1)
+    exp['LogTPM'] = np.log2(exp['TPM'] + 0.1)
 
     merged = atr.join(exp[['sample_id', 'LogTPM']])
 

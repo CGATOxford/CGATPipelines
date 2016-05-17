@@ -24,10 +24,9 @@ import CGATPipelines
 # path were documentation source resides.
 # Use environment variable SPHINX_DOCSDIR.
 # If unset, take the location of CGATPipelines
-docsdir = os.environ.get(
-    "SPHINX_DOCSDIR",
-    os.path.join(os.path.dirname(CGATPipelines.__file__),
-                 'pipeline_docs'))
+docsdir = os.environ.get("SPHINX_DOCSDIR",
+                         os.path.join(os.path.dirname(CGATPipelines.__file__),
+                                      'pipeline_docs'))
 
 if not os.path.exists(docsdir):
     raise ValueError("documentation directory '%s' not found" % docsdir)
@@ -52,9 +51,9 @@ inifile = os.path.join(os.path.dirname(CGATPipelines.__file__),
 
 PARAMS = P.getParameters([inifile, "pipeline.ini"])
 
-
-def setup(app):
-    app.add_config_value('PARAMS', {}, True)
+# Definition now part of CGATReport
+# def setup(app):
+#     app.add_config_value('PARAMS', {}, True)
 
 ################################################################
 ################################################################
