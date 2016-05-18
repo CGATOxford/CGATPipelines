@@ -19,13 +19,10 @@ import CGAT.Counts as Counts
 import CGAT.IOTools as IOTools
 
 import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
 
 from CGATPipelines.Pipeline import cluster_runnable
 
-from rpy2.robjects import pandas2ri
 from rpy2.robjects import r as R
-import rpy2.robjects as ro
 
 import pandas as pd
 import numpy as np
