@@ -1545,19 +1545,20 @@ def differentialExpression():
 ###############################################################################
 
 @mkdir("summary_plots")
-@transform(runSleuth,
-           regex("DEresults.dir/(\S+)_tpm.tsv"),
-           add_inputs(r"\1.design.tsv"),
-           r"summary_plots/\1_plots.log")
+@collate(runSleuth,
+         regex("DEresults.dir/(\S+)_(\S+)_sleuth_results.tsv"),
+         add_inputs(r"\1.design.tsv"),
+         r"summary_plots/\1_\2_plots.log")
 def expressionSummaryPlots(infiles, logfile):
     ''' make summary plots for expression values for each design file'''
 
-    counts_inf, design_inf = infiles
+    infiles, design_inf = infiles[0]
+    results_inf, counts_inf, tpm_inf = infiles
 
     job_memory = "4G"
 
     TranscriptDiffExpression.makeExpressionSummaryPlots(
-        counts_inf, design_inf, logfile, submit=True, job_memory=job_memory)
+        tpm_inf, design_inf, logfile, submit=True, job_memory=job_memory)
 
 
 ###############################################################################
