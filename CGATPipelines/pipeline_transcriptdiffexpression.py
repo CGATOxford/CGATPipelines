@@ -1236,7 +1236,7 @@ def estimateSleuthMemory(bootstraps, samples, transcripts):
 def generate_sleuth_parameters_on_the_fly():
 
     quantifiers = P.asList(PARAMS["quantifiers"])
-    designs = ["%s.design.tsv" % x.asFile() for x in DESIGNS]
+    designs = [x.asFile() for x in DESIGNS]
 
     parameters = []
 
@@ -1246,7 +1246,8 @@ def generate_sleuth_parameters_on_the_fly():
             r"DEresults.dir/%s_%s_sleuth_counts.tsv" % (design, quantifier),
             r"DEresults.dir/%s_%s_sleuth_tpm.tsv" % (design, quantifier)]
         parameters.append(
-            (design, outfiles, quantifier, "index.dir/transcripts.fa"))
+            ("%s.design.tsv" % design, outfiles, quantifier,
+             "index.dir/transcripts.fa"))
 
     for job_parameters in parameters:
         yield job_parameters
