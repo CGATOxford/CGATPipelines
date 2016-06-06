@@ -584,6 +584,9 @@ def plotCpGAnnotations(infile, outfile_hist, outfile_box):
     axis.text.y = mtxt, axis.text.x = mtxt90,
     axis.title.y = ltxt, axis.title.x = ltxt,
     strip.text.x=ltxt, strip.text.y=mtxt,
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
     strip.background = element_rect(colour="grey60", fill="grey90"))
 
     p = ggplot(df, aes(value)) +
@@ -832,13 +835,14 @@ def plotMethFrequency(infile, outfile):
     plotMethFrequency = r('''
     function(infile, outfile){
     library(ggplot2)
+    library(grid)
     library(RColorBrewer)
 
     df = read.table(infile, sep="\t", header=TRUE)
 
     plotter = function(df, plotname, facet='both'){
 
-        l_size = 20
+        l_size = 30
         l_txt = element_text(size = l_size)
 
         p = ggplot(df, aes(x=treatment_replicate,
@@ -846,11 +850,10 @@ def plotMethFrequency(infile, outfile):
         geom_bar(position="fill", stat="identity") +
         xlab("") +
         ylab("Fraction") +
-        #scale_fill_gradientn(values=c(0, 0.4, 0.5, 0.6, 1),
-        #                 colours=c("cadetblue3", "grey95", "grey95", "grey95", "indianred3"))
         scale_fill_manual(name="Methylation (%)",
                           values = rev(colorRampPalette(
                                            brewer.pal(9, "RdBu"))(11))) +
+        scale_y_continuous(breaks=c(0, 0.5, 1), labels=c(0, 0.5, 1)) +
         theme_bw() +
         theme(
         axis.text.x = element_text(angle=90, size=l_size, hjust=1, vjust=0.5),
@@ -859,6 +862,7 @@ def plotMethFrequency(infile, outfile):
         aspect.ratio=1,
         legend.text = l_txt,
         legend.title = l_txt,
+        legend.key.size = unit(1.5, "cm"),
         strip.text = l_txt)
 
         if (facet=='both'){
