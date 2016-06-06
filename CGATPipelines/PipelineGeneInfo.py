@@ -4,7 +4,7 @@ import numpy as np
 import httplib2
 import json as json
 import sqlite3
-from intermine.webservice import Service
+import intermine
 import string
 import re
 import os
@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import urllib2 as urllib2
+import urllib2
 from CGATPipelines.Pipeline import cluster_runnable
 
 
@@ -769,7 +769,7 @@ class DataMineAnnotation(APIAnnotation):
         Tests the HumanMine API
         Look up symbol for APOBEC3G, should return APOBEC3G.
         '''
-        service = Service('http://www.humanmine.org/humanmine/service')
+        service = intermine.Service('http://www.humanmine.org/humanmine/service')
         query = service.new_query("Gene")
         query.add_view("symbol")
         query.add_constraint("Gene", "LOOKUP", "APOBEC3G", code="A")
@@ -801,7 +801,7 @@ class DataMineAnnotation(APIAnnotation):
 
         for seg in segs:
             # Connect to the API
-            service = Service(self.datasource)
+            service = intermine.Service(self.datasource)
             query = service.new_query("Gene")
             query.add_view(",".join(views))
             # Some databases require a host name
