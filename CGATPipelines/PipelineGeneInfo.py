@@ -769,7 +769,7 @@ class DataMineAnnotation(APIAnnotation):
         Tests the HumanMine API
         Look up symbol for APOBEC3G, should return APOBEC3G.
         '''
-        service = intermine.Service('http://www.humanmine.org/humanmine/service')
+        service = intermine.webservice.Service('http://www.humanmine.org/humanmine/service')
         query = service.new_query("Gene")
         query.add_view("symbol")
         query.add_constraint("Gene", "LOOKUP", "APOBEC3G", code="A")
@@ -801,7 +801,7 @@ class DataMineAnnotation(APIAnnotation):
 
         for seg in segs:
             # Connect to the API
-            service = intermine.Service(self.datasource)
+            service = intermine.webservice.Service(self.datasource)
             query = service.new_query("Gene")
             query.add_view(",".join(views))
             # Some databases require a host name

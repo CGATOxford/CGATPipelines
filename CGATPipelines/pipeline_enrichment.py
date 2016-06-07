@@ -226,6 +226,8 @@ def cleanForegrounds(infile, outfile):
     '''
     idtype = PARAMS['foreground_idtype']
     dbname = PARAMS['db_name']
+    print idtype
+    E.info(idtype)
     PipelineEnrichment.cleanGeneLists(infile, outfile, idtype, dbname,
                                       submit=True)
 
