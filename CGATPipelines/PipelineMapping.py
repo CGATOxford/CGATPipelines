@@ -2359,7 +2359,6 @@ class Hisat(Mapper):
         '''
 
         track = os.path.basename(outfile)
-        outf = P.snip(outfile, ".bam")
         tmpdir_hisat = self.tmpdir_hisat
 
         strip_cmd = ""
@@ -2373,7 +2372,7 @@ class Hisat(Mapper):
         statement = '''
         samtools view -uS %(tmpdir_hisat)s/%(track)s
         %(strip_cmd)s
-        | samtools sort - %(outf)s 2>>%(outfile)s.hisat.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.hisat.log;
         samtools index %(outfile)s;
         rm -rf %(tmpdir_hisat)s;
         ''' % locals()
