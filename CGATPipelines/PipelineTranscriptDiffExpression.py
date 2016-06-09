@@ -50,7 +50,7 @@ def connect(database, annotations_database):
 
 
 @cluster_runnable
-def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm,
+def runSleuth(design, base_dir, model, contrasts, outfile, counts, tpm,
               fdr, lrt=False, reduced_model=None):
     ''' run sleuth. Note: all samples in the design table must also
     have a directory with the same name in `base_dir` with kallisto
@@ -61,13 +61,13 @@ def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm,
     Design = Expression.ExperimentalDesign(design)
     exp = Expression.DEExperiment_Sleuth()
 
-    res = exp.run(Design, base_dir, model, contrast, outfile_prefix,
+    res = exp.run(Design, base_dir, model, contrasts, outfile_prefix,
                   counts, tpm, fdr, lrt, reduced_model)
 
     res.getResults(fdr)
-
-    res.plotMA(contrast, outfile_prefix)
-    res.plotVolcano(contrast, outfile_prefix)
+    for contrast in set(res.table['contrast']):
+        res.plotMA(contrast, outfile_prefix)
+        res.plotVolcano(contrast, outfile_prefix)
 
     res.table.to_csv(outfile, sep="\t", index=False)
 
