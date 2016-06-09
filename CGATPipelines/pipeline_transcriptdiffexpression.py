@@ -1280,6 +1280,11 @@ def runSleuth(design, outfiles, quantifier, transcripts):
 
     outfile_pattern = P.snip(outfile, ".tsv")
 
+    if PARAMS["sleuth_ihw"]:
+        ihw = "--use-ihw"
+    else:
+        ihw = ""
+
     statement = '''
     python %(scriptsdir)s/counts2table.py
     --design-tsv-file=%(design)s
@@ -1292,6 +1297,7 @@ def runSleuth(design, outfiles, quantifier, transcripts):
     --sleuth-counts-dir=quant.dir/%(quantifier)s
     --outfile-sleuth-count=%(counts)s
     --outfile-sleuth-tpm=%(tpm)s
+    %(ihw)s
     >%(outfile)s
     '''
 
@@ -1369,13 +1375,16 @@ def mergeCounts(infiles, outfiles):
 
 
 @transform(mergeCounts,
-           regex("DEresults.dir/all_(\S+).tsv"),
-           r"DEresults.dir/all_\1_gene_expression.tsv")
+           regex("DEresults.dir/all_(\S+)_(\S+).tsv"),
+           r"DEresults.dir/all_gene_expression_\1_\2.tsv")
 def aggregateCounts(infiles, outfile):
     ''' aggregate counts across transcripts for the same gene_id '''
 
     for infile in infiles:
-        outfile = P.snip(infile, ".tsv") + "_gene_expression.tsv"
+        outfile = infile.split("_")
+        outfile[1] = "gene_expression_" + outfile[1]
+        outfile = "_".join(outfile)
+
         statement = '''SELECT DISTINCT transcript_id, gene_id FROM
                        annotations.transcript_info'''
         transcript_info_df = pd.read_sql(statement, connect())
@@ -1391,7 +1400,7 @@ def aggregateCounts(infiles, outfile):
 
 
 @product(aggregateCounts,
-         formatter("DEresults.dir/all_counts_(?P<QUANTIFIER>\S+)_gene_expression.tsv"),
+         formatter("DEresults.dir/all_gene_expression_counts_(?P<QUANTIFIER>\S+).tsv"),
          ["%s.design.tsv" % x.asFile() for x in DESIGNS],
          formatter(".*/(?P<DESIGN>\S+).design.tsv$"),
          "DEresults.dir/{DESIGN[1][0]}_{QUANTIFIER[0][0]}_deseq2_DE_results.tsv")
@@ -1418,6 +1427,11 @@ def diffExpressionDESeq2(infiles, outfile):
     else:
         ref_group_cmd = ""
 
+    if PARAMS["deseq2_ihw"]:
+        ihw = "--use-ihw"
+    else:
+        ihw = ""
+
     statement = '''
     python %(scriptsdir)s/counts2table.py
     --tags-tsv-file=%(tmp_counts)s
@@ -1428,6 +1442,7 @@ def diffExpressionDESeq2(infiles, outfile):
     --fdr=%(deseq2_fdr)s
     --model=%(model)s
     --contrasts=%(contrasts)s
+    %(ihw)s
     %(ref_group_cmd)s
     >%(outfile)s
     '''
