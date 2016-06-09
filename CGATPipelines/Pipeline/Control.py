@@ -94,19 +94,24 @@ def writeConfigFiles(pipeline_path, general_path):
     '''create default configuration files in `path`.
     '''
 
-    for src in [
-            os.path.join(pipeline_path, "pipeline.ini"),
-            os.path.join(general_path, "conf.py")]:
-        dest = os.path.basename(src)
+    paths = [pipeline_path, general_path]
+    config_files = ['pipeline.ini', 'conf.py']
+
+    for dest in config_files:
         if os.path.exists(dest):
             E.warn("file `%s` already exists - skipped" % dest)
             continue
 
-        if not os.path.exists(src):
-            raise ValueError("default config file `%s` not found" % src)
-
-        shutil.copyfile(src, dest)
-        E.info("created new configuration file `%s` " % dest)
+        for path in paths:
+            src = os.path.join(path, dest)
+            if os.path.exists(src):
+                shutil.copyfile(src, dest)
+                E.info("created new configuration file `%s` " % dest)
+                break
+        else:
+            raise ValueError(
+                "default config file for `%s` not found in %s" %
+                (config_files, paths))
 
 
 def clonePipeline(srcdir, destdir=None):
