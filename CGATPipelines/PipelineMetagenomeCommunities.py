@@ -84,6 +84,49 @@ def countContributingReads(infile, outfile):
         outf.write("\t".join([level, str(nreads), str(prop*100)]) + "\n")
     outf.close()
 
+
+###################################################################
+###################################################################
+###################################################################
+
+
+def readHierarchy(mapfile):
+    '''
+    read hierachy into dictionary
+    '''
+    hierarchy = collections.defaultdict(list)
+    inf = IOTools.openFile(mapfile)
+    inf.readline()
+    for line in inf.readlines():
+        data = line.strip("\n").split("\t")
+        kingdom = data[0]
+        hierarchy[kingdom].extend(data[1:])
+    return hierarchy
+
+
+###################################################################
+###################################################################
+###################################################################
+
+
+def barplotAlignmentStats(infile, outfile, **kwargs):
+    '''
+    barplot percent of reads aligned
+    '''
+    take = "passigned"
+    if "take" in kwargs:
+        take = kwargs["take"]
+    
+    R('''library(ggplot2)''')
+    R('''library(gtools)''')
+    R('''dat <- read.csv("%s", header=T, stringsAsFactors=F, sep="\t")''' % infile)
+    R('''sample <- factor(dat$sample, levels=mixedsort(unique(dat$sample)))''')
+    R('''dat$level <- factor(dat$level, levels=c("phylum", "class", "order","family", "genus", "species"))''')
+    R('''plot1 <- ggplot(dat, aes(x=sample, y=%s, stat="identity", fill=tool))''' % take)
+    R('''plot2 <- plot1 + geom_bar(stat="identity")''')
+    R('''plot3 <- plot2 + facet_wrap(~level + tool) + coord_flip()''')
+    R('''ggsave("%s", height=12, width=12)''' % outfile)
+    
 ###################################################################
 ###################################################################
 ###################################################################
@@ -158,9 +201,10 @@ def plotPCA(scores,
     # condition colours
     R('''dat <- dat[mixedsort(rownames(dat)),]''')
     R('''conds <- unlist(strsplit(rownames(dat),
-                         ".R[0-9]"))[seq(1, ncol(dat)*2, 2)]
+                         ".R[0-9]"))[seq(1, nrow(dat)*2, 2)]
          conds <- unlist(strsplit(conds, ".",
                          fixed = T))[seq(2, length(conds)*2, 2)]''')
+
     R('''dat$cond <- conds''')
 
     R('''plotPCA <- function(scores, ve, pcs=c("PC1", "PC2")){
@@ -178,21 +222,23 @@ def plotPCA(scores,
                 return(plot3)
     }''')
 
-    # plot first 3 princliple components
-    R('''p1 <- plotPCA(dat, ve, pcs=c("PC1", "PC2"))''')
-    R('''p2 <- plotPCA(dat, ve, pcs=c("PC1", "PC3"))''')
-    R('''p3 <- plotPCA(dat, ve, pcs=c("PC2", "PC3"))''')
-    R('''grid.arrange(p1, p2, p3, ncol=3)''')
-    R('''g <- arrangeGrob(p1, p2, p3, ncol=3)''')
-    R('''ggsave("%s", g, width=15, height=5)''' % outfile)
+    # plot first 3 princliple components - if 3 exist
+    R('''if (ncol(dat) < 4){
+           height <- 7
+           width <- 7
+           p1 <- plotPCA(dat, ve, pcs=c("PC1", "PC2"))
+           grid.arrange(p1, ncol=1)
+           g <- arrangeGrob(p1, ncol=1)}else{
+           height <- 7
+           width <- 15
+           p1 <- plotPCA(dat, ve, pcs=c("PC1", "PC2"))
+           p2 <- plotPCA(dat, ve, pcs=c("PC1", "PC3"))
+           p3 <- plotPCA(dat, ve, pcs=c("PC2", "PC3"))
+           grid.arrange(p1, p2, p3, ncol=3)
+           g <- arrangeGrob(p1, p2, p3, ncol=3)
+         }''')
+    R('''ggsave("%s", g, width=width, height=height)''' % outfile)
     
-###################################################################
-###################################################################
-###################################################################
-
-
-
-
 
 ###################################################################
 ###################################################################
@@ -380,14 +426,14 @@ def plotHeatmap(results,
              colnames(mat) <- samples
          mat <- mat[, mixedsort(colnames(mat))]
          colours = colorRampPalette(c("blue", "white", "red"))(75)
-         png("%s", height = 1000, width = 500)
+         pdf("%s", height = 12, width = 12)
          heatmap.2(as.matrix(mat),
                    trace = "none",
                    scale = "none",
                    col = colours,
                    Colv = F,
                    dendrogram = "row",
-                   margins = c(15, 15))
+                   margins = c(18, 18))
              dev.off()''' % outfile)
 
     os.unlink(temp)
@@ -460,6 +506,7 @@ def rarefactionCurve(infile,
     R('''rownames(dat) <- dat$taxa''')
     R('''dat <- dat[,2:ncol(dat)]''')
     R('''tdat <- data.frame(t(dat))''')
+    R('''tdat <- tdat[mixedsort(rownames(tdat)),]''')
     R('''sums <- apply(tdat, 1, sum)''')
     R('''min.count <- min(sums)''')
     R('''tdat <- tdat[mixedsort(rownames(tdat)),]''')
@@ -471,7 +518,8 @@ def rarefactionCurve(infile,
                            from = %i,
                            to = min.count,
                            step = %i, groups = conds)''' % (f, step))
-    R('''plotRarefaction(rf)''')
+    R('''colours <- rainbow(length(unique(conds)), s=1, v=0.75)''')
+    R('''plotRarefaction(rf, colours=colours)''')
     R('''ggsave("%s")''' % outfile)
 
 
@@ -515,7 +563,7 @@ def buildDiversity(infile,
                    rdir,
                    ind="shannon"):
     '''
-    barplot diversity
+    build diversity
     '''
     R('''source("%s/metagenomic_diversity.R")''' % rdir)
     R('''library(gtools)''')
@@ -557,7 +605,8 @@ def barplotDiversity(infile,
                          ".R[0-9]"))[seq(1, nrow(tdat)*2, 2)]''')
     R('''conds <- unlist(strsplit(conds,
                          ".", fixed = T))[seq(2, length(conds)*2, 2)]''')
-    R('''plotDiversity(tdat, index = "%s", groups = conds)''' % ind)
+    R('''colours <- rainbow(length(unique(conds)),s=1, v=0.75)''')
+    R('''plotDiversity(tdat, index="%s", colours=colours, groups=conds)''' % ind)
     R('''ggsave("%s")''' % outfile)
 
 ###################################################################
