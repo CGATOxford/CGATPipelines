@@ -221,8 +221,9 @@ import pandas
 
 # load options from the config file
 import CGATPipelines.Pipeline as P
-#"%s/pipeline.ini" % os.path.splitext(__file__)[0],
-P.getParameters(["pipeline.ini"])
+
+P.getParameters(["pipeline.ini",
+                 "%s/pipeline.ini" % os.path.splitext(__file__)[0], ])
 
 
 PARAMS = P.PARAMS
@@ -289,7 +290,6 @@ def countReads(infile, outfile):
 @merge(countReads, "reads_summary.load")
 def loadReadCounts(infiles, outfile):
     '''load read counts into database.'''
-
     to_cluster = False
     outf = P.getTempFile()
     outf.write("track\ttotal_reads\n")
@@ -795,7 +795,7 @@ def buildTaxaMap(infile, outfile):
     analysis
     '''
     statement = '''zcat %(infile)s
-                   | python %(scriptsdir)s/lca2table.py 
+                   | python %(scriptsdir)s/lca2table.py
                    --output-map
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -1008,7 +1008,8 @@ for classifier in P.asList(PARAMS.get("classifiers")):
 ###############################################
 ###############################################
 ###############################################
-    
+
+
 @jobs_limit(1, "R")
 @transform(COUNT_DATA,
            suffix(".counts.tsv.gz"),
@@ -1200,8 +1201,6 @@ def buildDiversity(infile, outfile):
                                                  outfile,
                                                  rdir,
                                                  ind=ind)
-    
-
 
 ###################################################################
 ###################################################################
@@ -1537,16 +1536,20 @@ def aggregateAlignmentStats(infiles, outfile):
     '''
     one table for alignment stats
     '''
-    samples = [os.path.basename(x).split(".")[0] for x in infiles if "genes" not in x]
-    levels = [os.path.basename(x).split(".")[1] for x in infiles if "genes" not in x]
-    tools = [os.path.basename(x).split(".")[2] for x in infiles if "genes" not in x]
+    samples = [
+        os.path.basename(x).split(".")[0] for x in infiles if "genes" not in x]
+    levels = [
+        os.path.basename(x).split(".")[1] for x in infiles if "genes" not in x]
+    tools = [
+        os.path.basename(x).split(".")[2] for x in infiles if "genes" not in x]
     outf = IOTools.openFile(outfile, "w")
     outf.write("sample\tlevel\ttool\tnreads\tnassigned\tpassigned\n")
     for s, l, t in zip(samples, levels, tools):
-        inf = IOTools.openFile("alignment_stats.dir/"+s+"."+l+"."+t+"."+"stats")
+        inf = IOTools.openFile(
+            "alignment_stats.dir/"+s+"."+l+"."+t+"."+"stats")
         inf.readline()
         result = inf.readline()
-        outf.write("\t".join([s,l,t]) + "\t" + result)
+        outf.write("\t".join([s, l, t]) + "\t" + result)
     outf.close()
 
 ###################################################################
@@ -1678,7 +1681,7 @@ def splitResultsByKingdom(infiles, outfiles):
     result, mapfile = infiles
     matrix = P.snip(result, ".diff.tsv") + ".norm.matrix"
     hierarchy = PipelineMetagenomeCommunities.readHierarchy(mapfile)
-    
+
     # need to do it for both the results
     # table and the normalised matrix file
     for inf in [result, matrix]:
@@ -1711,7 +1714,7 @@ def splitResultsByKingdom(infiles, outfiles):
                 else:
                     continue
             outf.close()
-            
+
 ###################################################################
 ###################################################################
 ###################################################################
@@ -1884,8 +1887,8 @@ def plotPCA(infile, outfile):
         P.touch(outfile)
     else:
         PipelineMetagenomeCommunities.plotPCA(scores,
-                                          ve,
-                                          outfile)
+                                              ve,
+                                              outfile)
 
 ###################################################################
 ###################################################################
@@ -1909,7 +1912,9 @@ def runMDS(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform([runMetagenomeSeq, splitResultsByKingdom], suffix(".diff.tsv"), ".mds.sig")
+@transform([runMetagenomeSeq, splitResultsByKingdom],
+           suffix(".diff.tsv"),
+           ".mds.sig")
 def runPermanova(infile, outfile):
     '''
     run permanova on euclidean distances
@@ -1986,7 +1991,9 @@ def MAPlot(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform([runMetagenomeSeq, splitResultsByKingdom], suffix(".tsv"), ".heatmap.pdf")
+@transform([runMetagenomeSeq, splitResultsByKingdom],
+           suffix(".tsv"),
+           ".heatmap.pdf")
 def plotDiffHeatmap(infile, outfile):
     '''
     plot differentially expressed genes on a heatmap
