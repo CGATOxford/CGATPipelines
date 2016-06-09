@@ -221,8 +221,9 @@ import pandas
 
 # load options from the config file
 import CGATPipelines.Pipeline as P
-P.getParameters(["%s/pipeline.ini" % os.path.splitext(__file__)[0],
-                 "pipeline.ini"])
+
+P.getParameters(["pipeline.ini",
+                 "%s/pipeline.ini" % os.path.splitext(__file__)[0], ])
 
 
 PARAMS = P.PARAMS
@@ -289,7 +290,6 @@ def countReads(infile, outfile):
 @merge(countReads, "reads_summary.load")
 def loadReadCounts(infiles, outfile):
     '''load read counts into database.'''
-
     to_cluster = False
     outf = P.getTempFile()
     outf.write("track\ttotal_reads\n")
@@ -690,7 +690,7 @@ def mergeKrakenCountsAcrossSamples(infiles, outfiles):
 ###################################################################
 
 
-@active_if("kraken" in PARAMS.get("classifiers"))
+@active_if(["kraken" in PARAMS.get("classifiers")])
 @follows(mergeKrakenCountsAcrossSamples)
 def Kraken():
     pass
@@ -759,7 +759,7 @@ def runLCA(infile, outfile):
     # filtering options
     filter_list = P.asList(PARAMS.get("lca_filter"))
     if filter_list:
-        filter_stmt = "grep -v " + " | grep -v ".join(filter_list)
+        filter_stmt = " | grep -v " + " | grep -v ".join(filter_list)
     else:
         filter_stmt = ""
 
@@ -774,11 +774,57 @@ def runLCA(infile, outfile):
                    -gt %(gi2taxid)s
                    -o %(outf_tax)s > %(outfile)s.log
                    ; cat %(outf_tax)s
-                  | %(filter_stmt)s
+                  %(filter_stmt)s
                   | gzip > %(outfile)s
                   ; checkpoint
                   ; rm -rf %(outf_tax)s'''
     P.run()
+
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@follows(mkdir("taxa_map.dir"))
+@transform(runLCA, regex("(\S+)/(\S+).lca.gz"), r"taxa_map.dir/\2.map.gz")
+def buildTaxaMap(infile, outfile):
+    '''
+    build a map from kingdom through species for
+    each lca file - allows to map clades in downstream
+    analysis
+    '''
+    statement = '''zcat %(infile)s
+                   | python %(scriptsdir)s/lca2table.py
+                   --output-map
+                   --log=%(outfile)s.log
+                   | gzip > %(outfile)s'''
+    P.run()
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@merge(buildTaxaMap, "taxa_map.dir/aggregated_taxa.map.gz")
+def aggregateTaxaMaps(infiles, outfile):
+    '''
+    build a union of taxa mappings from kingdom through species
+    '''
+    found = []
+    outf = IOTools.openFile(outfile, "w")
+    outf.write("kingdom\tphylum\tclass\torder\tfamily\tgenus\tspecies\n")
+    for infile in infiles:
+        inf = IOTools.openFile(infile)
+        # skip header
+        header = inf.readline()
+        for line in inf.readlines():
+            if line in found:
+                continue
+            else:
+                found.append(line)
+                outf.write(line)
+    outf.close()
 
 ###################################################################
 ###################################################################
@@ -953,9 +999,19 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
 ###############################################
 ###############################################
 
+COUNT_DATA = []
+classifiers = {"kraken": mergeKrakenCountsAcrossSamples,
+               "lca": mergeLcaCountsAcrossSamples}
+for classifier in P.asList(PARAMS.get("classifiers")):
+    COUNT_DATA.append(classifiers[classifier])
+
+###############################################
+###############################################
+###############################################
+
 
 @jobs_limit(1, "R")
-@transform([mergeLcaCountsAcrossSamples, mergeKrakenCountsAcrossSamples],
+@transform(COUNT_DATA,
            suffix(".counts.tsv.gz"),
            ".counts.rarefied.tsv")
 def rarefyTaxa(infile, outfile):
@@ -970,7 +1026,7 @@ def rarefyTaxa(infile, outfile):
 ###############################################
 ###############################################
 
-rarefy = {0: ([mergeLcaCountsAcrossSamples, mergeKrakenCountsAcrossSamples], ".counts.tsv.gz"),
+rarefy = {0: (COUNT_DATA, ".counts.tsv.gz"),
           1: (rarefyTaxa, ".counts.rarefied.tsv")}
 RAREFY_FUNC = rarefy[PARAMS.get("rarefy_rarefy_taxa")][0]
 RAREFY_SUFFIX = rarefy[PARAMS.get("rarefy_rarefy_taxa")][1]
@@ -1058,7 +1114,8 @@ def loadAggregatedCounts(infile, outfile):
 ############################
 
 
-@follows(mergeLcaCountsAcrossSamples)
+@follows(mergeLcaCountsAcrossSamples,
+         aggregateTaxaMaps)
 def Lca():
     pass
 
@@ -1076,6 +1133,11 @@ classifiers = {"kraken": mergeKrakenCountsAcrossSamples,
                "lca": mergeLcaCountsAcrossSamples}
 for classifier in P.asList(PARAMS.get("classifiers")):
     COUNT_DATA.append(classifiers[classifier])
+
+
+###################################################################
+###################################################################
+###################################################################
 
 
 @jobs_limit(1, "R")
@@ -1128,6 +1190,27 @@ def testRichness(infile, outfile):
 @follows(mkdir("diversity.dir"))
 @transform(COUNT_DATA,
            regex("(\S+)/(\S+).counts.tsv.gz"),
+           r"diversity.dir/\2.diversity.tsv")
+def buildDiversity(infile, outfile):
+    '''
+    build flat file with diversity calculation
+    '''
+    rdir = PARAMS.get("rscriptsdir")
+    ind = PARAMS.get("diversity_index")
+    PipelineMetagenomeCommunities.buildDiversity(infile,
+                                                 outfile,
+                                                 rdir,
+                                                 ind=ind)
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
+@follows(mkdir("diversity.dir"))
+@transform(COUNT_DATA,
+           regex("(\S+)/(\S+).counts.tsv.gz"),
            r"diversity.dir/\2.diversity.pdf")
 def barplotDiversity(infile, outfile):
     '''
@@ -1166,7 +1249,8 @@ def testDiversity(infile, outfile):
 @follows(testDiversity,
          testRichness,
          runRarefactionAnalysis,
-         barplotDiversity)
+         barplotDiversity,
+         buildDiversity)
 def diversity():
     pass
 
@@ -1420,7 +1504,7 @@ def countAlignments(infiles, outfile):
 
     # assume that files are named without any other R[0-9]
     track = os.path.basename(re.match(
-        "(.*-R[0-9]).(.*.counts.load)", infile).groups()[0])
+        "(.*-R[0-9]*).(.*.counts.load)", infile).groups()[0])
     table = P.toTable(infile)
 
     # connect to database
@@ -1441,13 +1525,54 @@ def countAlignments(infiles, outfile):
             [nreads, alignments, (float(alignments)/nreads)*100])) + "\n")
     outf.close()
 
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@merge(countAlignments, "alignment_stats.dir/alignment_stats.tsv")
+def aggregateAlignmentStats(infiles, outfile):
+    '''
+    one table for alignment stats
+    '''
+    samples = [
+        os.path.basename(x).split(".")[0] for x in infiles if "genes" not in x]
+    levels = [
+        os.path.basename(x).split(".")[1] for x in infiles if "genes" not in x]
+    tools = [
+        os.path.basename(x).split(".")[2] for x in infiles if "genes" not in x]
+    outf = IOTools.openFile(outfile, "w")
+    outf.write("sample\tlevel\ttool\tnreads\tnassigned\tpassigned\n")
+    for s, l, t in zip(samples, levels, tools):
+        inf = IOTools.openFile(
+            "alignment_stats.dir/"+s+"."+l+"."+t+"."+"stats")
+        inf.readline()
+        result = inf.readline()
+        outf.write("\t".join([s, l, t]) + "\t" + result)
+    outf.close()
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@transform(aggregateAlignmentStats, suffix(".tsv"), ".pdf")
+def plotAlignmentStats(infile, outfile):
+    '''
+    barplot alignment stats
+    '''
+    PipelineMetagenomeCommunities.barplotAlignmentStats(infile,
+                                                        outfile,
+                                                        take="passigned")
+
 ###################################################################
 ###################################################################
 ###################################################################
 
 
 @follows(count_reads)
-@transform(countAlignments, suffix(".stats"), ".stats.load")
+@transform(aggregateAlignmentStats, suffix(".stats"), ".stats.load")
 def loadAlignmentStats(infile, outfile):
     '''
     load alignment counts
@@ -1455,7 +1580,7 @@ def loadAlignmentStats(infile, outfile):
     P.load(infile, outfile)
 
 
-@follows(loadAlignmentStats)
+@follows(loadAlignmentStats, plotAlignmentStats)
 def Alignment_stats():
     pass
 
@@ -1478,9 +1603,10 @@ for classifier in P.asList(PARAMS.get("classifiers")):
 ###################################################################
 
 
+@follows(mkdir("diff.dir"))
 @transform(CLASSIFIER_TARGETS + [mergeDiamondGeneCounts],
-           suffix(".tsv.gz"),
-           ".diff.tsv")
+           regex("(\S+)/(\S+).tsv.gz"),
+           r"diff.dir/\2.diff.tsv")
 def runMetagenomeSeq(infile, outfile):
     '''
     run metagenomeSeq - a tool for calculating significance
@@ -1488,9 +1614,10 @@ def runMetagenomeSeq(infile, outfile):
     '''
     rscriptsdir = PARAMS.get("rscriptsdir")
     rscript = PARAMS.get("metagenomeseq_rscript")
-    prefix = P.snip(infile, ".tsv.gz")
+    prefix = P.snip(infile.replace("counts.dir", "diff.dir"), ".tsv.gz")
 
     if infile.find("gene") != -1:
+        prefix = P.snip(infile.replace("genes.dir", "diff.dir"), ".tsv.gz")
         k = PARAMS.get("metagenomeseq_genes_k")
         a = PARAMS.get("metagenomeseq_genes_a")
 
@@ -1534,17 +1661,72 @@ def runMetagenomeSeq(infile, outfile):
 
     P.run()
 
+
 ###################################################################
 ###################################################################
 ###################################################################
 
 
-@transform(runMetagenomeSeq, suffix(".tsv"), ".load")
+@subdivide(runMetagenomeSeq,
+           regex("(\S+)/(\S+).diff.tsv"),
+           add_inputs(aggregateTaxaMaps),
+           r"\1/*.\2.diff.tsv")
+def splitResultsByKingdom(infiles, outfiles):
+    '''
+    split results by kingdom for downstream
+    analysis
+    TODO: Tidy this up and put into module with
+    P.submit
+    '''
+    result, mapfile = infiles
+    matrix = P.snip(result, ".diff.tsv") + ".norm.matrix"
+    hierarchy = PipelineMetagenomeCommunities.readHierarchy(mapfile)
+
+    # need to do it for both the results
+    # table and the normalised matrix file
+    for inf in [result, matrix]:
+        header = IOTools.openFile(inf).readline()
+        for kingdom, taxa in hierarchy.iteritems():
+            if kingdom == "NA":
+                kingdom = "other"
+            else:
+                kingdom = kingdom
+            # sepcify new outfile name
+            outf = os.path.join(
+                os.path.dirname(result), kingdom + ".")
+            outf = outf + os.path.basename(result)
+            if inf.endswith(".matrix"):
+                suffix = ".norm.matrix"
+                # last column in the matrix file
+                taxon_ind = -1
+            else:
+                suffix = None
+                taxon_ind = 8
+            if suffix:
+                outf = outf.replace(".diff.tsv", suffix)
+            outf = IOTools.openFile(outf, "w")
+            outf.write(header)
+            for line in IOTools.openFile(inf).readlines():
+                data = line.strip("\n").split("\t")
+                taxon = data[taxon_ind].replace('"', '')
+                if taxon in taxa:
+                    outf.write(line)
+                else:
+                    continue
+            outf.close()
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@transform([runMetagenomeSeq, splitResultsByKingdom],
+           suffix(".tsv"), ".load")
 def loadDifferentialAbundance(infile, outfile):
     '''
     load differentially abundant features
     '''
-    P.load(infile, outfile)
+    P.load(infile, outfile, "--allow-empty-file")
 
 ###################################################################
 ###################################################################
@@ -1669,10 +1851,55 @@ def runPathwaysAnalysis(infiles, outfiles):
 
 
 @jobs_limit(1, "R")
+@transform([runMetagenomeSeq, splitResultsByKingdom],
+           suffix(".diff.tsv"),
+           ".pca.tsv")
+def runPCA(infile, outfile):
+    '''
+    run principle components analysis
+    '''
+    # the infile is a separate file output by
+    # run_metagenomeseq = normalised counts
+    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    if len(IOTools.openFile(inf).readlines()) <= 2:
+        E.warn("Empty matrix %s: Check this is correct" % inf)
+        P.touch(outfile)
+        P.touch(outfile.replace(".tsv", ".ve.tsv"))
+    else:
+        PipelineMetagenomeCommunities.runPCA(inf, outfile)
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
+@transform(runPCA, suffix(".tsv"), ".pdf")
+def plotPCA(infile, outfile):
+    '''
+    plot principle components
+    '''
+    # also outputted a separate file for variance explained
+    scores, ve = infile, P.snip(infile, ".tsv") + ".ve.tsv"
+
+    if os.path.getsize(scores) == 0:
+        E.warn("Empty matrix %s: Check this is correct" % scores)
+        P.touch(outfile)
+    else:
+        PipelineMetagenomeCommunities.plotPCA(scores,
+                                              ve,
+                                              outfile)
+
+###################################################################
+###################################################################
+###################################################################
+
+
+@jobs_limit(1, "R")
 @transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.pdf")
 def runMDS(infile, outfile):
     '''
-    run MDS analysis on genes
+    run MDS analysis
     '''
     # the infile is a separate file output by
     # run_metagenomeseq = normalised counts
@@ -1685,7 +1912,9 @@ def runMDS(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.sig")
+@transform([runMetagenomeSeq, splitResultsByKingdom],
+           suffix(".diff.tsv"),
+           ".mds.sig")
 def runPermanova(infile, outfile):
     '''
     run permanova on euclidean distances
@@ -1693,16 +1922,22 @@ def runPermanova(infile, outfile):
     # the infile is a separate file output by
     # run_metagenomeseq = normalised counts
     inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
-    PipelineMetagenomeCommunities.testDistSignificance(inf, outfile)
+
+    # only run if the file is not empty
+    if len(IOTools.openFile(inf).readlines()) == 1:
+        E.warn("Empty matrix %s: Check this is correct" % inf)
+        P.touch(outfile)
+    else:
+        PipelineMetagenomeCommunities.testDistSignificance(inf, outfile)
 
 ###################################################################
 ###################################################################
 ###################################################################
 
 
-@follows(runMDS,
+@follows(plotPCA,
          runPermanova)
-def MDS():
+def PCA():
     pass
 
 ###################################################################
@@ -1756,7 +1991,9 @@ def MAPlot(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform(runMetagenomeSeq, suffix(".tsv"), ".heatmap.png")
+@transform([runMetagenomeSeq, splitResultsByKingdom],
+           suffix(".tsv"),
+           ".heatmap.pdf")
 def plotDiffHeatmap(infile, outfile):
     '''
     plot differentially expressed genes on a heatmap
@@ -1785,7 +2022,7 @@ def plotDiffHeatmap(infile, outfile):
 ################################
 
 
-@follows(runMDS, loadDifferentialAbundance)
+@follows(PCA, loadDifferentialAbundance)
 def Differential_abundance():
     pass
 
@@ -2000,7 +2237,7 @@ def Differential_abundance():
 @follows(Alignment_stats,
          Differential_abundance,
          diversity,
-         MDS,
+         plotPCA,
          proportions,
          Genes)
 def full():
@@ -2030,7 +2267,4 @@ def update_report():
 
 
 if __name__ == "__main__":
-
-    if sys.argv[2] == "plot":
-        pipeline_printout_graph("flowchart.png", "png")
     sys.exit(P.main(sys.argv))
