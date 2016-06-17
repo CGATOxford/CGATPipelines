@@ -545,11 +545,18 @@ class SequenceCollectionProcessor(object):
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
-                f, format = Sra.peek(infile)
+                f, format, datatype = Sra.peek(infile)
                 E.info("sra file contains the following files: %s" % f)
 
+                # T.S need to use abi-dump for colorspace files
+                if datatype == "basecalls":
+                    tool = "fastq-dump"
+                elif datatype == "colorspace":
+                    tool = "abi-dump"
+                    self.datatype = "solid"
+
                 # add extraction command to statement
-                statement.append(Sra.extract(infile, tmpdir_fastq))
+                statement.append(Sra.extract(infile, tmpdir_fastq, tool))
 
                 sra_extraction_files = ["%s/%s" % (
                     tmpdir_fastq, os.path.basename(x)) for x in sorted(f)]
@@ -610,12 +617,55 @@ class SequenceCollectionProcessor(object):
                     infile = sra_extraction_files[0]
                     basename = os.path.basename(infile)
                     if ((len(sra_extraction_files) == 1 and
-                         basename.endswith("_1.fastq.gz"))):
+                         basename.endswith("_1.fastq.gz")) and
+                        self.datatype != "solid"):
                         basename = basename[:-11] + ".fastq.gz"
                         statement.append(
                             "mv %s %s/%s" % (infile, tmpdir_fastq, basename))
                         fastqfiles.append(
                             ("%s/%s" % (tmpdir_fastq, basename),))
+
+                    # if sra extracted file is SOLID, need to keep
+                    # record of qual files
+                    elif self.datatype == "solid":
+                        # single end SOLiD data
+
+                        infile = P.snip(infile, "_1.fastq.gz") + "_F3.csfasta.gz"
+                        quality = P.snip(infile, "_F3.csfasta.gz") + "_QV.qual.gz"
+
+                        # qual file does not exist as tmpdir from
+                        # SRA.extract is removed
+                        # if not os.path.exists(quality):
+                        #    raise ValueError("no quality file for %s" % infile)
+
+                        fastqfiles.append(("%s/%s_F3.csfasta.gz" %
+                                           (tmpdir_fastq, track),
+                                           "%s/%s_QV.qual.gz" %
+                                           (tmpdir_fastq, track)))
+
+                    # T.S I'm not sure if this works. Need a test case!
+                    elif infile.endswith(".csfasta.F3.gz"):
+                        # paired end SOLiD data
+                        bn = P.snip(infile, ".csfasta.F3.gz")
+                        # order is important - mirrors tophat reads followed by
+                        # quals
+                        f = []
+                        for suffix in ("csfasta.F3", "csfasta.F5",
+                                       "qual.F3", "qual.F5"):
+                            fn = "%(bn)s.%(suffix)s" % locals()
+                            if not os.path.exists(fn + ".gz"):
+                                raise ValueError(
+                                    "expected file %s.gz missing" % fn)
+                            statement.append("""gunzip < %(fn)s.gz
+                            %(compress_cmd)s
+                            > %(tmpdir_fastq)s/%(basename)s.%(suffix)s%(extension)s
+                            """ %
+                                             locals())
+                            f.append(
+                                "%(tmpdir_fastq)s/%(basename)s.%(suffix)s%(extension)s" %
+                                locals())
+                        fastqfiles.append(f)
+
                     elif len(sra_extraction_files) == 2:
                         infile2 = sra_extraction_files[1]
                         if basename.endswith("_1.fastq.gz"):
@@ -628,6 +678,7 @@ class SequenceCollectionProcessor(object):
                         fastqfiles.append(
                             ("%s/%s" % (tmpdir_fastq, basename1),
                              "%s/%s" % (tmpdir_fastq, basename2)))
+
                     else:
                         fastqfiles.append(sra_extraction_files)
 
@@ -814,7 +865,7 @@ class Mapper(SequenceCollectionProcessor):
                  tool_options="",
                  *args, **kwargs):
         '''
-        '''
+       '''
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
 
         if executable:
@@ -2237,11 +2288,12 @@ class Hisat(Mapper):
     executable = "hisat"
 
     def __init__(self, remove_non_unique=False, strip_sequence=False,
-                 *args, **kwargs):
+                 stranded=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.remove_non_unique = remove_non_unique
         self.strip_sequence = strip_sequence
+        self.stranded = stranded
 
     def mapper(self, infiles, outfile):
         '''
@@ -2286,13 +2338,18 @@ class Hisat(Mapper):
         # add options specific to data type
         index_prefix = "%(hisat_index_dir)s/%(genome)s"
 
+        if self.stranded:
+            strandedness = "--rna-strandness %s" % stranded
+        else:
+            strandedness = ""
+
         if nfiles == 1:
             infiles = ",".join([x[0] for x in infiles])
             statement = '''
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            --rna-strandness %%(hisat_library_type)s
+            %(strandedness)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -U %(infiles)s
