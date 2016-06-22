@@ -29,6 +29,7 @@ Pipeline transcriptdiffexpression
 :Date: |today|
 :Tags: Python
 
+To do: update documentation and pipeline.ini. e.g supports sailfish too!
 
 Overview
 ========
@@ -245,22 +246,19 @@ Code
 
 # add option to remove flagged transcripts from gene set
 
-# enable sleuth DE analysis after salmon quantification
-
 from ruffus import *
+from ruffus.combinatorics import *
 
 import sys
 import os
 import sqlite3
 import glob
-import subprocess
 import pandas as pd
 import numpy as np
-import random
+import itertools
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import CGAT.Counts as Counts
 import CGAT.Expression as Expression
 
 import CGATPipelines.Pipeline as P
@@ -993,7 +991,8 @@ if PARAMS['simulation_run']:
         ''' calculate correlation across simulation iterations per transcript'''
 
         TranscriptDiffExpression.calculateCorrelations(
-            infiles, outfile, job_memory="8G", submit=True)
+            infiles, outfile, PARAMS['simulation_bin_step'],
+            job_memory="8G", submit=True)
 
     @transform(calculateCorrelations,
                suffix(".tsv"),
@@ -1161,12 +1160,45 @@ def quantifyWithSailfish(infiles, outfile):
     P.run()
 
 
+@transform(quantifyWithSalmon,
+           regex("quant.dir/(\S+)/(\S+)/quant.sf"),
+           r"quant.dir/\1/\2/abundance.h5")
+def convertFromSalmon(infile, outfile):
+    ''' convert the ssalmon output to Sleuth compatible h5 file'''
+    TranscriptDiffExpression.convertFromFish(infile, outfile)
+
+
+@transform(quantifyWithSailfish,
+           regex("quant.dir/(\S+)/(\S+)/quant.sf"),
+           r"quant.dir/\1/\2/abundance.h5")
+def convertFromSailfish(infile, outfile):
+    ''' convert the sailfish output to Sleuth compatible h5 file'''
+    TranscriptDiffExpression.convertFromFish(infile, outfile)
+
+
+@transform((quantifyWithKallisto),
+           regex("quant.dir/(\S+)/(\S+)/abundance.h5"),
+           r"quant.dir/\1/\2/quant.sf")
+def convertToFish(infile, outfile):
+    ''' convert the kallisto output to a flatfile, as per
+    sailfish/salmon output'''
+
+    outfile_dir = os.path.dirname(outfile)
+
+    statement = '''
+    kallisto h5dump -o %(outfile_dir)s %(infile)s;
+    mv %(outfile_dir)s/abundance.tsv %(outfile)s;
+    rm -rf %(outfile_dir)s/bs_abundance_*.tsv'''
+
+    P.run()
+
+
 # define quantifier targets
 QUANTTARGETS = []
 
-mapToQuantificationTargets = {'kallisto': (quantifyWithKallisto,),
-                              'salmon': (quantifyWithSalmon,),
-                              'sailfish': (quantifyWithSailfish,)}
+mapToQuantificationTargets = {'kallisto': (quantifyWithKallisto, convertToFish),
+                              'salmon': (quantifyWithSalmon, convertFromSalmon,),
+                              'sailfish': (quantifyWithSailfish, convertFromSailfish,)}
 
 for x in P.asList(PARAMS["quantifiers"]):
     QUANTTARGETS.extend(mapToQuantificationTargets[x])
@@ -1176,24 +1208,56 @@ for x in P.asList(PARAMS["quantifiers"]):
 def quantify():
     pass
 
-
 ###############################################################################
 # Differential isoform expression analysis
 ###############################################################################
 
 
-@follows(*QUANTTARGETS)
+def estimateSleuthMemory(bootstraps, samples, transcripts):
+    ''' The memory usage of Sleuth is dependent upon the number of
+    samples, transcripts and bootsraps.
+
+    A rough estimate is:
+    24 bytes * bootstraps * samples * transcripts
+    (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
+
+    TS: I've found this to be a serious underestimate so we use a
+    more conservative estimate here with a default of 2G
+    '''
+
+    estimate = (48 * PARAMS["kallisto_bootstrap"] * samples * transcripts)
+
+    job_memory = "%fG" % (max(2.0, (estimate / 1073741824.0)))
+
+    return job_memory
+
+
+# note: location of transcripts fasta is hardcoded here!
+def generate_sleuth_parameters_on_the_fly():
+
+    quantifiers = P.asList(PARAMS["quantifiers"])
+    designs = [x.asFile() for x in DESIGNS]
+
+    parameters = []
+
+    for design, quantifier in itertools.product(designs, quantifiers):
+        outfiles = [
+            r"DEresults.dir/%s_%s_sleuth_results.tsv" % (design, quantifier),
+            r"DEresults.dir/%s_%s_sleuth_counts.tsv" % (design, quantifier),
+            r"DEresults.dir/%s_%s_sleuth_tpm.tsv" % (design, quantifier)]
+        parameters.append(
+            ("%s.design.tsv" % design, outfiles, quantifier,
+             "index.dir/transcripts.fa"))
+
+    for job_parameters in parameters:
+        yield job_parameters
+
+
 @mkdir("DEresults.dir")
-@subdivide(["%s.design.tsv" % x.asFile() for x in DESIGNS],
-           regex("(\S+).design.tsv"),
-           add_inputs(buildReferenceTranscriptome),
-           [r"DEresults.dir/\1_results.tsv",
-            r"DEresults.dir/\1_counts.tsv",
-            r"DEresults.dir/\1_tpm.tsv"])
-def runSleuth(infiles, outfiles):
+@files(generate_sleuth_parameters_on_the_fly)
+def runSleuth(design, outfiles, quantifier, transcripts):
     ''' run Sleuth to perform differential testing '''
 
-    design, transcripts = infiles
     outfile, counts, tpm = outfiles
 
     Design = Expression.ExperimentalDesign(design)
@@ -1205,70 +1269,124 @@ def runSleuth(infiles, outfiles):
             if line.startswith(">"):
                 number_transcripts += 1
 
-    # TS: rough estimate is 24 bytes * bootstraps * samples * transcripts
-    # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
-    # I've found this to be a serious underestimate so this is a more
-    # conservative estimate
-    memory_estimate = (48 * max(1, PARAMS["kallisto_bootstrap"]) * number_samples *
-                       number_transcripts)
-    job_memory = "%fG" % (float(memory_estimate) / 1073741824)
+    job_memory = estimateSleuthMemory(
+        PARAMS["%(quantifier)s_bootstrap" % locals()],
+        number_samples, number_transcripts)
 
     design_id = P.snip(design, ".design.tsv")
+
     model = PARAMS["sleuth_model_%s" % design_id]
+    contrasts = PARAMS["sleuth_contrasts_%s" % design_id]
 
-    contrasts = PARAMS["sleuth_contrasts_%s" % design_id].split(",")
+    outfile_pattern = P.snip(outfile, ".tsv")
 
-    for contrast in contrasts:
+    if PARAMS["sleuth_ihw"]:
+        ihw = "--use-ihw"
+    else:
+        ihw = ""
 
-        TranscriptDiffExpression.runSleuth(
-            design, "quant.dir/kallisto", model, contrast,
-            outfile, counts, tpm, PARAMS["sleuth_fdr"],
-            submit=True, job_memory=job_memory)
+    statement = '''
+    python %(scriptsdir)s/counts2table.py
+    --design-tsv-file=%(design)s
+    --output-filename-pattern=%(outfile_pattern)s
+    --log=%(outfile_pattern)s.log
+    --method=sleuth
+    --fdr=%(sleuth_fdr)s
+    --model=%(model)s
+    --contrasts=%(contrasts)s
+    --sleuth-counts-dir=quant.dir/%(quantifier)s
+    --outfile-sleuth-count=%(counts)s
+    --outfile-sleuth-tpm=%(tpm)s
+    %(ihw)s
+    >%(outfile)s
+    '''
+
+    P.run()
+
+
+# # define sleuth targets
+# SLEUTHTARGETS = []
+
+# mapToSleuthTargets = {'kallisto': (runSleuthKallisto,),
+#                       'salmon': (runSleuthSalmon,),
+#                       'sailfish': (runSleuthSailfish,)}
+
+# for x in P.asList(PARAMS["quantifiers"]):
+#     SLEUTHTARGETS.extend(mapToSleuthTargets[x])
+
+
+# @follows(*SLEUTHTARGETS)
+# def runSleuth():
+#     pass
 
 
 @follows(*QUANTTARGETS)
 @mkdir("DEresults.dir")
-@merge([QUANTTARGETS, buildReferenceTranscriptome],
-       [r"DEresults.dir/all_counts.tsv",
-        r"DEresults.dir/all_tpm.tsv"])
-def runSleuthAll(infiles, outfiles):
-    ''' run Sleuth on all samples just to generate a full counts/tpm table'''
+@collate(QUANTTARGETS,
+         regex("quant.dir/(\S+)/(\S+)/quant.sf"),
+         [r"DEresults.dir/all_counts_\1.tsv",
+          r"DEresults.dir/all_tpm_\1.tsv"])
+def mergeCounts(infiles, outfiles):
+    ''' run Sleuth on all samples to generate a full counts/tpm table'''
 
-    infiles, transcripts = infiles
     counts, tpm = outfiles
 
-    samples = list(set([os.path.basename(os.path.dirname(x)) for x in infiles]))
+    df_counts = pd.DataFrame()
+    df_tpm = pd.DataFrame()
 
-    number_transcripts = 0
-    with IOTools.openFile(transcripts, "r") as inf:
-        for line in inf:
-            if line.startswith(">"):
-                number_transcripts += 1
+    def addSampleColumn(df, infile, index, column, sample,
+                        index_name=None):
+        ''' add a single column called <sample> from the infile'''
 
-    # TS: rough estimate is 24 bytes * bootstraps * samples * transcripts
-    # (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
-    # I've found this to be a serious underestimate so this is a more
-    # conservative estimate
-    memory_estimate = (48 * max(1, PARAMS["kallisto_bootstrap"]) * len(samples) *
-                       number_transcripts)
+        tmp_df = pd.read_table(
+            infile, sep="\t", usecols=[index, column],
+            index_col=index,  comment="#")
 
-    job_memory = "%fG" % (float(memory_estimate) / 1073741824)
-    print job_memory
+        tmp_df.columns = [sample]
 
-    TranscriptDiffExpression.runSleuthAll(
-        samples, "quant.dir/kallisto", counts, tpm,
-        submit=True, job_memory=job_memory)
+        if index_name:
+            tmp_df.index.name = index_name
+
+        df = pd.merge(df, tmp_df, left_index=True, right_index=True,
+                      how="outer")
+        return df
+
+    for infile in infiles:
+        sample = os.path.basename(os.path.dirname(infile))
+
+        if "kallisto" in infile:
+            df_counts = addSampleColumn(
+                df_counts, infile, "target_id", "est_counts", sample,
+                index_name="transcript_id")
+            df_tpm = addSampleColumn(
+                df_tpm, infile, "target_id", "tpm", sample,
+                index_name="transcript_id")
+
+        elif "salmon" in infile or "sailfish" in infile:
+            df_counts = addSampleColumn(
+                df_counts, infile, "Name", "NumReads", sample,
+                index_name="transcript_id")
+            df_tpm = addSampleColumn(
+                df_tpm, infile, "Name", "TPM", sample,
+                index_name="transcript_id")
+
+    df_counts.to_csv(counts, sep="\t", index=True)
+    df_tpm.to_csv(tpm, sep="\t", index=True)
 
 
-@transform(runSleuthAll,
-           regex("DEresults.dir/all_(\S+).tsv"),
-           r"DEresults.dir/all_\1_gene_expression.tsv")
+@transform(mergeCounts,
+           regex("DEresults.dir/all_(\S+)_(\S+).tsv"),
+           r"DEresults.dir/all_gene_expression_\1_\2.tsv")
 def aggregateCounts(infiles, outfile):
     ''' aggregate counts across transcripts for the same gene_id '''
 
     for infile in infiles:
-        outfile = P.snip(infile, ".tsv") + "_gene_expression.tsv"
-        statement = "SELECT DISTINCT transcript_id, gene_id FROM transcript_info"
+        outfile = infile.split("_")
+        outfile[1] = "gene_expression_" + outfile[1]
+        outfile = "_".join(outfile)
+
+        statement = '''SELECT DISTINCT transcript_id, gene_id FROM
+                       annotations.transcript_info'''
         transcript_info_df = pd.read_sql(statement, connect())
         transcript_info_df.set_index("transcript_id", inplace=True)
 
@@ -1279,6 +1397,70 @@ def aggregateCounts(infiles, outfile):
         df.drop("gene_id", 1, inplace=True)
 
         df.to_csv(outfile, sep="\t", index=True)
+
+
+@product(aggregateCounts,
+         formatter("DEresults.dir/all_gene_expression_counts_(?P<QUANTIFIER>\S+).tsv"),
+         ["%s.design.tsv" % x.asFile() for x in DESIGNS],
+         formatter(".*/(?P<DESIGN>\S+).design.tsv$"),
+         "DEresults.dir/{DESIGN[1][0]}_{QUANTIFIER[0][0]}_deseq2_DE_results.tsv")
+def diffExpressionDESeq2(infiles, outfile):
+    counts_inf, design_inf = infiles
+
+    outfile_pattern = P.snip(outfile, ".tsv")
+
+    design_id = P.snip(design_inf, ".design.tsv")
+    model = PARAMS["deseq2_model_%s" % design_id]
+    contrasts = PARAMS["deseq2_contrasts_%s" % design_id]
+
+    outfile_pattern = P.snip(outfile, ".tsv")
+
+    # counts need to be rounded to ints first
+    tmp_counts = P.getTempFilename(shared=True)
+    df = pd.read_table(counts_inf, sep="\t", index_col=0)
+    df = df.applymap(lambda x: round(x, 0))
+    df.to_csv(tmp_counts, sep="\t", index=True)
+
+    ref_group = PARAMS["deseq2_ref_group_%s" % design_id]
+    if ref_group:
+        ref_group_cmd = "--reference-group=%s" % ref_group
+    else:
+        ref_group_cmd = ""
+
+    if PARAMS["deseq2_ihw"]:
+        ihw = "--use-ihw"
+    else:
+        ihw = ""
+
+    statement = '''
+    python %(scriptsdir)s/counts2table.py
+    --tags-tsv-file=%(tmp_counts)s
+    --design-tsv-file=%(design_inf)s
+    --output-filename-pattern=%(outfile_pattern)s
+    --log=%(outfile_pattern)s.log
+    --method=deseq2
+    --fdr=%(deseq2_fdr)s
+    --model=%(model)s
+    --contrasts=%(contrasts)s
+    %(ihw)s
+    %(ref_group_cmd)s
+    >%(outfile)s
+    '''
+
+    P.run()
+    os.unlink(tmp_counts)
+
+
+@transform(diffExpressionDESeq2,
+           suffix(".tsv"),
+           ".load")
+def loaddiffExpressionDESeq2(infile, outfile):
+    TranscriptDiffExpression.loadSleuthTableGenes(
+        infile, outfile,
+        PARAMS["annotations_interface_table_gene_info"],
+        PARAMS["geneset_gene_biotypes"],
+        PARAMS["database"],
+        PARAMS["annotations_database"])
 
 
 @transform(aggregateCounts,
@@ -1293,10 +1475,10 @@ def loadGeneWiseAggregates(infile, outfile):
            options="add-index=gene_id")
 
 
-@merge(runSleuthAll,
-       [r"DEresults.dir/all_counts.load",
-        r"DEresults.dir/all_tpm.load"])
-def loadSleuthTablesAll(infiles, outfiles):
+@transform(mergeCounts,
+           suffix(".tsv"),
+           ".load")
+def loadMergedCounts(infiles, outfile):
     ''' load tables from Sleuth collation of all estimates '''
 
     for infile in infiles:
@@ -1311,8 +1493,8 @@ def loadSleuthTablesAll(infiles, outfiles):
 
 
 @transform(runSleuth,
-           regex("(\S+)_(counts|tpm).tsv"),
-           r"\1_\2.load")
+           regex("(\S+)_(\S+)_(counts|tpm).tsv"),
+           r"\1_\2_\3.load")
 def loadSleuthTables(infile, outfile):
     ''' load tables from Sleuth '''
 
@@ -1327,9 +1509,11 @@ def loadSleuthTables(infile, outfile):
 @transform(runSleuth,
            suffix("_results.tsv"),
            "_DEresults.load")
-def loadSleuthResults(infile, outfile):
+def loadSleuthResults(infiles, outfile):
     ''' load Sleuth results '''
-
+    # List of three Sleuth outputs received as infiles due to generator
+    # First file is results list
+    infile = infiles[0]
     tmpfile = P.getTempFilename("/ifs/scratch")
 
     table = os.path.basename(
@@ -1361,10 +1545,12 @@ def loadSleuthResults(infile, outfile):
     os.unlink(tmpfile)
 
 
-@follows(loadSleuthTables,
+@follows(runSleuth,
+         loadSleuthTables,
          loadSleuthResults,
-         loadSleuthTablesAll,
-         loadGeneWiseAggregates)
+         loadMergedCounts,
+         loadGeneWiseAggregates,
+         loaddiffExpressionDESeq2)
 def differentialExpression():
     pass
 
@@ -1374,19 +1560,20 @@ def differentialExpression():
 ###############################################################################
 
 @mkdir("summary_plots")
-@transform(runSleuth,
-           regex("DEresults.dir/(\S+)_tpm.tsv"),
-           add_inputs(r"\1.design.tsv"),
-           r"summary_plots/\1_plots.log")
+@collate(runSleuth,
+         regex("DEresults.dir/(\S+)_(\S+)_sleuth_results.tsv"),
+         add_inputs(r"\1.design.tsv"),
+         r"summary_plots/\1_\2_plots.log")
 def expressionSummaryPlots(infiles, logfile):
     ''' make summary plots for expression values for each design file'''
 
-    counts_inf, design_inf = infiles
+    infiles, design_inf = infiles[0]
+    results_inf, counts_inf, tpm_inf = infiles
 
     job_memory = "4G"
 
     TranscriptDiffExpression.makeExpressionSummaryPlots(
-        counts_inf, design_inf, logfile, submit=True, job_memory=job_memory)
+        tpm_inf, design_inf, logfile, submit=True, job_memory=job_memory)
 
 
 ###############################################################################

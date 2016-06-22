@@ -1099,7 +1099,8 @@ def buildLincRNAExonTranscripts(infile, outfile):
 
 
 @P.add_doc(PipelineGeneset.loadTranscripts)
-@transform((buildCDSTranscripts,
+@transform((buildGeneSet,
+            buildCDSTranscripts,
             buildCodingExonTranscripts,
             buildNonCodingExonTranscripts,
             buildLincRNAExonTranscripts),

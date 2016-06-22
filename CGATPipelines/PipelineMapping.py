@@ -1052,6 +1052,8 @@ class Sailfish(Mapper):
             raise ValueError("incorrect number of input files")
 
         outdir = os.path.dirname(os.path.abspath(outfile))
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
 
         statement.append('''
         -l %%(sailfish_libtype)s %(input_file)s -o %(outdir)s
@@ -1099,6 +1101,8 @@ class Salmon(Mapper):
             raise ValueError("incorrect number of input files")
 
         outdir = os.path.dirname(os.path.abspath(outfile))
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
 
         statement.append('''
         -l %%(salmon_libtype)s %(input_file)s -o %(outdir)s
@@ -1243,6 +1247,7 @@ class SubsetHead(Mapper):
         infiles = infiles[0]
         if len(infiles) == 1:
             output_filename = output_prefix + ".fastq.gz"
+            f = infiles[0]
             statement.append(
                 '''zcat %(f)s
                 | awk 'NR > %(limit)i {exit} {print}'
@@ -2229,15 +2234,14 @@ class Hisat(Mapper):
     # hisat can work of compressed files
     compress = True
 
-    executable = "tophat"
+    executable = "hisat"
 
     def __init__(self, remove_non_unique=False, strip_sequence=False,
-                 strandedness=True, *args, **kwargs):
+                 *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.remove_non_unique = remove_non_unique
         self.strip_sequence = strip_sequence
-        self.strandedness = strandedness
 
     def mapper(self, infiles, outfile):
         '''
@@ -2270,15 +2274,9 @@ class Hisat(Mapper):
         executable = self.executable
 
         num_files = [len(x) for x in infiles]
-        if self.strandedness and not (self.strandedness in
-                                      ['unstranded', 'fr-unstranded']):
-            stranded_option = '--rna-strandness %(hisat_library_type)s'
-        else:
-            stranded_option = ""
         if max(num_files) != min(num_files):
             raise ValueError(
                 "mixing single and paired-ended data not possible.")
-
         nfiles = max(num_files)
 
         tmpdir_hisat = os.path.join(self.tmpdir_fastq + "hisat")
@@ -2294,7 +2292,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            %(stranded_option)s
+            --rna-strandness %%(hisat_library_type)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -U %(infiles)s
@@ -2312,7 +2310,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            %(stranded_option)s
+            --rna-strandness %%(hisat_library_type)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -1 %(infiles1)s
@@ -2361,7 +2359,6 @@ class Hisat(Mapper):
         '''
 
         track = os.path.basename(outfile)
-        outf = P.snip(outfile, ".bam")
         tmpdir_hisat = self.tmpdir_hisat
 
         strip_cmd = ""
@@ -2375,7 +2372,7 @@ class Hisat(Mapper):
         statement = '''
         samtools view -uS %(tmpdir_hisat)s/%(track)s
         %(strip_cmd)s
-        | samtools sort - %(outf)s 2>>%(outfile)s.hisat.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.hisat.log;
         samtools index %(outfile)s;
         rm -rf %(tmpdir_hisat)s;
         ''' % locals()
