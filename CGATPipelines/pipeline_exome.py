@@ -872,6 +872,7 @@ def annotateVariantsVEP(infile, outfile):
         statement = '''perl %(vep_path)s/variant_effect_predictor.pl
                        --cache --dir %(vep_cache)s --vcf
                        --species %(vep_species)s
+                       --fork 2
                        --assembly %(vep_assembly)s --input_file %(tempin)s
                        --output_file %(tempout)s --force_overwrite
                        %(annostring)s --offline;
