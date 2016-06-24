@@ -503,7 +503,7 @@ class SequenceCollectionProcessor(object):
 
         assert len(infiles) > 0, "no input files for processing"
 
-        tmpdir_fastq = P.getTempDir()
+        tmpdir_fastq = P.getTempDir(shared=True)
 
         # create temporary directory again for nodes
         statement = ["mkdir -p %s" % tmpdir_fastq]
@@ -551,6 +551,7 @@ class SequenceCollectionProcessor(object):
                 # T.S need to use abi-dump for colorspace files
                 if datatype == "basecalls":
                     tool = "fastq-dump"
+                    self.datatype = "basecalls"
                 elif datatype == "colorspace":
                     tool = "abi-dump"
                     self.datatype = "solid"
@@ -629,19 +630,15 @@ class SequenceCollectionProcessor(object):
                     # record of qual files
                     elif self.datatype == "solid":
                         # single end SOLiD data
-
                         infile = P.snip(infile, "_1.fastq.gz") + "_F3.csfasta.gz"
-                        quality = P.snip(infile, "_F3.csfasta.gz") + "_QV.qual.gz"
+                        quality = P.snip(infile, "_F3.csfasta.gz") + "_F3_QV.qual.gz"
 
                         # qual file does not exist as tmpdir from
                         # SRA.extract is removed
                         # if not os.path.exists(quality):
                         #    raise ValueError("no quality file for %s" % infile)
 
-                        fastqfiles.append(("%s/%s_F3.csfasta.gz" %
-                                           (tmpdir_fastq, track),
-                                           "%s/%s_QV.qual.gz" %
-                                           (tmpdir_fastq, track)))
+                        fastqfiles.append((infile, quality))
 
                     # T.S I'm not sure if this works. Need a test case!
                     elif infile.endswith(".csfasta.F3.gz"):
@@ -806,6 +803,7 @@ class SequenceCollectionProcessor(object):
         self.tmpdir_fastq = tmpdir_fastq
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
+
         return "; ".join(statement) + ";", fastqfiles
 
 
