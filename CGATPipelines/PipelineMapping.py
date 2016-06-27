@@ -1419,7 +1419,7 @@ class BWA(Mapper):
                 %(unique_cmd)s
                 %(strip_cmd)s
                 %(set_nh_cmd)s
-                | samtools sort -o %(outf)s 2>>%(outfile)s.bwa.log;
+                | samtools sort -o %(outfile)s 2>>%(outfile)s.bwa.log;
                 samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2693,7 +2693,7 @@ class STAR(Mapper):
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort -o %(outf)s 2>>%(outfile)s.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.log;
         samtools index %(outfile)s;''' % locals()
 
         return statement
