@@ -506,7 +506,7 @@ class Cutadapt(ProcessTool):
 
     def __init__(self, options, threads=1, process_paired=0, *args, **kwargs):
         self.process_paired = process_paired
-	ProcessTool.__init__(self, options, threads, *args, **kwargs)
+        ProcessTool.__init__(self, options, threads, *args, **kwargs)
 
     def build(self, infiles, outfiles, output_prefix):
         prefix = self.prefix
@@ -514,39 +514,39 @@ class Cutadapt(ProcessTool):
         untrimmed = self.untrimmed
 
         assert len(infiles) == len(outfiles)
-        
+
         cmds = []
-	if self.process_paired and len(infiles)==2:
-   	    in1, in2 = infiles
+        if self.process_paired and len(infiles) == 2:
+            in1, in2 = infiles
             out1, out2 = outfiles
 
             if "fastq" in in1:
-	        format="--format=fastq"
+                format = "--format=fastq"
             elif "fasta" in in1:
-                format="--format=fasta"
+                format = "--format=fasta"
             else:
-                format=""
+                format = ""
 
             untrimmed_output1, untrimmed_output2 = \
-                [i.replace(".fast","_untrimmed.fast")
+                [i.replace(".fast", "_untrimmed.fast")
                  for i in infiles]
 
             if untrimmed:
                 processing_options += \
                     "--untrimmed-output=%(untrimmed_output1)s" \
-                    "--untrimmed-paired=%(untrimmed_output2)s" % locals
+                    "--untrimmed-paired=%(untrimmed_output2)s" % locals()
 
             cmds.append('''
             cutadapt %(processing_options)s %(in1)s %(in2)s
                      -p %(out2)s -o %(out1)s %(format)s
-            2>> %(output_prefix)s.log; '''  %locals())
+            2>> %(output_prefix)s.log; ''' % locals())
 
             if untrimmed:
                 cmds.append("gzip %s;" % untrimmed_output1)
                 cmds.append("gzip %s;" % untrimmed_output2)
 
-	else:
-	    for infile, outfile in zip(infiles, outfiles):
+        else:
+            for infile, outfile in zip(infiles, outfiles):
                 outfile_untrimmed = outfile.replace(".fastq",
                                                     "_untrimmed.fastq")
                 if untrimmed:
