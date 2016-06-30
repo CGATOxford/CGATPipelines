@@ -116,7 +116,7 @@ are shown instead of the TPM
 .. report:: Simulations.simulationCorrelationsCount
    :groupby: track
    :render: r-ggplot
-   :statement: aes(read_count, est_counts) +
+   :statement: aes(log(read_count,2), log(est_counts,2)) +
 	       geom_point(size=1, alpha=0.5,
 	       aes(col=abs(as.numeric(as.character(log2diff_counts)))<1)) +
 	       theme_bw() +
@@ -178,7 +178,24 @@ truth and estimated Count
 	       xlab("Fraction unique kmers") +
 	       ylab("Log2 Fold difference (Estimated/Ground Truth)")
 	       
-   Full plot	   
+   Full plot
+
+.. report:: Simulations.simulationCorrelationsCount
+   :groupby: track
+   :render: r-ggplot
+   :statement: aes(fraction_unique,
+	           as.numeric(as.character(log2diff_counts_thres))) +
+	       geom_point()
+	       theme_bw() +
+	       theme(axis.title.x=element_text(size=15),
+	       axis.text.x=element_text(size=15, angle=90, hjust=1, vjust=0.5),
+	       axis.text.y=element_text(size=15),
+	       axis.title.y=element_text(size=15),
+	       aspect.ratio=1) +
+	       xlab("Fraction unique kmers") +
+	       ylab("Log2 Fold difference (Estimated/Ground Truth)")
+	       
+   Full plot no binning		   
 
 
 Correlation between ground truth TPM and estimated TPM
@@ -210,7 +227,7 @@ less than 3 % unique kmers are flagged.
 	       axis.text.y=element_text(size=15),
 	       axis.title.y=element_text(size=15),
 	       aspect.ratio=1) +
-	       scale_x_discrete(limits=as.factor(seq(0,0.1,0.01))) + 
+	       scale_x_discrete(limits=seq(0,0.1,0.01)) + 
 	       xlab("Fraction unique kmers") +
 	       ylab("Correlation (Estimated TPM vs ground truth)")
 	       
@@ -234,7 +251,7 @@ less than 3 % unique kmers are flagged.
 	       axis.text.y=element_text(size=15),
 	       axis.title.y=element_text(size=15),
 	       aspect.ratio=1) +
-	       scale_x_discrete(breaks=as.factor(seq(0,1,0.1))) + 
+	       scale_x_discrete(breaks=seq(0,1,0.1)) + 
 	       xlab("Fraction unique kmers") +
 	       ylab("Correlation (Estimated TPM vs ground truth)")
 
@@ -272,7 +289,7 @@ are shown
 	       axis.text.y=element_text(size=15),
 	       axis.title.y=element_text(size=15),
 	       aspect.ratio=1) +
-	       scale_x_discrete(limits=as.factor(seq(0,0.1,0.01))) + 
+	       scale_x_discrete(limits=seq(0,0.1,0.01)) + 
 	       xlab("Fraction unique kmers") +
 	       ylab("Correlation (Estimated Counts vs ground truth)")
 	       
@@ -296,7 +313,7 @@ are shown
 	       axis.text.y=element_text(size=15),
 	       axis.title.y=element_text(size=15),
 	       aspect.ratio=1) +
-	       scale_x_discrete(breaks=as.factor(seq(0,1,0.1))) + 
+	       scale_x_discrete(breaks=seq(0,1,0.1)) + 
 	       xlab("Fraction unique kmers") +
 	       ylab("Correlation (Estimated Counts vs ground truth)")
 

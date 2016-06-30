@@ -1291,7 +1291,8 @@ def M3D():
          loadCoveredCpGs,
          plotCoverage,
          plotMethylationFrequency,
-         bed2BigWig)
+         bed2BigWig,
+         summarise)
 def full():
     pass
 

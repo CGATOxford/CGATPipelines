@@ -991,7 +991,8 @@ if PARAMS['simulation_run']:
         ''' calculate correlation across simulation iterations per transcript'''
 
         TranscriptDiffExpression.calculateCorrelations(
-            infiles, outfile, job_memory="8G", submit=True)
+            infiles, outfile, PARAMS['simulation_bin_step'],
+            job_memory="8G", submit=True)
 
     @transform(calculateCorrelations,
                suffix(".tsv"),
@@ -1231,52 +1232,11 @@ def estimateSleuthMemory(bootstraps, samples, transcripts):
     return job_memory
 
 
-# @follows(*QUANTTARGETS)
-# @mkdir("DEresults.dir")
-# @subdivide(["%s.design.tsv" % x.asFile() for x in DESIGNS],
-#            regex("(\S+).design.tsv"),
-#            add_inputs(buildReferenceTranscriptome),
-#            [r"DEresults.dir/\1_kallisto_results.tsv",
-#             r"DEresults.dir/\1_kallisto_counts.tsv",
-#             r"DEresults.dir/\1_kallisto_tpm.tsv"])
-# def runSleuthKallisto(infiles, outfiles):
-#     ''' run Sleuth to perform differential testing '''
-
-#     design, transcripts = infiles
-#     outfile, counts, tpm = outfiles
-
-#     Design = Expression.ExperimentalDesign(design)
-#     number_samples = sum(Design.table['include'])
-
-#     number_transcripts = 0
-#     with IOTools.openFile(transcripts, "r") as inf:
-#         for line in inf:
-#             if line.startswith(">"):
-#                 number_transcripts += 1
-
-#     quantifier = P.snip(os.path.basename(tpm), ".tsv").replace("all_tpm_", "")
-#     job_memory = estimateSleuthMemory(
-#         PARAMS["%(quantifier)s_bootstrap" % locals()],
-#         len(samples), number_transcripts)
-
-#     design_id = P.snip(design, ".design.tsv")
-#     model = PARAMS["sleuth_model_%s" % design_id]
-
-#     contrasts = PARAMS["sleuth_contrasts_%s" % design_id].split(",")
-
-#     for contrast in contrasts:
-
-#         TranscriptDiffExpression.runSleuth(
-#             design, "quant.dir/kallisto", model, contrast,
-#             outfile, counts, tpm, PARAMS["sleuth_fdr"],
-#             submit=True, job_memory=job_memory)
-
-
 # note: location of transcripts fasta is hardcoded here!
 def generate_sleuth_parameters_on_the_fly():
 
     quantifiers = P.asList(PARAMS["quantifiers"])
-    designs = ["%s.design.tsv" % x.asFile() for x in DESIGNS]
+    designs = [x.asFile() for x in DESIGNS]
 
     parameters = []
 
@@ -1286,7 +1246,8 @@ def generate_sleuth_parameters_on_the_fly():
             r"DEresults.dir/%s_%s_sleuth_counts.tsv" % (design, quantifier),
             r"DEresults.dir/%s_%s_sleuth_tpm.tsv" % (design, quantifier)]
         parameters.append(
-            (design, outfiles, quantifier, "index.dir/transcripts.fa"))
+            ("%s.design.tsv" % design, outfiles, quantifier,
+             "index.dir/transcripts.fa"))
 
     for job_parameters in parameters:
         yield job_parameters
@@ -1315,14 +1276,32 @@ def runSleuth(design, outfiles, quantifier, transcripts):
     design_id = P.snip(design, ".design.tsv")
 
     model = PARAMS["sleuth_model_%s" % design_id]
-    contrasts = PARAMS["sleuth_contrasts_%s" % design_id].split(",")
+    contrasts = PARAMS["sleuth_contrasts_%s" % design_id]
 
-    for contrast in contrasts:
+    outfile_pattern = P.snip(outfile, ".tsv")
 
-        TranscriptDiffExpression.runSleuth(
-            design, "quant.dir/%s" % quantifier, model, contrast,
-            outfile, counts, tpm, PARAMS["sleuth_fdr"],
-            submit=True, job_memory=job_memory)
+    if PARAMS["sleuth_ihw"]:
+        ihw = "--use-ihw"
+    else:
+        ihw = ""
+
+    statement = '''
+    python %(scriptsdir)s/counts2table.py
+    --design-tsv-file=%(design)s
+    --output-filename-pattern=%(outfile_pattern)s
+    --log=%(outfile_pattern)s.log
+    --method=sleuth
+    --fdr=%(sleuth_fdr)s
+    --model=%(model)s
+    --contrasts=%(contrasts)s
+    --sleuth-counts-dir=quant.dir/%(quantifier)s
+    --outfile-sleuth-count=%(counts)s
+    --outfile-sleuth-tpm=%(tpm)s
+    %(ihw)s
+    >%(outfile)s
+    '''
+
+    P.run()
 
 
 # # define sleuth targets
@@ -1396,13 +1375,16 @@ def mergeCounts(infiles, outfiles):
 
 
 @transform(mergeCounts,
-           regex("DEresults.dir/all_(\S+).tsv"),
-           r"DEresults.dir/all_\1_gene_expression.tsv")
+           regex("DEresults.dir/all_(\S+)_(\S+).tsv"),
+           r"DEresults.dir/all_gene_expression_\1_\2.tsv")
 def aggregateCounts(infiles, outfile):
     ''' aggregate counts across transcripts for the same gene_id '''
 
     for infile in infiles:
-        outfile = P.snip(infile, ".tsv") + "_gene_expression.tsv"
+        outfile = infile.split("_")
+        outfile[1] = "gene_expression_" + outfile[1]
+        outfile = "_".join(outfile)
+
         statement = '''SELECT DISTINCT transcript_id, gene_id FROM
                        annotations.transcript_info'''
         transcript_info_df = pd.read_sql(statement, connect())
@@ -1418,7 +1400,7 @@ def aggregateCounts(infiles, outfile):
 
 
 @product(aggregateCounts,
-         formatter("DEresults.dir/all_counts_(?P<QUANTIFIER>\S+)_gene_expression.tsv"),
+         formatter("DEresults.dir/all_gene_expression_counts_(?P<QUANTIFIER>\S+).tsv"),
          ["%s.design.tsv" % x.asFile() for x in DESIGNS],
          formatter(".*/(?P<DESIGN>\S+).design.tsv$"),
          "DEresults.dir/{DESIGN[1][0]}_{QUANTIFIER[0][0]}_deseq2_DE_results.tsv")
@@ -1445,6 +1427,11 @@ def diffExpressionDESeq2(infiles, outfile):
     else:
         ref_group_cmd = ""
 
+    if PARAMS["deseq2_ihw"]:
+        ihw = "--use-ihw"
+    else:
+        ihw = ""
+
     statement = '''
     python %(scriptsdir)s/counts2table.py
     --tags-tsv-file=%(tmp_counts)s
@@ -1455,6 +1442,7 @@ def diffExpressionDESeq2(infiles, outfile):
     --fdr=%(deseq2_fdr)s
     --model=%(model)s
     --contrasts=%(contrasts)s
+    %(ihw)s
     %(ref_group_cmd)s
     >%(outfile)s
     '''
@@ -1572,19 +1560,20 @@ def differentialExpression():
 ###############################################################################
 
 @mkdir("summary_plots")
-@transform(runSleuth,
-           regex("DEresults.dir/(\S+)_tpm.tsv"),
-           add_inputs(r"\1.design.tsv"),
-           r"summary_plots/\1_plots.log")
+@collate(runSleuth,
+         regex("DEresults.dir/(\S+)_(\S+)_sleuth_results.tsv"),
+         add_inputs(r"\1.design.tsv"),
+         r"summary_plots/\1_\2_plots.log")
 def expressionSummaryPlots(infiles, logfile):
     ''' make summary plots for expression values for each design file'''
 
-    counts_inf, design_inf = infiles
+    infiles, design_inf = infiles[0]
+    results_inf, counts_inf, tpm_inf = infiles
 
     job_memory = "4G"
 
     TranscriptDiffExpression.makeExpressionSummaryPlots(
-        counts_inf, design_inf, logfile, submit=True, job_memory=job_memory)
+        tpm_inf, design_inf, logfile, submit=True, job_memory=job_memory)
 
 
 ###############################################################################
