@@ -534,7 +534,7 @@ class Cutadapt(ProcessTool):
             if untrimmed:
                 processing_options += \
                     "--untrimmed-output=%(untrimmed_output1)s" \
-                    "--untrimmed-paired=%(untrimmed_output2)s" % locals()
+                    "--untrimmed-output-paired=%(untrimmed_output2)s" % locals()
 
             cmds.append('''
             cutadapt %(processing_options)s %(in1)s %(in2)s
