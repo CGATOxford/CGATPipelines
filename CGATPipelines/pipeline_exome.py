@@ -354,7 +354,7 @@ def loadPicardDuplicateStatsLane(infiles, outfile):
 
 @transform(RemoveDuplicatesLane,
            regex(r"gatk/(\S+).dedup.bam"),
-           r"gatk/\1.realigned.bam")
+           r"gatk/\1.realigned2.bam")
 def GATKIndelRealignLane(infile, outfile):
     '''realigns around indels using GATK'''
     threads = PARAMS["gatk_threads"]
@@ -369,7 +369,7 @@ def GATKIndelRealignLane(infile, outfile):
 
 
 @transform(GATKIndelRealignLane,
-           regex(r"gatk/(\S+).realigned.bam"),
+           regex(r"gatk/(\S+).realigned2.bam"),
            r"gatk/\1.bqsr.bam")
 def GATKBaseRecal(infile, outfile):
     '''recalibrates base quality scores using GATK'''
@@ -395,7 +395,7 @@ def GATKBaseRecal(infile, outfile):
 
 
 @collate(GATKBaseRecal,
-         regex(r"gatk/(\S+-\S+)-(\S+)-(\S+).bqsr.bam"),
+         regex(r"gatk/(.*).bqsr.bam"),
          r"gatk/\1.merged.bam")
 def mergeBAMs(infiles, outfile):
     '''merges BAMs for a single sample over multiple lanes'''
@@ -410,8 +410,8 @@ def mergeBAMs(infiles, outfile):
     statement += '''samtools index %(outfile)s ;''' % locals()
     P.run()
 
-    # for inputfile in infiles:
-    #    IOTools.zapFile(inputfile)
+    for inputfile in infiles:
+        IOTools.zapFile(inputfile)
 
 ###############################################################################
 ###############################################################################
@@ -422,7 +422,7 @@ def mergeBAMs(infiles, outfile):
 @transform(mergeBAMs,
            regex(r"gatk/(\S+).merged.bam"),
            add_inputs(r"gatk/\1.merged.bam.count"),
-           r"gatk/\1.dedup.bam")
+           r"gatk/\1.dedup2.bam")
 def RemoveDuplicatesSample(infiles, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
     infile, countfile = infiles
@@ -432,7 +432,8 @@ def RemoveDuplicatesSample(infiles, outfile):
     else:
         shutil.copyfile(infile, outfile)
         shutil.copyfile(infile + ".bai", outfile + ".bai")
-    IOTools.zapFile(infile)
+        IOTools.zapFile(infile)
+
 
 ###############################################################################
 
@@ -450,7 +451,7 @@ def loadPicardDuplicateStatsSample(infiles, outfile):
 
 
 @transform(RemoveDuplicatesSample,
-           regex(r"gatk/(\S+).dedup.bam"),
+           regex(r"gatk/(\S+).dedup2.bam"),
            add_inputs(r"gatk/\1.merged.bam.count"),
            r"gatk/\1.realigned.bam")
 def GATKIndelRealignSample(infiles, outfile):
@@ -467,7 +468,7 @@ def GATKIndelRealignSample(infiles, outfile):
     else:
         shutil.copyfile(infile, outfile)
         shutil.copyfile(infile + ".bai", outfile + ".bai")
-    IOTools.zapFile(infile)
+#    IOTools.zapFile(infile)
 
 ###############################################################################
 ###############################################################################
@@ -688,10 +689,10 @@ def annotateVariantsSNPeff(infile, outfile):
     job_threads = PARAMS["annotation_threads"]
     snpeff_genome = PARAMS["annotation_snpeff_genome"]
     config = PARAMS["annotation_snpeff_config"]
-    statement = '''/ifs/apps/bio/snpEff-3.3-dev/snpEff.sh eff
-                    -c %(config)s
-                    -v %(snpeff_genome)s
-                    -o gatk %(infile)s > %(outfile)s''' % locals()
+    statement = '''snpEff.sh eff
+                   -c %(config)s
+                   -v %(snpeff_genome)s
+                   -o gatk %(infile)s > %(outfile)s''' % locals()
     P.run()
 
 ###############################################################################
@@ -728,12 +729,10 @@ def listOfBAMs(infiles, outfile):
 
 ###############################################################################
 
-
 @follows(annotateVariantsSNPeff)
 @transform(genotypeGVCFs,
            regex(r"variants/all_samples.vcf"),
-           add_inputs(r"gatk/all_samples.list",
-                      r"variants/all_samples.snpeff.vcf"),
+           add_inputs(listOfBAMs, r"variants/all_samples.snpeff.vcf"),
            r"variants/all_samples.annotated.vcf")
 def variantAnnotator(infiles, outfile):
     '''Annotate variant file using GATK VariantAnnotator'''
@@ -823,7 +822,6 @@ def applyVariantRecalibrationIndels(infiles, outfile):
 ###############################################################################
 # SnpSift
 
-
 @transform(applyVariantRecalibrationIndels,
            regex(r"variants/all_samples.vqsr.vcf"),
            r"variants/all_samples.snpsift.vcf")
@@ -832,22 +830,76 @@ def annotateVariantsSNPsift(infile, outfile):
     job_options = "-l mem_free=6G"
     job_threads = PARAMS["annotation_threads"]
     track = P.snip(os.path.basename(infile), ".vqsr.vcf")
-    dbNSFP = PARAMS["annotation_snpsift_dbnsfp"]
-    clinvar = PARAMS["annotation_clinvar"]
-    exac = PARAMS["annotation_exac"]
-    # The following statement is not fully implemented yet
-    # statement = '''SnpSift.sh geneSets -v
-    # /ifs/projects/proj016/data/1000Genomes/msigdb.v4.0.symbols.gmt %(infile)s
-    # > variants/%(track)s_temp1.vcf; checkpoint;''' % locals()
 
-    statement = '''SnpSift.sh dbnsfp -v -db %(dbNSFP)s %(infile)s
-                    > variants/%(track)s_temp1.vcf; checkpoint;
-                    SnpSift.sh annotate %(clinvar)s
-                    variants/%(track)s_temp1.vcf > %(track)s_temp2.vcf;
-                    checkpoint; SnpSift.sh annotate -info AC_Adj,AN_Adj,AF
-                    %(exac)s %(track)s_temp2.vcf > %(outfile)s;
-                    rm -f variants/%(track)s_temp*.vcf;''' % locals()
-    P.run()
+    SNPsift = ",".split(PARAMS['annotation_snpsift_annots'])
+
+    # SNP Sift #
+    if "dbNSFP" in SNPsift:
+        dbNSFP = PARAMS["annotation_dbnsfp"]
+        dbN_annotators = PARAMS["annotation_dbnsfpannotators"]
+        if len(dbN_annotators) == 0:
+            annostring = ""
+        else:
+            annostring = "-f %s" % dbN_annotators
+
+        statement = """SnpSift.sh dbnsfp -db %(dbNSFP)s -v %(tempin)s
+                       %(annostring)s >
+                       %(tempout)s;
+                       mv %(tempout)s %(tempin)s"""
+        P.run()
+
+    if "clinvar" in SNPsift:
+        clinvar = PARAMS["annotation_clinvar"]
+        statement = """SnpSift.sh annotate %(clinvar)s
+                    %(tempin)s > %(tempout)s;
+                    mv %(tempout)s %(tempin)s"""
+        P.run()
+
+    if "exac" in SNPsift:
+        exac = PARAMS["annotation_exac"]
+        statement = """SnpSift.sh annotate
+                    %(exac)s
+                    %(tempin)s > %(tempout)s;
+                    mv %(tempout)s %(tempin)s"""
+        P.run()
+
+    if "gwascatalog" in SNPsift:
+        gwas_catalog = PARAMS["annotation_gwas_catalog"]
+        statement = """SnpSift.sh gwasCat -db %(gwas_catalog)s
+                       %(tempin)s > %(tempout)s;
+                       mv %(tempout)s %(tempin)s"""
+        P.run()
+
+    if "phastcons" in SNPsift:
+        genomeind = "%s.fai" % genome
+        phastcons = PARAMS["annotation_phastcons"]
+        statement = """cp %(genomeind)s %(phastcons)s/genome.fai;
+                       SnpSift.sh phastCons %(phastcons)s %(tempin)s >
+                       %(tempout)s;
+                       mv %(tempout)s %(tempin)s"""
+        P.run()
+
+    if '1000g' in SNPsift:
+        vcfs = []
+        for f in os.listdir(PARAMS['annotation_tGdir']):
+            if f.endswith(".vcf.gz"):
+                vcfs.append(f)
+        for vcf in vcfs:
+            statement = """SnpSift.sh annotate
+                           %(vcf)s
+                           %(tempin)s > %(tempout)s;
+                           mv %(tempout)s %(tempin)s"""
+            P.run()
+
+    if 'dbsnp' in SNPsift:
+        dbsnp = PARAMS["annotation_dbsnp"]
+        statement = """SnpSift.sh annotate
+                    %(dbsnp)s
+                    %(tempin)s > %(tempout)s;
+                    mv %(tempout)s %(tempin)s"""
+        P.run()
+
+    shutil.move(tempin, outfile)
 
 
 @transform(annotateVariantsSNPsift,
@@ -880,6 +932,40 @@ def annotateVariantsVEP(infile, outfile):
                        mv %(tempout)s %(tempin)s'''
         P.run()
     shutil.move(tempin, outfile)
+
+
+@follows(mkdir("variant_tables"))
+@transform(GATKIndelRealignSample, regex(r"gatk/(.*).realigned.bam"),
+           add_inputs(annotateVariantsVEP), r"variant_tables/\1.tsv")
+def MakeAnnotationsTables(infiles, outfile):
+    bamname = infiles[0]
+    inputvcf = infiles[1]
+    TF = P.getTempFilename(".")
+    samplename = bamname.replace(".realigned.bam",
+                                 "_sorted").replace("gatk/", "")
+    statement = '''bcftools view -h %(inputvcf)s |
+                   awk -F '=|,' '$1=="##INFO" || $1=="##FORMAT"
+                   {printf("%%s\\t%%s\\n", $3, $9)}'
+                   | sed 's/>//g' > %(TF)s'''
+    P.run()
+    cols = []
+    colds = []
+    for line in IOTools.openFile(TF).readlines():
+        if line.split("\t")[0] != "Samples":
+            cols.append("[%%%s]" % line.split("\t")[0])
+            colds.append(line.split("\t")[1].strip().replace(" ", "_"))
+    l1 = "\t".join(cols)
+    l2 = "\t".join(colds)
+    out = open(outfile, "w")
+    out.write('''CHROM\tPOS\tQUAL\tID\tFILTER\tREF1\tALT\tGT\t\%s\nchromosome\tposition\tquality\tfilter\tref\talt\tgenotype\t%s\n''' % (l1, l2))
+    out.close()
+    cstring = "\\t".join(cols)
+    cstring = "%CHROM\\t%POS\\t%QUAL\\t%ID\\t%FILTER\\t%REF\\t%ALT\\t[%GT]\\t" + cstring
+    statement = '''bcftools query -s %(samplename)s
+                   -f '%(cstring)s\\n'
+                   -i 'FILTER=="PASS" && GT!="0/0" && GT!="./."'
+                   %(inputvcf)s >> %(outfile)s'''
+    P.run()
 
 ###############################################################################
 ###############################################################################

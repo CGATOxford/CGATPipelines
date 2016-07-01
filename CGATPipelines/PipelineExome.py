@@ -150,6 +150,9 @@ def haplotypeCaller(infile, outfile, genome,
 
     statement = '''GenomeAnalysisTK
                     -T HaplotypeCaller
+                    -ERC GVCF
+                    -variant_index_type LINEAR
+                    -variant_index_parameter 128000
                     -o %(outfile)s
                     -R %(genome)s
                     -I %(infile)s
@@ -158,6 +161,8 @@ def haplotypeCaller(infile, outfile, genome,
                     -ip %(padding)s
                     %(options)s''' % locals()
     P.run()
+
+
 
 ##############################################################################
 
@@ -250,8 +255,11 @@ def variantAnnotator(vcffile, bamlist, outfile, genome,
     job_threads = 3
 
     if annotations != "":
-        anno = annotations.split(",")
-        anno = " -A " + " -A ".join(anno)
+        if annotations == "--useAllAnnotations":
+            anno = annotations
+        else:
+            anno = annotations.split(",")
+            anno = " -A " + " -A ".join(anno)
     else:
         anno = ""
     statement = '''GenomeAnalysisTK -T VariantAnnotator
