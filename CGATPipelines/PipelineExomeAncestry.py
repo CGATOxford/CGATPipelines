@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.patches as mpatches
 
+
 @cluster_runnable
 def MakeSNPFreqDict(infiles, outfiles, rs):
     '''

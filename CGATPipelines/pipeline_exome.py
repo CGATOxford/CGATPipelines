@@ -732,6 +732,7 @@ def listOfBAMs(infiles, outfile):
 
 ###############################################################################
 
+
 @follows(annotateVariantsSNPeff)
 @transform(genotypeGVCFs,
            regex(r"variants/all_samples.vcf"),
@@ -923,7 +924,7 @@ def annotateVariants1000G(infile, outfile):
     tempin = T
     tempout = P.getTempFilename(".")
 
-    for vcf in vcfs:        
+    for vcf in vcfs:
         statement = """SnpSift.sh annotate
                        %(vcf)s
                        %(tempin)s > %(tempout)s;
@@ -947,6 +948,7 @@ def annotateVariantsDBSNP(infile, outfile):
                 %(infile)s > %(outfile)s;"""
 
     P.run()
+
 
 @follows(annotateVariantsDBSNP)
 def annotateVariantsSNPsift():
