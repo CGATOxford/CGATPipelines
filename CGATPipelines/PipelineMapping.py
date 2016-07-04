@@ -1419,7 +1419,7 @@ class BWA(Mapper):
                 %(unique_cmd)s
                 %(strip_cmd)s
                 %(set_nh_cmd)s
-                | samtools sort - %(outf)s 2>>%(outfile)s.bwa.log;
+                | samtools sort -o %(outfile)s 2>>%(outfile)s.bwa.log;
                 samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2534,7 +2534,7 @@ class GSNAP(Mapper):
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort - %(outf)s 2>>%(outfile)s.log;
+        | samtools sort -o %(outf)s 2>>%(outfile)s.log;
         samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2693,7 +2693,7 @@ class STAR(Mapper):
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort - %(outf)s 2>>%(outfile)s.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.log;
         samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2859,7 +2859,6 @@ class Bowtie(Mapper):
             statement to pass to P.run to run post processing.
         '''
 
-        track = P.snip(outfile, ".bam")
         tmpdir_fastq = self.tmpdir_fastq
 
         unique_cmd, strip_cmd = "", ""
@@ -2880,7 +2879,7 @@ class Bowtie(Mapper):
         --log=%(outfile)s.log
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort - %(track)s;
+        | samtools sort -o %(outfile)s;
         samtools index %(outfile)s;
         ''' % locals()
 
@@ -3047,7 +3046,7 @@ class BowtieTranscripts(Mapper):
         statement: str
             statement to pass to P.run to run post processing.
         '''
-        track = P.snip(outfile, ".bam")
+
         tmpdir_fastq = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""
@@ -3065,7 +3064,7 @@ class BowtieTranscripts(Mapper):
         statement = '''cat %(tmpdir_fastq)s/out.bam
              %(unique_cmd)s
              %(strip_cmd)s
-             | samtools sort - %(outfile)s 2>>%(track)s.bwa.log;
+             | samtools sort -o %(outfile)s 2>>%(track)s.bwa.log;
              samtools index %(outfile)s;
              ''' % locals()
 
@@ -3108,7 +3107,6 @@ class BowtieJunctions(BowtieTranscripts):
             statement to pass to P.run to run post processing.
         '''
 
-        track = P.snip(outfile, ".bam")
         tmpdir_fastq = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""
@@ -3135,7 +3133,7 @@ class BowtieJunctions(BowtieTranscripts):
         | python %%(scriptsdir)s/rnaseq_junction_bam2bam.py
         --contigs-tsv-file=%%(contigsfile)s
         --log=%(outfile)s.log
-        | samtools sort - %(track)s;
+        | samtools sort -o %(outfile)s;
         checkpoint;
         samtools index %(outfile)s;
         ''' % locals()
