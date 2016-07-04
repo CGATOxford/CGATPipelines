@@ -268,7 +268,6 @@ if PARAMS.get("preprocessors", None):
                 PARAMS["trimmomatic_min_adapter_len"],
                 PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
 
-
         if PARAMS["auto_remove"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
                 "contaminants.fasta",
