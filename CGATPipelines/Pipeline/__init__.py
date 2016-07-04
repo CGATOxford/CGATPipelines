@@ -234,12 +234,12 @@ from CGAT.IOTools import touchFile as touch
 from CGAT.IOTools import snip as snip
 
 # import submodules
-import CGATPipelines.Pipeline.Local as Local
-import CGATPipelines.Pipeline.Execution as Execution
-import CGATPipelines.Pipeline.Control as Control
-import CGATPipelines.Pipeline.Database as Database
-import CGATPipelines.Pipeline.Files as Files
-import CGATPipelines.Pipeline.Parameters as Parameters
+import Local as Local
+import Execution as Execution
+import Control as Control
+import Database as Database
+import Files as Files
+import Parameters as Parameters
 
 # broadcast parameters and config object, take from
 # Parameters.py
