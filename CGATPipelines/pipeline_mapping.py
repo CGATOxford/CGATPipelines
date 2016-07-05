@@ -1793,20 +1793,20 @@ def mapReadsWithShortstack(infile, outfile):
 
     shortstack_threads: int
         :term:`PARAMS`
-        number of threads with which to run butter
+        number of threads with which to run shortstack
 
     shortstack_memory: str
         :term:`PARAMS`
-        memory required for butter job
+        memory required for shortstack job
 
     shortstack_options: str
         :term:`PARAMS`
-        string containing command line options to pass to Butter -
-        refer to https://github.com/MikeAxtell/butter
+        string containing command line options to pass to Shortstack -
+        refer to https://github.com/MikeAxtell/ShortStack
 
     shortstack_index_dir: str
         :term:`PARAMS`
-        path to directory containing butter indices
+        path to directory containing shortstack indices
 
     strip_sequence: bool
         :term:`PARAMS`
@@ -1856,7 +1856,8 @@ mapToMappingTargets = {'tophat': (mapReadsWithTophat, loadTophatStats),
                        'gsnap': (mapReadsWithGSNAP,),
                        'star': (mapReadsWithSTAR, loadSTARStats),
                        'butter': (mapReadsWithButter,),
-                       'hisat': (mapReadsWithHisat,)
+                       'hisat': (mapReadsWithHisat,),
+                       'shortstack': (mapReadsWithShortstack)
                        }
 
 for x in P.asList(PARAMS["mappers"]):
