@@ -51,7 +51,7 @@ pertain to pipeline integration, such as filenames, index locations,
 threading and in general processing options that change the tools
 input/output, as these need to be tracked by the pipeline.
 
-The benefit of this approach is to provide completea control to the
+The benefit of this approach is to provide compleeat control to the
 user and is likely to work with different versions of a tool, i.e., if
 a command line option to a tool changes, just the configuration file
 needs to be changed, but the code remains the same.
@@ -75,6 +75,7 @@ Requirements:
 * stampy >= 1.0.23 (optional)
 * butter >= 0.3.2 (optional)
 * hisat >= 0.1.4 (optional)
+* shortstack >3.4 (optional)
 
 Reference
 ---------
@@ -1849,6 +1850,94 @@ class Butter(BWA):
 
         return statement
 
+class Shortread(BWA):
+    '''
+    Mapper for Shortread
+    '''
+
+    def mapper(self, infiles, outfile):
+        '''
+        Build mapping statement from infiles to map with Shortread.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Shortread.
+        '''
+
+        if len(infiles) > 1:
+            raise ValueError(
+                "Shortread can only operate on one fastq file at a time")
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        tmpdir = os.path.join(self.tmpdir_fastq + "shortread")
+        statement = ["mkdir -p %s;" % tmpdir]
+        tmpdir_fastq = self.tmpdir_fastq
+
+        track = P.snip(os.path.basename(outfile), ".bam")
+
+        if nfiles == 1:
+            infiles = infiles[0][0]
+            track_infile = ".".join(infiles.split(".")[:-1])
+
+            # Shortstack can now handle compressed fastqs
+            # have kept code the same but should change to take out
+            # redundant code once program is setup and running
+            # recognises file types by suffix
+            # before you run shortstack at present you need to load module
+            # before running the pipeline
+            track_fastq = os.path.join(tmpdir_fastq, track + ".fastq")
+
+            if infiles.endswith(".gz"):
+                statement.append('''
+                zcat %(infiles)s > %(track_fastq)s; ''' % locals())
+            else:
+                statement.append('''
+                cat %(infiles)s > %(track_fastq)s; ''' % locals())
+
+            statement.append('''
+            ShortStack %%(shortstack_options)s
+            %(track_fastq)s
+            %%(shortstack_index_dir)s/%%(genome)s.fa
+            --bowtie_cores=%%(job_threads)s
+            > %(outfile)s_shortstack.log;
+            ''' % locals())
+
+        elif nfiles == 2:
+            raise ValueError(
+                "Shortstack does not support paired end reads ")
+        else:
+            raise ValueError(
+                "unexpected number of read files to map: %i " % nfiles)
+
+        self.tmpdir = tmpdir
+
+        return " ".join(statement)
+
+    def cleanup(self, outfile):
+        statement = '''rm -rf %s %s;''' % (self.tmpdir_fastq, self.tmpdir)
+
+        return statement
 
 class Tophat(Mapper):
     """
