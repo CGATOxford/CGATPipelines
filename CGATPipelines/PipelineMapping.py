@@ -1378,7 +1378,7 @@ class BWA(Mapper):
         track = P.snip(os.path.basename(outfile), ".bam")
 
         if nfiles == 1:
-            infiles = ",".join([self.quoteFile(x[0]) for x in infiles])
+            infiles = " ".join([self.quoteFile(x[0]) for x in infiles])
 
             statement.append('''
             bwa aln %%(bwa_aln_options)s -t %%(bwa_threads)i
@@ -1468,7 +1468,7 @@ class BWA(Mapper):
                 %(unique_cmd)s
                 %(strip_cmd)s
                 %(set_nh_cmd)s
-                | samtools sort -o %(outf)s 2>>%(outfile)s.bwa.log;
+                | samtools sort -o %(outfile)s 2>>%(outfile)s.bwa.log;
                 samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2570,7 +2570,6 @@ class GSNAP(Mapper):
         '''
 
         track = P.snip(os.path.basename(outfile), ".bam")
-        outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""
@@ -2589,7 +2588,7 @@ class GSNAP(Mapper):
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort -o %(outf)s 2>>%(outfile)s.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.log;
         samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2724,7 +2723,6 @@ class STAR(Mapper):
             statement to pass to P.run to run post processing.
         '''
         track = P.snip(os.path.basename(outfile), ".bam")
-        outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""
@@ -2748,7 +2746,7 @@ class STAR(Mapper):
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort -o %(outf)s 2>>%(outfile)s.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.log;
         samtools index %(outfile)s;''' % locals()
 
         return statement

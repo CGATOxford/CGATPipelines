@@ -839,7 +839,7 @@ def mapReadsWithTophat(infiles, outfile):
     m = PipelineMapping.Tophat(
         executable=P.substituteParameters(**locals())["tophat_executable"],
         strip_sequence=PARAMS["strip_sequence"],
-        tool_options=PARAMS["tophat2_options"])
+        tool_options=PARAMS["tophat_options"])
     infile, reffile, transcriptfile = infiles
     tophat_options = PARAMS["tophat_options"] + \
         " --raw-juncs %(reffile)s " % locals()
