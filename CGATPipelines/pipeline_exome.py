@@ -184,6 +184,7 @@ import CGATPipelines.PipelineExome as PipelineExome
 import PipelineExomeAncestry as PipelineExomeAncestry
 import decimal
 import pandas as pd
+import numpy as np
 
 ###############################################################################
 ###############################################################################
@@ -1007,15 +1008,17 @@ def makeAnnotationsTables(infiles, outfile):
     P.run()
     cols = []
     colds = []
+    cols2 = []
     for line in IOTools.openFile(TF).readlines():
         if line.split("\t")[0] != "Samples":
             cols.append("[%%%s]" % line.split("\t")[0])
             colds.append(line.split("\t")[1].strip().replace(" ", "_"))
-    l1 = "\t".join(cols)
+            cols2.append(line.split("\t")[0])
+    l1 = "\t".join(cols2)
     l2 = "\t".join(colds)
     out = open(outfile, "w")
-    out.write('''CHROM\tPOS\tQUAL\tID\tFILTER\tREF1\tALT\tGT\t\%s\n\
-                 chromosome\tposition\tquality\tfilter\tref\talt\t\
+    out.write('''CHROM\tPOS\tQUAL\tID\tFILTER\tREF1\tALT\tGT\t%s\n\
+                 chromosome\tposition\tquality\tid\tfilter\tref\talt\t\
                  genotype\t%s\n''' % (l1, l2))
     out.close()
     cstring = "\\t".join(cols)
@@ -1243,6 +1246,100 @@ def ancestry():
 
 
 ###############################################################################
+# Quality Filtering #
+
+@follows(mkdir("variant_tables_highqual"))
+@transform(makeAnnotationsTables, regex("variant_tables/(.*).tsv"),
+           [r'variant_tables_highqual/\1.tsv',
+            r'variant_tables_highqual/\1_failed.tsv'])
+def qualityFilterVariants(infile, outfiles):
+    '''
+    Filter variants based on quality.  Columns to filter on and
+    how they should be filtered can be specified in the pipeline.ini.
+    Currently only implemented to filter numeric columns.  "." is assumed
+    to mean pass.
+    '''
+    qualstring = PARAMS['filtering_quality']
+    qualfilter = PARAMS['filtering_filtertype']
+    PipelineExome.filterQuality(infile, qualstring, qualfilter,
+                                outfiles, submit=True)
+
+
+@follows(mkdir("variant_tables_rare"))
+@transform(qualityFilterVariants, regex("variant_tables_highqual/(.*).tsv"),
+           [r'variant_tables_rare/\1.tsv',
+            r'variant_tables_rare/\1_failed.tsv'])
+def rarityFilterVariants(infiles, outfiles):
+    '''
+    Filter out variants which are common in any of the exac or other
+    population datasets as specified in the pipeline.ini.
+    '''
+    infile = infiles[0]
+    thresh = PARAMS['filtering_rarethresh']
+    freqs = PARAMS['filtering_freqs']
+    exac = PARAMS['filtering_exac']
+    PipelineExome.filterRarity(infile, exac, freqs, thresh, outfiles,
+                               submit=True)
+
+
+@follows(mkdir("variant_tables_damaging"))
+@transform(rarityFilterVariants, regex("variant_tables_rare/(.*).tsv"),
+           [r'variant_tables_damaging/\1.tsv',
+            r'variant_tables_damaging/\1_failed.tsv'])
+def damageFilterVariants(infiles, outfiles):
+    '''
+    Filter variants which have not been assessed as damaging by any
+    of the specified tools.
+    Tools and thresholds can be specified in the pipeline.ini.
+
+    Does not account for multiple alt alleles - if any ALT allele has
+    been assessed as damaging with any tool the variant is kept,
+    regardless of if this is the allele called in the sample.
+
+    '''
+    infile = infiles[0]
+    PipelineExome.filterDamage(infile, PARAMS['filtering_damage'], outfiles,
+                               submit=True)
+
+
+@active_if(PARAMS['filtering_family'] == 1)
+@follows(mkdir("variant_tables_family"))
+@transform(damageFilterVariants, regex("variant_tables_damaging/(.*).tsv"),
+           add_inputs(calculateFamily),
+           [r'variant_tables_family/\1.tsv',
+            r'variant_tables_family/\1_failed.tsv'])
+def familyFilterVariants(infiles, outfiles):
+    '''
+    Filter variants according to the output of calculateFamily -
+    only variants shared by both members of a family will be kept.
+    '''
+    infile = infiles[0][0]
+
+    infilenam = infile.split("/")[-1]
+    infilestem = "/".join(infile.split("/")[:-1])
+
+    # figure out who is related to who
+    families = [line.strip().split("\t")[:2]
+                for line in IOTools.openFile(infiles[1]).readlines()]
+    infam = [line[0] for line in families] + [line[1] for line in families]
+
+    # no relatives - copy the input file to the output file and generate
+    # a blank "failed" file
+    if infilenam not in infam:
+        shutil.copy(infile, outfiles[0])
+        o = IOTools.openFile(outfiles[1], "w")
+        o.close()
+    else:
+        for line in families:
+            if infilenam in line:
+                i = line.index(infilenam)
+                if i == 0:
+                    infile2 = "%s/%s" % (infilestem, line[1])
+                else:
+                    infile2 = "%s/%s" % (infilestem, line[0])
+        PipelineExome.filterFamily(infile, infile2, outfiles)
+
+###############################################################################
 ###############################################################################
 ###############################################################################
 # Genes of interest
@@ -1407,8 +1504,7 @@ def deNovoVariants(infiles, outfile):
             father = row['father']
             mother = row['mother']
             child = row['sample']
-    select = '''vc.getGenotype("%(father)s").getDP()>=10&&vc.getGenotype("%(mother)s").getDP()>=10&&vc.getGenotype("%(child)s").getPL().0>20&&vc.getGenotype("%(child)s").getPL().1==0&&vc.getGenotype("%(child)s").getPL().2>0&&vc.getGenotype("%(father)s").getPL().0==0&&vc.getGenotype("%(father)s").getPL().1>20&&vc.getGenotype("%(father)s").getPL().2>20&&vc.getGenotype("%(mother)s").getPL().0==0&&vc.getGenotype("%(mother)s").getPL().1>20&&vc.getGenotype("%(mother)s").getPL().2>20&&vc.getGenotype("%(child)s").getAD().1>=3&&((vc.getGenotype("%(child)s").getAD().1)/(vc.getGenotype("%(child)s").getDP().floatValue()))>=0.25&&(vc.getGenotype("%(father)s").getAD().1==0||(vc.getGenotype("%(father)s").getAD().1>0&&((vc.getGenotype("%(father)s").getAD().1)/(vc.getGenotype("%(father)s").getDP().floatValue()))<0.05))&&(vc.getGenotype("%(mother)s").getAD().1==0||(vc.getGenotype("%(mother)s").getAD().1>0&&((vc.getGenotype("%(mother)s").getAD().1)/(vc.getGenotype("%(mother)s").getDP().floatValue()))<0.05))&&(SNPEFF_IMPACT=="HIGH"||SNPEFF_IMPACT=="MODERATE")''' % locals(
-    )
+    select = '''vc.getGenotype("%(father)s").getDP()>=10&&vc.getGenotype("%(mother)s").getDP()>=10&&vc.getGenotype("%(child)s").getPL().0>20&&vc.getGenotype("%(child)s").getPL().1==0&&vc.getGenotype("%(child)s").getPL().2>0&&vc.getGenotype("%(father)s").getPL().0==0&&vc.getGenotype("%(father)s").getPL().1>20&&vc.getGenotype("%(father)s").getPL().2>20&&vc.getGenotype("%(mother)s").getPL().0==0&&vc.getGenotype("%(mother)s").getPL().1>20&&vc.getGenotype("%(mother)s").getPL().2>20&&vc.getGenotype("%(child)s").getAD().1>=3&&((vc.getGenotype("%(child)s").getAD().1)/(vc.getGenotype("%(child)s").getDP().floatValue()))>=0.25&&(vc.getGenotype("%(father)s").getAD().1==0||(vc.getGenotype("%(father)s").getAD().1>0&&((vc.getGenotype("%(father)s").getAD().1)/(vc.getGenotype("%(father)s").getDP().floatValue()))<0.05))&&(vc.getGenotype("%(mother)s").getAD().1==0||(vc.getGenotype("%(mother)s").getAD().1>0&&((vc.getGenotype("%(mother)s").getAD().1)/(vc.getGenotype("%(mother)s").getDP().floatValue()))<0.05))&&(SNPEFF_IMPACT=="HIGH"||SNPEFF_IMPACT=="MODERATE")''' % locals()
     PipelineExome.selectVariants(infile, outfile, genome, select)
 
 
