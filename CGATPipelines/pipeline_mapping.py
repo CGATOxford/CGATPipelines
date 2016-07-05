@@ -129,6 +129,9 @@ software to be in the path:
 +---------+------------+------------------------------------------------+
 |hisat    |>0.1.5      |read mapping                                    |
 +---------+------------+------------------------------------------------+
+|shortstack|>3.4       |read mapping                                    |
++---------+------------+------------------------------------------------+
+
 
 Merging bam files
 -----------------
@@ -183,6 +186,9 @@ Glossary
    butter
       butter_ - a read mapper for small RNA data (bowtie wrapper)
 
+   shortstack - a read mapper for small RNA data (bowtie wrapper)
+                that is an improvement on butter
+
 .. _tophat: http://tophat.cbcb.umd.edu/
 .. _bowtie: http://bowtie-bio.sourceforge.net/index.shtml
 .. _gsnap: http://research-pub.gene.com/gmap/
@@ -191,6 +197,8 @@ Glossary
 .. _bismark: http://www.bioinformatics.babraham.ac.uk/projects/bismark/
 .. _butter: https://github.com/MikeAxtell/butter
 .. _hisat: http://ccb.jhu.edu/software/hisat/manual.shtml
+.. _shortstack: https://github.com/MikeAxtell/ShortStack
+
 
 Code
 ====
@@ -1758,6 +1766,73 @@ def mapReadsWithButter(infile, outfile):
     m = PipelineMapping.Butter(
         strip_sequence=PARAMS["strip_sequence"],
         set_nh=PARAMS["butter_set_nh"])
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+###################################################################
+###################################################################
+###################################################################
+# Map reads with shortstack
+###################################################################
+
+
+@follows(mkdir("shortstack.dir"))
+@transform(SEQUENCEFILES,
+           SEQUENCEFILES_REGEX,
+           r"shortstack.dir/\1.shortstack.bam")
+def mapReadsWithShortstack(infile, outfile):
+    '''
+    Map reads with shortstack
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    shortstack_threads: int
+        :term:`PARAMS`
+        number of threads with which to run butter
+
+    shortstack_memory: str
+        :term:`PARAMS`
+        memory required for butter job
+
+    shortstack_options: str
+        :term:`PARAMS`
+        string containing command line options to pass to Butter -
+        refer to https://github.com/MikeAxtell/butter
+
+    shortstack_index_dir: str
+        :term:`PARAMS`
+        path to directory containing butter indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
+
+    # easier to check whether infiles are paired reads here
+    if infile.endswith(".sra"):
+        outdir = P.getTempDir()
+        f = Sra.sneak(infile, outdir)
+        shutil.rmtree(outdir)
+        assert len(f) == 1, NotImplementedError('''The sra archive contains
+        paired end data,shortstack does not support paired end reads''')
+
+    elif infile.endswith(".csfasta.F3.gz") or infile.endswith(".fastq.1.gz"):
+        raise NotImplementedError('''infiles are paired end: %(infile)s,
+        shortstack does not support paired end reads''' % locals())
+
+    job_threads = PARAMS["shortstack_threads"]
+    job_memory = PARAMS["shortstack_memory"]
+
+    m = PipelineMapping.Shortstack(
+        strip_sequence=PARAMS["strip_sequence"])
     statement = m.build((infile,), outfile)
 
     P.run()
