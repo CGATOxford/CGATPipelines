@@ -1856,8 +1856,8 @@ mapToMappingTargets = {'tophat': (mapReadsWithTophat, loadTophatStats),
                        'gsnap': (mapReadsWithGSNAP,),
                        'star': (mapReadsWithSTAR, loadSTARStats),
                        'butter': (mapReadsWithButter,),
-                       'hisat': (mapReadsWithHisat,),
-                       'shortstack': (mapReadsWithShortstack)
+                       'shortstack': (mapReadsWithShortstack,),
+                       'hisat': (mapReadsWithHisat,)
                        }
 
 for x in P.asList(PARAMS["mappers"]):
