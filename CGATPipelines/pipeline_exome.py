@@ -1260,7 +1260,7 @@ def qualityFilterVariants(infile, outfiles):
     to mean pass.
     '''
     qualstring = PARAMS['filtering_quality']
-    qualfilter = PARAMS['filtering_filtertype']
+    qualfilter = PARAMS['filtering_quality_ft']
     PipelineExome.filterQuality(infile, qualstring, qualfilter,
                                 outfiles, submit=True)
 
@@ -1302,7 +1302,6 @@ def damageFilterVariants(infiles, outfiles):
                                submit=True)
 
 
-@active_if(PARAMS['filtering_family'] == 1)
 @follows(mkdir("variant_tables_family"))
 @transform(damageFilterVariants, regex("variant_tables_damaging/(.*).tsv"),
            add_inputs(calculateFamily),
@@ -1325,7 +1324,7 @@ def familyFilterVariants(infiles, outfiles):
 
     # no relatives - copy the input file to the output file and generate
     # a blank "failed" file
-    if infilenam not in infam:
+    if infilenam not in infam or PARAMS['filtering_family'] == 0:
         shutil.copy(infile, outfiles[0])
         o = IOTools.openFile(outfiles[1], "w")
         o.close()
@@ -1338,6 +1337,55 @@ def familyFilterVariants(infiles, outfiles):
                 else:
                     infile2 = "%s/%s" % (infilestem, line[0])
         PipelineExome.filterFamily(infile, infile2, outfiles)
+
+
+@follows(familyFilterVariants)
+def filter():
+    pass
+
+
+@follows(mkdir("genelists"))
+@transform(familyFilterVariants, regex("variant_tables_family/(.*).tsv"),
+           [r'genelists/\1.tsv',
+            r'genelists/\1.bed'])
+def makeGeneLists(infiles, outfiles):
+    infile = infiles[0]
+    outfile = outfiles[1]
+    genes = PARAMS['general_geneset']
+
+    # four %s because they need to be escaped in generating the statement
+    # then again when submitting the P.run()
+    statement = '''awk 'NR > 2 {printf("%%%%s\\t%%%%s\\t%%%%s\\n",\
+    $1, $2, $2 + 1)}'\
+    %(infile)s |\
+    bedtools intersect -wo -a stdin -b %(genes)s > %(outfile)s''' % locals()
+    P.run()
+
+    geneids = set()
+    with IOTools.openFile(outfile) as inp:
+        for line in inp:
+            line = line.strip().split("\t")
+            details = line[11].split(";")
+            for detail in details:
+                r = re.search('gene_id', detail)
+                if r:
+                    geneid = detail.split(" ")[-1]
+                    geneids.add(geneid.replace("\"", ""))
+    out = IOTools.openFile(outfiles[0], "w")
+    for geneid in geneids:
+        out.write("%s\n" % geneid)
+    out.close()
+
+
+@follows(mkdir('final_variant_tables'))
+@collate((makeGeneLists, familyFilterVariants), regex('(.*)/(.*).tsv'),
+         r'final_variant_tables/\2.tsv')
+def finalVariantTables(infiles, outfile):
+    genes = infiles[0]
+    variants = infiles[1][0]
+    cols = PARAMS['filtering_columns'].split(",")
+    PipelineExome.CleanVariantTables(genes, variants, cols, outfile,
+                                     submit=True)
 
 ###############################################################################
 ###############################################################################

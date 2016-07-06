@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup
 from bs4 import NavigableString
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import r as R
-
+import copy
 
 # Set PARAMS in calling module
 PARAMS = {}
@@ -1062,6 +1062,11 @@ def FilterFreqCols(infile, thresh, fcols):
 
 def WriteFreqFiltered(infile, exacdict, exacinds, otherdict, otherinds,
                       outfiles):
+    '''
+    Writes the output of the frequency filtering steps to file, including
+    the new columns showing calculated allele frequency for the allele
+    in this specific sample.
+    '''
     x = 0
     out = IOTools.openFile(outfiles[0], "w")
     out2 = IOTools.openFile(outfiles[1], "w")
@@ -1069,14 +1074,17 @@ def WriteFreqFiltered(infile, exacdict, exacinds, otherdict, otherinds,
     exaccols = exacdict.keys()
     othercols = otherdict.keys()
 
+    # column names for the new columns
+    exacnewcols = ["%s_calc" % c for c in exaccols]
+    othernewcols = ["%s_calc" % c for c in othercols]
+
     with IOTools.openFile(infile) as infile:
         for line in infile:
             line = line.strip()
             if x <= 1:
-                out.write("%s\t%s\t%s\n" % (line, "\t".join(exaccols),
-                                            "\t".join(othercols)))
-                out.write("%s\t%s\t%s\n" % (line, "\t".join(exaccols),
-                                            "\t".join(othercols)))
+                # write the column names
+                out.write("%s\t%s\t%s\n" % (line, "\t".join(exacnewcols),
+                                            "\t".join(othernewcols)))
             else:
                 freqs = []
                 for key in exaccols:
@@ -1203,3 +1211,65 @@ def filterFamily(infile, infile2, outfiles):
                 out2.write("%s\n" % "\t".join(line))
     out.close()
     out2.close()
+
+
+@cluster_runnable
+def CleanVariantTables(genes, variants, cols, outfile):
+    variants = pd.read_csv(variants, sep="\t")
+    variants = variants.drop(0)
+
+    vp1 = copy.copy(variants[['CHROM',
+                              'POS', 'QUAL', 'ID', 'REF1', 'ALT', 'GT']])
+    alleles = vp1['REF1'].str.cat(
+                vp1['ALT'].str.strip(), sep=",").str.split(",")
+
+    vp1['GT'] = vp1['GT'].str.replace(".", "0")
+    inds1 = vp1['GT'].str.get(0).astype(int).values
+    inds2 = vp1['GT'].str.get(-1).astype(int).values
+    x = 0
+    a1s = []
+    a2s = []
+    gts = []
+    homhet = []
+    for allele in alleles:
+        i1 = int(inds1[x])
+        i2 = int(inds2[x])
+        a1 = allele[i1]
+        a2 = allele[i2]
+        a1s.append(a1)
+        a2s.append(a2)
+        if a1 == a2:
+            homhet.append("HOM")
+        else:
+            homhet.append("HET")
+        gts.append("%s%s" % (a1, a2))
+        x += 1
+    vp1['HOMHET'] = homhet
+    vp1['Allele1'] = a1s
+    vp1['Allele2'] = a2s
+    vp1['Genotype'] = gts
+    vp1 = vp1.drop(['REF1', 'ALT', 'GT'], 1)
+    vp1[cols] = copy.copy(variants[cols])
+
+    Ls = []
+    for gene in [line.strip()
+                 for line in IOTools.openFile(genes[0]).readlines()]:
+        cp = []
+        with IOTools.openFile(genes[1]) as infile:
+            for line in infile:
+                r = re.search(gene, line)
+                if r:
+                    line = line.strip().split("\t")
+                    chrom = line[0]
+                    pos = line[1]
+                    cp.append("%s_%s" % (chrom, pos))
+        cp = set(cp)
+        for c in cp:
+            Ls.append((gene, c.split("_")))
+    df = pd.DataFrame(Ls)
+    df['CHROM'] = df[1].str.get(0)
+    df['POS'] = df[1].str.get(1)
+    df = df.drop(1, 1)
+    df.columns = ['gene', 'CHROM', 'POS']
+    variants = vp1.merge(df, 'left')
+    variants.to_csv(outfile, sep="\t")
