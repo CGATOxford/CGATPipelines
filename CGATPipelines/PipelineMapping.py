@@ -1850,6 +1850,7 @@ class Butter(BWA):
 
         return statement
 
+
 class Tophat(Mapper):
     """
     Mapper for Tophat
