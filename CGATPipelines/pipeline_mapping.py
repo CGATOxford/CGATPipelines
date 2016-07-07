@@ -846,7 +846,8 @@ def mapReadsWithTophat(infiles, outfile):
 
     m = PipelineMapping.Tophat(
         executable=P.substituteParameters(**locals())["tophat_executable"],
-        strip_sequence=PARAMS["strip_sequence"])
+        strip_sequence=PARAMS["strip_sequence"],
+        tool_options=PARAMS["tophat2_options"])
     infile, reffile, transcriptfile = infiles
     tophat_options = PARAMS["tophat_options"] + \
         " --raw-juncs %(reffile)s " % locals()
@@ -959,7 +960,8 @@ def mapReadsWithTophat2(infiles, outfile):
 
     m = PipelineMapping.Tophat2(
         executable=P.substituteParameters(**locals())["tophat2_executable"],
-        strip_sequence=PARAMS["strip_sequence"])
+        strip_sequence=PARAMS["strip_sequence"],
+        tool_options=PARAMS["tophat2_options"])
 
     infile, reffile, transcriptfile = infiles
     tophat2_options = PARAMS["tophat2_options"] + \
@@ -1046,11 +1048,11 @@ def mapReadsWithHisat(infiles, outfile):
 
     job_threads = PARAMS["hisat_threads"]
     job_memory = PARAMS["hisat_memory"]
-    hisat_library_type = PARAMS["strandness"]
 
     m = PipelineMapping.Hisat(
         executable=P.substituteParameters(**locals())["hisat_executable"],
-        strip_sequence=PARAMS["strip_sequence"])
+        strip_sequence=PARAMS["strip_sequence"],
+        stranded=PARAMS["strandness"])
 
     infile, junctions = infiles
 
