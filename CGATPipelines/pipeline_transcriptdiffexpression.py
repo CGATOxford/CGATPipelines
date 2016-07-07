@@ -1318,6 +1318,7 @@ def runSleuth(design, outfiles, quantifier, transcripts):
         --outfile-sleuth-count=%(counts_genes)s
         --outfile-sleuth-tpm=%(tpm_genes)s
         --sleuth-genewise
+        --gene-biomart=%(sleuth_gene_biomart)s
         >%(outfile_genes)s '''
 
         P.run()
