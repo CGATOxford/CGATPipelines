@@ -1252,6 +1252,7 @@ def generate_sleuth_parameters_on_the_fly():
     for job_parameters in parameters:
         yield job_parameters
 
+
 @follows(*QUANTTARGETS)
 @mkdir("DEresults.dir")
 @files(generate_sleuth_parameters_on_the_fly)
