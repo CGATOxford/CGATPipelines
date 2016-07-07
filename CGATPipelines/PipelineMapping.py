@@ -51,7 +51,7 @@ pertain to pipeline integration, such as filenames, index locations,
 threading and in general processing options that change the tools
 input/output, as these need to be tracked by the pipeline.
 
-The benefit of this approach is to provide completea control to the
+The benefit of this approach is to provide compleeat control to the
 user and is likely to work with different versions of a tool, i.e., if
 a command line option to a tool changes, just the configuration file
 needs to be changed, but the code remains the same.
@@ -75,6 +75,7 @@ Requirements:
 * stampy >= 1.0.23 (optional)
 * butter >= 0.3.2 (optional)
 * hisat >= 0.1.4 (optional)
+* shortstack >3.4 (optional)
 
 Reference
 ---------
@@ -3162,3 +3163,150 @@ def splitGeneSet(infile):
 
             outfile = IOTools.openFile("%s.%s.gtf.gz" % (outprefix, this), "w")
             outfile.write(line)
+
+
+class Shortstack(Bowtie):
+    '''
+    Mapper for Shortstack
+    '''
+
+    def mapper(self, infiles, outfile):
+        '''
+        Build mapping statement from infiles to map with Shortstack.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 1 filename
+
+        infiles[0]: str
+            :term:`fastq` filename
+            input fastq file containing unmapped reads
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the mapping statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to map reads using Shortstack.
+        '''
+
+        if len(infiles) > 1:
+            raise ValueError(
+                "Shortstack can only operate on one fastq file at a time")
+
+        num_files = [len(x) for x in infiles]
+
+        if max(num_files) != min(num_files):
+            raise ValueError(
+                "mixing single and paired-ended data not possible.")
+
+        nfiles = max(num_files)
+
+        tmpdir = os.path.join(self.tmpdir_fastq, "shortstack")
+        statement = ["mkdir -p %s;" % tmpdir]
+        tmpdir_fastq = self.tmpdir_fastq
+
+        track = P.snip(os.path.basename(outfile), ".shortstack.bam")
+        dir_name = os.path.dirname(outfile)
+
+        if nfiles == 1:
+            infiles = infiles[0][0]
+            track_infile = ".".join(infiles.split(".")[:-1])
+
+            # Shortstack can now handle compressed fastqs
+            # have kept code the same but should change to take out
+            # redundant code once program is setup and running
+            # recognises file types by suffix
+            # before you run shortstack at present you need to load module
+            # before running the pipeline
+            track_fastq = os.path.join(tmpdir_fastq, track + ".fastq")
+            if infiles.endswith(".gz"):
+                statement.append('''
+                zcat %(infiles)s > %(track_fastq)s; ''' % locals())
+            else:
+                statement.append('''
+                cat %(infiles)s > %(track_fastq)s; ''' % locals())
+
+            statement.append('''
+            ShortStack %%(shortstack_options)s
+            --readfile %(track_fastq)s
+            --genomefile %%(shortstack_index_dir)s/%%(genome)s.fa
+            --bowtie_cores=%%(job_threads)s
+            --outdir %(dir_name)s/%(track)s;
+            ''' % locals())
+
+        elif nfiles == 2:
+            raise ValueError(
+                "Shortstack does not support paired end reads ")
+        else:
+            raise ValueError(
+                "unexpected number of read files to map: %i " % nfiles)
+
+        self.tmpdir = tmpdir
+
+        return " ".join(statement)
+
+    def postprocess(self, infiles, outfile):
+        '''
+        Builds statement to tidy up after running shortstack.
+        This statement removes non-unique reads, strips sequences,
+        sorts and indexes bam files, moves output files to correct
+        directories.
+
+        Parameters
+        ----------
+        infiles: list
+            contains 2 filenames
+
+        infiles[0]: str
+            input file containing unmapped reads
+            can be :term:`fastq`, :term:`sra`, csfasta
+
+        infiles[1]: str
+            :term:`fasta` file containing reference genome
+
+        outfile: str
+            :term:`bam` filename
+            output file to incorporate into the statement
+
+        Returns
+        -------
+        statement: str
+            statement to pass to P.run to run post processing.
+        '''
+
+        tmpdir_fastq = self.tmpdir_fastq
+        track = P.snip(os.path.basename(outfile), ".shortstack.bam")
+
+        unique_cmd, strip_cmd = "", ""
+
+        if self.remove_non_unique:
+            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            --method=filter
+            --filter-method=unique --log=%(outfile)s.log''' % locals()
+
+        if self.strip_sequence:
+            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            --strip-method=all
+            --method=strip-sequence --log=%(outfile)s.log''' % locals()
+
+        statement = '''mv shortstack.dir/%(track)s/%(track)s.bam %(outfile)s;
+        cat %(outfile)s
+        | python %%(scriptsdir)s/bam2bam.py
+        --method=set-nh
+        --log=%(outfile)s.log
+        %(unique_cmd)s
+        %(strip_cmd)s
+        | samtools sort -o %(outfile)s;
+        samtools index %(outfile)s;
+        ''' % locals()
+
+        return statement
+
+    def cleanup(self, outfile):
+        statement = '''rm -rf %s %s;''' % (self.tmpdir_fastq, self.tmpdir)
+
+        return statement
