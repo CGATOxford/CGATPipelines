@@ -1253,6 +1253,7 @@ def generate_sleuth_parameters_on_the_fly():
         yield job_parameters
 
 
+@follows(*QUANTTARGETS)
 @mkdir("DEresults.dir")
 @files(generate_sleuth_parameters_on_the_fly)
 def runSleuth(design, outfiles, quantifier, transcripts):
@@ -1280,11 +1281,6 @@ def runSleuth(design, outfiles, quantifier, transcripts):
 
     outfile_pattern = P.snip(outfile, ".tsv")
 
-    if PARAMS["sleuth_ihw"]:
-        ihw = "--use-ihw"
-    else:
-        ihw = ""
-
     statement = '''
     python %(scriptsdir)s/counts2table.py
     --design-tsv-file=%(design)s
@@ -1297,12 +1293,34 @@ def runSleuth(design, outfiles, quantifier, transcripts):
     --sleuth-counts-dir=quant.dir/%(quantifier)s
     --outfile-sleuth-count=%(counts)s
     --outfile-sleuth-tpm=%(tpm)s
-    %(ihw)s
     >%(outfile)s
     '''
 
     P.run()
 
+    if PARAMS['sleuth_genewise']:
+
+        outfile_genes = outfile.replace(".tsv", "_genes.tsv")
+        counts_genes = counts.replace(".tsv", "_genes.tsv")
+        tpm_genes = tpm.replace(".tsv", "_genes.tsv")
+        outfile_pattern_genes = P.snip(outfile_genes, ".tsv")
+
+        statement = '''
+        python %(scriptsdir)s/counts2table.py
+        --design-tsv-file=%(design)s
+        --output-filename-pattern=%(outfile_pattern_genes)s
+        --log=%(outfile_pattern_genes)s.log
+        --method=sleuth
+        --fdr=%(sleuth_fdr)s
+        --model=%(model)s
+        --contrasts=%(contrasts)s
+        --sleuth-counts-dir=quant.dir/%(quantifier)s
+        --outfile-sleuth-count=%(counts_genes)s
+        --outfile-sleuth-tpm=%(tpm_genes)s
+        --sleuth-genewise
+        >%(outfile_genes)s '''
+
+        P.run()
 
 # # define sleuth targets
 # SLEUTHTARGETS = []
