@@ -466,6 +466,8 @@ class SequenceCollectionProcessor(object):
     # be located.
     tmpdir_fastq = None
 
+    keep_sra = True
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -542,6 +544,74 @@ class SequenceCollectionProcessor(object):
                     > %(tmpdir_fastq)s/%(track)s.fa''' % locals())
                 fastqfiles.append(("%s/%s.fa" % (tmpdir_fastq, track),))
                 self.datatype = "fasta"
+
+            elif infile.endswith(".remote"):
+                files = []
+                for line in IOTools.openFile(infile):
+                    repo, acc = line.strip().split("\t")[:2]
+                    if repo == "SRA":
+                        statement.append(Sra.prefetch(acc))
+                        f, format = Sra.peek(acc)
+                        statement.append(Sra.extract(acc, tmpdir_fastq))
+
+                        extracted_files = ["%s/%s" % (
+                            tmpdir_fastq, os.path.basename(x))
+                                                for x in sorted(f)]
+                        if not self.keep_sra:
+                            statement.append(Sra.clean_cache(acc))
+                        files.extend(extracted_files)
+                    
+                    elif repo == "ENA":
+                        filenames, dl_paths = Sra.fetch_ENA_files(acc)
+                        for f in dl_paths:
+                            statement.append(Sra.fetch_ENA(f, tmpdir_fastq))
+                        files.extend([os.path.join(tmpdir_fastq, x) for x
+                                      in filenames])
+                    
+                    elif repo == "TCGA":
+                        tar_name = line.strip().split("\t")[2]
+                        token = glob.glob("gdc-user-token*")
+
+                        if len(token) > 0:
+                            token = token[0]
+                        else:
+                            token = None
+
+                        statement.append(Sra.fetch_TCGA_fastq(acc,
+                                                              tar_name,
+                                                              token,
+                                                              tmpdir_fastq))
+
+                        files.append(os.path.join(tmpdir_fastq, acc + "_1.fastq.gz"))
+                        files.append(os.path.join(tmpdir_fastq, acc + "_2.fastq.gz"))
+
+                    else:
+                        raise ValueError("Unknown repository: %s" % repo)
+
+                if len(files) == 1 and files[0].endswith("_1.fastq.gz"):
+                    new_files = [re.sub("_1.fastq.gz",
+                                      ".fastq.gz",
+                                        files[0])]
+
+                elif len(files) == 2:
+                    new_files = [re.sub(r"_([12]).fastq.gz",
+                                        r".fastq.\1.gz",
+                                        x) for x in files]
+
+                else:
+                    new_files = files
+
+                out_base = os.path.basename(os.path.splitext(outfile)[0])
+                new_files = [re.sub(r"%s/(.+).(fastq..*gz)" % tmpdir_fastq,
+                                    r"%s/%s_\1.\2" % (tmpdir_fastq, out_base),
+                                    nf) for nf in new_files]
+
+                for old, new in zip(files, new_files):
+                    if old != new:
+                        statement.append("mv %s %s" % (old, new))
+                    
+                fastqfiles.append(new_files)
+                        
 
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
@@ -808,7 +878,7 @@ class SequenceCollectionProcessor(object):
         self.tmpdir_fastq = tmpdir_fastq
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
-        return "; ".join(statement) + ";", fastqfiles
+        return "; checkpoint;".join(statement) + ";", fastqfiles
 
 
 class Mapper(SequenceCollectionProcessor):
