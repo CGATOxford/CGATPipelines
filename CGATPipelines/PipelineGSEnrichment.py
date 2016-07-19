@@ -826,7 +826,7 @@ class EnrichmentTester(object):
             # writes the gene IDs annotated to the n most significantly
             # enriched terms in this database to tsv files
             if len(terms) > 0:
-                for term in terms[0:(ngenes + 1)]:
+                for term in terms[0: ngenes]:
                     if term != 'term':
                         fggenes = tdict_fg[term]
                         bggenes = tdict_bg[term]
