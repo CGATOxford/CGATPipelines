@@ -121,6 +121,7 @@ def translateGenelist(dbname, genelistfile, idtype):
     on the ensemblg2idtype$geneid database table.  This table needs
     to exist in the database.
     '''
+
     genelist = [line.strip() for line in
                 IOTools.openFile(genelistfile).readlines()]
     trans = pd.DataFrame(
@@ -1116,6 +1117,7 @@ def cleanGeneLists(infile, outfile, idtype, dbname):
     Cleans a list of genes - removes duplicates and translates
     from idtype to ensemblg
     '''
+
     if idtype == "ensemblg":
         cleangenes = set([line.strip()
                           for line in IOTools.openFile(infile).readlines()])
