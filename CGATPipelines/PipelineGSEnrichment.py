@@ -135,6 +135,16 @@ def translateGenelist(dbname, genelistfile, idtype):
 
 
 @cluster_runnable
+def untranslateGenelist(dbname, tab, genelistfile, idtype, outfile):
+    genelist = [line.strip() for line in
+                IOTools.openFile(genelistfile).readlines()]
+    trans = pd.DataFrame(readDBTable(dbname, tab), columns=[idtype,
+                                                            'ensemblg'])
+    T = trans[idtype][trans['ensemblg'].isin(genelist)]
+    T.to_csv(outfile, sep="\t", index=None)
+
+
+@cluster_runnable
 def writeList(genelist, outfile):
     '''
     Writes a list or set of genes to an output file, one per line
@@ -490,7 +500,6 @@ class DBTableParser(AnnotationParser):
         rdict1 = {}
         rdict2 = {}
 
-        print allresults
         for result in allresults:
             rdict1.setdefault(result[ind0], set())
             rdict1[result[ind0]].add(result[ind1])
@@ -762,7 +771,8 @@ class EnrichmentTester(object):
         self.outfile = outfile
         self.outfile2 = outfile2
 
-    def writeStats(self, resultsdict, outfile, outfile2):
+    def writeStats(self, resultsdict, outfile, outfile2, dbname, writegenes,
+                   host, ngenes):
         '''
         Writes the stats test results to an output table
         Each row has all the detail from the TermsToDetails table appended
@@ -772,6 +782,9 @@ class EnrichmentTester(object):
         and sorted by oddsratio.
         '''
         parsedresults = []
+        i = 0
+        tdict_bg = dict()
+        tdict_fg = dict()
         for term in resultsdict:
             res = resultsdict[term]
             # odds ratio
@@ -795,6 +808,9 @@ class EnrichmentTester(object):
             # add metadata
             L += self.AS.TermsToDetails[term]
             parsedresults.append(L)
+            tdict_fg[str(term)] = res[-2]
+            tdict_bg[str(term)] = res[-1]
+            i += 1
 
         cols = ['term', 'fg_genes_mapped_to_term',
                 'fg_genes_not_mapped_to_term',
@@ -805,6 +821,39 @@ class EnrichmentTester(object):
         df = df.sort_values('padj')
         df2 = df[df['significant'] == "*"]
         df2 = df2.sort_values('odds_ratio', ascending=False)
+        terms = df2['term'].astype(str)
+        if writegenes == 1:
+            # writes the gene IDs annotated to the n most significantly
+            # enriched terms in this database to tsv files
+            if len(terms) > 0:
+                for term in terms[0:(ngenes + 1)]:
+                    if term != 'term':
+                        fggenes = tdict_fg[term]
+                        bggenes = tdict_bg[term]
+
+                        fg = outfile.replace(".tsv", "_fg_genes_%s.tsv"
+                                             % (term.replace(":", "_")))
+                        fgo = IOTools.openFile(fg, "w")
+                        bg = outfile.replace(".tsv", "_bg_genes_%s.tsv"
+                                             % (term.replace(":", "_")))
+                        bgo = IOTools.openFile(bg, "w")
+                        for gene in fggenes:
+                            fgo.write("%s\n" % gene)
+                        for gene in bggenes:
+                            bgo.write("%s\n" % gene)
+                        fgo.close()
+                        bgo.close()
+                        # for humans, the IDs are also translated to
+                        # hgnc symbols for readability
+                        if host == "human":
+                            untranslateGenelist(dbname,
+                                                "ensemblg2symbol_Homo_sapiens$geneid",
+                                                fg, 'symbol_9606',
+                                                fg.replace(".tsv", "_sym.tsv"))
+                            untranslateGenelist(dbname,
+                                                "ensemblg2symbol_Homo_sapiens$geneid",
+                                                bg, 'symbol_9606',
+                                                bg.replace(".tsv", "_sym.tsv"))
         df.to_csv(outfile, sep="\t", index=False)
         df2.to_csv(outfile2, sep="\t", index=False)
 
@@ -821,7 +870,7 @@ class TermByTermET(EnrichmentTester):
                                   testtype, correction, thresh, outfile,
                                   outfile2)
 
-    def run(self):
+    def run(self, dbname, writegenes, host, ngenes):
         results = dict()
         for term in self.terms:
             GenesWith = self.AS.TermsToGenes[term]
@@ -838,7 +887,8 @@ class TermByTermET(EnrichmentTester):
                                      len(self.terms))
                 res = ST.run()
                 results[term] = res
-        self.writeStats(results, self.outfile, self.outfile2)
+        self.writeStats(results, self.outfile, self.outfile2, dbname,
+                        writegenes, host, ngenes)
 
 
 class EliminateET(EnrichmentTester):
@@ -857,7 +907,7 @@ class EliminateET(EnrichmentTester):
                                   testtype, correction, thresh, outfile,
                                   outfile2)
 
-    def run(self):
+    def run(self, dbname, writegenes, host, ngenes):
         TermsToOntP = copy.copy(self.AS.TermsToOnt)
         TermsToOntC = self.AS.reverseDict(TermsToOntP)
 
@@ -936,7 +986,8 @@ class EliminateET(EnrichmentTester):
                     for anc in ancs:
                         if anc in self.terms:
                             markedGenes[anc] = markedGenes[anc] | GenesWith
-        self.writeStats(results, self.outfile, self.outfile2)
+        self.writeStats(results, self.outfile, self.outfile2, dbname,
+                        writegenes, host, ngenes)
 
 
 class StatsTest(object):
@@ -990,12 +1041,12 @@ class FisherExactTest(StatsTest):
                            GenesWithout, correction, thresh, ntests)
 
     def run(self):
-        A = len(self.GenesWith & self.foreground)
-        B = len(self.GenesWithout & self.foreground)
-        C = len(self.GenesWith & self.background)
-        D = len(self.GenesWithout & self.background)
+        A = self.GenesWith & self.foreground
+        B = self.GenesWithout & self.foreground
+        C = self.GenesWith & self.background
+        D = self.GenesWithout & self.background
 
-        fishlist = ((A, B), (C, D))
+        fishlist = ((len(A), len(B)), (len(C), len(D)))
 
         FT = stats.fisher_exact(fishlist)
         OR, p = FT
@@ -1004,7 +1055,7 @@ class FisherExactTest(StatsTest):
             padj = 1
         significant = self.sig(padj)
 
-        return OR, p, padj, significant, fishlist
+        return OR, p, padj, significant, fishlist, A, C
 
 
 # functions below here correspond to specific steps in the
@@ -1089,7 +1140,8 @@ def HPABackground(tissue, level, supportive, outfile):
 
 @cluster_runnable
 def foregroundsVsBackgrounds(infiles, outfile, outfile2,
-                             testtype, runtype, correction, thresh):
+                             testtype, runtype, correction, thresh, dbname,
+                             writegenes, host, ngenes):
     '''
     Runs the appropriate EnrichmentTester method according to
     the parameters specified in the pipeline.ini.
@@ -1116,4 +1168,4 @@ def foregroundsVsBackgrounds(infiles, outfile, outfile2,
         ET = EliminateET(foreground, background, AS,
                          runtype, testtype, correction, thresh,
                          outfile, outfile2)
-    ET.run()
+    ET.run(dbname, writegenes, host, ngenes)
