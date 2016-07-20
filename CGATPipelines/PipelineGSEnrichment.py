@@ -741,7 +741,8 @@ class EnrichmentTester(object):
     Outputs these results to a file in a standard format.
     '''
     def __init__(self, foreground, background, AS, runtype,
-                 testtype, correction, thresh, outfile, outfile2):
+                 testtype, correction, thresh, outfile, outfile2,
+                 idtype, dbname):
         allgenes = set(AS.GenesToTerms.keys())
 
         #  read the list of background genes, remove genes not in the
@@ -758,6 +759,18 @@ class EnrichmentTester(object):
                                for line in
                                IOTools.openFile(foreground).readlines()]) &
                            allgenes) & self.background
+
+        original_fg = set([line.strip() for line in
+                           IOTools.openFile(foreground.replace(
+                               "clean_", "")).readlines()])
+        if os.path.exists(background.replace("clean_", "")):
+            original_bg = set([line.strip() for line in
+                               IOTools.openFile(foreground.replace(
+                                   "clean_", "")).readlines()])
+        else:
+            original_bg = None
+        self.ofg = original_fg
+        self.obg = original_bg
         self.AS = AS
         self.runtype = runtype
         self.testtype = testtype
@@ -771,8 +784,10 @@ class EnrichmentTester(object):
         self.terms = terms
         self.outfile = outfile
         self.outfile2 = outfile2
+        self.idtype = idtype
+        self.dbname = dbname
 
-    def writeStats(self, resultsdict, outfile, outfile2, dbname, writegenes,
+    def writeStats(self, resultsdict, outfile, outfile2, writegenes,
                    host, ngenes):
         '''
         Writes the stats test results to an output table
@@ -813,50 +828,40 @@ class EnrichmentTester(object):
             tdict_bg[str(term)] = res[-1]
             i += 1
 
-        cols = ['term', 'fg_genes_mapped_to_term',
+        cols = ['term_id', 'fg_genes_mapped_to_term',
                 'fg_genes_not_mapped_to_term',
                 'bg_genes_mapped_to_term',
                 'bg_genes_not_mapped_to_term', 'odds_ratio',
                 'pvalue', 'padj', 'significant'] + self.AS.DetailsColumns[1:]
         df = pd.DataFrame(parsedresults, columns=cols)
         df = df.sort_values('padj')
+        df.to_csv(outfile, sep="\t", index=False)
+
         df2 = df[df['significant'] == "*"]
         df2 = df2.sort_values('odds_ratio', ascending=False)
-        terms = df2['term'].astype(str)
-        if writegenes == 1:
-            # writes the gene IDs annotated to the n most significantly
-            # enriched terms in this database to tsv files
-            if len(terms) > 0:
-                for term in terms[0: ngenes]:
-                    if term != 'term':
-                        fggenes = tdict_fg[term]
-                        bggenes = tdict_bg[term]
+        df2.to_csv(outfile2, sep="\t", index=False)
 
+        if writegenes == 1:
+            #   writes the gene IDs annotated to the n most significantly
+            #   enriched terms in this database to tsv files
+            terms = df2['term_id'][0: ngenes]
+            if len(terms) > 0:
+                for term in terms:
                         fg = outfile.replace(".tsv", "_fg_genes_%s.tsv"
                                              % (term.replace(":", "_")))
                         fgo = IOTools.openFile(fg, "w")
                         bg = outfile.replace(".tsv", "_bg_genes_%s.tsv"
                                              % (term.replace(":", "_")))
                         bgo = IOTools.openFile(bg, "w")
+                        fggenes = tdict_fg[term]
+                        bggenes = tdict_bg[term]
+
                         for gene in fggenes:
                             fgo.write("%s\n" % gene)
                         for gene in bggenes:
                             bgo.write("%s\n" % gene)
                         fgo.close()
                         bgo.close()
-                        # for humans, the IDs are also translated to
-                        # hgnc symbols for readability
-                        if host == "human":
-                            untranslateGenelist(dbname,
-                                                "ensemblg2symbol_Homo_sapiens$geneid",
-                                                fg, 'symbol_9606',
-                                                fg.replace(".tsv", "_sym.tsv"))
-                            untranslateGenelist(dbname,
-                                                "ensemblg2symbol_Homo_sapiens$geneid",
-                                                bg, 'symbol_9606',
-                                                bg.replace(".tsv", "_sym.tsv"))
-        df.to_csv(outfile, sep="\t", index=False)
-        df2.to_csv(outfile2, sep="\t", index=False)
 
 
 class TermByTermET(EnrichmentTester):
@@ -865,13 +870,14 @@ class TermByTermET(EnrichmentTester):
     individually.
     '''
     def __init__(self, foreground, background, AS, runtype,
-                 testtype, correction, thresh, outfile, outfile2):
+                 testtype, correction, thresh, outfile, outfile2, idtype,
+                 dbname):
 
         EnrichmentTester.__init__(self, foreground, background, AS, runtype,
                                   testtype, correction, thresh, outfile,
-                                  outfile2)
+                                  outfile2, idtype, dbname)
 
-    def run(self, dbname, writegenes, host, ngenes):
+    def run(self, writegenes, host, ngenes):
         results = dict()
         for term in self.terms:
             GenesWith = self.AS.TermsToGenes[term]
@@ -885,10 +891,13 @@ class TermByTermET(EnrichmentTester):
                                      GenesWithout,
                                      self.correction,
                                      self.thresh,
-                                     len(self.terms))
+                                     len(self.terms), self.idtype,
+                                     self.dbname,
+                                     self.ofg,
+                                     self.obg)
                 res = ST.run()
                 results[term] = res
-        self.writeStats(results, self.outfile, self.outfile2, dbname,
+        self.writeStats(results, self.outfile, self.outfile2,
                         writegenes, host, ngenes)
 
 
@@ -903,12 +912,12 @@ class EliminateET(EnrichmentTester):
     as these will also be enrihced but are less informative.
     '''
     def __init__(self, foreground, background, AS, runtype, testtype,
-                 correction, thresh, outfile, outfile2):
+                 correction, thresh, outfile, outfile2, idtype, dbname):
         EnrichmentTester.__init__(self, foreground, background, AS, runtype,
                                   testtype, correction, thresh, outfile,
-                                  outfile2)
+                                  outfile2, idtype, dbname)
 
-    def run(self, dbname, writegenes, host, ngenes):
+    def run(self, writegenes, host, ngenes):
         TermsToOntP = copy.copy(self.AS.TermsToOnt)
         TermsToOntC = self.AS.reverseDict(TermsToOntP)
 
@@ -976,7 +985,8 @@ class EliminateET(EnrichmentTester):
                                          GenesWithout,
                                          self.correction,
                                          self.thresh,
-                                         len(self.terms))
+                                         len(self.terms), self.idtype,
+                                         self.dbname, self.ofg, self.obg)
                     R = ST.run()
                     results[term] = R
 
@@ -987,7 +997,7 @@ class EliminateET(EnrichmentTester):
                     for anc in ancs:
                         if anc in self.terms:
                             markedGenes[anc] = markedGenes[anc] | GenesWith
-        self.writeStats(results, self.outfile, self.outfile2, dbname,
+        self.writeStats(results, self.outfile, self.outfile2,
                         writegenes, host, ngenes)
 
 
@@ -997,7 +1007,7 @@ class StatsTest(object):
     of statistical test for enrichment.
     '''
     def __init__(self, term, foreground, background, GenesWith, GenesWithout,
-                 correction, thresh, ntests):
+                 correction, thresh, ntests, idtype, dbname, ofg, obg):
         self.term = term
         self.foreground = foreground
         self.background = background
@@ -1008,6 +1018,30 @@ class StatsTest(object):
         self.correction = correction
         self.thresh = thresh
         self.ntests = ntests
+        self.idtype = idtype
+        self.dbname = dbname
+        self.ofg = ofg
+        self.obg = obg
+        self.collapse()
+
+    def collapse(self):
+        # collapses the lists of genes back to the original id type
+        # as different types of ID do not have a 1:1 relationship
+        db = sqlite3.connect(self.dbname)
+        tab = pd.read_sql_query(
+            "SELECT * FROM ensemblg2%s$geneid" % self.idtype, db)
+        id = list(tab.columns)
+        id.remove('ensemblg')
+        id = id[0]
+        self.GenesWith = set(tab[id][tab['ensemblg'].isin(self.GenesWith)])
+        self.GenesWithout = set(
+            tab[id][tab['ensemblg'].isin(self.GenesWithout)])
+        self.foreground = set(tab[id][tab['ensemblg'].isin(self.foreground)])
+        self.background = set(tab[id][tab['ensemblg'].isin(self.background)])
+
+        self.foreground = self.foreground & self.ofg
+        if self.obg is not None:
+            self.background = self.background & self.obg
 
     def correct(self, pvalue):
         '''
@@ -1037,9 +1071,10 @@ class FisherExactTest(StatsTest):
 
     '''
     def __init___(self, term, foreground, background, GenesWith, GenesWithout,
-                  correction, thresh, ntests):
+                  correction, thresh, ntests, idtype, dbname):
         StatsTest.__init__(self, term, foreground, background, GenesWith,
-                           GenesWithout, correction, thresh, ntests)
+                           GenesWithout, correction, thresh, ntests, idtype,
+                           dbname)
 
     def run(self):
         A = self.GenesWith & self.foreground
@@ -1058,10 +1093,10 @@ class FisherExactTest(StatsTest):
 
         return OR, p, padj, significant, fishlist, A, C
 
-
 # functions below here correspond to specific steps in the
 # pipeline_enrichment pipeline - they are written as functions
 # so the cluster_runnable decorater can be used.
+
 
 @cluster_runnable
 def getDBAnnotations(infile, outfiles, dbname):
@@ -1143,7 +1178,7 @@ def HPABackground(tissue, level, supportive, outfile):
 @cluster_runnable
 def foregroundsVsBackgrounds(infiles, outfile, outfile2,
                              testtype, runtype, correction, thresh, dbname,
-                             writegenes, host, ngenes):
+                             writegenes, host, ngenes, idtype):
     '''
     Runs the appropriate EnrichmentTester method according to
     the parameters specified in the pipeline.ini.
@@ -1165,9 +1200,9 @@ def foregroundsVsBackgrounds(infiles, outfile, outfile2,
     if runtype == "termbyterm":
         ET = TermByTermET(foreground, background, AS,
                           runtype, testtype, correction, thresh,
-                          outfile, outfile2)
+                          outfile, outfile2, idtype, dbname)
     elif runtype == "elim":
         ET = EliminateET(foreground, background, AS,
                          runtype, testtype, correction, thresh,
-                         outfile, outfile2)
-    ET.run(dbname, writegenes, host, ngenes)
+                         outfile, outfile2, idtype, dbname)
+    ET.run(writegenes, host, ngenes)

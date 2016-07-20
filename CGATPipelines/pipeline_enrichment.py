@@ -224,9 +224,8 @@ def cleanForegrounds(infile, outfile):
     '''
     Removes duplicates from the foreground and converts IDs to ensemblg.
     '''
-    idtype = PARAMS['foreground_idtype']
+    idtype = PARAMS['id_type']
     dbname = PARAMS['db_name']
-    print idtype
     E.info(idtype)
     PipelineEnrichment.cleanGeneLists(infile, outfile, idtype, dbname,
                                       submit=True)
@@ -241,7 +240,7 @@ def cleanUserBackgrounds(infile, outfile):
     Removes duplicates from user specified backgrounds and converts IDs to
     ensemblg.
     '''
-    idtype = PARAMS['background_idtype']
+    idtype = PARAMS['id_type']
     dbname = PARAMS['db_name']
     PipelineEnrichment.cleanGeneLists(infile, outfile, idtype, dbname,
                                       submit=True)
@@ -310,6 +309,7 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 int(PARAMS['stats_writegenes']),
                                                 PARAMS['db_species'],
                                                 int(PARAMS['stats_ngenes']),
+                                                PARAMS['id_type'],
                                                 submit=True)
 
 
