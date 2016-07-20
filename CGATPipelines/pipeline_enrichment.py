@@ -41,6 +41,12 @@ foreground would be the list of significantly differentially expressed genes
 and the background could be, for example, a list of all genes known to be
 expressed in the kidney.
 
+# IMPORTANT #
+Gene IDs specified more than once in the input gene lists will be filtered
+out to leave only unique gene names - there is no weighting according to
+how many times the gene is in the input list.
+
+
 Initially, the working directory should contain:
 a directory, "foregrounds.dir"
 This should contain a file for each list of foreground genes, with the
@@ -58,6 +64,25 @@ to the foregrounds).
 All foregrounds will automatically be compared to a background of all genes
 with annotations of the specified type, so these backgrounds do not need
 to be provided.
+
+Gene Identifiers
+# IMPORTANT #
+There is not a 1:1 relationshup between different types of gene identifier
+(i.e. ensembl gene, entrez and hgnc) so you need to decide which
+list to use and stick to it.
+
+In the pipeline.ini you need to specify the type of gene ID you want to use.
+Foreground and background input lists should use this type of ID.
+For the annotation steps of the pipeline ensembl gene IDs are used,
+but before the enrichment test the gene IDs are translated back to the
+initial type and duplicates are removed.
+The "all genes" background will be all identifiers of the specified type
+- so if you choose ensemblg it will be all ensembl gene IDs including those
+which correspond to the same hgnc ID.
+
+If the input list has the same gene ID twice it will be filtered out,
+but if the input list has two gene IDs which correspond to the same gene
+it will not be filtered out.
 
 
 Annotations
