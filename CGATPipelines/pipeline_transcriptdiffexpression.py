@@ -1098,8 +1098,6 @@ def quantifyWithKallisto(infiles, outfile):
     job_threads = PARAMS["kallisto_threads"]
     job_memory = "6G"
 
-    print "\n\n\n\n\n\nthreads!", job_threads, "\n\n\n\n\n\n\n"
-
     kallisto_options = PARAMS["kallisto_options"]
     bootstrap = PARAMS["kallisto_bootstrap"]
 
