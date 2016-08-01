@@ -971,9 +971,7 @@ def calculateIdentityByDescent(infiles, outfile):
            r"pca.dir/\1_naive.evec")
 def runNaivePCA(infiles, outfile):
     '''
-    flashPCA breaks with too many samples
-    and SNPs.  Use smartpca from EIGENSOFT.
-    It's slower, but at least it works
+    flashPCA breaks with too many SNPs.
     '''
 
     job_threads = PARAMS['pca_threads']
@@ -982,30 +980,19 @@ def runNaivePCA(infiles, outfile):
     bed_file = infiles[0]
     bim_file = infiles[1][0]
     fam_file = infiles[1][1]
+    plink_root = bed_file.split(".")[:-1]
     out_pattern = ".".join(outfile.split(".")[:-1])
 
-    cwdir = os.getcwd()
-    params_file = "/".join([cwdir, "naive-smart_pca.par"])
-    # need to write to a text file
-    # with all the relevant parameters
-    # or use the perl script version
-    with open(params_file, "w") as pfile:
-        pfile.write("genotypename: %s \n" % bed_file)
-        pfile.write("snpname: %s \n" % bim_file)
-        pfile.write("indivname: %s \n" % fam_file)
-        pfile.write("evecoutname: %s.evec \n" % out_pattern)
-        pfile.write("evaloutname: %s.eval \n" % out_pattern)
-        pfile.write("altnormstyle: NO\n")
-        pfile.write("numoutevec: %i\n" % 20)
-        pfile.write("numoutlieriter: 5\n")
-        pfile.write("numoutlierevec: 20\n")
-        pfile.write("outliersigmathresh: 10\n")
-        pfile.write("fastmode: YES")
-
     statement = '''
-    smartpca
-    -p %(params_file)s
-    > %(outfile)s.log
+    flashpca --numthreads %(job_threads)i
+             --bfile %(plink_root)s
+             --ndim 20
+             --mem low
+             --outpc %(out_pattern)s.pcs
+             --outvec %(out_pattern)s.eigenvec
+             --outload %(out_pattern)s.loadings
+             --outval %(out_pattern)s.eigenval
+             --outpve %(out_pattern)s.pve
     '''
 
     P.run()
@@ -1020,7 +1007,6 @@ def runNaivePCA(infiles, outfile):
            r"pca.dir/\1_filtered.evec")
 def runFilteredPCA(infiles, outfile):
     '''
-    Use smartpca, flashpca doesn't work on these samples sizes yet
     Pre-filter samples for ethnicity.
 
     flashPCA must be in the PATH variable
@@ -1045,34 +1031,23 @@ def runFilteredPCA(infiles, outfile):
     %(plink_files)s
     '''
 
-    cwdir = os.getcwd()
-    params_file = "/".join([cwdir, "naive-smart_pca.par"])
     out_pattern = ".".join(outfile.split(".")[:-1])
 
-    # need to write to a text file
-    # with all the relevant parameters
-    # or use the perl script version
-    with open(params_file, "w") as pfile:
-        pfile.write("genotypename: %s.bed \n" % temp_out)
-        pfile.write("snpname: %s.bim \n" % temp_out)
-        pfile.write("indivname: %s.fam \n" % temp_out)
-        pfile.write("evecoutname: %s.evec \n" % out_pattern)
-        pfile.write("evaloutname: %s.eval \n" % out_pattern)
-        pfile.write("altnormstyle: NO\n")
-        pfile.write("numoutevec: %i\n" % PARAMS['pca_components'])
-        pfile.write("numoutlieriter: 5\n")
-        pfile.write("numoutlierevec: %i\n" % PARAMS['pca_components'])
-        pfile.write("outliersigmathresh: 10\n")
-        pfile.write("fastmode: YES")
-
     statement2 = '''
-    smartpca
-    -p %(params_file)s
-    > %(outfile)s.log
+    flashpca --numthreads %(job_threads)i
+             --bfile %(temp_out)s
+             --ndim 20
+             --mem low
+             --outpc %(out_pattern)s.pcs
+             --outvec %(out_pattern)s.eigenvec
+             --outload %(out_pattern)s.loadings
+             --outval %(out_pattern)s.eigenval
+             --outpve %(out_pattern)s.pve
     '''
 
     statement = " ; ".join([statement1,
                             statement2])
+
     P.run()
 
 
