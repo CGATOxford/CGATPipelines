@@ -1106,8 +1106,6 @@ def quantifyWithKallisto(infiles, outfile):
     m = PipelineMapping.Kallisto(pseudobam=PARAMS['kallisto_psuedobam'])
     statement = m.build(infile, outfile)
 
-    
-
     P.run()
 
 
