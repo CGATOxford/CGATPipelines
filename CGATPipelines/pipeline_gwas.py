@@ -160,6 +160,8 @@ def connect():
 # load the UKBiobank phenotype data into an SQLite DB
 # use this as the main accessor of phenotype data
 # for the report and non-genetic analyses
+
+
 @follows(mkdir("phenotypes.dir"),
          mkdir("%s" % PARAMS['plots_dir']))
 @transform("%s/%s*.tab" % (PARAMS['data_dir'],
@@ -185,6 +187,7 @@ def formatPhenotypeData(infiles, outfile):
     '''
 
     P.run()
+
 
 @follows(formatPhenotypeData)
 @transform(formatPhenotypeData,
@@ -219,6 +222,7 @@ def selectBritish(infile, outfile):
     '''
 
     P.run()
+
 
 @follows(selectBritish)
 @transform(selectBritish,
@@ -313,6 +317,7 @@ def plotPhenotypeMap(infile, outfile):
 # Specific pipeline tasks
 # need to allow for extra characters after chromsome ID
 
+
 @follows(mkdir("plink.dir"),
          dichotimisePhenotype)
 @collate("%s/*.%s" % (PARAMS['data_dir'],
@@ -360,6 +365,8 @@ def convertToPlink(infiles, outfiles):
 # some variants have missing ID names - change these with the following
 # structure:
 # chr_bp_A1_A2
+
+
 @follows(convertToPlink)
 @transform(convertToPlink,
            regex("plink.dir/(.+).bed"),
@@ -425,6 +432,8 @@ def nameVariants(infiles, outfile):
 
 # First step is to produce a complete LD pruned list of SNPs
 # this is slow for lots of SNPs and samples!
+
+
 @follows(mkdir("QC.dir"),
          nameVariants)
 @transform(convertToPlink,
@@ -690,6 +699,7 @@ def makeTrimmedData(infiles, outfile):
 
     P.run()
 
+
 @follows(makeTrimmedData)
 @collate(makeTrimmedData,
          regex("genome.dir/(.+)_sparse.bed"),
@@ -709,7 +719,7 @@ def mergePlinkFiles(infiles, outfile):
 
     # not all multi-allelic SNPs have been removed properly
     # include the *.missnp file as an exclusion
-    
+
     outpattern = ".".join(outfile.split(".")[:-1])
     job_memory = "64G"
     job_threads = 1
@@ -805,6 +815,7 @@ def findExcessHomozygotes(infiles, outfile):
     '''
 
     P.run()
+
 
 @follows(mkdir("QC.dir"))
 @transform("%s/chrX*" % PARAMS['data_dir'],
@@ -973,7 +984,7 @@ def runNaivePCA(infiles, outfile):
     bim_file = infiles[1][0]
     fam_file = infiles[1][1]
     out_pattern = ".".join(outfile.split(".")[:-1])
-    
+
     cwdir = os.getcwd()
     params_file = "/".join([cwdir, "naive-smart_pca.par"])
     # need to write to a text file
@@ -1021,7 +1032,7 @@ def runFilteredPCA(infiles, outfile):
     bim_file = infiles[1][1]
     plink_files = ",".join([bed_file, fam_file, bim_file])
     temp_out = P.getTempFilename(shared=True)
-    
+
     statement1 = '''
     python %(scriptsdir)s/geno2assoc.py
     --program=plinkdev
@@ -1061,7 +1072,6 @@ def runFilteredPCA(infiles, outfile):
     > %(outfile)s.log
     '''
 
-
     statement = " ; ".join([statement1,
                             statement2])
     P.run()
@@ -1070,7 +1080,7 @@ def runFilteredPCA(infiles, outfile):
 @follows(runNaivePCA,
          runFilteredPCA)
 @transform([runNaivePCA,
-            runFilteredPCA],            
+            runFilteredPCA],
            regex("pca.dir/(.+)_(.+).pcs"),
            add_inputs([PARAMS['data_pheno_all'],
                        r"genome.dir/\1.fam"]),
@@ -1238,6 +1248,7 @@ def excludeRelated(infiles, outfile):
 
     P.run()
 
+
 @follows(excludeRelated)
 @transform(excludeRelated,
            regex("exclusions.dir/(.+).rel.id"),
@@ -1339,7 +1350,6 @@ if PARAMS['candidate_region']:
 
     # make a GRM from the candidate region for MLM analysis
     # need to remove duplicates first
-    
 
     @follows(getCandidateRegion)
     @transform("candidate.dir/*.bed",
@@ -1364,7 +1374,7 @@ if PARAMS['candidate_region']:
         plink_files = ",".join([bed_file, fam_file, bim_file])
         out_pattern = ".".join(outfiles.split(".")[:-3])
 
-        statement= '''
+        statement = '''
         python %(scriptsdir)s/geno2assoc.py
         --program=gcta
         --threads=%(job_threads)s
@@ -1380,7 +1390,6 @@ if PARAMS['candidate_region']:
         '''
 
         P.run()
-
 
     @follows(getCandidateRegion)
     @transform(getCandidateRegion,
@@ -1462,7 +1471,7 @@ if PARAMS['candidate_region']:
         -v 5
         %(plink_files)s
         '''
-        
+
         P.run()
 else:
     pass
@@ -1785,10 +1794,10 @@ def getConditionalRegions(infiles, outfile):
 
     job_memory = "40G"
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py 
-    --program=plink2 
-    --input-file-format=plink_binary  
-    --method=format 
+    python %(scriptsdir)s/geno2assoc.py
+    --program=plink2
+    --input-file-format=plink_binary
+    --method=format
     --restrict-chromosome=%(chrom)s
     --snp-range=%(snp_range)s
     --exclude-snps=%(exclude_snps)s
@@ -1918,7 +1927,7 @@ def mergeGwasHits(infiles, outfile):
 
 #     Only test SNPs with MAF >= 0.5%
 #     '''
-    
+
 #     bed_file = infiles[0]
 #     fam_file = infiles[1][0]
 #     bim_file = infiles[1][1]
@@ -1961,7 +1970,7 @@ def testEpistasisVsRegion(infiles, outfile):
 
     Only test SNPs with MAF >= 0.5%
     '''
-    
+
     bed_file = infiles[0]
     fam_file = infiles[1][0]
     bim_file = infiles[1][1]
@@ -2001,6 +2010,8 @@ def testEpistasisVsRegion(infiles, outfile):
 # files for analysis
 
 # get the list of region SNPs first and create a dummy file for each
+
+
 @follows(testEpistasisVsRegion,
          mkdir("target_snps.dir"))
 @subdivide("%s" % PARAMS['epistasis_set'],
@@ -2040,7 +2051,7 @@ def excludeLdVariants(infile, outfile):
     snp = infile.split("/")[-1].split(".")[0]
     job_memory = "2G"
 
-    statement = '''tabix %(ld_fle)s %(contig)s:87500000-90354753 | 
+    statement = '''tabix %(ld_fle)s %(contig)s:87500000-90354753 |
     grep "%(snp)s" | awk '{ print } END {if (!NR) {print "Empty"} else {if($7 > 0.1) { print }}}'
     | cut -f 3,6 | tr -s '\\t' '\\n' | tr -s ';' '\\n' | sort | uniq | grep -v %(snp)s
     > %(outfile)s
@@ -2056,7 +2067,7 @@ def excludeLdVariants(infile, outfile):
            add_inputs([r"epistasis.dir/\1.fam",
                        r"epistasis.dir/\1.bim",
                        r"exclusions.dir/WholeGenome.gwas_exclude"]),
-         r"epistasis.dir/\1.raw")
+           r"epistasis.dir/\1.raw")
 def convertToRawFormat(infiles, outfile):
     '''
     Extract the target SNP genotypes in raw format
@@ -2071,7 +2082,7 @@ def convertToRawFormat(infiles, outfile):
 
     out_pattern = ".".join(outfile.split(".")[:-1])
     job_memory = "30G"
-    
+
     statement = '''
     python %(scriptsdir)s/geno2assoc.py
     --program=plink2
@@ -2086,7 +2097,7 @@ def convertToRawFormat(infiles, outfile):
     --memory=%(job_memory)s
     %(plink_files)s
     '''
-    
+
     P.run()
 
 
@@ -2177,7 +2188,7 @@ def ldExcludedEpistasisVsGwasLead(infiles, outfile):
     statement = '''rm -rf %(tmpf)s'''
 
     P.run()
-    
+
 
 @follows(excludeLdVariants,
          ldExcludedEpistasisVsGwasLead)
@@ -2264,7 +2275,7 @@ def plotLdExcludedEpistasis(infile, outfile):
     > %(outfile)s
     '''
 
-    P.run()    
+    P.run()
 
 
 @jobs_limit(6)
@@ -2348,7 +2359,7 @@ def plotAdjustedEpistasis(infile, outfile):
     > %(outfile)s
     '''
 
-    P.run()    
+    P.run()
 
 
 # ----------------------------------------------------------------------------------------#
@@ -2390,6 +2401,7 @@ def mergeForPleiotropy(infiles, outfile):
     '''
 
     P.run()
+
 
 @follows(mergeForPleiotropy)
 @transform(mergeForPleiotropy,
@@ -2453,7 +2465,7 @@ def getGrmRegion(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
     chromosome = PARAMS['mlm_grm_region'].split("-")[0]
     region = ",".join(PARAMS['mlm_grm_region'].split("-")[1:])
-    
+
     job_memory = "30G"
 
     statement = '''
@@ -2487,7 +2499,7 @@ def subSampleIndividuals(infiles, outfile):
     '''
     Subsample from the total population
     to get ~n individuals for linear
-    model analysis.  
+    model analysis.
     Output with combined list of ethnically
     selected individuals
     '''
@@ -2535,7 +2547,7 @@ def calcRegionGrm(infiles, outfiles):
     plink_files = ",".join([bed_file, fam_file, bim_file])
     out_pattern = ".".join(outfiles.split(".")[:-3])
 
-    statement= '''
+    statement = '''
     python %(scriptsdir)s/geno2assoc.py
     --program=gcta
     --threads=%(job_threads)s
@@ -2606,7 +2618,7 @@ def runMixedModel(infiles, outfile):
     plink_files = ",".join([bed_file, fam_file, bim_file])
     out_pattern = ".".join(outfile.split(".")[:-1])
 
-    statement= '''
+    statement = '''
     python %(scriptsdir)s/geno2assoc.py
     --program=gcta
     --threads=%(job_threads)s
@@ -2802,6 +2814,7 @@ def selectRefPopulation(infile, outfile):
 
     P.run()
 
+
 @follows(convertToPlink,
          mkdir("haplotypes.dir"))
 @transform("plink.dir/*.bed",
@@ -2870,7 +2883,7 @@ def convertRefVcf(infiles, outfile):
 
     vcf = infiles[0]
     keep = infiles[1]
-    out_pattern = ".".join(outfile.split(".")[:-1])          
+    out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
     python %(scriptsdir)s/geno2assoc.py
@@ -2903,7 +2916,7 @@ def calcLd(infiles, outfile):
     Calculate LD region wide for SNPs within
     1Mb of eachother from a reference panel;
     recommend 1000 Genomes project.
-    This needs to go into a database 
+    This needs to go into a database
     '''
 
     bed_file = infiles[0]
@@ -2951,7 +2964,7 @@ def bgzipLdFiles(infile, outfile):
 
     statements.append('''
     zcat %(infile)s | tr -s ' ' '\\t' |
-    sed 's/^[[:space:]]*//g' | 
+    sed 's/^[[:space:]]*//g' |
     sed 's/*[[:space:]]$//g' |
     bgzip > %(outfile)s
     ''')
@@ -3023,6 +3036,7 @@ def loadLd(infile, outfile):
 
 # need a list of SNPs that represent independent signals <- conditional and original
 # need: P-value, ORs, SE, LD, functional annotation(?)
+
 
 @follows(tabixIndexLd,
          plotGenomeManhattan,
@@ -3143,7 +3157,7 @@ def calcPicsScores(infiles, outfile):
     Output SNPs which explain ~99% of posterior probability
     of P(B^causal | A^lead)
     '''
-    
+
     snp_file = infiles
     chrome = snp_file.split("/")[-1].split("_")[0]
     chrome = chrome.lstrip("chr")
@@ -3162,6 +3176,7 @@ def calcPicsScores(infiles, outfile):
     '''
 
     P.run()
+
 
 @follows(calcPicsScores,
          mkdir("credible_sets.dir"))
@@ -3405,7 +3420,7 @@ def subSampleIndividualsForReml(infiles, outfile):
     '''
     Subsample from the total population
     to get ~n individuals for linear
-    model analysis.  
+    model analysis.
     Output with combined list of ethnically
     selected individuals
     '''
@@ -3556,7 +3571,7 @@ def calcHeritabilityReml(infiles, outfile):
     grm_files = ",".join([n_file, bin_file, id_file])
 
     pheno_file = infiles[1][2]
-    
+
     job_threads = PARAMS['grm_threads']
     job_memory = "10G"
     out_pattern = ".".join(outfile.split(".")[:-1])
@@ -3604,7 +3619,7 @@ def snpBlup(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-2])
 
     job_memory = "20G"
-    
+
     statement = '''
     python %(scriptsdir)s/geno2assoc.py
     --program=gcta
@@ -3670,7 +3685,7 @@ def calcBivariateReml(infiles, outfile):
     grm_files = ",".join([n_file, bin_file, id_file])
 
     pheno_file = infiles[1][2]
-    
+
     job_threads = PARAMS['grm_threads']
     job_memory = "10G"
     out_pattern = ".".join(outfile.split(".")[:-1])
@@ -3729,7 +3744,6 @@ def transformGwasToCojo(infile, outfile):
     P.run()
 
 
-
 @follows(transformGwasToCojo,
          calcPicsScores)
 @transform("plink.dir/chr*",
@@ -3783,7 +3797,7 @@ def test_dissectGrmSingleFile(infiles, outfile):
     # increase the number of processes to spread the job out
     job_memory = "8G"
     infiles = ",".join(infiles)
-    job_threads = 128 
+    job_threads = 128
     # job_queue = "mpi.q"
 
     job_queue = ",".join(["all.q@cgat001", "all.q@cgat002", "all.q@cgat003", "all.q@cgat004",
@@ -3806,6 +3820,7 @@ def test_dissectGrmSingleFile(infiles, outfile):
     '''
 
     P.run()
+
 
 @follows(mkdir("dissect.dir"),
          mkdir("grm.dir"))
@@ -3841,6 +3856,7 @@ def test_dissectGrmManyFiles(infile, outfile):
 
     P.run()
 
+
 @follows(test_dissectGrmManyFiles,
          mkdir("pca.dir"))
 @transform("grm.dir/*.dat",
@@ -3865,12 +3881,13 @@ def dissectPCA(infile, outfile):
     --num-eval 20
     > dissect_test.log
     '''
-    
+
     P.run()
 
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
 # Pipeline targets
+
 
 @follows(runFilteredPCA,
          plotPcaResults,
@@ -3881,12 +3898,14 @@ def dissectPCA(infile, outfile):
 def QC():
     pass
 
+
 @follows(QC,
          mergeCovariates,
          pcAdjustedAssociation,
          plotGenomeManhattan)
 def GWAS():
     pass
+
 
 @follows(QC,
          GWAS,
@@ -3895,14 +3914,17 @@ def GWAS():
 def Conditional():
     pass
 
+
 @follows(Conditional,
          dissectPCA)
 def ParallelMLM():
     pass
 
+
 @follows(QC)
 def Evo():
     pass
+
 
 @follows(QC,
          GWAS,
