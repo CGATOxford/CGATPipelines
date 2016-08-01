@@ -1185,7 +1185,8 @@ class Salmon(Mapper):
 
 class Kallisto(Mapper):
 
-    '''run Kallisto to quantify transcript abundance from fastq files'''
+    '''run Kallisto to quantify transcript abundance from fastq files
+    - set pseudobam to True to output a pseudobam along with the quantification'''
 
     def __init__(self, pseudobam=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
