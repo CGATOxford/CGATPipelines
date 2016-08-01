@@ -106,7 +106,6 @@ import re
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
-import PipelineGWAS as gwas
 
 # load options from the config file
 PARAMS = P.getParameters(
