@@ -2392,6 +2392,7 @@ def calcPleiotropyTest(infile, outfile):
 
     statement = '''
     python %(scriptsdir)s/testPleiotropy.py
+    --R-scripts=%(r_scripts)s
     --trait1=%(pleiotropy_trait1)s
     --trait2=%(pleiotropy_trait2)s
     --covariates=%(gwas_covars)s
