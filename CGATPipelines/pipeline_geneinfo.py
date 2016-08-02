@@ -116,7 +116,7 @@ if example_pw == "all":
 mgiannotations = PARAMS['my_gene_info_annotations'].split(",")
 
 
-@originate('allgenes.tsv', 'ensembl_multi.tsv')
+@originate('allgenes.tsv')
 def GetAndTranslateAllGenes(outfile):
     '''
     This step is required.
