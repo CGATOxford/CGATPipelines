@@ -8,6 +8,45 @@
 Summary
 =======
 
+PolyA RNA-Seq shows a clear 3' bias due to the polyA enrichment. This
+bias should be consistent in each sample
+
+
+Results
+=======
+
+.. report:: RnaseqqcReport.ThreePrimeBias
+   :render: r-ggplot
+   :statement: aes(bin, counts) +
+   	       geom_bar(size=0.3, stat="identity",
+   	       fill="springgreen4", colour="springgreen4") +
+	       scale_color_brewer(palette = "Set1") +
+	       theme(panel.background=element_rect(fill="white",
+			colour="white"), legend.position="none") +
+	       ggtitle("3 Prime Bias") +
+	       scale_x_discrete(name="Distance from 3 prime end",
+	       			labels=c(-3000, -2500, -2000, -1500,
+   						-1000, -500, "3\nprime\nend"),
+   	       breaks=c(0, 500, 1000, 1500, 2000, 2500, 3000)) +
+	       ylab("Normalised Read Count")
+
+
+.. report:: RnaseqqcReport.PicardThreePrimeBias
+   :render: r-ggplot
+   :statement: aes(track, value, fill=variable, colour=variable) +
+	       geom_bar(stat="identity") +
+	       theme_bw() +
+	       facet_grid(variable~., scales="free)
+
+.. report:: RnaseqqcReport.PicardThreePrimeBias
+   :render: r-ggplot
+   :split-at: 10
+   :statement: aes(track, value, fill=variable, colour=variable) +
+	       geom_bar(stat="identity") +
+	       theme_bw() +
+	       facet_grid(variable~., scales="free)
+	       
+
 Aims
 ----
 This report generates a barplot for each sample showing the normalised
@@ -72,23 +111,6 @@ The bad
 This plot shows data with a strong 3' bias.
 
 More bad examples `<http://myBadData.html >`
-
-Your data:
-
-.. report:: RnaseqqcReport.ThreePrimeBias
-   :render: r-ggplot
-   :statement: aes(bin, counts) +
-   	       geom_bar(size=0.3, stat="identity",
-   	       fill="springgreen4", colour="springgreen4") +
-	       scale_color_brewer(palette = "Set1") +
-	       theme(panel.background=element_rect(fill="white",
-			colour="white"), legend.position="none") +
-	       ggtitle("3 Prime Bias") +
-	       scale_x_discrete(name="Distance from 3 prime end",
-	       			labels=c(-3000, -2500, -2000, -1500,
-   						-1000, -500, "3\nprime\nend"),
-   	       breaks=c(0, 500, 1000, 1500, 2000, 2500, 3000)) +
-	       ylab("Normalised Read Count")
 
 
 Commentary

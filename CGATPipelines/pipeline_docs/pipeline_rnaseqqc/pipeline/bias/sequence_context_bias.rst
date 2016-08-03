@@ -4,6 +4,9 @@
 Sequence context biases
 =======================
 
+Summary
+=======
+
 The following presents the analysis of potential biasing
 factors. Library preparation and sequencing technologies are known to
 show biases against particular sequence contexts. For example,
@@ -19,6 +22,34 @@ genes/transcripts within each bin is calculated for each sample. This
 mean expression is plotted below, along with a local (loess)
 regression for each sample. The expectation is that the fit for each
 individual sample will be very similar.
+
+
+Results
+=======
+
+.. report:: RnaseqqcReport.BiasFactors
+   :render: r-ggplot
+   :statement: aes(y=as.numeric(value), x=bin, colour=factor_value)+
+	       geom_point()+
+	       stat_smooth(aes(group=sample_id, colour=factor_value),
+	                       method=loess, se=F)+
+	       scale_y_continuous(limits=c(0,1))+
+	       xlab('')+
+	       ylab('Normalised Expression(Nominal scale)')+
+	       ggtitle("GC content") +
+	       theme(
+	       axis.text.x=element_text(size=10,angle=90),
+	       axis.text.y=element_text(size=15),
+	       title=element_text(size=15),
+	       legend.text=element_text(size=15))
+
+   Mean expression across binned factor levels. Local regression.
+
+
+
+Commentary
+  This will take the form of some active comments.  This will require the report to
+  be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
 
 
 The good
@@ -47,31 +78,31 @@ Your data:
    :render: table
 
 
-Sequencing biases
-=================
+About this section
+==================
 
-.. report:: RnaseqqcReport.BiasFactors
-   :render: r-ggplot
-   :statement: aes(y=as.numeric(value), x=bin, colour=factor_value)+
-	       geom_point()+
-	       stat_smooth(aes(group=sample_id, colour=factor_value),
-	                       method=loess, se=F)+
-	       scale_y_continuous(limits=c(0,1))+
-	       xlab('')+
-	       ylab('Normalised Expression(Nominal scale)')+
-	       ggtitle("GC content") +
-	       theme(
-	       axis.text.x=element_text(size=10,angle=90),
-	       axis.text.y=element_text(size=15),
-	       title=element_text(size=15),
-	       legend.text=element_text(size=15)) +
-	       facet_wrap(~factor)
+Inputs
+------
+A table of expression values in TPM, binnned by various
+possible biasing facors such as GC content.
 
-   Mean expression across binned factor levels. Local regression.
+Outputs
+-------
+Scatter plots showing the relationship between the potential biasing
+factor and expression 
 
 
+What you should expect from results
+-----------------------------------
 
-Commentary
-  This will take the form of some active comments.  This will require the report to
-  be published so that it is hosted on the CGAT server/ comments on the DISQUS server.
-
+Sequencing biases will undoubtedly be present. For example, illumina
+sequencing is known to be bias against extremes of GC content (< 20 %
+/ > 80 %), so extreme GC content transcripts will appear to be more
+lowly expressed. So long as the downstream analysis is relative, e.g
+change in expression between two conditions, this need not be a
+problem so long as the bias is consistent. However, if the bias is
+inconsistent and the difference in the bias is confounded with the
+experimental design, e.g condition 1 shows a distinct sequencing bias
+from condition 2, then differential expression testing between the two
+conditions may be invalid. To resolve this, you will need to consider
+tools to adjust for the sequencing bias.

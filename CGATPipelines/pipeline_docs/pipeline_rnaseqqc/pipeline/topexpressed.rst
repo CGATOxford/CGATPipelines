@@ -1,22 +1,47 @@
 .. _rnaseqqcpipeline:
 
-==============
-PAGE TITLE
-==============
+===================
+Top Expressed Genes
+===================
 
-Insert short description of page contents
+Summary
+=======
+The top expressed genes should be similar for samples from the sample group.
 
-Summary::
-  * Aims of this analysis
-  * What inputs/outputs
-  * How the results were generated
-  * What you should expect
-  * Good example
-  * Bad example
-  * Links to other examples and the reasons that lie behind them
 
-  This should be a text description of what to expect from the figures on this page.  What
-  are the take-home messsages, how should the figures be interpreted, etc
+Results
+=======
+
+.. report:: RnaseqqcReport.TopGenes
+   :groupby: track
+   :render: r-ggplot
+   :statement: aes(sample_name, gene_id, fill=value) +
+	       geom_tile() +
+	       scale_fill_gradient2(low="goldenrod1", high="darkorchid4", mid="grey95", name="Z-score") +
+	       xlab("") + ylab("") +
+	       theme_bw() +
+	       theme(
+	       axis.text.y = element_text(size=15),
+	       axis.text.x=element_text(angle=90, vjust=0.5, hjust=1))
+
+
+Aims
+----
+
+Compare the expression of the top 20 most highly expressed genes across the samples
+
+Inputs
+------
+
+Sailfish expression estimates (including bootstraps) from a single
+sample subsampled to varying degrees (10-100% depth). Transcripts with
+<1 average counts per sample are not included in this analysis.
+
+Outputs
+-------
+
+A heatmap of gene expression for each group of samples
+
 
 The good
 
@@ -38,15 +63,6 @@ The bad
 
 More bad examples `<http://myBadData.html >`
 
-Your data:
-
-.. report:: myData.Tracker
-   :render: myRenderer
-   :transform: myTransform
-   :options: myAesthetics
-
-   Graphs and tables
-   Code snippets used to generate graphs and tables
 
 Commentary
   This will take the form of some active comments.  This will require the report to

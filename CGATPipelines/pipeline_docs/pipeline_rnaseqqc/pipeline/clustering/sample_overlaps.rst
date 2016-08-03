@@ -7,11 +7,43 @@ Overlaps of sample expression
 Summary
 =======
 
+The overlaps of sample expression provides a naive comparison between samples
+
+
+Your Results
+============
+
+Sample overlap - between samples
+--------------------------------
+
+.. report:: RnaseqqcReport.SampleOverlapsExpress
+   :render: sb-heatmap-plot
+   :title: Sample Overlap Heatmap
+
+   Sample Overlap Heatmap.
+
+
+Here, we look at the overlap between the top 1000 most highly
+expressed genes in each sample
+
+.. report:: RnaseqqcReport.imagesTracker
+   :render: gallery-plot
+   :glob: sailfish.dir/plots.dir/top_expressed_*png
+
+
+# NOTE: "nolabel-rows, nolabel-col" were not working!
+#   :nolabel-cols: True
+#   :nolabel-rows: True
+
+
+About this section
+==================
+
 Aims
 ----
 The overlaps of sample expression highlights the common overlapping
-genes found between each of the samples. The aim of this page is to 
-make any outliers within your data obvious and check samples from the
+genes found between each of the samples. The aim of this page is to
+identify any outliers within your data obvious and check samples from the
 same conditions are more similar than between conditions.
 
 
@@ -31,7 +63,7 @@ How the results are generated
 
    1. Distinct genes and their TPM values >= 100 are extracted from the
       database and a dataframe of the output is created
-   2. A pairwise comparrison of the samples is perfomed and the
+   2. An all-vs-all comparison of the samples is perfomed and the
       overlapping samples are returned to the tracker for rendering
       into a heatmap
 
@@ -62,20 +94,3 @@ The bad
    about this example
 
 More bad examples `<http://myBadData.html >`
-
-
-Your Results
-============
-
-Sample overlap - between samples
---------------------------------
-
-# NOTE: "nolabel-rows, nolabel-col" were not working!
-
-.. report:: RnaseqqcReport.SampleOverlap
-   :render: sb-heatmap-plot
-   :title: Sample Overlap Heatmap
-   :nolabel-cols: True
-   :nolabel-rows: True
-
-   Sample Overlap Heatmap.

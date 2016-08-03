@@ -20,6 +20,16 @@ from CGATReport.Utils import PARAMS
 DATABASE = PARAMS.get('readqc_backend', PARAMS.get('sql_backend', 'sqlite:///./csvdb'))
 
 
+class imagesTracker(TrackerImages):
+
+    '''Convience Tracker for globbing images for gallery plot'''
+    def __init__(self, *args, **kwargs):
+        Tracker.__init__(self, *args, **kwargs)
+        if "glob" not in kwargs:
+            raise ValueError("TrackerImages requires a:glob: parameter")
+        self.glob = kwargs["glob"]
+
+
 class RnaseqqcTracker(TrackerSQL):
 
     '''Define convenience tracks for plots'''
@@ -63,7 +73,7 @@ class SampleOverlap(RnaseqqcTracker):
             # this is a symmetrical matrix
             result_df.iat[samples[1]-1, samples[0]-1] = number_in_common
 
-        return result_df
+        return result_df.reset_index().set_index("sample_id")
 
 
 class SampleHeatmap(RnaseqqcTracker):
@@ -177,20 +187,12 @@ class TranscriptQuantificationHeatmap(object):
 
 
 class sampleMDS(RnaseqqcTracker):
-    # to add:
-    # - ability to use rlog or variance stabalising transformatio
-    # - ability to change filter threshold fo rlowly expressed transcripts
-    # - JOIN with design table to get further aesthetics for plotting
-    #   E.g treatment, replicate, etc
-
-    table = "sailfish_transcripts"
 
     def __call__(self, track,  slice=None):
 
         # remove WHERE when table cleaned up to remove header rows
         statement = (
-            "SELECT transcript_id, TPM, sample_id FROM %(table)s "
-            "where transcript_id != 'Transcript'")
+            "SELECT transcript_id, TPM, sample_id FROM sailfish_transcripts")
 
         # fetch data
         df = pd.DataFrame.from_dict(self.getAll(statement))
@@ -209,7 +211,12 @@ class sampleMDS(RnaseqqcTracker):
         pos.columns = ["MD1", "MD2"]
         pos['sample'] = df.columns
 
-        return pos
+        factors_df = self.getDataFrame(
+            "SELECT * FROM factors WHERE factor != 'genome'")
+
+        merged_df = pd.merge(pos, factors_df,
+                             left_on="sample", right_on="sample_id")
+        return merged_df.reset_index().set_index("factor")
 
 
 class SamplePCA(RnaseqqcTracker):
@@ -299,7 +306,8 @@ class SamplePCAProjections(SamplePCA):
         # This is what want for ploting bar graph
         # y = sklearn_pca.explained_variance_ratio_
 
-        factor_df = self.getDataFrame("SELECT * FROM factors")
+        factor_df = self.getDataFrame(
+            "SELECT * FROM factors where factor != 'genome'")
         factor_df.set_index("sample_id", inplace=True)
         if "replicate" in set(factor_df.factor):
             replicate_df = factor_df[factor_df.factor == "replicate"]
@@ -350,57 +358,49 @@ class SamplePCAVariance(SamplePCA):
 
 
 class BiasFactors(RnaseqqcTracker):
-    table = "bias_binned_means"
-
-    def getTracks(self):
-        d = self.get("SELECT DISTINCT bias_factor FROM %(table)s")
-        return ["GC_Content", "length"]
-        # return tuple([x[0] for x in d])
 
     def __call__(self, track, slice=None):
         statement = """
-        SELECT bin, sample_id, value
-        FROM %(table)s
-        WHERE bias_factor = '%(track)s'
-        AND variable = 'LogTPM'"""
+        SELECT bin, sample_id, value, bias_factor
+        FROM bias_binned_means
+        WHERE variable = 'LogTPM_norm'"""
         # fetch data
         df = self.getDataFrame(statement)
         df.set_index("sample_id", drop=False, inplace=True)
 
         factor_statement = '''select * from factors'''
         factor_df = self.getDataFrame(factor_statement)
-        factor_df.set_index("sample_name", drop=True, inplace=True)
-        factor_df.index.name = "sample_id"
 
-        full_df = df.join(factor_df)
+        full_df = pd.merge(df, factor_df, left_on="sample_id",
+                           right_on="sample_id")
 
-        return full_df
-        return collections.OrderedDict({x: full_df[full_df['factor'] == x] for
-                                        x in set(full_df['factor'].tolist())})
-
-        # TS: this should be replaced with a merge with the table of
-        # experiment information
-        # df2 = pd.DataFrame(map(lambda x: x.split("-"), df['sample']))
-        # df2.columns = ["id_"+str(x) for x in range(1, len(df2.columns)+1)]
-
-        # merged = pd.concat([df, df2], axis=1)
-        # merged.index = ("all",)*len(merged.index)
-        # merged.index.name = "track"
+        return full_df.reset_index().set_index("factor")
 
 
 class ExpressionDistribution(RnaseqqcTracker):
 
-    table = "sailfish_transcripts"
-
     def __call__(self, track, slice=None):
-        statement = """SELECT sample_id, transcript_id, TPM
-        FROM %(table)s WHERE transcript_id != 'Transcript'"""
+        statement = """
+        SELECT sample_id, transcript_id, TPM
+        FROM sailfish_transcripts"""
 
         df = pd.DataFrame.from_dict(self.getAll(statement))
         c = 0.1
         df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
 
-        return df
+        factor_statement = '''
+        select *
+        FROM factors
+        JOIN samples
+        ON factors.sample_id = samples.id
+        WHERE factor != "genome"'''
+
+        factor_df = self.getDataFrame(factor_statement)
+
+        full_df = pd.merge(df, factor_df, left_on="sample_id",
+                           right_on="sample_id")
+
+        return full_df.reset_index().set_index("sample_name", drop=False)
 
 
 class SampleOverlapsExpress(RnaseqqcTracker):
@@ -412,16 +412,14 @@ class SampleOverlapsExpress(RnaseqqcTracker):
     samples.
     '''
 
-    table = "sailfish_transcripts"
-
     def __call__(self, track, slice=None):
         statement = """SELECT sample_id, transcript_id
-        FROM %(table)s
+        FROM sailfish_transcripts
         WHERE TPM >= 100;"""
 
         df = pd.DataFrame.from_dict(self.getAll(statement))
 
-        overlaps = self.getOverlaps(dataframe=df)
+        overlaps = self.getOverlaps(df)
         return overlaps
 
     def getOverlaps(self, dataframe):
@@ -452,7 +450,7 @@ class SampleOverlapsExpress(RnaseqqcTracker):
 
 class ThreePrimeBias(RnaseqqcTracker):
     '''
-    Generates a dataframe of  mean read depth at each site in 3000bp from
+    Generates a dataframe of mean read depth at each site in 3000bp from
     the 3' end.
 
     Arguments
@@ -488,22 +486,6 @@ class ThreePrimeBias(RnaseqqcTracker):
         df.bin -= 1000
         # reindexes bins as downstreem region not included
         return df
-
-# class ExpressionDistributionNotR(RnaseqqcTracker, SingleTableTrackerColumns):
-#    table = "sailfish_transcripts"
-#    column = "transcript_id"
-#    exclude_columns = "RPKM"
-
-#    def __call__(self, track, slice=None):
-#        statement = ("SELECT sample_id, transcript_id, RPKM FROM %(table)s WHERE transcript_id != 'Transcript'")
-#        df = pd.DataFrame.from_dict(self.getAll(statement))
-#        c = 0.0000001
-#        df['log2rpkm'] = df['RPKM'].apply(lambda x: np.log2(c + x))
-#        pivot = df.pivot(index='sample_id', columns='transcript_id', values='log2rpkm')
-
-#        return pivot
-
-# cgatreport-test -t ExpressionDistribution -r density-plot
 
 
 class MappingTracker(TrackerSQL):
@@ -553,3 +535,89 @@ class ncRNAContext(ProteinContext):
 
 class riboRNAContext(ProteinContext):
     select = ['rRNA', 'ribosomal_coding']
+
+
+class TopGenes(RnaseqqcTracker):
+
+    def __call__(self, track, slice=None):
+
+        exp_statement = """
+        SELECT TPM, gene_id, sample_name
+        FROM sailfish_genes AS A
+        JOIN samples AS B
+        ON A.sample_id = B.id"""
+
+        exp_df = self.getDataFrame(exp_statement)
+
+        factors_statement = '''
+        SELECT factor, factor_value, sample_name
+        FROM samples AS A
+        JOIN factors AS B
+        ON A.id = B.sample_id
+        WHERE factor != 'genome'
+        '''
+
+        factors_df = self.getDataFrame(factors_statement)
+        
+        exp_df['TPM'] = exp_df['TPM'].astype(float)
+        exp_df_pivot = pd.pivot_table(exp_df, values=["TPM"],
+                                      index="gene_id", columns="sample_name")
+        
+        rowSums = exp_df_pivot.apply(axis=1, func=sum)
+        top_genes_df = exp_df_pivot.ix[rowSums.sort_values(ascending=False)[0:20].index]
+
+        def z_norm(array):
+            mu = np.mean(array)
+            sd = np.std(array)
+            return [(x-mu)/sd for x in array]
+
+        z_norm_df = top_genes_df.apply(axis=0, func=z_norm)
+        z_norm_df['gene_id'] = z_norm_df.index
+
+        z_norm_melted_df = pd.melt(z_norm_df, id_vars="gene_id")
+        z_norm_melted_df.set_index('sample_name', inplace=True, drop=False)
+        #z_norm_melted_df = z_norm_melted_df.ix[levels]
+
+        merged_df = pd.merge(z_norm_melted_df, factors_df,
+                             left_on="sample_name", right_on="sample_name")
+        merged_df['index'] = merged_df['factor'] + "-" + merged_df['factor_value']
+
+        return merged_df.reset_index().set_index("index")
+
+
+class PicardThreePrimeBias(RnaseqqcTracker):
+
+    def __call__(self, track, slice=None):
+
+        statement = '''
+        SELECT MEDIAN_3PRIME_BIAS, MEDIAN_5PRIME_BIAS,
+        MEDIAN_5PRIME_TO_3PRIME_BIAS, track
+        FROM picard_rna_metrics'''
+
+        df = self.getDataFrame(statement)
+
+        # remove the ".hisat" suffix from track
+        df['track'] = [x.split(".")[0] for x in df['track']]
+
+        df = pd.melt(df, id_vars="track")
+
+        return df.reset_index().set_index('track', drop=False)
+
+
+class PicardStrandBias(RnaseqqcTracker):
+
+    def __call__(self, track, slice=None):
+
+        statement = '''
+        SELECT CORRECT_STRAND_READS, INCORRECT_STRAND_READS, track
+        FROM picard_rna_metrics'''
+
+        df = self.getDataFrame(statement)
+
+        # remove the ".hisat" suffix from track
+        df['track'] = [x.split(".")[0] for x in df['track']]
+        df['strand_bias'] = df['CORRECT_STRAND_READS'] / df['INCORRECT_STRAND_READS']
+
+        df = pd.melt(df, id_vars="track")
+
+        return df.reset_index().set_index('track', drop=False)
