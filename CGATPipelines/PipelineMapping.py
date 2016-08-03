@@ -1317,6 +1317,105 @@ class SubsetHead(Mapper):
         return " ".join(statement)
 
 
+class SubsetHeads(Mapper):
+    """subset fastq files by taking the first n sequences.
+
+    This differs from SubsetHeads in that list of limits is passed
+    along with a list of outfile sentinel file that will be used as a
+    file prefix.
+
+    A single file can then be parsed once and subsetted to multiple
+    outfiles"""
+
+    compress = True
+
+    def __init__(self, limits=[1000000], *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.limits = limits
+
+    def mapper(self, infiles, outfile):
+        '''count number of reads by counting number of lines
+        in fastq files.
+        '''
+
+        limits = [x * 4 for x in sorted(self.limits)]  # 4 lines per fastq entry
+        output_prefix = P.snip(outfile, ".sentinel")
+        assert len(infiles) == 1
+        infiles = infiles[0]
+        statement = []
+        if len(infiles) == 1:
+            f = infiles[0]
+            awk_cmd = ""
+            for n, ix in enumerate(range(0, len(limits))):
+                limit = limits[ix]
+                output_filename = output_prefix + "_%i.fastq.gz" % n
+                awk_cmd += '''{if (NR<%(limit)s) print |
+                "gzip > %(output_filename)s"};''' % locals()
+            awk_cmd += '{if (NR>%s) {exit}};' % limits[-1]
+
+            statement.append(
+                """zcat %(f)s| awk '%(awk_cmd)s';""" % locals())
+
+        elif len(infiles) > 1:
+            for x, f in enumerate(infiles):
+                awk_cmd = ""
+                for n, ix in enumerate(range(0, len(limits))):
+                    limit = limits[ix]
+                    output_filename = output_prefix + "_%i.fastq.%i.gz" % (n, x + 1)
+                    awk_cmd += '''{if (NR<%(limit)s) print |
+                    "gzip > %(output_filename)s"};''' % locals()
+                awk_cmd += '{if (NR>%s) {exit}};' % limits[-1]
+
+                statement.append(
+                    """zcat %(f)s| awk '%(awk_cmd)s';""" % locals())
+
+        return " ".join(statement)
+
+
+class SubsetRandom(Mapper):
+    """subset fastq files by taking a random n sequences"""
+
+    compress = True
+
+    def __init__(self, limit=1000000, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.limit = limit
+
+    def mapper(self, infiles, outfile):
+        '''count number of reads by counting number of lines
+        in fastq files.
+        '''
+        limit = self.limit * 4  # 4 lines per fastq entry
+        statement = []
+        output_prefix = P.snip(outfile, ".subset")
+        assert len(infiles) == 1
+        infiles = infiles[0]
+
+        # check if single or paired end
+        if len(infiles) == 1:
+            fastq = infiles[0]
+            statement = """
+            zcat %(fastq1)s |
+            paste - - - - |
+            sort -R |
+            awk -F'\\t'  'NR > %(limit)i {exit} {OFS="\\n";
+            print $1,$3,$5,$7 | "gzip > %(output_prefix)s.fastq.gz}"}';
+            """ % locals()
+
+        if len(infiles) == 2:
+            fastq1, fastq2 = infiles
+            statement = """
+            paste <(zcat %(fastq1)s) <(zcat %(fastq2)s) |
+            paste - - - - |
+            sort -R |
+            awk -F'\\t'  'NR > %(limit)i {exit} {OFS="\\n";
+            print $1,$3,$5,$7 | "gzip > %(output_prefix)s.fastq.1.gz";
+            print $2,$4,$6,$8 | "gzip > %(output_prefix)s.fastq.2.gz"}';
+            """ % locals()
+
+        return statement
+
+
 class BWA(Mapper):
     '''Mapper for BWA'''
 
