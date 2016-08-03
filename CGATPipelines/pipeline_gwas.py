@@ -1697,7 +1697,7 @@ def plotGenomeQQ(infiles, outfile):
     from the covariate adjusted analysis
     '''
 
-    job_memory = "16G"
+    job_memory = "32G"
 
     res_files = ",".join(infiles)
     statement = '''
@@ -1820,6 +1820,8 @@ def conditionalAssociation(infiles, outfile):
     --program=plink2
     --input-file-format=plink_binary
     --method=association
+    --phenotypes-file=%(data_phenotypes)s
+    --pheno=%(format_pheno)s
     --association-method=%(conditional_model)s
     --covariates-file=%(covariate_file)s
     --covariate-column=%(gwas_covars)s
@@ -1958,6 +1960,8 @@ def testEpistasisVsRegion(infiles, outfile):
     python %(scriptsdir)s/geno2assoc.py
     --program=plink2
     --input-file-format=plink_binary
+    --phenotypes-file=%(data_phenotypes)s
+    --pheno=%(format_pheno)s
     --method=epistasis
     --epistasis-method=epistasis
     --set-file=%(epistasis_set)s
@@ -2140,6 +2144,8 @@ def ldExcludedEpistasisVsGwasLead(infiles, outfile):
     python %(scriptsdir)s/geno2assoc.py
     --program=plink2
     --input-file-format=plink_binary
+    --phenotypes-file=%(data_phenotypes)s
+    --pheno=%(format_pheno)s
     --method=epistasis
     --exclude-snps=%(ld_exclude)s
     --epistasis-method=epistasis
@@ -2202,6 +2208,8 @@ def ldExcludedEpistasis(infiles, outfile):
     python %(scriptsdir)s/geno2assoc.py
     --program=plink2
     --input-file-format=plink_binary
+    --phenotypes-file=%(data_phenotypes)s
+    --pheno=%(format_pheno)s
     --method=epistasis
     --exclude-snps=%(ld_exclude)s
     --epistasis-method=epistasis
@@ -2292,6 +2300,8 @@ def adjustedEpistasis(infiles, outfile):
     python %(scriptsdir)s/geno2assoc.py
     --program=plinkdev
     --input-file-format=plink_binary
+    --phenotypes-file=%(data_phenotypes)s
+    --pheno=%(format_pheno)s
     --method=epistasis
     --epistasis-method=adjusted
     --epistasis-parameter=%(epistasis_plugin)s
