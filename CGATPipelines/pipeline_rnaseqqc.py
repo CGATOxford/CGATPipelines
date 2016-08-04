@@ -1019,10 +1019,8 @@ def plotSailfishSaturation(infiles, outfile):
 
     # add expression values, subset to transcripts with >1 read and bin exp
     final_df$max_exp = point_df$NumReads
-    write.table(final_df, "/ifs/projects/proj047/RNA_Seq/rnaseqqc/test_final.tsv", sep="\t")
     final_df = final_df[final_df$max_exp>1,]
     final_df$max_exp = as.numeric(cut2(final_df$max_exp, g=10))
-    write.table(final_df, "/ifs/projects/proj047/RNA_Seq/rnaseqqc/test_final2.tsv", sep="\t")
 
     # melt and aggregate
     melted_df = melt(final_df, id="max_exp")
@@ -1031,7 +1029,6 @@ def plotSailfishSaturation(infiles, outfile):
                         by=list(melted_df$max_exp, melted_df$variable),
                         FUN=mean)
     aggdata$Group.1 = as.factor(aggdata$Group.1)
-    write.table(aggdata, "/ifs/projects/proj047/RNA_Seq/rnaseqqc/agg_sat.tsv", sep="\t")
 
     m_txt = element_text(size=20)
     my_theme = theme(
@@ -1468,8 +1465,8 @@ def plotTopGenesHeatmap(outfile):
 
         # plot
         png("%(plotfile)s", width=1000, heigh=1000)
-        heatmap.3(as.dist(1-as.matrix(int_df)),
-                  diss=T, Rowv=FALSE, Colv=FALSE,
+        heatmap.3(as.dist(1- as.matrix(int_df)),
+                  Rowv=FALSE, Colv=FALSE,
                   ColIndividualColors = side_colours,
                   RowIndividualColors = side_colours,
                   breaks=100, main="%(factor)s")
