@@ -22,35 +22,6 @@ Summary::
   This should be a text description of what to expect from the figures on this page.  What
   are the take-home messsages, how should the figures be interpreted, etc
 
-The good
-
-.. report:: GoodExample.Tracker
-   :render: myRenderer
-   :transform: myTransform
-   :options: myAesthetics
-
-   Add a comment about the good example.  What represents good data?
-
-The bad
-
-.. report:: BadExample.Tracker
-   :render: myRenderer
-   :transform: myTransform
-   :options: myAesthetics
-
-   Add a comment about the bad example.  What is specifically bad about this example
-
-More bad examples `<http://myBadData.html >`
-
-Your data:
-
-The following table lists all genomic contexts that reads map to. 
-
-.. report:: RnaseqqcReport.MappingContext
-   :render: table
-   :force:
-
-   Number of alignments that align in various genomic contexts
 
 
 Ribosomal and Repetitive RNA expression
@@ -64,9 +35,10 @@ tracks.
 
    Proportion of alignments that align to ribosomal annotations across samples.
 
-.. report:: RnaseqqcReport.riboContext
+.. report:: RnaseqqcReport.MappingContext
+   :slices: total, rRNA
    :render: r-ggplot
-   :statement: aes(x = track, y = value, fill=context) + 
+   :statement: aes(x = track, y = total/rRNA, fill=context) + 
 	       geom_bar(stat='identity') + 
 	       theme(axis.text.x = element_text(size = 11, angle = 90, vjust=0.5, hjust = 1)) + 
 	       theme(axis.text.y = element_text(size = 11)) + theme(legend.text = element_text(size = 11)) + 
@@ -120,6 +92,46 @@ taken from the ENSEMBL gene set.
 
    Proportion of alignments that align to protein coding genes or
    pseudo genes across samples.
+
+Aims
+----
+
+Inputs
+------
+
+Outputs
+-------
+
+
+The good
+
+.. report:: GoodExample.Tracker
+   :render: myRenderer
+   :transform: myTransform
+   :options: myAesthetics
+
+   Add a comment about the good example.  What represents good data?
+
+The bad
+
+.. report:: BadExample.Tracker
+   :render: myRenderer
+   :transform: myTransform
+   :options: myAesthetics
+
+   Add a comment about the bad example.  What is specifically bad about this example
+
+More bad examples `<http://myBadData.html >`
+
+Your data:
+
+The following table lists all genomic contexts that reads map to. 
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: table
+   :force:
+
+   Number of alignments that align in various genomic contexts
 
 
 Commentary

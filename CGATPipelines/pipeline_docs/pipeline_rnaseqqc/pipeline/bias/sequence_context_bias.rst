@@ -28,8 +28,9 @@ Results
 =======
 
 .. report:: RnaseqqcReport.BiasFactors
+   :slices: GC_Content
    :render: r-ggplot
-   :statement: aes(y=as.numeric(value), x=bin, colour=factor_value)+
+   :statement: aes(bin, value, colour=factor_value)+
 	       geom_point()+
 	       stat_smooth(aes(group=sample_id, colour=factor_value),
 	                       method=loess, se=F)+
@@ -37,13 +38,122 @@ Results
 	       xlab('')+
 	       ylab('Normalised Expression(Nominal scale)')+
 	       ggtitle("GC content") +
+	       theme_bw() +
 	       theme(
+	       aspect.ratio=1,
 	       axis.text.x=element_text(size=10,angle=90),
 	       axis.text.y=element_text(size=15),
 	       title=element_text(size=15),
 	       legend.text=element_text(size=15))
 
-   Mean expression across binned factor levels. Local regression.
+   Mean expression across binned GC content. Local regression.
+
+.. report:: RnaseqqcReport.BiasFactors
+   :slices: AA
+   :render: r-ggplot
+   :statement: aes(bin, value, colour=factor_value)+
+	       geom_point()+
+	       stat_smooth(aes(group=sample_id, colour=factor_value),
+	                       method=loess, se=F)+
+	       scale_y_continuous(limits=c(0,1))+
+	       xlab('')+
+	       ylab('Normalised Expression(Nominal scale)')+
+	       ggtitle("AA dinculeotides") +
+	       theme_bw() +
+	       theme(
+	       aspect.ratio=1,
+	       axis.text.x=element_text(size=10,angle=90),
+	       axis.text.y=element_text(size=15),
+	       title=element_text(size=15),
+	       legend.text=element_text(size=15))
+
+   Mean expression across binned AA dinucleotide content. Local regression.
+
+.. report:: RnaseqqcReport.BiasFactors
+   :slices: TT
+   :render: r-ggplot
+   :statement: aes(bin, value, colour=factor_value)+
+	       geom_point()+
+	       stat_smooth(aes(group=sample_id, colour=factor_value),
+	                       method=loess, se=F)+
+	       scale_y_continuous(limits=c(0,1))+
+	       xlab('')+
+	       ylab('Normalised Expression(Nominal scale)')+
+	       ggtitle("TT dinculeotides") +
+	       theme_bw() +
+	       theme(
+	       aspect.ratio=1,
+	       axis.text.x=element_text(size=10,angle=90),
+	       axis.text.y=element_text(size=15),
+	       title=element_text(size=15),
+	       legend.text=element_text(size=15))
+
+   Mean expression across binned TT dinucleotide content. Local regression.
+
+.. report:: RnaseqqcReport.BiasFactors
+   :slices: CC
+   :render: r-ggplot
+   :statement: aes(bin, value, colour=factor_value)+
+	       geom_point()+
+	       stat_smooth(aes(group=sample_id, colour=factor_value),
+	                       method=loess, se=F)+
+	       scale_y_continuous(limits=c(0,1))+
+	       xlab('')+
+	       ylab('Normalised Expression(Nominal scale)')+
+	       ggtitle("CC dinculeotides") +
+	       theme_bw() +
+	       theme(
+	       aspect.ratio=1,
+	       axis.text.x=element_text(size=10,angle=90),
+	       axis.text.y=element_text(size=15),
+	       title=element_text(size=15),
+	       legend.text=element_text(size=15))
+
+   Mean expression across binned CC dinucleotide content. Local
+   regression.
+
+.. report:: RnaseqqcReport.BiasFactors
+   :slices: GG
+   :render: r-ggplot
+   :statement: aes(bin, value, colour=factor_value)+
+	       geom_point()+
+	       stat_smooth(aes(group=sample_id, colour=factor_value),
+	                       method=loess, se=F)+
+	       scale_y_continuous(limits=c(0,1))+
+	       xlab('')+
+	       ylab('Normalised Expression(Nominal scale)')+
+	       ggtitle("GG dinculeotides") +
+	       theme_bw() +
+	       theme(
+	       aspect.ratio=1,
+	       axis.text.x=element_text(size=10,angle=90),
+	       axis.text.y=element_text(size=15),
+	       title=element_text(size=15),
+	       legend.text=element_text(size=15))
+
+   Mean expression across binned GG dinucleotide content. Local
+   regression.
+
+
+.. report:: RnaseqqcReport.BiasFactors
+   :slices: length
+   :render: r-ggplot
+   :statement: aes(bin, value, colour=factor_value)+
+	       geom_point()+
+	       stat_smooth(aes(group=sample_id, colour=factor_value),
+	                       method=loess, se=F)+
+	       scale_y_continuous(limits=c(0,1))+
+	       xlab('')+
+	       ylab('Normalised Expression(Nominal scale)')+
+	       ggtitle("Length") +
+	       theme(
+	       aspect.ratio=1,
+	       axis.text.x=element_text(size=10,angle=90),
+	       axis.text.y=element_text(size=15),
+	       title=element_text(size=15),
+	       legend.text=element_text(size=15))
+
+   Mean expression across binned length. Local regression.
 
 
 

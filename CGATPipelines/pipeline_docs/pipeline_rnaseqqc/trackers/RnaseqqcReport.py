@@ -15,7 +15,7 @@ from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 from CGATReport.Utils import PARAMS
-
+import CGATPipelines.Pipeline as Pipeline
 
 DATABASE = PARAMS.get('readqc_backend', PARAMS.get('sql_backend', 'sqlite:///./csvdb'))
 
@@ -118,17 +118,17 @@ class SampleHeatmap(RnaseqqcTracker):
 
         return corr_frame
 
-    def getFactors(self, dataframe, factor):
+    def getFactors(self, dataframe):
         '''Get factor/experimental design levels from table
         '''
 
-        statement = ("SELECT factor_value, sample_name "
-                     "FROM factors AS f, samples AS s "
-                     "WHERE f.sample_id = s.id "
-                     "AND factor = '%(factor)s'" % locals())
+        statement = ("SELECT factor_value, sample_name, factor "
+                     "FROM factors AS f "
+                     "JOIN samples AS s "
+                     "ON f.sample_id = s.id "
+                     "WHERE factor != 'genome'" % locals())
 
         factor_df = self.getDataFrame(statement)
-
         merged = pd.merge(dataframe,
                           factor_df,
                           left_index=True,
@@ -148,8 +148,8 @@ class SampleHeatmap(RnaseqqcTracker):
         mdf.columns = set(df["sample_name"])
         mdf.index = set(df["sample_name"])
 
-        all_df = self.getFactors(mdf, 'replicate')
-        return all_df
+        all_df = self.getFactors(mdf)
+        return all_df.set_index("factor")
 
 
 class TranscriptQuantificationHeatmap(object):
@@ -179,6 +179,8 @@ class TranscriptQuantificationHeatmap(object):
         colorbar = self.getColorBar(data)
         n_samples = data.shape[0]
         data = data.iloc[:, :n_samples]
+
+        print data.head()
         ax = seaborn.clustermap(data,
                                 row_colors=colorbar)
         return ResultBlocks(ResultBlock(
@@ -359,16 +361,26 @@ class SamplePCAVariance(SamplePCA):
 
 class BiasFactors(RnaseqqcTracker):
 
+    slices = ("GC_Content", "length", "AA", "TT", "CC", "GG")
+
     def __call__(self, track, slice=None):
+        
+        if not slice:
+            where = "WHERE variable = 'LogTPM_norm'"
+        else:
+            where = "WHERE variable = 'LogTPM_norm' AND bias_factor='%s'" % slice
+        
         statement = """
         SELECT bin, sample_id, value, bias_factor
         FROM bias_binned_means
-        WHERE variable = 'LogTPM_norm'"""
+        %(where)s
+        """ % locals()
+
         # fetch data
         df = self.getDataFrame(statement)
         df.set_index("sample_id", drop=False, inplace=True)
 
-        factor_statement = '''select * from factors'''
+        factor_statement = '''select * from factors where factor != "genome"'''
         factor_df = self.getDataFrame(factor_statement)
 
         full_df = pd.merge(df, factor_df, left_on="sample_id",
@@ -580,9 +592,44 @@ class TopGenes(RnaseqqcTracker):
 
         merged_df = pd.merge(z_norm_melted_df, factors_df,
                              left_on="sample_name", right_on="sample_name")
-        merged_df['index'] = merged_df['factor'] + "-" + merged_df['factor_value']
+        #merged_df['index'] = merged_df['factor'] + "-" + merged_df['factor_value']
 
-        return merged_df.reset_index().set_index("index")
+        return merged_df.reset_index().set_index("factor")
+
+
+class GenesOfInterest(RnaseqqcTracker):
+
+    def __call__(self, track, slice=None):
+
+        exp_statement = """
+        SELECT TPM, gene_id, sample_name
+        FROM sailfish_genes AS A
+        JOIN samples AS B
+        ON A.sample_id = B.id"""
+
+        exp_df = self.getDataFrame(exp_statement)
+
+        factors_statement = '''
+        SELECT factor, factor_value, sample_name
+        FROM samples AS A
+        JOIN factors AS B
+        ON A.id = B.sample_id
+        WHERE factor != 'genome'
+        '''
+
+        factors_df = self.getDataFrame(factors_statement)
+
+        merged_df = pd.merge(exp_df, factors_df,
+                             left_on="sample_name", right_on="sample_name")
+
+        genes = Pipeline.asList(Pipeline.peekParameters(
+            ".", "pipeline_rnaseqqc.py")['genes_of_interest'])
+
+        interest_df = merged_df[merged_df['gene_id'].isin(genes)]
+
+        interest_df['TPM'] = interest_df['TPM'].astype(float)
+
+        return interest_df.reset_index().set_index("factor")
 
 
 class PicardThreePrimeBias(RnaseqqcTracker):
@@ -599,9 +646,23 @@ class PicardThreePrimeBias(RnaseqqcTracker):
         # remove the ".hisat" suffix from track
         df['track'] = [x.split(".")[0] for x in df['track']]
 
-        df = pd.melt(df, id_vars="track")
+        factors_statement = '''
+        SELECT factor, factor_value, sample_name
+        FROM samples AS A
+        JOIN factors AS B
+        ON A.id = B.sample_id
+        WHERE factor != 'genome'
+        '''
 
-        return df.reset_index().set_index('track', drop=False)
+        factors_df = self.getDataFrame(factors_statement)
+
+        merged_df = pd.merge(df, factors_df,
+                             left_on="track", right_on="sample_name")
+
+        final_df = pd.melt(merged_df, id_vars=[
+            "track", "factor", "factor_value", "sample_name"])
+
+        return final_df.reset_index().set_index('factor')
 
 
 class PicardStrandBias(RnaseqqcTracker):
@@ -621,3 +682,18 @@ class PicardStrandBias(RnaseqqcTracker):
         df = pd.melt(df, id_vars="track")
 
         return df.reset_index().set_index('track', drop=False)
+
+
+class Factors(RnaseqqcTracker):
+
+    def __call__(self, track, slice=None):
+
+        select = '''SELECT factor, factor_value, sample_name
+        FROM factors JOIN samples ON sample_id=id'''
+
+        df = self.getDataFrame(select)
+        pivot_df = df.pivot(
+            index="sample_name", values="factor_value", columns="factor")
+
+        return pivot_df
+

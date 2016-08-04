@@ -51,11 +51,14 @@ The table of contents below lists the sections of pipeline_rnaseqqc report.
    pipeline/pipeline_summary.rst
    pipeline/mappinglog.rst
    pipeline/context.rst
+   pipeline/saturation.rst
    pipeline/ExpressionDistribution.rst
    pipeline/bias.rst
    pipeline/clustering.rst
    pipeline/topexpressed.rst
-   pipeline/saturation.rst
+   pipeline/genesofinterest.rst
+   pipeline/methods.rst
+
    
 
 
