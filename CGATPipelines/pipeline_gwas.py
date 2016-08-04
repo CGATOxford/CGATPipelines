@@ -3081,6 +3081,69 @@ def splitConditionalRegions(infile, outfile):
 
 @follows(splitGwasRegions,
          splitConditionalRegions,
+         mkdir("locuszoom.dir"))
+@transform("hit_regions.dir/*_significant.tsv",
+           regex("hit_regions.dir/(.+)_(.+)_significant.tsv"),
+           r"locuszoom.dir/\1_\2.metal")
+def transformMetalForLocuszoom(infile, outfile):
+    '''
+    Transform regional results file into METAL format
+    for plotting in LocusZoom
+    '''
+
+    statement = '''
+    cat %(infile)s | cut -f 6,7 |
+    awk 'BEGIN {printf("MarkerName\\tP\\n")}
+    {printf("%%s\\t%%s\\n", $2, $1)}'
+    > %(outfile)s
+    '''
+
+    P.run()
+
+@follows(transformMetalForLocuszoom)
+@transform("locuszoom.dir/*.metal",
+           regex("locuszoom.dir/(.+)_(.+)_(.+).metal"),
+           r"locuszoom.dir/\1_\2_\3.tsv")
+def plotLocusZoom(infile, outfile):
+    '''
+    Generate high-resolution Manhattan plots
+    with locuszoom.
+
+    `locuszoom` must be in your PATH variable
+    '''
+
+    components = infile.split("/")[-1].split("_")
+    snp = components[2].split(".")[0]
+    start = components[1]
+    chrome = components[0]
+    outpattern = "_".join([chrome, start])
+
+    # need the absolute path for locuszoom to read
+    # the input file
+    inpath = os.path.abspath(infile)
+
+    statement = '''
+    cd  locuszoom.dir/; checkpoint;
+    locuszoom
+    --metal %(inpath)s
+    --pvalcol P
+    --build hg19
+    --source 1000G_March2012
+    --pop EUR
+    --plotonly
+    --no-date
+    --flank 1500kb
+    --refsnp %(snp)s
+    --prefix %(outpattern)s;
+    cd ../ ;
+    touch %(outfile)s
+    '''
+
+    P.run()
+
+
+@follows(splitGwasRegions,
+         splitConditionalRegions,
          mkdir("snpsets.dir"))
 @transform("hit_regions.dir/*_significant.tsv",
            regex("hit_regions.dir/(.+)_(.+)_significant.tsv"),
