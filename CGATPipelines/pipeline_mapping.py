@@ -383,7 +383,7 @@ def identifyProteinCodingGenes(outfile):
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("gene_id\n")
-        outf.write("\n".join((x[0] for x in select)) + "\n")
+1        outf.write("\n".join((x[0] for x in select)) + "\n")
 
 
 @active_if(SPLICED_MAPPING)
@@ -720,13 +720,14 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     "*.export.txt.gz",
                     "*.csfasta.gz",
                     "*.csfasta.F3.gz",
+                    "*.remote",
                     )
 
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
-    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz)")
+    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz|remote)")
 
 ###################################################################
 ###################################################################
