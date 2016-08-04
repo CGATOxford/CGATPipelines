@@ -3094,16 +3094,20 @@ def transformMetalForLocuszoom(infile, outfile):
     statement = '''
     cat %(infile)s | cut -f 6,7 |
     awk 'BEGIN {printf("MarkerName\\tP\\n")}
-    {printf("%%s\\t%%s\\n", $2, $1)}'
+    {if(NR > 1)
+    {printf("%%s\\t%%s\\n", $2, $1)}}' |
+    awk '{if($2 == 0) {printf("%%s\\t2.25074E-308\\n", $1)}
+    else {print $0}}'
     > %(outfile)s
     '''
 
     P.run()
 
+
 @follows(transformMetalForLocuszoom)
 @transform("locuszoom.dir/*.metal",
            regex("locuszoom.dir/(.+)_(.+)_(.+).metal"),
-           r"locuszoom.dir/\1_\2_\3.tsv")
+           r"locuszoom.dir/\1_\2_\3.pdf")
 def plotLocusZoom(infile, outfile):
     '''
     Generate high-resolution Manhattan plots
@@ -3122,6 +3126,8 @@ def plotLocusZoom(infile, outfile):
     # the input file
     inpath = os.path.abspath(infile)
 
+    job_memory = "4G"
+
     statement = '''
     cd  locuszoom.dir/; checkpoint;
     locuszoom
@@ -3134,9 +3140,9 @@ def plotLocusZoom(infile, outfile):
     --no-date
     --flank 1500kb
     --refsnp %(snp)s
-    --prefix %(outpattern)s;
+    --prefix %(outpattern)s
+    > %(outpattern)s.log;
     cd ../ ;
-    touch %(outfile)s
     '''
 
     P.run()
