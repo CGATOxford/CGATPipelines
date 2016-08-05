@@ -24,6 +24,7 @@ import CGAT.BamTools as BamTools
 import pandas as pd
 import pysam
 import numpy as np
+import shutil
 from CGATPipelines.Pipeline import cluster_runnable
 
 ##############################################
@@ -107,7 +108,7 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
     '''
     outT = P.getTempFilename("./filtered_bams.dir")
     if pe is True:
-        statement += """samtools sort -n %(inT)s.bam %(outT)s;
+        statement += """samtools sort -n %(inT)s.bam -o %(outT)s.bam;
                         rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
         for bedfile in bedfiles:
             inT = outT
@@ -120,7 +121,7 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
             statement += trackFilters(bedfile, outT, tabout)
             inT = outT
         outT = P.getTempFilename("./filtered_bams.dir")
-        statement += """samtools sort %(inT)s.bam %(outT)s;
+        statement += """samtools sort %(inT)s.bam -o %(outT)s.bam;
                         rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
 
     else:
@@ -151,8 +152,10 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip,
     o = open(tabout, "w")
     o.close()
     inT = infile
+
     outT = P.getTempFilename("./filtered_bams.dir")
-    statement = """samtools sort %(inT)s %(outT)s; """ % locals()
+
+    statement = """samtools sort %(inT)s -o %(outT)s.bam; """ % locals()
     inT = outT
 
     statement += trackFilters("none", inT, tabout)
@@ -266,7 +269,9 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
     bamfile = pysam.AlignmentFile(infile, "rb")
     T = P.getTempFilename(".")
     # sort
-    pysam.sort("-n", infile, T, catch_stdout=False)
+    # pysam.sort("-n", infile, T, catch_stdout=False)
+    os.system("""samtools sort -n %(infile)s -o %(T)s.bam""" % locals())
+
     sorted_bamfile = pysam.AlignmentFile("%s.bam" % T, "rb")
 
     # for single end, count the reads, for paired end, halve number of reads
@@ -309,12 +314,14 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
     os.remove("%s.bam" % T)
     lens = []
 
-    # check that there are twice as many reads as read names for a paired
-    # end bam file and check the lengths of the files
+   # check that there are twice as many reads as read names for a paired
+   # end bam file and check the lengths of the files
     for outf in outfiles:
         T = P.getTempFilename(".")
-        pysam.sort(outf, T, catch_stdout=False)
-        pysam.index("%s.bam" % T, catch_stdout=False)
+        os.system("""samtools sort %(outf)s -o %(T)s.bam;
+        samtools index %(T)s.bam""" % locals())
+    #   pysam.sort(outf, T, catch_stdout=False)
+    #   pysam.index("%s.bam" % T, catch_stdout=False)
         bamfile = pysam.AlignmentFile("%s.bam" % T, "rb")
         all = []
         for nam in bamfile:
@@ -324,9 +331,9 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
                 len(set(all)) ==
                 len(all) / 2), "Error splitting bam file %(outf)s" % locals()
         lens.append(bamfile.count())
-        os.remove(T)
-        os.remove("%s.bam" % T)
-        os.remove("%s.bam.bai" % T)
+   #     os.remove(T)
+        shutil.move("%s.bam" % T, outf)
+        shutil.move("%s.bam.bai" % T, "%s.bai" % outf)
     E.info("Bamfile 1 length %i, Bamfile 2 length %i" % (lens[0], lens[1]))
 
 #############################################
@@ -388,14 +395,15 @@ class Peakcaller(object):
         ''' build command line statement to postprocess peaks'''
         return ""
 
-    def build(self, infile, outfile, contigsfile=None, controlfile=None):
+    def build(self, infile, outfile, contigsfile=None, controlfile=None,
+              insertsizef=None):
         ''' build complete command line statement'''
 
         peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
         compress_cmd = self.compressOutput(
             infile, outfile,  contigsfile, controlfile)
         postprocess_cmd = self.postProcessPeaks(
-            infile, outfile, controlfile)
+            infile, outfile, controlfile, insertsizef)
 
         full_cmd = " checkpoint ;".join((
             peaks_cmd, compress_cmd, postprocess_cmd))
@@ -431,8 +439,10 @@ class Macs2Peakcaller(Peakcaller):
             options = []
         if controlfile:
             options.append("--control %s" % controlfile)
-        if self.tagsize is not None:
-            options.append("--tsize %i" % self.tagsize)
+        if self.tagsize is None:
+            self.tagsize = BamTools.estimateTagSize(infile)
+
+        options.append("--tsize %i" % self.tagsize)
         options = " ".join(options)
 
         # example statement: macs2 callpeak -t R1-paupar-R1.call.bam -c
@@ -508,7 +518,7 @@ class Macs2Peakcaller(Peakcaller):
 
         return "; checkpoint ;".join(statement)
 
-    def postProcessPeaks(self, infile, outfile, controlfile):
+    def postProcessPeaks(self, infile, outfile, controlfile, insertsizefile):
         ''' build command line statement to postprocess peaks'''
 
         filename_bed = outfile + "_peaks.xls.gz"
@@ -538,12 +548,13 @@ class Macs2Peakcaller(Peakcaller):
         # TS - hardcodes "fragment.dir" and ".fragment_size" suffix
         # another option is to set fragment_dir and fragment suffix attributes
 
-        peak_est_inf = os.path.join(
-            "fragment_size.dir", "%s.fragment_size" % P.snip(infile,
-                                                             ".genome.bam"))
-        shift = getMacsPeakShiftEstimate(peak_est_inf)
+#        peak_est_inf = os.path.join(
+#            "fragment_size.dir", "%s.fragment_size" % P.snip(infile,
+#                                                             ".bam"))
+
+        shift = getMacsPeakShiftEstimate(insertsizefile)
         assert shift is not None,\
-            "could not determine peak shift from file %s" % peak_est_inf
+            "could not determine peak shift from file %s" % insertsizefile
 
         peaks_headers = ",".join((
             "contig", "start", "end",
