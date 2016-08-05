@@ -269,10 +269,10 @@ def loadCufflinks(infile, outfile):
     infile : string
         Cufflinks output. This is used to find
         auxiliary files: specifically infile.genes_tracking.gz and
-	infile.fpkm_tracking.gz
+        infile.fpkm_tracking.gz
     outfile : string
         Output filename used to create logging information in `.load` files.
-	Also used to create "_fpkm" and "_genefpkm" tables in database. 
+        Also used to create "_fpkm" and "_genefpkm" tables in database.
     '''
 
     track = P.snip(outfile, ".load")
@@ -293,9 +293,123 @@ def loadCufflinks(infile, outfile):
     P.touch(outfile)
 
 
+def quantifyWithStringTie(gtffile, bamfile, outdir):
+    '''Run string tie in quantitation mode
+
+    Arguments
+    ---------
+    gtffile: string
+        Name of gtf/gtf.gz file to quantify against
+    bamfile: string
+        Name of BAM file with alignments to quantify with
+    outdir: string
+        Directory to place output files in
+ 
+    The output files generated are:
+    1. e_data.ctab: Exon-level expression measurements
+    2. i_data.ctab: intron/junction level expression measurements
+    3. t_data.ctab: transcript level expression measurements
+    4. e2t.ctab: exon 2 transcript lookup table
+    5. i2t.ctab: intron to transcript lookup table
+
+    Parameters
+    ----------
+
+    quant_threads: int
+        Number of threads to use
+    quant_options: string
+        Commandline arguements to StringTie
+    quant_memory: string
+        Memory to request for job'''
+
+    if gtffile.endswith(".gz"):
+        gtffile = "<( zcat %s)" % gtffile
+    
+    job_threads = PARAMS["stringtie_quant_threads"]
+    job_memory = PARAMS["stringtie_quant_memory"]
+
+    statement = '''stringtie -G %(gtffile)s
+                                %(bamfile)s
+                             -eb %(outdir)s
+                             %(stringtie_quant_options)s
+                             > /dev/null
+                             2> %(outdir)s.log'''
+
+    P.run()
+
+
+def mergeAndLoadStringTie(infiles, track_regex, outfile):
+    '''Load stringtie quantitation from multiple tracks into a set
+    of database tables. 
+
+    Arguements 
+    ---------- 
+    infiles: list of list of string
+        infiles contains the output tables from a stringtie -b run for
+        several tracks. Each item in the the list is the output files
+        from a single track. There are five output files (see
+        :function:PipelineRnaseq.quantifyWithStringTie). It is assumed
+        the files within each list are in the same order in a
+        directory named after the track. e.g.
+        [["track1/i_data.ctab", ...],["track2/i_data.ctab",...],...]
+    track_regex: string
+        regular expression to capture track name out of filenames
+    outfile: string
+        output file, should end in .load, is used for table prefix
+
+    Adds the following tables to the database:
+        PREFIX_transcript_data
+        PREFIX_exon_data
+        PREFIX_intron_data
+        PREFIX_exon2transcript
+        PREFIX_intron2transcript
+
+    The first three will have a track column indicating which track
+    they come from.  The last two are assumed to be identical for each
+    track (this is tested and confirmed) '''
+
+    infiles = zip(*infiles)
+
+    table_suffixes = {"i_data.ctab": "intron_data",
+                      "e_data.ctab": "exon_data",
+                      "t_data.ctab": "transcript_data",
+                      "e2t.ctab": "exon2transcript",
+                      "i2t.ctab": "intron2transcript"}
+
+    table_indexes = {"i_data.ctab": "i_id",
+                     "e_data.ctab": "e_id",
+                     "t_data.ctab": "t_id,t_name,gene_id",
+                     "e2t.ctab": "e_id,t_id",
+                     "i2t.ctab": "i_id,t_id"}
+
+    table_prefix = P.snip(outfile, ".load")
+
+    for infile in infiles:
+        
+        which_files = set([os.path.basename(f) for f in infile])
+        assert len(which_files) == 1, "Input file lists not in same order"
+        table_suffix = table_suffixes[list(which_files)[0]]
+
+        tablename = os.path.basename(table_prefix + "_" + table_suffix)
+        indexs = table_indexes[list(which_files)[0]]
+        
+        if "2" in table_suffix:
+            P.load(infile[0], outfile,
+                   options="-i %s" % indexs,
+                   tablename=tablename)
+            continue
+            
+        P.concatenateAndLoad(infile, outfile,
+                             regex_filename=track_regex,
+                             tablename=tablename,
+                             options="--quick -i %s" % indexs,
+                             job_memory="12G")
+
+
 def mergeCufflinksFPKM(infiles, outfile, genesets,
                        tracking="genes_tracking",
                        identifier="gene_id"):
+
     '''build aggregate table with cufflinks FPKM values.
 
 
