@@ -16,6 +16,7 @@ from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 from CGATReport.Utils import PARAMS
 import CGATPipelines.Pipeline as Pipeline
+import matplotlib.pyplot as plt
 
 DATABASE = PARAMS.get('readqc_backend', PARAMS.get('sql_backend', 'sqlite:///./csvdb'))
 
@@ -172,17 +173,26 @@ class TranscriptQuantificationHeatmap(object):
         for i in range(0, len(factors.index)):
             cols.append(seaborn.xkcd_rgb[col_dict[factors.iloc[i, 0]]])
 
-        return cols
+        return cols, factors, unique, xkcd
 
     def __call__(self, data, path):
 
-        colorbar = self.getColorBar(data)
+        colorbar, factors, unique, xkcd = self.getColorBar(data)
         n_samples = data.shape[0]
         data = data.iloc[:, :n_samples]
+        col_dict = dict(zip(unique, xkcd))
 
         print data.head()
+        seaborn.set(font_scale=.5)
         ax = seaborn.clustermap(data,
-                                row_colors=colorbar)
+                                row_colors=colorbar, col_colors=colorbar)
+        plt.setp(ax.ax_heatmap.yaxis.set_visible(False))
+
+        for label in unique:
+            ax.ax_col_dendrogram.bar(0,0, color=seaborn.xkcd_rgb[col_dict[label]],
+                                     label=label, linewidth=0)
+        ax.ax_col_dendrogram.legend(loc="center", ncol=len(unique))
+
         return ResultBlocks(ResultBlock(
             '''#$mpl %i$#\n''' % ax.cax.figure.number,
             title='ClusterMapPlot'))
