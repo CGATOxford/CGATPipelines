@@ -40,18 +40,18 @@ import sys
 import os
 import re
 import csv
-import numpy
 import sqlite3
 import pandas
 import glob
+import shutil
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelinePeakcallingScrum as PipelinePeakcalling
 import CGAT.BamTools as Bamtools
-
-import CGAT.BamTools as BamTools
+import itertools
 import pandas as pd
+import numpy as np
 
 #########################################################################
 #########################################################################
@@ -514,7 +514,8 @@ def callMacs2peaks(infiles, outfile):
         tagsize=None)
 
     statement = peakcaller.build(bam, outfile, PARAMS['macs2_contigsfile'],
-                                 inputf, insertsizef)
+                                 inputf, insertsizef, PARAMS['IDR_run'],
+                                 PARAMS['IDR_keeppeaks'])
     P.run()
 
 
@@ -531,13 +532,59 @@ def peakcalling():
     dummy task to define upstream peakcalling tasks
     '''
 
-'''
+
 ################################################################
 # IDR Steps
-@follows(peakcalling)
-@transform(peakcalling,
+
+@follows(mkdir("peaks_for_IDR.dir"))
+@transform(PEAKCALLERS,
+           regex("(.*)/(.*)"),
+           r"peaks_for_IDR.dir/\2.IDRpeaks")
 def preprocessForIDR(infile, outfile):
-'''
+    IDRpeaks = "%s_IDRpeaks" % infile
+    shutil.copy(IDRpeaks, outfile)
+
+
+@merge(preprocessForIDR, "IDR_pairs.tsv")
+def makeIDRPairs(infiles, outfile):
+
+    pseudo_reps = []
+    pseudo_pooled = []
+    notpseudo_reps = []
+    notpseudo_pooled = []
+
+    for f in infiles:
+        if "pseudo" in f and "pooled" in f:
+            pseudo_pooled.append(f)
+        elif "pseudo" in f:
+            pseudo_reps.append(f)
+        elif "pooled" in f:
+            notpseudo_pooled.append(f)
+        else:
+            notpseudo_reps.append(f)
+
+    pseudo_reps = sorted(pseudo_reps)
+    pseudo_pooled = sorted(pseudo_pooled)
+
+    allpseudo = np.array(pseudo_reps + pseudo_pooled)
+
+    into = len(allpseudo) / 2
+    PP = np.split(allpseudo, into)
+    PP = [tuple(item) for item in PP]
+    PP2 = list(itertools.combinations(notpseudo_reps, 2))
+
+    PP3 = []
+    for pair in PP2:
+        stem1 = "_".join(pair[0].split("_")[:-1])
+        if pair[1].startswith(stem1):
+            PP3.append(pair)
+
+    pairs = PP + PP3
+
+    out = IOTools.openFile(outfile, "w")
+    for p in pairs:
+        out.write("%s\t%s\n" % p)
+    out.close()
 
 
 ################################################################

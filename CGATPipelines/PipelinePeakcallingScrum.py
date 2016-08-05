@@ -395,8 +395,12 @@ class Peakcaller(object):
         ''' build command line statement to postprocess peaks'''
         return ""
 
+    def preparePeaksForIDR(self, infile, outfile):
+        ''' build command line statement to prepare the IDR input'''
+        return ""
+
     def build(self, infile, outfile, contigsfile=None, controlfile=None,
-              insertsizef=None):
+              insertsizef=None, idr=0, idrc=0):
         ''' build complete command line statement'''
 
         peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
@@ -405,8 +409,13 @@ class Peakcaller(object):
         postprocess_cmd = self.postProcessPeaks(
             infile, outfile, controlfile, insertsizef)
 
+        if idr == 1:
+            prepareIDR_cmd = self.preparePeaksForIDR(outfile, idrc)
+        else:
+            prepareIDR_cmd = ""
+
         full_cmd = " checkpoint ;".join((
-            peaks_cmd, compress_cmd, postprocess_cmd))
+            peaks_cmd, compress_cmd, postprocess_cmd, prepareIDR_cmd))
 
         return full_cmd
 
@@ -648,6 +657,13 @@ class Macs2Peakcaller(Peakcaller):
 
         return statement
 
+    def preparePeaksForIDR(self, outfile, idrc):
+        statement = ''
+        idrout = "%s_IDRpeaks" % outfile
+        narrowpeaks = "%s_peaks.narrowPeak" % outfile
+        statement += '''sort -h -r -k8,8 %(narrowpeaks)s |
+        head -%(idrc)s > %(idrout)s''' % locals()
+        return statement
 
 #############################################
 # QC Functions
