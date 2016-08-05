@@ -491,7 +491,7 @@ class Macs2Peakcaller(Peakcaller):
             if os.path.exists(bedfile):
                 statement.append('''
                      bgzip -f %(bedfile)s;
-                     tabix -f -p bed %(bedfile)s.gz;
+                     tabix -f -p bed %(bedfile)s.gz
                 ''' % locals())
 
         # convert normalized bed graph to bigwig
@@ -519,15 +519,30 @@ class Macs2Peakcaller(Peakcaller):
         return "; checkpoint ;".join(statement)
 
     def postProcessPeaks(self, infile, outfile, controlfile, insertsizefile):
-        ''' build command line statement to postprocess peaks'''
+        '''
+        postprocess MACS 2 results
+
+
+        ### NOTE
+        This is doing a subset of the steps the old peakcalling pipeline
+        did on the MACS2 output - we're not sure how you chose which are still
+        needed and which to delete?
+        
+        Some of the steps look slightly dodgy - the step which is generating
+        the subpeaks seems to just take the "summits" bed file and write
+        it out again but convert all the columns, including those which are
+        strings, into integers?
+        ###
+
+        '''
 
         filename_bed = outfile + "_peaks.xls.gz"
         filename_diag = outfile + "_diag.xls"
         filename_r = outfile + "_model.r"
         filename_rlog = outfile + ".r.log"
         filename_pdf = outfile + "_model.pdf"
-
         filename_subpeaks = outfile + "_summits.bed"
+
         outfile_subpeaks = P.snip(
             outfile, ".macs2", ) + ".subpeaks.macs_peaks.bed"
 
@@ -544,13 +559,6 @@ class Macs2Peakcaller(Peakcaller):
         #    E.warn("could not find %s" % filename_bed)
         #    P.touch(outfile)
         #    return
-
-        # TS - hardcodes "fragment.dir" and ".fragment_size" suffix
-        # another option is to set fragment_dir and fragment suffix attributes
-
-#        peak_est_inf = os.path.join(
-#            "fragment_size.dir", "%s.fragment_size" % P.snip(infile,
-#                                                             ".bam"))
 
         shift = getMacsPeakShiftEstimate(insertsizefile)
         assert shift is not None,\
