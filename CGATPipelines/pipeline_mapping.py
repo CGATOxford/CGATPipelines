@@ -383,7 +383,7 @@ def identifyProteinCodingGenes(outfile):
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("gene_id\n")
-1        outf.write("\n".join((x[0] for x in select)) + "\n")
+        outf.write("\n".join((x[0] for x in select)) + "\n")
 
 
 @active_if(SPLICED_MAPPING)

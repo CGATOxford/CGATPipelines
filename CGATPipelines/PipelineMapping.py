@@ -590,7 +590,7 @@ class SequenceCollectionProcessor(object):
 
                 if len(files) == 1 and files[0].endswith("_1.fastq.gz"):
                     new_files = [re.sub("_1.fastq.gz",
-                                      ".fastq.gz",
+                                        ".fastq.gz",
                                         files[0])]
 
                 elif len(files) == 2:
@@ -612,7 +612,6 @@ class SequenceCollectionProcessor(object):
                     
                 fastqfiles.append(new_files)
                         
-
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
