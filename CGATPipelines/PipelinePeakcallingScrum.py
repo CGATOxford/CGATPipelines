@@ -314,8 +314,8 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
     os.remove("%s.bam" % T)
     lens = []
 
-   # check that there are twice as many reads as read names for a paired
-   # end bam file and check the lengths of the files
+    # check that there are twice as many reads as read names for a paired
+    # end bam file and check the lengths of the files
     for outf in outfiles:
         T = P.getTempFilename(".")
         os.system("""samtools sort %(outf)s -o %(T)s.bam;
@@ -331,7 +331,7 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
                 len(set(all)) ==
                 len(all) / 2), "Error splitting bam file %(outf)s" % locals()
         lens.append(bamfile.count())
-   #     os.remove(T)
+    #     os.remove(T)
         shutil.move("%s.bam" % T, outf)
         shutil.move("%s.bam.bai" % T, "%s.bai" % outf)
     E.info("Bamfile 1 length %i, Bamfile 2 length %i" % (lens[0], lens[1]))
@@ -481,7 +481,13 @@ class Macs2Peakcaller(Peakcaller):
 
     def compressOutput(self, infile, outfile,
                        contigsfile, controlfile):
-        ''' build command line statement to compress outfiles'''
+        ''' build command line statement to compress outfiles
+
+        ### NOTE
+        This takes a contig file but I don't understand what it is doing
+        with it.
+        The contig file was hard coded - I have moved it to the pipeline.ini.
+        '''
 
         statement = []
 
@@ -527,7 +533,7 @@ class Macs2Peakcaller(Peakcaller):
         This is doing a subset of the steps the old peakcalling pipeline
         did on the MACS2 output - we're not sure how you chose which are still
         needed and which to delete?
-        
+
         Some of the steps look slightly dodgy - the step which is generating
         the subpeaks seems to just take the "summits" bed file and write
         it out again but convert all the columns, including those which are

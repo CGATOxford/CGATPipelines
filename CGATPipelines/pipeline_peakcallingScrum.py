@@ -151,6 +151,7 @@ def connect():
 ###############################################################
 # Preprocessing Steps
 
+
 @follows(mkdir("filtered_bams.dir"))
 @transform(INPUTBAMS, regex("(.*).bam"),
            [r"filtered_bams.dir/\1_filtered.bam",
@@ -344,7 +345,7 @@ for any peakcalling.  Used when input is low depth or when only a single
 input or replicates of a single input are available.
 
 condition
-pool the input file for the 
+pool the input file for the
 
 '''
 if PARAMS['IDR_poolinputs'] == "none":
@@ -490,18 +491,9 @@ def preprocessing(infile, outfile):
     '''
     pass
 
-#@transform(preprocessing, regex("(.*)\_bams\.dir/(.*)\.bam"),
-#           "peakcalling_bams.dir/\2.bam")
-##def preprocessing(infile, outfile):
-   # pass
+# ###############################################################
+#  Peakcalling Steps
 
-################################################################
-# Peakcalling Steps
-
-###############################################################
-# The following are variable created just for testing purposes
-###############################################################
-# control_inf = None
 
 @follows(mkdir('macs2.dir'))
 @transform(preprocessing,
@@ -532,11 +524,20 @@ mapToPeakCallers = {'macs2': (callMacs2peaks,)}
 for x in P.asList(PARAMS['peakcalling_peakcallers']):
     PEAKCALLERS.extend(mapToPeakCallers[x])
 
+
 @follows(*PEAKCALLERS)
 def peakcalling():
     '''
     dummy task to define upstream peakcalling tasks
     '''
+
+'''
+################################################################
+# IDR Steps
+@follows(peakcalling)
+@transform(peakcalling,
+def preprocessForIDR(infile, outfile):
+'''
 
 
 ################################################################
@@ -592,6 +593,7 @@ def buildReferenceNAComposition(infiles, outfile):
     P.run()
 ################################################################
 """
+
 
 def full():
     pass
