@@ -238,6 +238,7 @@ def concatenateAndLoad(infiles,
                        has_titles=True,
                        missing_value="na",
                        retry=True,
+                       tablename=None,
                        options="",
                        job_memory=None):
     """concatenate multiple tab-separated files and upload into database.
@@ -278,6 +279,8 @@ def concatenateAndLoad(infiles,
     retry : bool
         If True, multiple attempts will be made if the data can
         not be loaded at the first try, for example if a table is locked.
+    tablename: string
+        Name to use for table. If unset derive from outfile.
     options : string
         Command line options for the `csv2db.py` script.
     job_memory : string
@@ -287,6 +290,9 @@ def concatenateAndLoad(infiles,
     """
     if job_memory is None:
         job_memory = PARAMS["cluster_memory_default"]
+
+    if tablename is None:
+        tablename = toTable(outfile)
 
     infiles = " ".join(infiles)
 
@@ -305,7 +311,7 @@ def concatenateAndLoad(infiles,
     cat_options = " ".join(cat_options)
     load_options = " ".join(load_options) + " " + passed_options
 
-    load_statement = build_load_statement(toTable(outfile),
+    load_statement = build_load_statement(tablename,
                                           options=load_options,
                                           retry=retry)
 
