@@ -624,6 +624,7 @@ def getDatabaseName():
 
     raise KeyError("database name not found")
 
+
 def importFromIterator(
         outfile,
         tablename,
@@ -673,8 +674,8 @@ def importFromIterator(
         indices = ""
 
     load(tmpfile.name,
-           outfile,
-           tablename=tablename,
-           options=indices)
+         outfile,
+         tablename=tablename,
+         options=indices)
 
     os.unlink(tmpfile.name)
