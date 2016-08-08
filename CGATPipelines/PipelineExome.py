@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup
 from bs4 import NavigableString
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import r as R
-
+import copy
 
 # Set PARAMS in calling module
 PARAMS = {}
@@ -82,7 +82,7 @@ def GATKReadGroups(infile, outfile, genome,
 ##############################################################################
 
 
-def GATKIndelRealign(infile, outfile, genome, threads=4):
+def GATKIndelRealign(infile, outfile, genome, intervals, padding, threads=4):
     '''Realigns BAMs around indels using GATK'''
 
     intervalfile = outfile.replace(".bam", ".intervals")
@@ -94,6 +94,8 @@ def GATKIndelRealign(infile, outfile, genome, threads=4):
                     -o %(intervalfile)s
                     --num_threads %(threads)s
                     -R %(genome)s
+                    -L %(intervals)s
+                    -ip %(padding)s
                     -I %(infile)s; ''' % locals()
 
     statement += '''GenomeAnalysisTK
@@ -107,7 +109,8 @@ def GATKIndelRealign(infile, outfile, genome, threads=4):
 ##############################################################################
 
 
-def GATKBaseRecal(infile, outfile, genome, dbsnp, solid_options=""):
+def GATKBaseRecal(infile, outfile, genome, intervals, padding, dbsnp,
+                  solid_options=""):
     '''Recalibrates base quality scores using GATK'''
 
     track = P.snip(os.path.basename(infile), ".bam")
@@ -119,6 +122,8 @@ def GATKBaseRecal(infile, outfile, genome, dbsnp, solid_options=""):
                     -T BaseRecalibrator
                     --out %(tmpdir_gatk)s/%(track)s.recal.grp
                     -R %(genome)s
+                    -L %(intervals)s
+                    -ip %(padding)s
                     -I %(infile)s
                     --knownSites %(dbsnp)s %(solid_options)s ;
                     checkpoint ;''' % locals()
@@ -145,6 +150,9 @@ def haplotypeCaller(infile, outfile, genome,
 
     statement = '''GenomeAnalysisTK
                     -T HaplotypeCaller
+                    -ERC GVCF
+                    -variant_index_type LINEAR
+                    -variant_index_parameter 128000
                     -o %(outfile)s
                     -R %(genome)s
                     -I %(infile)s
@@ -152,6 +160,22 @@ def haplotypeCaller(infile, outfile, genome,
                     -L %(intervals)s
                     -ip %(padding)s
                     %(options)s''' % locals()
+    P.run()
+
+
+##############################################################################
+
+
+def genotypeGVCFs(inputfiles, outfile, genome, options):
+    '''Joint genotyping of all samples together'''
+    job_options = getGATKOptions()
+    job_threads = 3
+
+    statement = '''GenomeAnalysisTK
+                    -T GenotypeGVCFs
+                    -o %(outfile)s
+                    -R %(genome)s
+                    --variant %(inputfiles)s''' % locals()
     P.run()
 
 ##############################################################################
@@ -230,8 +254,11 @@ def variantAnnotator(vcffile, bamlist, outfile, genome,
     job_threads = 3
 
     if annotations != "":
-        anno = annotations.split(",")
-        anno = " -A " + " -A ".join(anno)
+        if annotations == "--useAllAnnotations":
+            anno = annotations
+        else:
+            anno = annotations.split(",")
+            anno = " -A " + " -A ".join(anno)
     else:
         anno = ""
     statement = '''GenomeAnalysisTK -T VariantAnnotator
@@ -804,3 +831,445 @@ def intersectionHeatmap(infiles, outfile):
     }''' % locals())
 
     plotIntersectionHeatmap(df)
+
+
+@cluster_runnable
+def filterQuality(infile, qualstr, qualfilter, outfiles):
+    '''
+    Filter variants based on quality.  Columns to filter on and
+    how they should be filtered can be specified in the pipeline.ini.
+    Currently only implemented to filter numeric columns.  "." is assumed
+    to mean pass.
+    '''
+    columns = IOTools.openFile(infile).readline()
+    columns = columns.split("\t")
+    qualparams = qualstr.split(",")
+    qualdict = dict()
+    fdict = dict()
+    for param in qualparams:
+        param = param.split("'")
+
+        # column to filter on
+        col = param[0]
+        # string of >, <, >= or <= depending how the column should
+        # be filtered
+        lessmore = param[1]
+
+        # score to filter by
+        score = float(param[2])
+
+        assert col in columns, "column %s not in variant table" % col
+
+        ind = columns.index(col)
+        i = 0
+        iset = set([0, 1])
+        with IOTools.openFile(infile) as input:
+            for line in input:
+                # rows one and two are headers
+                if i > 1:
+                    line = line.strip().split("\t")
+                    if line[ind] == ".":
+                        iset.add(i)
+                    elif lessmore == ">":
+                        if float(line[ind]) > score:
+                            iset.add(i)
+                    elif lessmore == ">=":
+                        if float(line[ind]) > score:
+                            iset.add(i)
+                    elif lessmore == "<":
+                        if float(line[ind]) < score:
+                            iset.add(i)
+                    elif lessmore == "<=":
+                        if float(line[ind]) <= score:
+                            iset.add(i)
+                    if i not in iset:
+                        fdict.setdefault(i, [])
+                        fdict[i].append("%s=%s" % (col, line[ind]))
+                i += 1
+        qualdict[col] = iset
+    if qualfilter == "all":
+        allqual = set.intersection(*qualdict.values())
+    elif qualfilter == "any":
+        allqual = set.union(*qualdict.values())
+    i = 0
+    out = IOTools.openFile(outfiles[0], "w")
+    out2 = IOTools.openFile(outfiles[1], "w")
+    with IOTools.openFile(infile) as input:
+        for line in input:
+            if i in allqual:
+                out.write(line)
+            else:
+                line = line.strip()
+                out2.write("%s\t%s\n" % (line, ",".join(fdict[i])))
+            i += 1
+    out.close()
+    out2.close()
+
+
+@cluster_runnable
+def FilterExacCols(infile, exac_suffs, exac_thresh):
+    '''
+    Returns a set of line indices indicating lines where either of the alleles
+    called have a frequency of greater that exac_thresh in any of the
+    populations specified as exac_suffs.
+    Where no data is available an allele frequency of -1 is used.
+
+    Exac provide data as AC_xxx and AN_xxx where AC is the allele count
+    - the number of times the allele has been called
+    - and AN is chromosome count - the number of
+    samples in which the allele could have been called - in population xxx.
+    AC / AN = allele frequecy.
+
+    exac_suffs are any columns where an AC_xxx and AN_xxx column is provided
+    in the VCF, e.g. Adj will calculate allele frequency from the AC_Adj
+    and AN_Adj columns
+
+    '''
+    # read columns from the input VCF
+    exac_suffs = exac_suffs.split(",")
+    cols = IOTools.openFile(infile).readline().strip().split("\t")
+    nD = dict()
+    afdict = dict()
+    for e in exac_suffs:
+        # find the columns with the appropriate information
+        # Allele count
+        AC_i = cols.index("AC_%s" % (e))
+        # Allele Number
+        AN_i = cols.index("AN_%s" % (e))
+        # Genotype
+        GT_i = cols.index('GT')
+        nlist = set()
+        n = 0
+        AFS = []
+        with IOTools.openFile(infile) as input:
+            for line in input:
+                if n > 1:
+                    line = line.strip().split("\t")
+                    # At multi-allelic sites, comma delimited AC and AN values
+                    # are provided
+                    # "." and "NA" indicate no data here - this is represented
+                    # as an AF of -1
+                    AC = line[AC_i].replace(".", "-1").replace(
+                        "NA", "-1").split(",")
+                    AN = line[AN_i].replace(".", "1").replace(
+                        "NA", "1").split(",")
+                    AC = np.array([float(a) for a in AC])
+                    AN = np.array([float(a) for a in AN])
+                    AF = AC / AN
+                    AF2 = [af if af > 0 else 0 for af in AF]
+                    AF = np.insert(AF, 0, (1 - sum(AF2)))
+
+                    # Chromosome count is usually the same for all minor
+                    # alleles (but not always)
+                    # If it is not the same the AC and AN lists should be the
+                    # same length
+                    # Otherwise AN will have length 1
+                    if len(AC) != len(AN):
+                        AN = [AN] * len(AC)
+
+                    # Record the genotype called in this sample for this SNP
+                    GT = line[GT_i]
+                    GT = GT.replace(".", '0')
+                    GT = GT.split("/")
+                    GT[0], GT[1] = int(GT[0]), int(GT[1])
+
+                    # If the variant is not in ExAC the ExAC columns show "."
+                    # but the site
+                    # may still have been called as multi allelic
+                    # - use -1 for all frequencies
+                    # in this case
+                    if max(GT) > (len(AF) - 1):
+                        AF = np.array([-1] * (max(GT) + 1))
+
+                    AF1 = AF[GT[0]]
+                    AF2 = AF[GT[1]]
+                    AFS.append((AF1, AF2))
+                    # Remember where both allele frequencies are
+                    # greater than exac_thresh
+                    if AF1 >= exac_thresh and AF2 >= exac_thresh:
+                        nlist.add(n)
+                else:
+                    AFS.append(('NA', 'NA'))
+                n += 1
+        afdict[e] = AFS
+        nD[e] = nlist
+
+    ns = set.union(*nD.values())
+    return afdict, ns
+
+
+@cluster_runnable
+def FilterFreqCols(infile, thresh, fcols):
+    '''
+    Returns a set of line indices indicating lines where either of the alleles
+    called have a frequency of less than thresh in all of the columns specified
+    in fcols.
+    No information - assigned allele frequency of -1.
+    '''
+    fcols = fcols.split(",")
+    # read the column headings from the variant table
+    cols = IOTools.openFile(infile).readline().strip().split("\t")
+    # store allele frequency columns
+    AFdict = dict()
+    # store low frequency indices
+    nD = dict()
+    for col in fcols:
+        ind = cols.index(col)
+        GT_i = cols.index('GT')
+        n = 0
+        nlist = set()
+        AFS = []
+        with IOTools.openFile(infile) as input:
+            for line in input:
+                if n > 1:
+                    line = line.strip().split("\t")
+                    GT = line[GT_i].replace(".", "0").split("/")
+                    af = line[ind].split(",")
+                    AF = []
+                    # where the allele frequency is not numeric
+                    # "." or "NA" use -1 to indicate no data
+                    for a in af:
+                        try:
+                            AF.append(float(a))
+                        except:
+                            AF.append(float(-1))
+                    AF2 = [l if l > 0 else 0 for l in AF]
+                    AF = np.array(AF)
+                    AF = np.insert(AF, 0, 1 - sum(AF2))
+                    GT[0] = int(GT[0])
+                    GT[1] = int(GT[1])
+                    # If the variant is not in database the column shows "."
+                    # but the site
+                    # may still have been called as multi allelic
+                    # - use -1 for all frequencies
+                    # in this case
+                    if max(GT[0], GT[1]) > (len(AF) - 1):
+                        AF = [float(-1)] * (max(GT[0], GT[1]) + 1)
+                    AF1 = AF[GT[0]]
+                    AF2 = AF[GT[1]]
+                    if AF1 >= thresh and AF2 >= thresh:
+                        nlist.add(n)
+                    AFS.append((AF1, AF2))
+                else:
+                    AFS.append(('NA', 'NA'))
+                n += 1
+        AFdict[col] = AFS
+        nD[col] = nlist
+
+    ns = set.union(*nD.values())
+    return AFdict, ns
+
+
+def WriteFreqFiltered(infile, exacdict, exacinds, otherdict, otherinds,
+                      outfiles):
+    '''
+    Writes the output of the frequency filtering steps to file, including
+    the new columns showing calculated allele frequency for the allele
+    in this specific sample.
+    '''
+    x = 0
+    out = IOTools.openFile(outfiles[0], "w")
+    out2 = IOTools.openFile(outfiles[1], "w")
+
+    exaccols = exacdict.keys()
+    othercols = otherdict.keys()
+
+    # column names for the new columns
+    exacnewcols = ["%s_calc" % c for c in exaccols]
+    othernewcols = ["%s_calc" % c for c in othercols]
+
+    with IOTools.openFile(infile) as infile:
+        for line in infile:
+            line = line.strip()
+            if x <= 1:
+                # write the column names
+                out.write("%s\t%s\t%s\n" % (line, "\t".join(exacnewcols),
+                                            "\t".join(othernewcols)))
+            else:
+                freqs = []
+                for key in exaccols:
+                    col = exacdict[key]
+                    freqs.append(col[x])
+                for key in othercols:
+                    col = otherdict[key]
+                    freqs.append(col[x])
+                freqs = [str(freq) for freq in freqs]
+
+                if x not in exacinds and x not in otherinds:
+                    out.write("%s\t%s\n" % (line, "\t".join(freqs)))
+                else:
+                    out2.write("%s\t%s\n" % (line, "\t".join(freqs)))
+            x += 1
+    out.close()
+    out2.close()
+
+
+@cluster_runnable
+def filterRarity(infile, exac, freqs, thresh, outfiles):
+    '''
+    Filter out variants which are common in any of the exac or other
+    population datasets as specified in the pipeline.ini.
+    '''
+    exacdict, exacinds = FilterExacCols(infile, exac, thresh)
+    otherdict, otherinds = FilterFreqCols(infile, thresh, freqs)
+    WriteFreqFiltered(infile, exacdict, exacinds, otherdict,
+                      otherinds, outfiles)
+
+
+@cluster_runnable
+def filterDamage(infile, damagestr, outfiles):
+    '''
+    Filter variants which have not been assessed as damaging by any
+    of the specified tools.
+    Tools and thresholds can be specified in the pipeline.ini.
+
+    Does not account for multiple alt alleles - if any ALT allele has
+    been assessed as damaging with any tool the variant is kept,
+    regardless of if this is the allele called in the sample.
+
+    '''
+    damaging = damagestr.split(",")
+    cols = IOTools.openFile(infile).readline().strip().split("\t")
+
+    D = dict()
+    # parses the "damage string" from the pipeline.ini
+    # this should be formatted as COLUMN|result1-result2-...,COLUMN|result1...
+    # where variants with any of these results in this column will
+    # be retained
+    for d in damaging:
+        d = d.split("|")
+        col = d[0]
+        res = d[1].split("-")
+        i = cols.index(col)
+        D[col] = ((res, i))
+
+    x = 0
+    out = IOTools.openFile(outfiles[0], "w")
+    out2 = IOTools.openFile(outfiles[1], "w")
+    with IOTools.openFile(infile) as input:
+        for line in input:
+            if x > 1:
+                # grep for specific strings within this column of this
+                # line of the input file
+                line = line.strip().split("\t")
+                isdamaging = 0
+                for key in D:
+                    res, i = D[key]
+                    current = line[i]
+                    for r in res:
+                        if re.search(r, current):
+                            isdamaging = 1
+                if isdamaging == 1:
+                    out.write("%s\n" % "\t".join(line))
+                else:
+                    out2.write("%s\n" % "\t".join(line))
+            else:
+                out.write(line)
+            x += 1
+    out.close()
+    out2.close()
+
+
+@cluster_runnable
+def filterFamily(infile, infile2, outfiles):
+    '''
+    Filter variants according to the output of calculateFamily -
+    only variants shared by both members of a family will be kept.
+    '''
+    cps1 = set()
+    cps2 = set()
+
+    # make a list of variants in infile1
+    with IOTools.openFile(infile) as input:
+        for line in input:
+            line = line.strip().split("\t")
+            chrom = line[0]
+            pos = line[1]
+            cp = "%s_%s" % (chrom, pos)
+            cps1.add(cp)
+
+    # make a list of variants in infile2
+    with IOTools.openFile(infile2) as input:
+        for line in input:
+            line = line.strip().split("\t")
+            chrom = line[0]
+            pos = line[1]
+            cp = "%s_%s" % (chrom, pos)
+            cps2.add(cp)
+
+    # only variants in both are of interest
+    cps = cps1 & cps2
+
+    out = IOTools.openFile(outfiles[0], "w")
+    out2 = IOTools.openFile(outfiles[1], "w")
+    with IOTools.openFile(infile) as input:
+        for line in input:
+            line = line.strip().split("\t")
+            if "%s_%s" % (line[0], line[1]) in cps:
+                out.write("%s\n" % "\t".join(line))
+            else:
+                out2.write("%s\n" % "\t".join(line))
+    out.close()
+    out2.close()
+
+
+@cluster_runnable
+def CleanVariantTables(genes, variants, cols, outfile):
+    variants = pd.read_csv(variants, sep="\t")
+    variants = variants.drop(0)
+
+    vp1 = copy.copy(variants[['CHROM',
+                              'POS', 'QUAL', 'ID', 'REF1', 'ALT', 'GT']])
+    alleles = vp1['REF1'].str.cat(
+                vp1['ALT'].str.strip(), sep=",").str.split(",")
+
+    vp1['GT'] = vp1['GT'].str.replace(".", "0")
+    inds1 = vp1['GT'].str.get(0).astype(int).values
+    inds2 = vp1['GT'].str.get(-1).astype(int).values
+    x = 0
+    a1s = []
+    a2s = []
+    gts = []
+    homhet = []
+    for allele in alleles:
+        i1 = int(inds1[x])
+        i2 = int(inds2[x])
+        a1 = allele[i1]
+        a2 = allele[i2]
+        a1s.append(a1)
+        a2s.append(a2)
+        if a1 == a2:
+            homhet.append("HOM")
+        else:
+            homhet.append("HET")
+        gts.append("%s%s" % (a1, a2))
+        x += 1
+    vp1['HOMHET'] = homhet
+    vp1['Allele1'] = a1s
+    vp1['Allele2'] = a2s
+    vp1['Genotype'] = gts
+    vp1 = vp1.drop(['REF1', 'ALT', 'GT'], 1)
+    vp1[cols] = copy.copy(variants[cols])
+
+    Ls = []
+    for gene in [line.strip()
+                 for line in IOTools.openFile(genes[0]).readlines()]:
+        cp = []
+        with IOTools.openFile(genes[1]) as infile:
+            for line in infile:
+                r = re.search(gene, line)
+                if r:
+                    line = line.strip().split("\t")
+                    chrom = line[0]
+                    pos = line[1]
+                    cp.append("%s_%s" % (chrom, pos))
+        cp = set(cp)
+        for c in cp:
+            Ls.append((gene, c.split("_")))
+    df = pd.DataFrame(Ls)
+    df['CHROM'] = df[1].str.get(0)
+    df['POS'] = df[1].str.get(1)
+    df = df.drop(1, 1)
+    df.columns = ['gene', 'CHROM', 'POS']
+    variants = vp1.merge(df, 'left')
+    variants.to_csv(outfile, sep="\t")
