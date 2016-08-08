@@ -68,7 +68,7 @@ def convertReadsToIntervals(bamfile,
 
     is_paired = BamTools.isPaired(bamfile)
     current_file = bamfile
-    tmpdir = P.getTempFilename()
+    tmpdir = P.getTempFilename(".")
     statement = ["mkdir %(tmpdir)s"]
     nfiles = 0
 
@@ -149,7 +149,7 @@ def convertReadsToIntervals(bamfile,
     statement = " ; ".join(statement)
     P.run()
 
-    os.unlink(tmpdir)
+#    os.unlink(tmpdir)
 
 
 def countTags(infile, outfile):
