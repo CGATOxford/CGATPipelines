@@ -778,6 +778,67 @@ def loadContextStats(infiles, outfile):
     PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 
+@originate("geneset.dir/altcontext.bed.gz")
+def buildBedContext(outfile):
+    ''' Generate a bed file that can be passed into buildAltContextStats '''
+
+    dbh = connect()
+
+    tmp_bed_sorted_filename = P.getTempFilename(shared=True)
+
+    tmp_bed_sorted = IOTools.openFile(tmp_bed_sorted_filename, "w")
+
+    sql_statements = ['''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"lincRNA"
+    FROM gene_info GI  JOIN geneset_lincrna_exons_gtf GTF ON GI.gene_id=GTF.gene_id
+    WHERE GI.gene_biotype == "lincRNA";''',
+                  '''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"snoRNA" FROM gene_info GI
+    JOIN geneset_noncoding_exons_gtf GTF ON GI.gene_id=GTF.gene_id WHERE GI.gene_biotype == "snoRNA";''',
+                  '''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"miRNA"
+    FROM gene_info GI  JOIN geneset_noncoding_exons_gtf GTF ON GI.gene_id=GTF.gene_id
+    WHERE GI.gene_biotype == "miRNA";''',
+                  '''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"protein_coding"
+    FROM gene_info GI  JOIN geneset_coding_exons_gtf GTF ON GI.gene_id=GTF.gene_id
+    WHERE GI.gene_biotype == "protein_coding";''']
+
+    for sql_statement in sql_statements:
+        state = dbh.execute(sql_statement)
+
+        for line in state:
+            tmp_bed_sorted.write(("%s\n") % ("\t".join(map(str,line))))
+
+    tmp_bed_sorted.close()
+
+    statement = '''sortBed  -i %(tmp_bed_sorted_filename)s | gzip > %(outfile)s'''
+
+    P.run()
+
+    os.unlink(tmp_bed_sorted_filename)
+
+@P.add_doc(PipelineWindows.summarizeTagsWithinContext)
+@follows(buildBedContext)
+@transform(mapReadsWithHisat,
+           suffix(".bam"),
+           add_inputs(buildBedContext),
+           ".altcontextstats.tsv.gz")
+def buildAltContextStats(infiles, outfile):
+    ''' build mapping context stats of snoRNA, miRNA, lincRNA, protein coding '''
+
+    infile, bed = infiles
+
+    PipelineWindows.summarizeTagsWithinContext(
+        infile, bed,  outfile)
+
+@P.add_doc(PipelineWindows.loadSummarizedContextStats)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@follows(loadContextStats)
+@merge(buildAltContextStats, "altcontext_stats.load")
+def loadAltContextStats(infiles, outfile):
+    ''' load context mapping statistics into context_stats table '''
+    PipelineWindows.loadSummarizedContextStats(infiles,
+                                               outfile,
+                                               suffix=".altcontextstats.tsv.gz")
+
+
 ###################################################################
 # alignment-free quantification
 ###################################################################
