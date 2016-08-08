@@ -1049,7 +1049,7 @@ def getInput(track):
                 pattern = re.sub("%", "\S+", pattern)
             if re.search(pattern, fn):
                 input_files.extend(P.asList(value))
-
+    input_files = [re.sub('[^0-9a-zA-Z]+', '_', i) for i in input_files]
     return input_files
 
 
