@@ -146,6 +146,7 @@ Results
 	       xlab('')+
 	       ylab('Normalised Expression(Nominal scale)')+
 	       ggtitle("Length") +
+	       theme_bw() +
 	       theme(
 	       aspect.ratio=1,
 	       axis.text.x=element_text(size=10,angle=90),

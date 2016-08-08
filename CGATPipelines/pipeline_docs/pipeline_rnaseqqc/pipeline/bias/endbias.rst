@@ -17,11 +17,11 @@ Results
 
 .. report:: RnaseqqcReport.PicardThreePrimeBias
    :render: r-ggplot
-   :statement: aes(sample, value, fill=variable, colour=variable) +
+   :statement: aes(track, value, fill=variable, colour=variable) +
 	       geom_bar(stat="identity") +
 	       theme_bw() +
 	       xlab("") + ylab("") +
-	       theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) + 
+	       theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
 	       facet_grid(variable~factor_value)
 
    Summary statistics for 3' and 5' bias

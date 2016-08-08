@@ -15,8 +15,9 @@ Results
 .. report:: RnaseqqcReport.GenesOfInterest
    :groupby: track
    :render: r-ggplot
-   :statement: aes(gene_id, sample_name, fill=TPM) +
+   :statement: aes(gene_id, sample_name, fill=log(TPM)) +
 	       geom_tile() +
+	       scale_fill_continuous(name="log TPM") +
 	       theme_bw() +
 	       xlab("") + ylab("") +
 	       facet_grid(factor_value~., scales='free')

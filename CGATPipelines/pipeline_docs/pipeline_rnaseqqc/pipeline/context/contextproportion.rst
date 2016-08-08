@@ -38,7 +38,7 @@ tracks.
 .. report:: RnaseqqcReport.MappingContext
    :slices: total, rRNA
    :render: r-ggplot
-   :statement: aes(x = track, y = total/rRNA, fill=context) + 
+   :statement: aes(x = rownames(result), y = rRNA/total) + 
 	       geom_bar(stat='identity') + 
 	       theme(axis.text.x = element_text(size = 11, angle = 90, vjust=0.5, hjust = 1)) + 
 	       theme(axis.text.y = element_text(size = 11)) + theme(legend.text = element_text(size = 11)) + 

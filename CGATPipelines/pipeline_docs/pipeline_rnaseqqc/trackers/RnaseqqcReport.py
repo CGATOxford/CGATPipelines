@@ -412,7 +412,7 @@ class ExpressionDistribution(RnaseqqcTracker):
         full_df = pd.merge(df, factor_df, left_on="sample_id",
                            right_on="sample_id")
 
-        return full_df.reset_index().set_index("sample_name", drop=False)
+        return full_df.reset_index().set_index("factor")
 
 
 class SampleOverlapsExpress(RnaseqqcTracker):
@@ -425,8 +425,9 @@ class SampleOverlapsExpress(RnaseqqcTracker):
     '''
 
     def __call__(self, track, slice=None):
-        statement = """SELECT sample_id, transcript_id
+        statement = """SELECT sample_name, transcript_id
         FROM sailfish_transcripts
+        JOIN samples on sample_id = id
         WHERE TPM >= 100;"""
 
         df = pd.DataFrame.from_dict(self.getAll(statement))
@@ -441,12 +442,12 @@ class SampleOverlapsExpress(RnaseqqcTracker):
         Return an nxn dataframe of sample
         overlaps
         '''
-        dataframe.index = dataframe["sample_id"]
+        dataframe.index = dataframe["sample_name"]
         samples = set(dataframe.index)
         pairs = itertools.combinations_with_replacement(iterable=samples,
                                                         r=2)
-        _df = pd.DataFrame(columns=samples, index=samples)
-        _df.fillna(0.0, inplace=True)
+        df = pd.DataFrame(columns=samples, index=samples)
+        df.fillna(0.0, inplace=True)
 
         for comb in pairs:
             s1, s2 = comb
@@ -454,10 +455,11 @@ class SampleOverlapsExpress(RnaseqqcTracker):
             s2_gene = set(dataframe.loc[s2]["transcript_id"])
             gene_intersect = s1_gene.intersection(s2_gene)
             size = len(gene_intersect)
-            _df.loc[s1, s2] = size
-            _df.loc[s2, s1] = size
+            df.loc[s1, s2] = size
+            df.loc[s2, s1] = size
 
-        return _df
+        print df.head()
+        return df
 
 
 class ThreePrimeBias(RnaseqqcTracker):
@@ -662,7 +664,7 @@ class PicardThreePrimeBias(RnaseqqcTracker):
         final_df = pd.melt(merged_df, id_vars=[
             "track", "factor", "factor_value", "sample_name"])
 
-        return final_df.reset_index().set_index('factor')
+        return final_df.set_index('factor')
 
 
 class PicardStrandBias(RnaseqqcTracker):
@@ -677,11 +679,11 @@ class PicardStrandBias(RnaseqqcTracker):
 
         # remove the ".hisat" suffix from track
         df['track'] = [x.split(".")[0] for x in df['track']]
-        df['strand_bias'] = df['CORRECT_STRAND_READS'] / df['INCORRECT_STRAND_READS']
+        df['correct_strand_perc'] = 100 *(
+            df['CORRECT_STRAND_READS'] / (
+                df['CORRECT_STRAND_READS'] + df['INCORRECT_STRAND_READS']))
 
-        df = pd.melt(df, id_vars="track")
-
-        return df.reset_index().set_index('track', drop=False)
+        return df
 
 
 class Factors(RnaseqqcTracker):

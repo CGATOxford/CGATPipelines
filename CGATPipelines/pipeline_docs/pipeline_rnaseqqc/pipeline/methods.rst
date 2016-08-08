@@ -11,8 +11,9 @@ Factors
 
 The following table lists the factors associated with each sample:
 
-.. report:: RnaseqqcTracker.Factors
+.. report:: RnaseqqcReport.Factors
    :render: table 
+   :force:
 
    Table with sample factors.
 
