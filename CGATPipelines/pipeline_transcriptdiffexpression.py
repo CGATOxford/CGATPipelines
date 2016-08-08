@@ -819,8 +819,7 @@ if PARAMS['simulation_run']:
         infile, counts = infiles
 
         # multithreading not supported until > v0.42.1
-        # job_threads = PARAMS["kallisto_threads"]
-        job_threads = 1
+        job_threads = PARAMS["kallisto_threads"]
         job_memory = "8G"
 
         kallisto_options = PARAMS["kallisto_options"]
@@ -857,8 +856,7 @@ if PARAMS['simulation_run']:
         infiles, index = infiles
         infile, counts = infiles
 
-        # job_threads = PARAMS["salmon_threads"]
-        job_threads = 1
+        job_threads = PARAMS["salmon_threads"]
         job_memory = "8G"
 
         salmon_options = PARAMS["salmon_options"]
@@ -1097,14 +1095,13 @@ def quantifyWithKallisto(infiles, outfile):
     index = infiles[0][1]
 
     # multithreading not supported until > v0.42.1
-    # job_threads = PARAMS["kallisto_threads"]
-    job_threads = 1
+    job_threads = PARAMS["kallisto_threads"]
     job_memory = "6G"
 
     kallisto_options = PARAMS["kallisto_options"]
     bootstrap = PARAMS["kallisto_bootstrap"]
 
-    m = PipelineMapping.Kallisto()
+    m = PipelineMapping.Kallisto(pseudobam=PARAMS['kallisto_psuedobam'])
     statement = m.build(infile, outfile)
 
     P.run()
@@ -1120,8 +1117,7 @@ def quantifyWithSalmon(infiles, outfile):
     infile = [x[0] for x in infiles]
     index = infiles[0][1]
 
-    # job_threads = PARAMS["salmon_threads"]
-    job_threads = 1
+    job_threads = PARAMS["salmon_threads"]
     job_memory = "6G"
 
     salmon_options = PARAMS["salmon_options"]
@@ -1145,8 +1141,7 @@ def quantifyWithSailfish(infiles, outfile):
     infile = [x[0] for x in infiles]
     index = infiles[0][1]
 
-    # job_threads = PARAMS["salmon_threads"]
-    job_threads = 1
+    job_threads = PARAMS["sailfish_threads"]
     job_memory = "6G"
 
     sailfish_options = PARAMS["sailfish_options"]
@@ -1213,6 +1208,7 @@ def quantify():
 ###############################################################################
 
 
+# T.S move to Expression.py
 def estimateSleuthMemory(bootstraps, samples, transcripts):
     ''' The memory usage of Sleuth is dependent upon the number of
     samples, transcripts and bootsraps.
@@ -1300,6 +1296,12 @@ def runSleuth(design, outfiles, quantifier, transcripts):
 
     if PARAMS['sleuth_genewise']:
 
+        # gene-wise sleuth seems to be even more memory hungry!
+        # Use 2 * transcript memory estimate
+        job_memory = estimateSleuthMemory(
+            PARAMS["%(quantifier)s_bootstrap" % locals()],
+            2 * number_samples, number_transcripts)
+
         outfile_genes = outfile.replace(".tsv", "_genes.tsv")
         counts_genes = counts.replace(".tsv", "_genes.tsv")
         tpm_genes = tpm.replace(".tsv", "_genes.tsv")
@@ -1318,24 +1320,10 @@ def runSleuth(design, outfiles, quantifier, transcripts):
         --outfile-sleuth-count=%(counts_genes)s
         --outfile-sleuth-tpm=%(tpm_genes)s
         --sleuth-genewise
+        --gene-biomart=%(sleuth_gene_biomart)s
         >%(outfile_genes)s '''
 
         P.run()
-
-# # define sleuth targets
-# SLEUTHTARGETS = []
-
-# mapToSleuthTargets = {'kallisto': (runSleuthKallisto,),
-#                       'salmon': (runSleuthSalmon,),
-#                       'sailfish': (runSleuthSailfish,)}
-
-# for x in P.asList(PARAMS["quantifiers"]):
-#     SLEUTHTARGETS.extend(mapToSleuthTargets[x])
-
-
-# @follows(*SLEUTHTARGETS)
-# def runSleuth():
-#     pass
 
 
 @follows(*QUANTTARGETS)

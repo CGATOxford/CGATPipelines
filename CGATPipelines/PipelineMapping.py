@@ -504,7 +504,7 @@ class SequenceCollectionProcessor(object):
 
         assert len(infiles) > 0, "no input files for processing"
 
-        tmpdir_fastq = P.getTempDir()
+        tmpdir_fastq = P.getTempDir(shared=True)
 
         # create temporary directory again for nodes
         statement = ["mkdir -p %s" % tmpdir_fastq]
@@ -552,6 +552,7 @@ class SequenceCollectionProcessor(object):
                 # T.S need to use abi-dump for colorspace files
                 if datatype == "basecalls":
                     tool = "fastq-dump"
+                    self.datatype = "basecalls"
                 elif datatype == "colorspace":
                     tool = "abi-dump"
                     self.datatype = "solid"
@@ -618,9 +619,10 @@ class SequenceCollectionProcessor(object):
                     infile = sra_extraction_files[0]
                     basename = os.path.basename(infile)
 
-                    if (len(sra_extraction_files) == 1 and
-                        (basename.endswith("_1.fastq.gz") and
-                         self.datatype != "solid")):
+                    if(len(sra_extraction_files) == 1 and
+                       basename.endswith("_1.fastq.gz") and
+                       self.datatype != "solid"):
+
                         basename = basename[:-11] + ".fastq.gz"
                         statement.append(
                             "mv %s %s/%s" % (infile, tmpdir_fastq, basename))
@@ -631,19 +633,15 @@ class SequenceCollectionProcessor(object):
                     # record of qual files
                     elif self.datatype == "solid":
                         # single end SOLiD data
-
                         infile = P.snip(infile, "_1.fastq.gz") + "_F3.csfasta.gz"
-                        quality = P.snip(infile, "_F3.csfasta.gz") + "_QV.qual.gz"
+                        quality = P.snip(infile, "_F3.csfasta.gz") + "_F3_QV.qual.gz"
 
                         # qual file does not exist as tmpdir from
                         # SRA.extract is removed
                         # if not os.path.exists(quality):
                         #    raise ValueError("no quality file for %s" % infile)
 
-                        fastqfiles.append(("%s/%s_F3.csfasta.gz" %
-                                           (tmpdir_fastq, track),
-                                           "%s/%s_QV.qual.gz" %
-                                           (tmpdir_fastq, track)))
+                        fastqfiles.append((infile, quality))
 
                     # T.S I'm not sure if this works. Need a test case!
                     elif infile.endswith(".csfasta.F3.gz"):
@@ -808,6 +806,7 @@ class SequenceCollectionProcessor(object):
         self.tmpdir_fastq = tmpdir_fastq
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
+
         return "; ".join(statement) + ";", fastqfiles
 
 
@@ -1186,7 +1185,8 @@ class Salmon(Mapper):
 
 class Kallisto(Mapper):
 
-    '''run Kallisto to quantify transcript abundance from fastq files'''
+    '''run Kallisto to quantify transcript abundance from fastq files
+    - set pseudobam to True to output a pseudobam along with the quantification'''
 
     def __init__(self, pseudobam=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
@@ -1382,7 +1382,7 @@ class BWA(Mapper):
         track = P.snip(os.path.basename(outfile), ".bam")
 
         if nfiles == 1:
-            infiles = ",".join([self.quoteFile(x[0]) for x in infiles])
+            infiles = " ".join([self.quoteFile(x[0]) for x in infiles])
 
             statement.append('''
             bwa aln %%(bwa_aln_options)s -t %%(bwa_threads)i
@@ -2574,7 +2574,6 @@ class GSNAP(Mapper):
         '''
 
         track = P.snip(os.path.basename(outfile), ".bam")
-        outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""
@@ -2593,7 +2592,7 @@ class GSNAP(Mapper):
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort -o %(outf)s 2>>%(outfile)s.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.log;
         samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2728,7 +2727,6 @@ class STAR(Mapper):
             statement to pass to P.run to run post processing.
         '''
         track = P.snip(os.path.basename(outfile), ".bam")
-        outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""
