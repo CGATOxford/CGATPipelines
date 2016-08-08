@@ -513,7 +513,8 @@ def callMacs2peaks(infiles, outfile):
         tool_options=PARAMS['macs2_options'],
         tagsize=None)
 
-    statement = peakcaller.build(bam, outfile, PARAMS['macs2_contigsfile'],
+    statement = peakcaller.build(bam, outfile,
+                                 PARAMS['annotations_interface_contigs_bed'],
                                  inputf, insertsizef, PARAMS['IDR_run'],
                                  PARAMS['IDR_keeppeaks'])
     P.run()

@@ -436,10 +436,12 @@ class Macs2Peakcaller(Peakcaller):
 
     def callPeaks(self, infile,  outfile, controlfile=None):
         ''' build command line statement to call peaks.
-        the _raw file represents the unadulterated output from
-        MACS2. The actual output is then processed by the
-        postProcess method.  This _raw file is retained for
-        reproducibility.
+
+        The _log file represents the logging output from MACS2
+
+        The original location for the logging file (suffixed .macs2)
+        is overwritten by the output from passing the macs2 xls to
+        bed2table.py to give the final required outfile
         '''
 
         if self.tool_options:
@@ -483,20 +485,14 @@ class Macs2Peakcaller(Peakcaller):
         --SPMR
         %(options)s
         >& %(outfile)s ;
-        mv %(outfile)s %(outfile)s_raw;
+        mv %(outfile)s %(outfile)s_log;
         ''' % locals()
 
         return outfile, statement
 
     def compressOutput(self, infile, outfile,
                        contigsfile, controlfile):
-        ''' build command line statement to compress outfiles
-
-        ### NOTE
-        This takes a contig file but I don't understand what it is doing
-        with it.
-        The contig file was hard coded - I have moved it to the pipeline.ini.
-        '''
+        ''' build command line statement to compress outfiles'''
 
         statement = []
 
@@ -537,43 +533,29 @@ class Macs2Peakcaller(Peakcaller):
         '''
         postprocess MACS 2 results
 
+        Output files from MACS2 are passed to bed2table to annotate
+        them with various metrics including the centre of the peak and
+        the number of reads in the sample bam and control bam at the
+        peak position.
 
-        ### NOTE
-        This is doing a subset of the steps the old peakcalling pipeline
-        did on the MACS2 output - we're not sure how you chose which are still
-        needed and which to delete?
+        The xls output from macs2 is passed to bed2table to generate
+        the final outfile.
 
-        Some of the steps look slightly dodgy - the step which is generating
-        the subpeaks seems to just take the "summits" bed file and write
-        it out again but convert all the columns, including those which are
-        strings, into integers?
-        ###
-
+        Depending on the peak calling method of macs2,
+        either the a summits or broadpeak macs2 output will also be passed to
+        bed2table for annotation.
         '''
 
         filename_bed = outfile + "_peaks.xls.gz"
-        filename_diag = outfile + "_diag.xls"
-        filename_r = outfile + "_model.r"
-        filename_rlog = outfile + ".r.log"
-        filename_pdf = outfile + "_model.pdf"
         filename_subpeaks = outfile + "_summits.bed"
+        filename_broadpeaks = "%s.broadpeaks.macs_peaks.bed" % (
+            P.snip(outfile, ".macs2"))
 
         outfile_subpeaks = P.snip(
             outfile, ".macs2", ) + ".subpeaks.macs_peaks.bed"
 
-        filename_broadpeaks = P.snip(outfile,
-                                     ".macs2") + ".broadpeaks.macs_peaks.bed"
         outfile_broadpeaks = P.snip(
             outfile, ".macs2", ) + ".broadpeaks.macs_peaks.bed"
-
-        # TS - will bedfile ever not be created?
-        # previous pipeline had a test to check. IS there an option
-        # which prevents bedfile output?
-        # PREVIOUS CODE:
-        # if not os.path.exists(filename_bed):
-        #    E.warn("could not find %s" % filename_bed)
-        #    P.touch(outfile)
-        #    return
 
         shift = getMacsPeakShiftEstimate(insertsizefile)
         assert shift is not None,\
@@ -582,8 +564,8 @@ class Macs2Peakcaller(Peakcaller):
         peaks_headers = ",".join((
             "contig", "start", "end",
             "interval_id",
-            "pvalue", "fold", "qvalue",
-            "macs_nprobes"))
+            "-log10(pvalue)", "fold", "-log10(qvalue)",
+            "macs_nprobes", "macs_peakname"))
 
         if controlfile:
             control = '''--control-bam-file=%(controlfile)s
@@ -636,15 +618,14 @@ class Macs2Peakcaller(Peakcaller):
             subpeaks_headers = ",".join((
                 "contig", "start", "end",
                 "interval_id",
-                "Height",
-                "SummitPosition"))
+                "Height"))
 
             # add a peak identifier and remove header
             statement += '''
             cat %(filename_subpeaks)s |
             awk '/Chromosome/ {next; }
-            {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
-            $1,$2,$3,++a,$4,$5)}'
+            {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
+            $1,$2,$3,++a,$5)}'
             | python %%(scriptsdir)s/bed2table.py
             --counter=peaks
             --bam-file=%(infile)s
