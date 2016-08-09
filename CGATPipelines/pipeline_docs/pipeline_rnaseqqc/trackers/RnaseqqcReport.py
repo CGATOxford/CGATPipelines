@@ -517,6 +517,29 @@ class MappingTracker(TrackerSQL):
 class MappingContext(MappingTracker, SingleTableTrackerRows):
     table = "context_stats"
 
+#class MappingAltContext(MappingTracker, SingleTableTrackerRows):
+#    table = "altcontext_stats"
+
+class MappingAltContent(RnaseqqcTracker):
+    table = "altcontext_stats"
+
+    def __call__(self, track, slice=None):
+
+        statement = "SELECT * FROM %(table)s"
+        df = self.getDataFrame(statement)
+        df.set_index("track", drop=True, inplace=True)
+        df.index.name = "track"
+
+        def norm_row(array):
+            total = array['total']
+            return [float(x)/total for x in array]
+
+        df  = df.apply(axis=1, func=norm_row)
+        other_columns = [x for x in df.columns if "total" not in x]
+        df['other'] = df['total'] - df.loc[:,other_columns].sum(axis=1)
+        df.drop('total', axis=1, inplace=True)
+        return df
+
 
 class ProteinContext(RnaseqqcTracker):
     table = "context_stats"
