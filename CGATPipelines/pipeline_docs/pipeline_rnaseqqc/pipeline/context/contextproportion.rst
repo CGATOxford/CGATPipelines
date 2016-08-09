@@ -23,6 +23,17 @@ Summary::
   are the take-home messsages, how should the figures be interpreted, etc
 
 
+Mapping summary
+===============
+
+The following table lists all genomic contexts that reads map to. 
+
+.. report:: RnaseqqcReport.MappingContext
+   :render: table
+   :force:
+
+   Number of alignments that align in various genomic contexts
+
 
 Ribosomal and Repetitive RNA expression
 =======================================
@@ -48,50 +59,26 @@ tracks.
 
 
 
-Non-coding RNA expression
-=========================
+Context stats RNA expression
+============================
 
 The following plots examine the number of alignments to long intergenic 
 non-coding and micro RNA. RNA annotations are taken from the 
 UCSC repeatmasker tracks.
 
-.. report:: RnaseqqcReport.MappingContext
+.. report:: RnaseqqcReport.MappingAltContent
    :render: table
-   :slices: total,lincRNA,miRNA
 
    Number of alignments that align to long intergenic non-coding and 
    micro RNAs (from the UCSC repeatmasker track).
 
-.. report:: RnaseqqcReport.MappingContext
+.. report:: RnaseqqcReport.MappingAltContent
    :render: stacked-bar-plot
-   :slices: total,lincRNA,miRNA
    :split-at: 10
 
    Proportion of alignments that align to long intergenic non-coding and 
    micro RNAs across samples.
 
-
-Protein coding expression
-=========================
-
-The following plots depict the number of alignments to protein
-coding and (protein coding) pseudogene exons. The annotations are
-taken from the ENSEMBL gene set.
-
-.. report:: RnaseqqcReport.MappingContext
-   :render: table
-   :slices: total,protein_coding,pseudogene
-
-   Number of alignments that align to protein coding genes or pseudo
-   genes across samples.
-
-.. report:: RnaseqqcReport.MappingContext
-   :render: stacked-bar-plot
-   :slices: total,protein_coding,pseudogene
-   :split-at: 10
-
-   Proportion of alignments that align to protein coding genes or
-   pseudo genes across samples.
 
 Aims
 ----
@@ -125,13 +112,6 @@ More bad examples `<http://myBadData.html >`
 
 Your data:
 
-The following table lists all genomic contexts that reads map to. 
-
-.. report:: RnaseqqcReport.MappingContext
-   :render: table
-   :force:
-
-   Number of alignments that align in various genomic contexts
 
 
 Commentary
