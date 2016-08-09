@@ -9,10 +9,27 @@ RNASeqQC pipeline
 :Tags: Python
 
 
-Sailfish is utlised to rapidly estimate transcript abundance. This
-requires a multi-fasta transcripts file.
+Overview
+========
 
-For further details see http://www.cs.cmu.edu/~ckingsf/software/sailfish/
+This pipeline takes in fastq or sra files and then performs a number
+of QC steps on the reads. This pipeline should be ran as the first step
+in your RNA seq analysis work flow. It will help detect error and biases
+within your raw data. The output of the pipeline an be used to filter out
+problematic cells in a standard RNA seq experiment. For single cell RNA seq
+the pipeline_rnaseqqc.py should be ran instead.
+
+The piepline uses sailfish to perform transcript quantification and then
+performs priciple component analysis, multidementional scaling and attempts
+to look at the overlap of sample expression between the different cells. You
+can provide genes of interest in the pipeline.ini file and look at their
+expression between the different cells. 
+
+The piepleine also subsets the the first n reads from fastq files and performs
+hisat mapping. n reads can be set using sample_size in pipeline.ini file. A
+set of quality matrics are then produced to allow the sample context bias, 3'
+bias, strandedness and bam stats to be generated
+
 
 Individual tasks are enabled in the configuration file.
 
@@ -89,6 +106,7 @@ Pipeline output
 
 The major output is a set of HTML pages and plots reporting on the
 apparent biases in transcript abudance within the sequence archive
+The pipeline also produces output in the database file:`csvdb`.
 
 Example
 =======
@@ -104,7 +122,39 @@ To run the example, simply unpack and untar::
 
 Requirements:
 
-sailfish
++---------+------------+------------------------------------------------+
+|*Program*|*Version*   |*Purpose*                                       |
++---------+------------+------------------------------------------------+
+|sailfish |>=0.9.0     |pseudo alignment                               |
++---------+------------+------------------------------------------------+
+|hisat    |>=0.1.6     |read mapping                                   |
++---------+------------+------------------------------------------------+
+|samtools |>=0.1.16    |bam/sam files
++---------+------------+------------------------------------------------+
+|bedtools |            |work with intervals
++---------+------------+------------------------------------------------+
+|picard   |>=1.42      |bam/sam files
++---------+------------+------------------------------------------------+
+|bamstats |>=1.22      |from CGR, liverpool
++---------+------------+------------------------------------------------+
+|sra-tools|            |extracting sra files
++---------+------------+------------------------------------------------+
+
+
+Glossary
+========
+
+.. glossary::
+
+   hisat
+      hisat_- a read mapper used in the pipeline because it is
+              relatively quick to run
+   sailfish
+      sailfish_-a pseudoaligner that is used for quantifying the
+                abundance transcripts
+.._hisat: http://ccb.jhu.edu/software/hisat/manual.shtml
+.. sailfish: https://github.com/kingsfordgroup/sailfish
+
 
 Code
 ====
