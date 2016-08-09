@@ -361,20 +361,15 @@ class SamplePCAVariance(SamplePCA):
 
 class BiasFactors(RnaseqqcTracker):
 
-    slices = ("GC_Content", "length", "AA", "TT", "CC", "GG")
+    bias_factor = ""
 
     def __call__(self, track, slice=None):
-        
-        if not slice:
-            where = "WHERE variable = 'LogTPM_norm'"
-        else:
-            where = "WHERE variable = 'LogTPM_norm' AND bias_factor='%s'" % slice
-        
+
         statement = """
-        SELECT bin, sample_id, value, bias_factor
+        SELECT bin, sample_id, value
         FROM bias_binned_means
-        %(where)s
-        """ % locals()
+        WHERE variable = 'LogTPM_norm' AND bias_factor='%(bias_factor)s'
+        """
 
         # fetch data
         df = self.getDataFrame(statement)
@@ -386,7 +381,34 @@ class BiasFactors(RnaseqqcTracker):
         full_df = pd.merge(df, factor_df, left_on="sample_id",
                            right_on="sample_id")
 
-        return full_df.reset_index().set_index("factor")
+        full_df = full_df.reset_index().set_index("factor")
+        full_df.index.names = ["track"]
+
+        return full_df
+
+
+class BiasFactorsGCContent(BiasFactors):
+    bias_factor = "GC_Content"
+
+
+class BiasFactorsLength(BiasFactors):
+    bias_factor = "length"
+
+
+class BiasFactorsTT(BiasFactors):
+    bias_factor = "TT"
+
+
+class BiasFactorsAA(BiasFactors):
+    bias_factor = "AA"
+
+
+class BiasFactorsCC(BiasFactors):
+    bias_factor = "CC"
+
+
+class BiasFactorsGG(BiasFactors):
+    bias_factor = "GG"
 
 
 class ExpressionDistribution(RnaseqqcTracker):
@@ -396,9 +418,9 @@ class ExpressionDistribution(RnaseqqcTracker):
         SELECT sample_id, transcript_id, TPM
         FROM sailfish_transcripts"""
 
-        df = pd.DataFrame.from_dict(self.getAll(statement))
-        c = 0.1
-        df['logTPM'] = df['TPM'].apply(lambda x: np.log2(c + x))
+        df = self.getDataFrame(statement)
+
+        df['logTPM'] = df['TPM'].apply(lambda x: np.log2(x + 0.1))
 
         factor_statement = '''
         select *
@@ -412,7 +434,10 @@ class ExpressionDistribution(RnaseqqcTracker):
         full_df = pd.merge(df, factor_df, left_on="sample_id",
                            right_on="sample_id")
 
-        return full_df.reset_index().set_index("factor")
+        print full_df.reset_index().set_index("factor").shape
+        print full_df.reset_index().set_index("factor").head()
+        print full_df.reset_index().set_index("factor").tail()
+        return full_df.reset_index().set_index("factor").tail(10360000)
 
 
 class SampleOverlapsExpress(RnaseqqcTracker):
