@@ -11,16 +11,20 @@ Expression distributions should be similar for samples from similar
 tissues etc. Stark differences between samples from similar RNA
 samples should raise concern.
 
+Typically you will see a bimodal distribution of expression values
+with a spike at ~0 log2TPM representing non- expressed or very lowly
+expressed transcripts, and an approroximately normal distribution with
+mean > 0 log2 TPM for expressed genes
 
 Results
 =======
 
 .. report:: RnaseqqcReport.ExpressionDistribution
    :render: r-ggplot
-   :statement: aes(x=logTPM, group=as.factor(sample_name), colour=as.factor(sample_name))+
-	       theme_bw() +
-	       geom_density()
-
+   :statement: aes(x=logTPM, group=sample_id, colour=factor_value) +
+	       geom_density() +
+	       scale_colour_discrete(name="Factor Level") +
+	       theme_bw()
 
 Aims
 ----
@@ -50,8 +54,7 @@ How the results are generated
 1. Sample_ID, transcript_ID and TPM are extracted from the 
    "transcript_quantification" table in the pipeline database and
    entered into a dataframe
-2. TPM values are log transformed, log2(TPM_count + c), where c is
-   a user-defined constant eg. 0.1, 1
+2. TPM values are log transformed, log2(TPM_count + 0.1)
 3. A density plot is produced using the geom_density function from
    ggplot2
 

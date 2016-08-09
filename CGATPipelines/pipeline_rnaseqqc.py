@@ -70,6 +70,20 @@ and then set the ``factors`` variable in :file:`pipeline.ini` to::
 
    factors=experiment-source-replicate-lane
 
+If you want to include additional factors which are not identifiable
+from the sample names you can specfify these in an optional file
+"additional_factors.tsv". This file must contain the sample names in
+the first columns and then an additional column for each factor (tab
+separated). See below for an example to include the additional factors
+"preparation_date" and "rna_quality":
+
+sample    preparation_date    rna_quality
+sample1-mRNA-10k-R1-L01    01-01-2016    poor
+sample1-mRNA-10k-R1-L01    01-01-2016    poor
+sample1-mRNA-10k-R1-L02    04-01-2016    good
+sample1-mRNA-10k-R1-L02    04-01-2016    good
+
+
 Pipeline output
 ===============
 
@@ -579,8 +593,8 @@ def subsetRange(infile, outfiles):
     infile, inf_suffix = findSuffixedFile(P.snip(infile, ".sentinel"),
                                           [x[1:] for x in SEQUENCESUFFIXES])
 
-    # PipelineMapping.Counter double counts for paired end Note this
-    # wont handle sra. Need to add a call to Sra.peak to check for
+    # PipelineMapping.Counter double counts for paired end
+    # Note: this wont handle sra. Need to add a call to Sra.peak to check for
     # paired end files in SRA
     if inf_suffix == ".fastq.1.gz":
         nreads = nreads/2
@@ -887,6 +901,7 @@ def runSailfish(infiles, outfile):
        ["sailfish.dir/sailfish_transcripts.tsv.gz",
         "sailfish.dir/sailfish_genes.tsv.gz"])
 def mergeSailfishResults(infiles, outfiles):
+    ''' concatenate sailfish expression estimates from each sample'''
 
     s_infiles = " " .join(sorted(infiles))
     outfile_transcripts, outfile_genes = outfiles
@@ -946,8 +961,7 @@ def loadSailfishResults(infile, outfile):
            suffix("reference.gtf.gz"),
            "refflat.txt")
 def buildRefFlat(infile, outfile):
-    '''build flat geneset for Picard RnaSeqMetrics.
-    '''
+    '''build flat geneset for Picard RnaSeqMetrics.'''
 
     tmpflat = P.getTempFilename(".")
 
@@ -1277,11 +1291,16 @@ def buildFactorTable(infiles, outfile):
         raise ValueError("factors not defined in config file")
     factor_names = factor_names.split("-")
 
+    sampleID2sampleName = {}
+
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("sample_id\tfactor\tfactor_value\n")
 
         for sample_id, filename in enumerate(sorted(infiles)):
+
             sample_name, suffix = os.path.basename(filename).split(".", 1)
+            sampleID2sampleName[sample_name] = sample_id + 1
+
             parts = sample_name.split("-")
 
             if len(parts) != len(factor_names):
@@ -1297,6 +1316,30 @@ def buildFactorTable(infiles, outfile):
                                       factor, factor_value)) + "\n")
             outf.write("\t".join((str(sample_id + 1), "genome",
                                   PARAMS["genome"])) + "\n")
+
+        if os.path.exists("additional_factors.tsv"):
+            with IOTools.openFile("additional_factors.tsv", "r") as inf:
+                header = inf.next()
+                header = header.strip().split("\t")
+                additional_factors = header[1:]
+                for line in inf:
+                    line = line.strip().split("\t")
+                    sample_name = line[0]
+                    factors_values = line[1:]
+                    for factor_ix in range(0, len(additional_factors)):
+                        try:
+                            outf.write("\t".join((
+                                str(sampleID2sampleName[sample_name]),
+                                additional_factors[factor_ix],
+                                factors_values[factor_ix])) + "\n")
+                        except KeyError as ke:
+                            sample_names = [os.path.basename(x).split(".")[0]
+                                            for x in infiles]
+                            raise KeyError(
+                                "Sample name in additional_factors table does "
+                                " not match up with sample names from raw "
+                                "infiles: %s not in %s" % (
+                                    ke, ",".join(sample_names)))
 
 
 @transform((buildExperimentTable, buildSamplesTable, buildFactorTable),
@@ -1436,8 +1479,8 @@ def plotTopGenesHeatmap(outfile):
     plot a heatmap of the intersection'''
 
     # if someone can find a nice heatmap plotter from a dissimilarity
-    # matrix using CGATReport, this should be changed into a tracker
-    # (sqlite and pandas code) and renderer
+    # matrix which is compatable with CGATReport, the sqlite and
+    # pandas code should be changed into a tracker
 
     exp_select_cmd = '''
     SELECT TPM, gene_id, sample_name
@@ -1499,7 +1542,8 @@ def plotTopGenesHeatmap(outfile):
         intersection_df, index="sample1", columns="sample2", values="fraction")
 
     for factor in set(factors_df['factor'].tolist()):
-
+        print factor
+        print factors_df
         # don't want to plot coloured by genome
         if factor == "genome":
             continue
@@ -1523,7 +1567,7 @@ def plotTopGenesHeatmap(outfile):
           brewer.pal(length(levels(fact_df$factor_value)),"Dark2"))(
             length(levels(fact_df$factor_value)))
         side_colours = colours[as.numeric((fact_df$factor_value))]
-
+        print(side_colours)
         # plot
         png("%(plotfile)s", width=1000, heigh=1000)
         heatmap.3(as.dist(1- as.matrix(int_df)),

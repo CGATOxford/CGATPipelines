@@ -640,7 +640,7 @@ else:
 def buildKallistoIndex(infile, outfile):
     ''' build a kallisto index'''
 
-    job_memory = "2G"
+    job_memory = "12G"
 
     statement = '''
     kallisto index -i %(outfile)s -k %(kallisto_kmer)s %(infile)s

@@ -48,17 +48,17 @@ The table of contents below lists the sections of pipeline_rnaseqqc report.
    :maxdepth: 2
    
    pipeline/executivesummary.rst
-   pipeline/pipeline_summary.rst
    pipeline/mappinglog.rst
    pipeline/context.rst
    pipeline/saturation.rst
    pipeline/ExpressionDistribution.rst
+   pipeline/strandedness.rst
    pipeline/bias.rst
    pipeline/clustering.rst
    pipeline/topexpressed.rst
    pipeline/genesofinterest.rst
    pipeline/methods.rst
-
+   pipeline/pipeline_summary.rst
    
 
 

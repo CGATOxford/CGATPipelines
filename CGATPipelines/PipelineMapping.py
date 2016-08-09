@@ -2440,7 +2440,7 @@ class Hisat(Mapper):
         index_prefix = "%(hisat_index_dir)s/%(genome)s"
 
         if self.stranded:
-            strandedness = "--rna-strandness %s" % stranded
+            strandedness = "--rna-strandness %s" % self.stranded
         else:
             strandedness = ""
 
@@ -2468,7 +2468,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            --rna-strandness %%(hisat_library_type)s
+            %(strandedness)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -1 %(infiles1)s
@@ -2530,7 +2530,7 @@ class Hisat(Mapper):
         statement = '''
         samtools view -uS %(tmpdir_hisat)s/%(track)s
         %(strip_cmd)s
-        | samtools sort -o %(outfile)s 2>>%(outfile)s.hisat.log;
+        | samtools sort - -o %(outfile)s 2>>%(outfile)s.hisat.log;
         samtools index %(outfile)s;
         rm -rf %(tmpdir_hisat)s;
         ''' % locals()
