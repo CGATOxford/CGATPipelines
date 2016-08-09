@@ -1584,6 +1584,72 @@ def plotTopGenesHeatmap(outfile):
 
     P.touch(outfile)
 
+
+###################################################################
+# Plot expression distribution
+###################################################################
+
+@mkdir("sailfish.dir/plots.dir")
+@follows(loadMetaInformation,
+         loadSailfishResults)
+@originate("sailfish.dir/plots.dir/expression_distribution.sentinel")
+def plotExpression(outfile):
+    "Plot the per sample expression distibutions coloured by factor levels"
+
+    # Note: this was being done within the pipeline but the size of
+    # the dataframe seemed to be causing errors:
+    # "Data values must be of type string or None."
+    # See RnaseqqcReport.ExpressionDistribution tracker
+
+    dbh = connect()
+
+    statement = """
+    SELECT sample_id, transcript_id, TPM
+    FROM sailfish_transcripts"""
+
+    df = pd.read_sql(statement, dbh)
+
+    df['logTPM'] = df['TPM'].apply(lambda x: np.log2(x + 0.1))
+
+    factors = dbh.execute("SELECT DISTINCT factor FROM factors")
+    factors = [x[0] for x in factors if x[0] != "genome"]
+
+    for factor in factors:
+
+        plotfile = P.snip(outfile, ".sentinel") + "_%s.png" % factor
+
+        factor_statement = '''
+        select *
+        FROM factors
+        JOIN samples
+        ON factors.sample_id = samples.id
+        WHERE factor = "%(factor)s"''' % locals()
+
+        factor_df = pd.read_sql(factor_statement, dbh)
+
+        full_df = pd.merge(df, factor_df, left_on="sample_id",
+                           right_on="sample_id")
+
+        plotDistribution = R('''
+        function(df){
+
+        library(ggplot2)
+        p = ggplot(df, aes(x=logTPM, group=sample_name,
+                           colour=as.factor(factor_value))) +
+        geom_density() +
+        xlab("Log2(TPM)") + ylab("Density") +
+        scale_colour_discrete(name="Factor Level") +
+        theme_bw() +
+        ggtitle("%(factor)s")
+
+        ggsave("%(plotfile)s")
+        }
+        ''' % locals())
+
+        plotDistribution(pandas2ri.py2ri(full_df))
+
+    P.touch(outfile)
+
 ###################################################################
 # Main pipeline tasks
 ###################################################################
@@ -1597,7 +1663,8 @@ def plotTopGenesHeatmap(outfile):
          loadBias,
          loadPicardRnaSeqMetrics,
          plotSailfishSaturation,
-         plotTopGenesHeatmap)
+         plotTopGenesHeatmap,
+         plotExpression)
 def full():
     pass
 

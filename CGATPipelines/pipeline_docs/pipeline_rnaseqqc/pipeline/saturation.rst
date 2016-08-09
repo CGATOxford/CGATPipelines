@@ -7,6 +7,41 @@ Sequencing Depth Saturation curves
 Summary
 =======
 
+If all other variables remain constant, increased sequencing depth
+will increase quantification accurary. However the gains will be
+minimal where sequencing depth is already sufficient. Here, we inspect
+the impact of reducing the sequencing depth on the quantification
+accuracy, using the expression estimates from the full depth sample as
+a proxy "ground truth". If we can reduce the read depth to 50% without
+having a serious impact on the quantification estimates, this suggests
+the sequencing depth is sufficient.
+
+
+Results
+=======
+
+Sequencing depth vs. quantification accuracy
+============================================
+
+.. report:: RnaseqqcReport.imagesTracker
+   :render: gallery-plot
+   :glob: sailfish.dir/plots.dir/saturation_plots_accuracy.png
+
+   Average absolute difference between the expression estimate and the
+   expected expression, normalised to the expected expression. The
+   lines represent deciles of gene expression
+
+
+Sequencing depth vs. boostrap variance
+======================================
+
+.. report:: RnaseqqcReport.imagesTracker
+   :render: gallery-plot
+   :glob: sailfish.dir/plots.dir/saturation_plots_boostrap_cv.png
+
+   Average CV per sequencing depth for deciles of expression since
+   expression level
+
 Aims
 ----
 
@@ -90,27 +125,7 @@ The bad (both plots)
 More bad examples `<http://myBadData.html >`
 
 
-Sequencing depth vs. quantification accuracy
-============================================
 
-.. report:: RnaseqqcReport.imagesTracker
-   :render: gallery-plot
-   :glob: sailfish.dir/plots.dir/saturation_plots_accuracy.png
-
-   Average absolute difference between the expression estimate and the
-   expected expression, normalised to the expected expression. The
-   lines represent deciles of gene expression
-
-
-Sequencing depth vs. boostrap variance
-======================================
-
-.. report:: RnaseqqcReport.imagesTracker
-   :render: gallery-plot
-   :glob: sailfish.dir/plots.dir/saturation_plots_boostrap_cv.png
-
-   Average CV per sequencing depth for deciles of expression since
-   expression level
 
 
 

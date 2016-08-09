@@ -445,9 +445,8 @@ class ExpressionDistribution(RnaseqqcTracker):
                            right_on="sample_id")
 
         print full_df.reset_index().set_index("factor").shape
-        print full_df.reset_index().set_index("factor").head()
-        print full_df.reset_index().set_index("factor").tail()
-        return full_df.reset_index().set_index("factor").tail(10360000)
+        # trying to find the point at which the error occurs!
+        return full_df.reset_index().set_index("factor").tail(10355125)
 
 
 class SampleOverlapsExpress(RnaseqqcTracker):
@@ -544,8 +543,23 @@ class MappingTracker(TrackerSQL):
 class MappingContext(MappingTracker, SingleTableTrackerRows):
     table = "context_stats"
 
-#class MappingAltContext(MappingTracker, SingleTableTrackerRows):
-#    table = "altcontext_stats"
+class MappingContentRNA(RnaseqqcTracker):
+
+    def __call__(self, track, slice=None):
+
+        statement = "SELECT rRNA, total, track FROM context_stats"
+        df = self.getDataFrame(statement)
+        df.set_index("track", drop=True, inplace=True)
+        df.index.name = "track"
+
+        def norm_row(array):
+            total = array['total']
+            return [float(x)/total for x in array]
+
+        df  = df.apply(axis=1, func=norm_row)
+        df['other'] = df['total'] - df['rRNA']
+        df.drop('total', axis=1, inplace=True)
+        return df
 
 class MappingAltContent(RnaseqqcTracker):
     table = "altcontext_stats"

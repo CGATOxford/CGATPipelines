@@ -19,12 +19,11 @@ mean > 0 log2 TPM for expressed genes
 Results
 =======
 
-.. report:: RnaseqqcReport.ExpressionDistribution
-   :render: r-ggplot
-   :statement: aes(x=logTPM, group=sample_id, colour=factor_value) +
-	       geom_density() +
-	       scale_colour_discrete(name="Factor Level") +
-	       theme_bw()
+.. report:: RnaseqqcReport.imagesTracker
+   :render: gallery-plot
+   :glob: sailfish.dir/plots.dir/expression_distribution_*.png
+
+   Distibution of expression values per sample, coloured by factor levels
 
 Aims
 ----

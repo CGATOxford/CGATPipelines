@@ -27,8 +27,7 @@ individual sample will be very similar.
 Results
 =======
 
-.. report:: RnaseqqcReport.BiasFactors
-   :slices: GC_Content
+.. report:: RnaseqqcReport.BiasFactorsGCContent
    :render: r-ggplot
    :statement: aes(bin, value, colour=factor_value)+
 	       geom_point()+
@@ -48,8 +47,7 @@ Results
 
    Mean expression across binned GC content. Local regression.
 
-.. report:: RnaseqqcReport.BiasFactors
-   :slices: AA
+.. report:: RnaseqqcReport.BiasFactorsAA
    :render: r-ggplot
    :statement: aes(bin, value, colour=factor_value)+
 	       geom_point()+
@@ -69,8 +67,7 @@ Results
 
    Mean expression across binned AA dinucleotide content. Local regression.
 
-.. report:: RnaseqqcReport.BiasFactors
-   :slices: TT
+.. report:: RnaseqqcReport.BiasFactorsCC
    :render: r-ggplot
    :statement: aes(bin, value, colour=factor_value)+
 	       geom_point()+
@@ -88,10 +85,9 @@ Results
 	       title=element_text(size=15),
 	       legend.text=element_text(size=15))
 
-   Mean expression across binned TT dinucleotide content. Local regression.
+   Mean expression across binned CC dinucleotide content. Local regression.
 
-.. report:: RnaseqqcReport.BiasFactors
-   :slices: CC
+.. report:: RnaseqqcReport.BiasFactorsGG
    :render: r-ggplot
    :statement: aes(bin, value, colour=factor_value)+
 	       geom_point()+
@@ -109,11 +105,10 @@ Results
 	       title=element_text(size=15),
 	       legend.text=element_text(size=15))
 
-   Mean expression across binned CC dinucleotide content. Local
+   Mean expression across binned GG dinucleotide content. Local
    regression.
 
-.. report:: RnaseqqcReport.BiasFactors
-   :slices: GG
+.. report:: RnaseqqcReport.BiasFactorsTT
    :render: r-ggplot
    :statement: aes(bin, value, colour=factor_value)+
 	       geom_point()+
@@ -131,12 +126,11 @@ Results
 	       title=element_text(size=15),
 	       legend.text=element_text(size=15))
 
-   Mean expression across binned GG dinucleotide content. Local
+   Mean expression across binned TT dinucleotide content. Local
    regression.
 
 
-.. report:: RnaseqqcReport.BiasFactors
-   :slices: length
+.. report:: RnaseqqcReport.BiasFactorsLength
    :render: r-ggplot
    :statement: aes(bin, value, colour=factor_value)+
 	       geom_point()+

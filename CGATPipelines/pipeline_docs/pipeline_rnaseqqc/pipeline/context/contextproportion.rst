@@ -46,17 +46,9 @@ tracks.
 
    Proportion of alignments that align to ribosomal annotations across samples.
 
-.. report:: RnaseqqcReport.MappingContext
-   :slices: total, rRNA
-   :render: r-ggplot
-   :statement: aes(x = rownames(result), y = rRNA/total) + 
-	       geom_bar(stat='identity') + 
-	       theme(axis.text.x = element_text(size = 11, angle = 90, vjust=0.5, hjust = 1)) + 
-	       theme(axis.text.y = element_text(size = 11)) + theme(legend.text = element_text(size = 11)) + 
-	       theme(legend.key.size = unit(0.5, "cm")) + 
-	       theme(plot.background = element_blank(),panel.grid.major = element_blank(),
-	       panel.grid.minor = element_blank(),panel.border = element_blank())
-
+.. report:: RnaseqqcReport.MappingContentRNA
+   :render: stacked-bar-plot
+   :split-at: 10
 
 
 Context stats RNA expression
