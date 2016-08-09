@@ -16,6 +16,7 @@ from CGATReport.Utils import PARAMS as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 from CGATReport.Utils import PARAMS
 import CGATPipelines.Pipeline as Pipeline
+import matplotlib.pyplot as plt
 
 DATABASE = PARAMS.get('readqc_backend', PARAMS.get('sql_backend', 'sqlite:///./csvdb'))
 
@@ -172,17 +173,26 @@ class TranscriptQuantificationHeatmap(object):
         for i in range(0, len(factors.index)):
             cols.append(seaborn.xkcd_rgb[col_dict[factors.iloc[i, 0]]])
 
-        return cols
+        return cols, factors, unique, xkcd
 
     def __call__(self, data, path):
 
-        colorbar = self.getColorBar(data)
+        colorbar, factors, unique, xkcd = self.getColorBar(data)
         n_samples = data.shape[0]
         data = data.iloc[:, :n_samples]
+        col_dict = dict(zip(unique, xkcd))
 
         print data.head()
+        seaborn.set(font_scale=.5)
         ax = seaborn.clustermap(data,
-                                row_colors=colorbar)
+                                row_colors=colorbar, col_colors=colorbar)
+        plt.setp(ax.ax_heatmap.yaxis.set_visible(False))
+
+        for label in unique:
+            ax.ax_col_dendrogram.bar(0,0, color=seaborn.xkcd_rgb[col_dict[label]],
+                                     label=label, linewidth=0)
+        ax.ax_col_dendrogram.legend(loc="center", ncol=len(unique))
+
         return ResultBlocks(ResultBlock(
             '''#$mpl %i$#\n''' % ax.cax.figure.number,
             title='ClusterMapPlot'))
@@ -533,6 +543,29 @@ class MappingTracker(TrackerSQL):
 
 class MappingContext(MappingTracker, SingleTableTrackerRows):
     table = "context_stats"
+
+#class MappingAltContext(MappingTracker, SingleTableTrackerRows):
+#    table = "altcontext_stats"
+
+class MappingAltContent(RnaseqqcTracker):
+    table = "altcontext_stats"
+
+    def __call__(self, track, slice=None):
+
+        statement = "SELECT * FROM %(table)s"
+        df = self.getDataFrame(statement)
+        df.set_index("track", drop=True, inplace=True)
+        df.index.name = "track"
+
+        def norm_row(array):
+            total = array['total']
+            return [float(x)/total for x in array]
+
+        df  = df.apply(axis=1, func=norm_row)
+        other_columns = [x for x in df.columns if "total" not in x]
+        df['other'] = df['total'] - df.loc[:,other_columns].sum(axis=1)
+        df.drop('total', axis=1, inplace=True)
+        return df
 
 
 class ProteinContext(RnaseqqcTracker):
