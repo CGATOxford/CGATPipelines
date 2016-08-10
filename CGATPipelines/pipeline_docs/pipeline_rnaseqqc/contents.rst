@@ -15,14 +15,16 @@ problems or biases in the data that may need to be taken into account in the
 downstream analysis (e.g. differential expression analysis or transcript identification). 
 
 In particular this report provides plots to investigate:
-  * Mapping statistics 
   * Quality of sequencing and material sequenced
   * Identification of biases in the data
   * The grouping/similarity of treatments and replicates
   * Validation of sample and cell type
+  * Strandedness confirmation
 
 
-Each of the analysis subsections should contain clear descriptions of what 
+Each of the analysis subsections should contain clear descriptions of
+the purpose of each analysis, what to look out for and what the
+results should ideally look like
 
 See `CGAT Pipelines`_ for an overview of using CGAT pipelines. The documentation
 for the ReadQC Pipeline is at the base of this page.

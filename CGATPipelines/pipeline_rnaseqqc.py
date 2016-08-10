@@ -12,26 +12,30 @@ RNASeqQC pipeline
 Overview
 ========
 
-This pipeline takes in fastq or sra files and then performs a number
-of QC steps on the reads. This pipeline should be ran as the first step
-in your RNA seq analysis work flow. It will help detect error and biases
-within your raw data. The output of the pipeline an be used to filter out
-problematic cells in a standard RNA seq experiment. For single cell RNA seq
-the pipeline_rnaseqqc.py should be ran instead.
+This pipeline should be run as the first step in your RNA seq analysis
+work flow. It will help detect error and biases within your raw
+data. The output of the pipeline can be used to filter out problematic
+cells in a standard RNA seq experiment. For single cell RNA seq the
+pipeline_rnaseqqc.py should be run instead.
 
-The piepline uses sailfish to perform transcript quantification and then
-performs priciple component analysis, multidementional scaling and attempts
-to look at the overlap of sample expression between the different cells. You
-can provide genes of interest in the pipeline.ini file and look at their
-expression between the different cells. 
+Sailfish is used to perform rapid alignment-free transcript
+quantification and hisat is used to align a subset of reads to the
+reference genome.
 
-The piepleine also subsets the the first n reads from fastq files and performs
-hisat mapping. n reads can be set using sample_size in pipeline.ini file. A
-set of quality matrics are then produced to allow the sample context bias, 3'
-bias, strandedness and bam stats to be generated
+From the sailfish and hisat output, a number of analyses are
+performed, either within the pipeline or during the reporting:
 
+- Proportion of reads aligned to annotated features (rRNA, protein coding, lincRNA etc)
+- Sequencing depth saturation curves Per Sample
+- Per-sample expression distributions
+- Strandedness assesment
+- Assessment of sequence biases
+- Expression of top genes and expression of genes of interest
 
-Individual tasks are enabled in the configuration file.
+Most of the above analysis will group samples by the sample factors
+(see Important configuration options below for details on how factors
+are identified)
+
 
 Usage
 =====
@@ -39,10 +43,6 @@ Usage
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning`
 on general information how to use CGAT pipelines.
 
-Configuration
--------------
-
-No general configuration required.
 
 Input
 -----
@@ -155,13 +155,8 @@ Glossary
 .._hisat: http://ccb.jhu.edu/software/hisat/manual.shtml
 .. sailfish: https://github.com/kingsfordgroup/sailfish
 
-
 Code
 ====
-
-ToDo
-====
-Documentation
 
 """
 
@@ -878,6 +873,7 @@ def buildBedContext(outfile):
 
     os.unlink(tmp_bed_sorted_filename)
 
+
 @P.add_doc(PipelineWindows.summarizeTagsWithinContext)
 @follows(buildBedContext)
 @transform(mapReadsWithHisat,
@@ -891,6 +887,7 @@ def buildAltContextStats(infiles, outfile):
 
     PipelineWindows.summarizeTagsWithinContext(
         infile, bed,  outfile)
+
 
 @P.add_doc(PipelineWindows.loadSummarizedContextStats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
@@ -1280,9 +1277,6 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
-
-
-
 @merge(buildTranscriptProfiles,
        "transcriptprofiles.dir/threeprimebiasprofiles.load")
 def loadTranscriptProfiles(infiles, outfile):
@@ -1458,7 +1452,7 @@ def summariseBias(infiles, outfile):
     def norm(array):
         array_min = array.min()
         array_max = array.max()
-        return [(x - array_min)/(array_max-array_min) for x in array]
+        return pd.Series([(x - array_min)/(array_max-array_min) for x in array])
 
     def bin2floats(qcut_bin):
         qcut_bin2 = qcut_bin.replace("(", "[").replace(")", "]")
@@ -1475,18 +1469,18 @@ def summariseBias(infiles, outfile):
 
         temp_dict[attribute] = function
         means_df = df[["LogTPM", "sample_id"]].groupby(
-            [pd.qcut(df.ix[:, attribute], bins), "sample_id"])
+            ["sample_id", pd.qcut(df.ix[:, attribute], bins)])
 
         means_df = pd.DataFrame(means_df.agg(function))
         means_df.reset_index(inplace=True)
 
         atr_values = means_df[attribute]
-
         means_df.drop(attribute, axis=1, inplace=True)
-        means_df["LogTPM_norm"] = norm(means_df["LogTPM"])
+
+        means_df["LogTPM_norm"] = list(
+            means_df.groupby("sample_id")["LogTPM"].apply(norm))
 
         means_df[attribute] = [np.mean(bin2floats(x)) for x in atr_values]
-
         means_df = pd.melt(means_df, id_vars=[attribute, "sample_id"])
         means_df.columns = ["bin", "sample_id", "variable", "value"]
         means_df["bias_factor"] = [attribute, ] * len(means_df)
@@ -1499,7 +1493,6 @@ def summariseBias(infiles, outfile):
     factors = atr.columns.tolist()
 
     for factor in factors:
-
         tmp_df = aggregate_by_factor(
             merged, factor, samples, PARAMS["bias_bin"], np.mean)
 
@@ -1712,6 +1705,7 @@ def plotExpression(outfile):
          loadMetaInformation,
          loadBias,
          loadPicardRnaSeqMetrics,
+         loadAltContextStats,
          plotSailfishSaturation,
          plotTopGenesHeatmap,
          plotExpression)
