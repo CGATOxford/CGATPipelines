@@ -253,6 +253,7 @@ SEQUENCEFILES_REGEX = regex(
 # Pipeline Utility functions
 ###################################################################
 
+
 def connect():
     '''connect to database.
 
@@ -286,6 +287,7 @@ def findSuffixedFile(prefix, suffixes):
 # count number of reads
 ###################################################################
 
+
 @follows(mkdir("nreads.dir"))
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
@@ -299,6 +301,7 @@ def countReads(infile, outfile):
 ###################################################################
 # build geneset
 ###################################################################
+
 
 @follows(mkdir("geneset.dir"))
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
@@ -661,9 +664,11 @@ def subsetRange(infile, outfiles):
 @follows(subsetSequenceData)
 def subset():
     pass
+
 ###################################################################
 # map reads
 ###################################################################
+
 
 @follows(mkdir("hisat.dir"))
 @transform(subsetSequenceData,
@@ -847,23 +852,33 @@ def buildBedContext(outfile):
 
     tmp_bed_sorted = IOTools.openFile(tmp_bed_sorted_filename, "w")
 
-    sql_statements = ['''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"lincRNA"
-    FROM gene_info GI  JOIN geneset_lincrna_exons_gtf GTF ON GI.gene_id=GTF.gene_id
-    WHERE GI.gene_biotype == "lincRNA";''',
-                  '''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"snoRNA" FROM gene_info GI
-    JOIN geneset_noncoding_exons_gtf GTF ON GI.gene_id=GTF.gene_id WHERE GI.gene_biotype == "snoRNA";''',
-                  '''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"miRNA"
-    FROM gene_info GI  JOIN geneset_noncoding_exons_gtf GTF ON GI.gene_id=GTF.gene_id
-    WHERE GI.gene_biotype == "miRNA";''',
-                  '''SELECT DISTINCT GTF.contig, GTF.start,GTF.end,"protein_coding"
-    FROM gene_info GI  JOIN geneset_coding_exons_gtf GTF ON GI.gene_id=GTF.gene_id
-    WHERE GI.gene_biotype == "protein_coding";''']
+    sql_statements = [
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "lincRNA"
+        FROM gene_info GI
+        JOIN geneset_lincrna_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "lincRNA"''',
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "snoRNA"
+        FROM gene_info GI
+        JOIN geneset_noncoding_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "snoRNA"''',
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "miRNA"
+        FROM gene_info GI
+        JOIN geneset_noncoding_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "miRNA"''',
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "protein_coding"
+        FROM gene_info GI
+        JOIN geneset_coding_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "protein_coding"''']
 
     for sql_statement in sql_statements:
         state = dbh.execute(sql_statement)
 
         for line in state:
-            tmp_bed_sorted.write(("%s\n") % ("\t".join(map(str,line))))
+            tmp_bed_sorted.write(("%s\n") % "\t".join(map(str, line)))
 
     tmp_bed_sorted.close()
 

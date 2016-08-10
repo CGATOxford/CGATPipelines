@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import itertools
-import collections
 import random
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
@@ -13,12 +12,12 @@ from CGATReport.ResultBlock import ResultBlocks, ResultBlock
 import seaborn
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
-import CGATPipelines.PipelineTracks as PipelineTracks
 from CGATReport.Utils import PARAMS
 import CGATPipelines.Pipeline as Pipeline
 import matplotlib.pyplot as plt
 
-DATABASE = PARAMS.get('readqc_backend', PARAMS.get('sql_backend', 'sqlite:///./csvdb'))
+DATABASE = PARAMS.get('readqc_backend',
+                      PARAMS.get('sql_backend', 'sqlite:///./csvdb'))
 
 
 class imagesTracker(TrackerImages):
@@ -189,8 +188,9 @@ class TranscriptQuantificationHeatmap(object):
         plt.setp(ax.ax_heatmap.yaxis.set_visible(False))
 
         for label in unique:
-            ax.ax_col_dendrogram.bar(0,0, color=seaborn.xkcd_rgb[col_dict[label]],
-                                     label=label, linewidth=0)
+            ax.ax_col_dendrogram.bar(
+                0, 0, color=seaborn.xkcd_rgb[col_dict[label]],
+                label=label, linewidth=0)
         ax.ax_col_dendrogram.legend(loc="center", ncol=len(unique))
 
         return ResultBlocks(ResultBlock(
@@ -537,11 +537,12 @@ class ThreePrimeBias(RnaseqqcTracker):
 
 
 class MappingTracker(TrackerSQL):
-    """Base class for trackers from mapping report used for mapping context below"""
+    """Base class for trackers from mapping report"""
 
 
 class MappingContext(MappingTracker, SingleTableTrackerRows):
     table = "context_stats"
+
 
 class MappingContentRNA(RnaseqqcTracker):
 
@@ -556,10 +557,11 @@ class MappingContentRNA(RnaseqqcTracker):
             total = array['total']
             return [float(x)/total for x in array]
 
-        df  = df.apply(axis=1, func=norm_row)
+        df = df.apply(axis=1, func=norm_row)
         df['other'] = df['total'] - df['rRNA']
         df.drop('total', axis=1, inplace=True)
         return df
+
 
 class MappingAltContent(RnaseqqcTracker):
     table = "altcontext_stats"
@@ -575,9 +577,9 @@ class MappingAltContent(RnaseqqcTracker):
             total = array['total']
             return [float(x)/total for x in array]
 
-        df  = df.apply(axis=1, func=norm_row)
+        df = df.apply(axis=1, func=norm_row)
         other_columns = [x for x in df.columns if "total" not in x]
-        df['other'] = df['total'] - df.loc[:,other_columns].sum(axis=1)
+        df['other'] = df['total'] - df.loc[:, other_columns].sum(axis=1)
         df.drop('total', axis=1, inplace=True)
         return df
 
@@ -644,13 +646,14 @@ class TopGenes(RnaseqqcTracker):
         '''
 
         factors_df = self.getDataFrame(factors_statement)
-        
+
         exp_df['TPM'] = exp_df['TPM'].astype(float)
         exp_df_pivot = pd.pivot_table(exp_df, values=["TPM"],
                                       index="gene_id", columns="sample_name")
-        
+
         rowSums = exp_df_pivot.apply(axis=1, func=sum)
-        top_genes_df = exp_df_pivot.ix[rowSums.sort_values(ascending=False)[0:20].index]
+        top_genes_df = exp_df_pivot.ix[
+            rowSums.sort_values(ascending=False)[0:20].index]
 
         def z_norm(array):
             mu = np.mean(array)
@@ -662,11 +665,9 @@ class TopGenes(RnaseqqcTracker):
 
         z_norm_melted_df = pd.melt(z_norm_df, id_vars="gene_id")
         z_norm_melted_df.set_index('sample_name', inplace=True, drop=False)
-        #z_norm_melted_df = z_norm_melted_df.ix[levels]
 
         merged_df = pd.merge(z_norm_melted_df, factors_df,
                              left_on="sample_name", right_on="sample_name")
-        #merged_df['index'] = merged_df['factor'] + "-" + merged_df['factor_value']
 
         return merged_df.reset_index().set_index("factor")
 
@@ -751,7 +752,7 @@ class PicardStrandBias(RnaseqqcTracker):
 
         # remove the ".hisat" suffix from track
         df['track'] = [x.split(".")[0] for x in df['track']]
-        df['correct_strand_perc'] = 100 *(
+        df['correct_strand_perc'] = 100 * (
             df['CORRECT_STRAND_READS'] / (
                 df['CORRECT_STRAND_READS'] + df['INCORRECT_STRAND_READS']))
 
@@ -770,4 +771,3 @@ class Factors(RnaseqqcTracker):
             index="sample_name", values="factor_value", columns="factor")
 
         return pivot_df
-
