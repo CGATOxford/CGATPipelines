@@ -41,7 +41,6 @@ import os
 import re
 import csv
 import sqlite3
-import pandas
 import glob
 import shutil
 import CGAT.Experiment as E
@@ -60,9 +59,7 @@ import numpy as np
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
-     "pipeline.ini"],
-    defaults={
-        'paired_end': False})
+     "pipeline.ini"])
 
 PARAMS = P.PARAMS
 
@@ -74,6 +71,7 @@ PARAMS.update(P.peekParameters(
 
 
 # load IDR parameters into a dictionary to pass to the IDR step
+# IDR requires multiple parameters from the PARAMS dictionary
 idrPARAMS = dict()
 idrpc = PARAMS['peakcalling_idrpeakcaller']
 idrPARAMS['idrsuffix'] = PARAMS["%s_idrsuffix" % idrpc]
@@ -82,60 +80,29 @@ idrPARAMS['idrcolname'] = PARAMS['%s_idrcolname' % idrpc]
 idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 
 
-df = pd.read_csv("design.tsv", sep="\t")
+# This function reads the design table and generates
+
+# 1. A dictionary, inputD, linking each input file and each of the various
+# IDR subfiles to the appropriate input, as specified in the design table
+
+# 2. A pandas dataframe, df, containing the information from the
+# design table
+df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
+                                                 PARAMS['IDR_poolinputs'])
+
+
+# INPUTBAMS - list of control (input) bam files
+# CHIPBAMS - list of experimental bam files on which to call peaks and perform
+# IDR
 INPUTBAMS = list(set(df['bamControl'].values))
 CHIPBAMS = list(set(df['bamReads'].values))
-pairs = zip(df['bamReads'], df['bamControl'])
 
-if PARAMS['IDR_poolinputs'] == "none":
-    inputD = dict(pairs)
-    conditions = df['Condition'].values
-    tissues = df['Tissue'].values
-    i = 0
-    for C in CHIPBAMS:
-        cond = conditions[i]
-        tissue = tissues[i]
-        inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
-            cond, tissue)
-        i += 1
 
-elif PARAMS['IDR_poolinputs'] == "all":
-    inputD = dict()
-    for C in CHIPBAMS:
-        inputD[C] = "pooled_all.bam"
-
-elif PARAMS['IDR_poolinputs'] == "condition":
-    inputD = dict()
-    conditions = df['Condition'].values
-    tissues = df['Tissue'].values
-    i = 0
-    for C in CHIPBAMS:
-        cond = conditions[i]
-        tissue = tissues[i]
-        inputD[C] = "%s_%s_pooled.bam" % (cond, tissue)
-        inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
-            cond, tissue)
-        i += 1
-
-# check if paired
+# Check if reads are paired end
 if Bamtools.isPaired(CHIPBAMS[0]) is True:
     PARAMS['paired_end'] = True
-
-
-###################################################################
-# Helper functions mapping tracks to conditions, etc
-###################################################################
-# load all tracks - exclude input/control tracks
-
-
-def readTable(tabfile):
-    df = pd.read_csv(tabfile, sep="\t")
-
-    chips = df['ChipBam'].values
-    inputs = df['InputBam'].values
-    pairs = zip(chips, inputs)
-    D = dict(pairs)
-    return D
+else:
+    PARAMS['paired_end'] = False
 
 
 def connect():
@@ -198,6 +165,7 @@ def filterChipBAMs(infile, outfiles):
                                    PARAMS['filters_keepint'])
 
 
+# These steps are required for IDR and are only run if IDR is requested
 if int(PARAMS['IDR_run']) == 1:
     @follows(mkdir("pooled_bams.dir"))
     @split(filterChipBAMs,
@@ -208,13 +176,17 @@ if int(PARAMS['IDR_run']) == 1:
         file of all replicates for a particular condition and tissue.
         This function generates the pooled bam files.
         '''
-        infile = infiles[0]
         cond_tissues = set(df['Condition'] + "_" + df['Tissue'])
 
+        # Take each combination of tissues and conditions from the design
+        # tables
         for ct in cond_tissues:
             p = ct.split("_")
             cond = p[0]
             tissue = p[1].split(".")[0]
+
+            # identify and read all bam files for this combination of
+            # tissue and condition
             subdf = df[((df['Condition'] == cond) & (df['Tissue'] == tissue))]
             innames = subdf['bamReads'].values
             innames = set(
@@ -223,18 +195,9 @@ if int(PARAMS['IDR_run']) == 1:
 
             out = "pooled_bams.dir/%s_pooled_filtered.bam" % ct
 
-            infiles = " ".join(innames)
-
-            T1 = P.getTempFilename(".")
-            T2 = P.getTempFilename(".")
-            statement = """samtools merge %(T1)s.bam  %(infiles)s;
-            samtools sort %(T1)s.bam -o %(T2)s.bam;
-            samtools index %(T2)s.bam;
-            mv %(T2)s.bam %(out)s;
-            mv %(T2)s.bam.bai %(out)s.bai""" % locals()
-            P.run()
-            os.remove("%s.bam" % T1)
-            os.remove(T1)
+            # Generate a merged, sorted, indexed bam file combining
+            # all bam files for this tissue and condition
+            PipelinePeakcalling.mergeSortIndex(innames, out)
 
     @active_if(PARAMS['IDR_poolinputs'] != "all")
     @follows(mkdir('IDR_inputs.dir'))
@@ -249,30 +212,26 @@ if int(PARAMS['IDR_run']) == 1:
         all IDR analyses.
         '''
         cond_tissues = set(df['Condition'] + "_" + df['Tissue'])
+
+        # Take each combination of tissues and conditions from the design
+        # tables
         for ct in cond_tissues:
             p = ct.split("_")
             cond = p[0]
             tissue = p[1].split(".")[0]
             subdf = df[((df['Condition'] == cond) & (df['Tissue'] == tissue))]
+
+            # find the inputs linked to any bam files for this combination of
+            # tissues and conditions
             inputs = subdf['bamControl'].values
             inputs = set(
                 ["filtered_bams.dir/%s" % s.replace(".bam", "_filtered.bam")
                  for s in inputs])
-
             out = "IDR_inputs.dir/%s_pooled_filtered.bam" % ct
 
-            infiles = " ".join(inputs)
-
-            T1 = P.getTempFilename(".")
-            T2 = P.getTempFilename(".")
-            statement = """samtools merge %(T1)s.bam  %(infiles)s;
-            samtools sort %(T1)s.bam -o %(T2)s.bam;
-            samtools index %(T2)s.bam;
-            mv %(T2)s.bam %(out)s;
-            mv %(T2)s.bam.bai %(out)s.bai""" % locals()
-            P.run()
-            os.remove("%s.bam" % T1)
-            os.remove(T1)
+            # generate a sorted, index, merged bam file for all of these
+            # inputs
+            PipelinePeakcalling.mergeSortIndex(inputs, out)
 
 else:
     @transform(filterChipBAMs, regex("filtered_bams.dir/(.*).bam"),
@@ -294,7 +253,7 @@ if int(PARAMS['IDR_run']) == 1:
     def makePseudoBams(infiles, outfiles):
         '''
         Generates pseudo bam files each containing approximately 50% of reads
-        from the original bam file for IDR analysis.
+        from the original bam file for IDR self consistency analysis.
         Also generates a link to the original BAM file in the
         peakcalling_bams.dir directory.
 
@@ -309,12 +268,7 @@ if int(PARAMS['IDR_run']) == 1:
         pseudos = outfiles[0:2]
         orig = outfiles[2]
 
-        cwd = os.getcwd()
-
-        os.system("""
-        ln -s %(cwd)s/%(infile)s %(cwd)s/%(orig)s;
-        ln -s %(cwd)s/%(infile)s.bai %(cwd)s/%(orig)s.bai;
-        """ % locals())
+        PipelinePeakcalling.makeBamLink(infile, orig)
 
         PipelinePeakcalling.makePseudoBams(infile, pseudos,
                                            PARAMS['paired_end'],
@@ -328,92 +282,69 @@ else:
         Link to original BAMs without generating pseudo bams
         if IDR not requested.
         '''
-        cwd = os.getcwd()
-        os.system("""
-        ln -s %(cwd)s/%(infile)s %(cwd)s/%(outfile)s;
-        ln -s %(cwd)s/%(infile)s.bai %(cwd)s/%(outfile)s.bai;
-        """ % locals())
-        P.run()
+        PipelinePeakcalling.makeBamLink(infile, outfile)
 
 
-'''
-IDR_poolinputs has three possible options:
-
-none
-Use the input files per replicate as specified in the design file
-Input files will still also be pooled if IDR is specified as IDR requires BAM
-files representing pooled replicates as well as BAM files for each replicate
-
-all
-Pool all input files and use this single pooled input BAM file as the input
-for any peakcalling.  Used when input is low depth or when only a single
-input or replicates of a single input are available.
-
-condition
-pool the input file for the
-
-'''
+# These three functions gather and parse the input (control) bam files into the
+# IDR_inputs.dir directory prior to IDR analysis.
+# The method used to do this depends on the IDR_poolinputs parameter
+ 
 if PARAMS['IDR_poolinputs'] == "none":
     @follows(mkdir('IDR_inputs.dir'))
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
                r'IDR_inputs.dir/\1.bam')
     def makeIDRInputBams(infile, outfile):
         '''
+        When pooled inputs are not requested, the appropriate inputs are
+        generated above in the filterInputBAMS step - this function links to
+        these in the IDR_inputs.dir directory.
         '''
         infile = infile[0]
-        cwd = os.getcwd()
-        os.system("""
-        ln -s %(cwd)s/%(infile)s %(cwd)s/%(outfile)s;
-        ln -s %(cwd)s/%(infile)s.bai %(cwd)s/%(outfile)s.bai;
-        """ % locals())
+        PipelinePeakcalling.makeBamLink(infile, outfile)
 
 
 elif PARAMS['IDR_poolinputs'] == "all":
     @follows(mkdir('IDR_inputs.dir'))
     @merge(filterInputBAMs, "IDR_inputs.dir/pooled_all.bam")
     def makeIDRInputBams(infiles, outfile):
+        '''
+        When all inputs are to be pooled and used as a control against all
+        samples, a single merged bam is generated from the output of
+        the filterInputBAMs step above in the IDR_inputs.dir directory.
+        '''
         infiles = [i[0] for i in infiles]
-        infiles = " ".join(infiles)
-        T1 = P.getTempFilename(".")
-        T2 = P.getTempFilename(".")
-        statement = """samtools merge %(T1)s.bam  %(infiles)s;
-        samtools sort %(T1)s.bam -o %(T2)s.bam;
-        samtools index %(T2)s.bam;
-        mv %(T2)s.bam %(outfile)s;
-        mv %(T2)s.bam.bai %(outfile)s.bai""" % locals()
-        P.run()
-        os.remove("%s.bam" % T1)
-        os.remove(T1)
+        PipelinePeakcalling.mergeSortIndex(infiles, outfile)
 
 
 elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
     @follows(mkdir('IDR_inputs.dir'))
     @split(filterInputBAMs, r'IDR_inputs.dir/*.bam')
     def makeIDRInputBams(infiles, outfiles):
+        '''
+        When IDR is going to be performed, inputs which are pooled by tissue
+        and condition are automatically generated as these are always required.
+
+        This function pools tissues and conditions when IDR is switched
+        off if inputs pooled by condition are requested.
+
+        The appropriate outputs from filterInputBAMs are identified and
+        merged into a single BAM stored in the IDR_inputs.dir directory.
+        '''
         outs = set(inputD.values())
         for out in outs:
             p = out.split("_")
             cond = p[1]
             tissue = p[2].split(".")[0]
+
+            # collect the appropriate bam files from their current location
             subdf = df[((df['Condition'] == cond) & (df['Tissue'] == tissue))]
             innames = subdf['bamControl'].values
             innames = set(
                 ["filtered_bams.dir/%s" % s.replace(".bam", "_filtered.bam")
                  for s in innames])
             out = "IDR_inputs.dir/%s" % out
-            infiles = " ".join(innames)
-            outfile = out
 
-            T1 = P.getTempFilename(".")
-            T2 = P.getTempFilename(".")
-            statement = """samtools merge %(T1)s.bam  %(infiles)s;
-            samtools sort %(T1)s.bam -o %(T2)s.bam;
-            samtools index %(T2)s.bam;
-            mv %(T2)s.bam %(outfile)s;
-            mv %(T2)s.bam.bai %(outfile)s.bai""" % locals()
-            P.run()
-            os.remove("%s.bam" % T1)
-            os.remove(T1)
+            PipelinePeakcalling.mergeSortIndex(innames, out)
 
 
 elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] == 1:
@@ -422,6 +353,10 @@ elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] == 1:
     @transform(makePooledInputs, regex("IDR_inputs.dir/(.*).bam"),
                r'IDR_inputs.dir/\1.bam')
     def makeIDRInputBams(infiles, outfiles):
+        '''
+        If IDR is going to be run, pooled inputs are generated above so
+        they don't need to be generated again if requested.
+        '''
         pass
 
 
@@ -506,7 +441,7 @@ def preprocessing(infile, outfile):
            add_inputs(makeBamInputTable),
            r"macs2.dir/\1.macs2")
 def callMacs2peaks(infiles, outfile):
-    D = readTable(infiles[1])
+    D = PipelinePeakcalling.readTable(infiles[1])
     bam = infiles[0]
     inputf = D[bam]
     insertsizef = "%s_insertsize.tsv" % (P.snip(bam))
@@ -580,7 +515,7 @@ def splitForIDR(infile, outfiles):
 @transform(splitForIDR, suffix(".dummy"), ".tsv")
 def runIDR(infile, outfile):
     lines = [line.strip() for line in IOTools.openFile(infile).readlines()]
-    infile1, infile2, setting, oraclefile = lines
+    infile1, infile2, setting, oraclefile, condition, tissue = lines
     options = PARAMS['IDR_options']
 
     if setting == 'self_consistency':
@@ -667,7 +602,9 @@ def summariseIDR(infiles, outfile):
     pairtab = pd.read_csv(pairs, sep="\t", names=['Input_File_1',
                                                   'Input_File_2',
                                                   'Replicate_Type',
-                                                  'Oracle_Peak_File'])
+                                                  'Oracle_Peak_File',
+                                                  'Condition',
+                                                  'Tissue'])
 
     # Generate a temporary column to merge the two tables
     pairstrings = []
@@ -686,19 +623,28 @@ def summariseIDR(infiles, outfile):
     thresholds = []
     for item in alltab['Replicate_Type']:
         if item == "pooled_consistency":
-            thresholds.append(PARAMS['options_pooledconsistency'])
+            thresholds.append(PARAMS['IDR_softthresh_pooledconsistency'])
         elif item == "self_consistency":
-            thresholds.append(PARAMS['options_selfconsistency'])
+            thresholds.append(PARAMS['IDR_softthresh_selfconsistency'])
         elif item == "replicate_consistency":
-            thresholds.append(PARAMS['options_replicateconsistency'])
-
+            thresholds.append(PARAMS['IDR_softthresh_replicateconsistency'])
+    print thresholds
     alltab['IDR_Thresholds'] = thresholds
-    alltab['IDR_Transformed_Threshold'] = -(np.log10(thresholds))
+    alltab['IDR_Thresholds'] = alltab['IDR_Thresholds'].astype('float')
+    alltab['IDR_Transformed_Thresholds'] = -(np.log10(thresholds))
 
     alltab = alltab[['Output_Filename', 'Replicate_Type', 'Total_Peaks',
                      'Peaks_Passing_IDR', 'Percentage_Peaks_Passing_IDR',
-                     'Peaks_Failing_IDR', 'Input_File_1', 'Input_File_2',
+                     'Peaks_Failing_IDR', 'IDR_Thresholds',
+                     'IDR_Transformed_Thresholds',
+                     'Input_File_1', 'Input_File_2', 'Condition', 'Tissue',
                      'Oracle_Peak_File']]
+    alltab.to_csv(outfile, sep="\t", index=False)
+
+@transform(summariseIDR, suffix("results.tsv"), "analysis.tsv")
+def analyseIDR(infile, outfile):
+    table = pd.read_csv(infile, sep="\t")
+    
 
 ################################################################
 # QC Steps

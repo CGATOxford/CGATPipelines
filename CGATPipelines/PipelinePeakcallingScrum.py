@@ -31,7 +31,80 @@ from CGATPipelines.Pipeline import cluster_runnable
 # Preprocessing Functions
 
 
+def readDesignTable(infile, poolinputs):
+    '''
+    This function reads the design table and generates
+
+    1. A dictionary, inputD, linking each input file and each of the various
+    IDR subfiles to the appropriate input, as specified in the design table
+
+    2. A pandas dataframe, df, containing the information from the
+    design table
+
+    This dictionary includes the filenames that the IDR output files will have
+    once these steps of the pipeline are run
+    If IDR is not requsted, these dictionary values will still exist but will
+    not be used.
+
+    poolinputs has three possible options:
+
+    none
+    Use the input files per replicate as specified in the design files
+    Input files will still also be pooled if IDR is specified as IDR requires
+    BAM files representing pooled replicates as well as BAM files for each
+    replicate
+
+    all
+    Pool all input files and use this single pooled input BAM file as the input
+    for any peakcalling.  Used when input is low depth or when only a single
+    input or replicates of a single input are available.
+
+    condition
+    pool the input files within each combination of conditions and tissues
+    '''
+
+    df = pd.read_csv("design.tsv", sep="\t")
+    pairs = zip(df['bamReads'], df['bamControl'])
+    CHIPBAMS = list(set(df['bamReads'].values))
+
+    if poolinputs == "none":
+        inputD = dict(pairs)
+        conditions = df['Condition'].values
+        tissues = df['Tissue'].values
+        i = 0
+        for C in CHIPBAMS:
+            cond = conditions[i]
+            tissue = tissues[i]
+            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
+                cond, tissue)
+            i += 1
+
+    elif poolinputs == "all":
+        inputD = dict()
+        for C in CHIPBAMS:
+            inputD[C] = "pooled_all.bam"
+
+    elif poolinputs == "condition":
+        inputD = dict()
+        conditions = df['Condition'].values
+        tissues = df['Tissue'].values
+        i = 0
+        for C in CHIPBAMS:
+            cond = conditions[i]
+            tissue = tissues[i]
+            inputD[C] = "%s_%s_pooled.bam" % (cond, tissue)
+            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
+                cond, tissue)
+            i += 1
+
+    return df, inputD
+
+
 def trackFilters(filtername, bamfile, tabout):
+    '''
+    Keeps track of which filters are being used on the bam files and generates
+    a statement segment which records this in a log file
+    '''
     return """echo %(filtername)s >> %(tabout)s;
               samtools view -c %(bamfile)s.bam >> %(tabout)s; """ % locals()
 
@@ -327,9 +400,12 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
         for nam in bamfile:
             all.append(nam.qname)
         if pe is True:
+            a = len(set(all))
+            a2 = len(all)
             assert (
-                len(set(all)) ==
-                len(all) / 2), "Error splitting bam file %(outf)s" % locals()
+                (len(set(all)) <= (len(all) / 2) + 2) &
+                (len(set(all)) >= (len(all) / 2) - 2)) , """
+                Error splitting bam file %(outf)s""" % locals()
         lens.append(bamfile.count())
     #     os.remove(T)
         shutil.move("%s.bam" % T, outf)
@@ -339,7 +415,7 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
 #############################################
 # Peakcalling Functions
 
-# TS - move to top of file later:
+
 def getMacsPeakShiftEstimate(infile):
     ''' parse the peak shift estimate file from macs,
     return the fragment size '''
@@ -354,6 +430,47 @@ def getMacsPeakShiftEstimate(infile):
         fragment_size = int(float(values[fragment_size_mean_ix]))
 
         return fragment_size
+
+
+def mergeSortIndex(bamfiles, out):
+    '''
+    Merge bamfiles into a single sorted, indexed outfile.
+    '''
+    infiles = " ".join(bamfiles)
+    T1 = P.getTempFilename(".")
+    T2 = P.getTempFilename(".")
+    statement = """samtools merge %(T1)s.bam  %(infiles)s;
+    samtools sort %(T1)s.bam -o %(T2)s.bam;
+    samtools index %(T2)s.bam;
+    mv %(T2)s.bam %(out)s;
+    mv %(T2)s.bam.bai %(out)s.bai""" % locals()
+    P.run()
+    os.remove("%s.bam" % T1)
+    os.remove(T1)
+
+
+def makeBamLink(currentname, newname):
+    '''
+    Make links to an existing bam file and its index
+    '''
+    cwd = os.getcwd()
+    os.system("""
+    ln -s %(cwd)s/%(currentname)s %(cwd)s/%(newname)s;
+    ln -s %(cwd)s/%(currentname)s.bai %(cwd)s/%(newname)s.bai;
+    """ % locals())
+
+
+def readTable(tabfile):
+    '''
+    Used to read the "peakcalling_bams_and_inputs.tsv" file back
+    into memory.
+    '''
+    df = pd.read_csv(tabfile, sep="\t")
+    chips = df['ChipBam'].values
+    inputs = df['InputBam'].values
+    pairs = zip(chips, inputs)
+    D = dict(pairs)
+    return D
 
 
 class Peakcaller(object):
@@ -650,6 +767,7 @@ class Macs2Peakcaller(Peakcaller):
 
 #############################################
 # IDR Functions
+
 @cluster_runnable
 def makePairsForIDR(infiles, outfile, useoracle, df):
     pseudo_reps = []
@@ -684,21 +802,24 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
                 oracledict[bam] = npp
         i += 1
 
-    pseudo_reps = np.array(sorted(pseudo_reps))
-    pseudo_pooled = np.array(sorted(pseudo_pooled))
+    pseudo_reps = np.array(sorted(list(set(pseudo_reps))))
+    pseudo_pooled = np.array(sorted(list(set(pseudo_pooled))))
 
     into = len(pseudo_reps) / 2
     pseudoreppairs = np.split(pseudo_reps, into)
     pseudoreppairs = [tuple(item) for item in pseudoreppairs]
     pseudoreppairs_rows = []
     for tup in pseudoreppairs:
+        stem = tup[0].split("/")[-1]
+        stem = re.sub(r'_filtered.*', '', stem)
+        oraclenam = oracledict[stem]
         if useoracle == 1:
-            stem = tup[0].split("/")[-1]
-            stem = re.sub(r'_filtered.*', '', stem)
-            oracle = oracledict[stem]
+            oracle = oraclenam
         else:
             oracle = "None"
-        row = ((tup[0], tup[1], "self_consistency", oracle))
+        tissue, condition = oraclenam.split("/")[-1].split("_")[0:2]
+        row = ((tup[0], tup[1], "self_consistency", oracle, tissue,
+                condition))
         pseudoreppairs_rows.append(row)
 
     into = len(pseudo_pooled) / 2
@@ -706,13 +827,17 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
     pseudopooledpairs = [tuple(item) for item in pseudopooledpairs]
     pseudopooledpairs_rows = []
     for tup in pseudopooledpairs:
+        stem = tup[0].split("/")[-1]
+        stem = re.sub(r'_pooled_filtered.*', '', stem)
+        oraclenam = oracledict[stem]
         if useoracle == 1:
-            stem = tup[0].split("/")[-1]
-            stem = re.sub(r'_pooled_filtered.*', '', stem)
-            oracle = oracledict[stem]
+            oracle = oraclenam
         else:
             oracle = "None"
-        row = ((tup[0], tup[1], "pooled_consistency", oracle))
+        tissue, condition = oraclenam.split("/")[-1].split("_")[0:2]
+        row = ((tup[0], tup[1], "pooled_consistency", oracle, tissue,
+                condition))
+
         pseudopooledpairs_rows.append(row)
 
     # segregate the non pseudo non pooled files into sets of replicates
@@ -745,20 +870,22 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
 
     reppairs_rows = []
     for tup in reppairs:
+        stem = tup[0].split("/")[-1]
+        stem = re.sub(r'_filtered.*', '', stem)
+        oraclenam = oracledict[stem]
         if useoracle == 1:
-            stem = tup[0].split("/")[-1]
-            stem = re.sub(r'_filtered.*', '', stem)
-            oracle = oracledict[stem]
+            oracle = oraclenam
         else:
             oracle = "None"
-        row = ((tup[0], tup[1], "replicate_consistency", oracle))
+        tissue, condition = oraclenam.split("/")[-1].split("_")[0:2]
+        row = ((tup[0], tup[1], "replicate_consistency", oracle, tissue,
+                condition))
         reppairs_rows.append(row)
-
     pairs = pseudoreppairs_rows + pseudopooledpairs_rows + reppairs_rows
 
     out = IOTools.openFile(outfile, "w")
     for p in pairs:
-        out.write("%s\t%s\t%s\t%s\n" % p)
+        out.write("%s\t%s\t%s\t%s\t%s\t%s\n" % p)
 
     out.close()
 
