@@ -604,6 +604,102 @@ def runIDR(infile, outfile):
 
     P.run()
 
+
+@transform(runIDR, suffix(".tsv"), ["_filtered.tsv",
+                                    "_table.tsv"])
+def filterIDR(infile, outfiles):
+    '''
+    Take the IDR output, which is in ENCODE narrowPeaks format if the input
+    is narrowPeaks, gtf or bed and ENCODE broadPeaks format if the input is
+    broadPeaks.
+    Input is filtered based on whether it passes the soft IDR thresholds
+    provided in the pipeline.ini.  Peaks which pass this threshold
+    with have a score in the "globalIDR" column which is greater
+    than -log(soft_threshold) where soft_threshold is the soft threshold
+    provided in the pipeline.ini.
+    Column headings are added and output is sorted by signalValue.
+    '''
+    IDRdata = pd.read_csv(infile, sep="\t", header=None)
+    if idrPARAMS['idrsuffix'] == "broadPeaks":
+        IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name", "score",
+                           "strand", "signalValue", "p-value", "q-value",
+                           "localIDR", "globalIDR",
+                           "rep1_chromStart", "rep2_chromEnd",
+                           "rep1_signalValue", "rep2_chromStart",
+                           "rep2_chromEnd", "rep2_signalValue"]
+    else:
+        IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name", "score",
+                           "strand", "signalValue", "p-value", "q-value",
+                           "summit", "localIDR", "globalIDR",
+                           "rep1_chromStart", "rep2_chromEnd",
+                           "rep1_signalValue", "rep1_summit",
+                           "rep2_chromStart", "rep2_chromEnd",
+                           "rep2_signalValue", "rep2_summit"]
+
+    IDRdataP = IDRdata[IDRdata['score'] == 1000]
+    IDRdataF = IDRdata[IDRdata['score'] != 1000]
+
+    IDRdataP = IDRdataP.sort_values('signalValue', ascending=False)
+    IDRdataF = IDRdataF.sort_values('signalValue', ascending=False)
+
+    H = ['Total_Peaks', 'Peaks_Passing_IDR', 'Peaks_Failing_IDR',
+         'Percentage_Peaks_Passing_IDR']
+    T = ((len(IDRdata), len(IDRdataP), len(IDRdataF),
+          round(float(len(IDRdataP)) / float(len(IDRdata)), 4) * 100))
+
+    out = IOTools.openFile(outfiles[1], "w")
+    out.write("%s\n" % "\t".join(H))
+    out.write("%s\n" % "\t".join([str(t) for t in T]))
+
+    IDRdataP.to_csv(outfiles[0], sep="\t")
+
+
+@merge((filterIDR, makeIDRPairs), "IDR_results.tsv")
+def summariseIDR(infiles, outfile):
+    tables = [i[1] for i in infiles[:-1]]
+    pairs = infiles[-1]
+
+    alltab = pd.DataFrame()
+    for table in tables:
+        tab = pd.read_csv(table, sep="\t")
+        tab['Output_Filename'] = table.split("/")[-1]
+        alltab = alltab.append(tab)
+    pairtab = pd.read_csv(pairs, sep="\t", names=['Input_File_1',
+                                                  'Input_File_2',
+                                                  'Replicate_Type',
+                                                  'Oracle_Peak_File'])
+
+    # Generate a temporary column to merge the two tables
+    pairstrings = []
+    for p in pairtab.index.values:
+        p = pairtab.ix[p]
+        p1 = P.snip(p[0].split("/")[-1])
+        p2 = P.snip(p[1].split("/")[-1])
+        pairstring = "%s_v_%s_table.tsv" % (p1, p2)
+        pairstrings.append(pairstring)
+
+    pairtab['pairstring'] = pairstrings
+    alltab = alltab.merge(pairtab, left_on='Output_Filename',
+                          right_on='pairstring')
+    alltab = alltab.drop('pairstring', 1)
+
+    thresholds = []
+    for item in alltab['Replicate_Type']:
+        if item == "pooled_consistency":
+            thresholds.append(PARAMS['options_pooledconsistency'])
+        elif item == "self_consistency":
+            thresholds.append(PARAMS['options_selfconsistency'])
+        elif item == "replicate_consistency":
+            thresholds.append(PARAMS['options_replicateconsistency'])
+
+    alltab['IDR_Thresholds'] = thresholds
+    alltab['IDR_Transformed_Threshold'] = -(np.log10(thresholds))
+
+    alltab = alltab[['Output_Filename', 'Replicate_Type', 'Total_Peaks',
+                     'Peaks_Passing_IDR', 'Percentage_Peaks_Passing_IDR',
+                     'Peaks_Failing_IDR', 'Input_File_1', 'Input_File_2',
+                     'Oracle_Peak_File']]
+
 ################################################################
 # QC Steps
 

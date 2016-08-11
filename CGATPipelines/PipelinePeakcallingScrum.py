@@ -779,6 +779,11 @@ def buildIDRStatement(infile1, infile2, outfile,
     else:
         oraclestatement = "--peak-list %s" % oraclefile
 
+    if inputfiletype == "broadPeak":
+        outputfiletype = "broadPeak"
+    else:
+        outputfiletype = "narrowPeak"
+
     idrstatement = """idr --version >>%(log)s;
                       idr
                       --samples %(infile1)s %(infile2)s
@@ -787,7 +792,7 @@ def buildIDRStatement(infile1, infile2, outfile,
                       --soft-idr-threshold %(soft_idr_thresh)s
                       --input-file-type %(inputfiletype)s
                       --rank %(rank)s
-                      --output-file-type bed
+                      --output-file-type %(outputfiletype)s
                        %(oraclestatement)s
                        %(options)s
                       --verbose 2>>%(log)s
