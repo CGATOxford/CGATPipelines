@@ -1241,7 +1241,7 @@ def loadSummarizedContextStats(infiles,
 
     """
 
-    header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
+    header = ",".join([P.snip(os.path.basename(x), suffix)
                       for x in infiles])
     filenames = " ".join(infiles)
 
