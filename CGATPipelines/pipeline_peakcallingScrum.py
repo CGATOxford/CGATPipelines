@@ -72,14 +72,20 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
+
+# load IDR parameters into a dictionary to pass to the IDR step
+idrPARAMS = dict()
+idrpc = PARAMS['peakcalling_idrpeakcaller']
+idrPARAMS['idrsuffix'] = PARAMS["%s_idrsuffix" % idrpc]
+idrPARAMS['idrcol'] = PARAMS["%s_idrcol" % idrpc]
+idrPARAMS['idrcolname'] = PARAMS['%s_idrcolname' % idrpc]
+idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
+
+
 df = pd.read_csv("design.tsv", sep="\t")
-
 INPUTBAMS = list(set(df['bamControl'].values))
-
 CHIPBAMS = list(set(df['bamReads'].values))
-
 pairs = zip(df['bamReads'], df['bamControl'])
-
 
 if PARAMS['IDR_poolinputs'] == "none":
     inputD = dict(pairs)
@@ -92,7 +98,6 @@ if PARAMS['IDR_poolinputs'] == "none":
         inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
             cond, tissue)
         i += 1
-
 
 elif PARAMS['IDR_poolinputs'] == "all":
     inputD = dict()
@@ -112,10 +117,10 @@ elif PARAMS['IDR_poolinputs'] == "condition":
             cond, tissue)
         i += 1
 
-print inputD
-
+# check if paired
 if Bamtools.isPaired(CHIPBAMS[0]) is True:
     PARAMS['paired_end'] = True
+
 
 ###################################################################
 # Helper functions mapping tracks to conditions, etc
@@ -514,13 +519,16 @@ def callMacs2peaks(infiles, outfile):
         tagsize=None)
 
     statement = peakcaller.build(bam, outfile,
-                                 PARAMS['annotations_interface_contigs_bed'],
+                                 PARAMS['annotations_interface_contigs'],
                                  inputf, insertsizef, PARAMS['IDR_run'],
-                                 PARAMS['IDR_keeppeaks'])
+                                 PARAMS['macs2_idrkeeppeaks'],
+                                 PARAMS['macs2_idrsuffix'],
+                                 PARAMS['macs2_idrcol'])
     P.run()
 
 
 PEAKCALLERS = []
+IDRPEAKCALLERS = []
 mapToPeakCallers = {'macs2': (callMacs2peaks,)}
 
 for x in P.asList(PARAMS['peakcalling_peakcallers']):
@@ -533,60 +541,68 @@ def peakcalling():
     dummy task to define upstream peakcalling tasks
     '''
 
-
 ################################################################
 # IDR Steps
 
+@follows(peakcalling)
 @follows(mkdir("peaks_for_IDR.dir"))
-@transform(PEAKCALLERS,
+@transform(mapToPeakCallers[PARAMS['peakcalling_idrpeakcaller']],
            regex("(.*)/(.*)"),
            r"peaks_for_IDR.dir/\2.IDRpeaks")
-def preprocessForIDR(infile, outfile):
+def getIDRInputs(infile, outfile):
     IDRpeaks = "%s_IDRpeaks" % infile
     shutil.copy(IDRpeaks, outfile)
 
 
-@merge(preprocessForIDR, "IDR_pairs.tsv")
+@merge(getIDRInputs, "IDR_pairs.tsv")
 def makeIDRPairs(infiles, outfile):
+    useoracle = PARAMS['IDR_useoracle']
+    PipelinePeakcalling.makePairsForIDR(infiles, outfile,
+                                        PARAMS['IDR_useoracle'],
+                                        df, submit=True)
 
-    pseudo_reps = []
-    pseudo_pooled = []
-    notpseudo_reps = []
-    notpseudo_pooled = []
+@follows(mkdir("IDR.dir"))
+@split(makeIDRPairs, "IDR.dir/*.dummy")
+def splitForIDR(infile, outfiles):
+    pairs = pd.read_csv(infile, sep="\t", header=None)
+    for p in pairs.index.values:
+        p = pairs.ix[p]
+        p1 = P.snip(p[0].split("/")[-1])
+        p2 = P.snip(p[1].split("/")[-1])
 
-    for f in infiles:
-        if "pseudo" in f and "pooled" in f:
-            pseudo_pooled.append(f)
-        elif "pseudo" in f:
-            pseudo_reps.append(f)
-        elif "pooled" in f:
-            notpseudo_pooled.append(f)
-        else:
-            notpseudo_reps.append(f)
+        pairstring = "%s_v_%s" % (p1, p2)
 
-    pseudo_reps = sorted(pseudo_reps)
-    pseudo_pooled = sorted(pseudo_pooled)
+        out = IOTools.openFile("IDR.dir/%s.dummy" % pairstring, "w")
+        out.write("%s\n" % "\n".join(p))
+        out.close()
 
-    allpseudo = np.array(pseudo_reps + pseudo_pooled)
 
-    into = len(allpseudo) / 2
-    PP = np.split(allpseudo, into)
-    PP = [tuple(item) for item in PP]
-    PP2 = list(itertools.combinations(notpseudo_reps, 2))
+@transform(splitForIDR, suffix(".dummy"), ".tsv")
+def runIDR(infile, outfile):
+    lines = [line.strip() for line in IOTools.openFile(infile).readlines()]
+    infile1, infile2, setting, oraclefile = lines
+    options = PARAMS['IDR_options']
 
-    PP3 = []
-    for pair in PP2:
-        stem1 = "_".join(pair[0].split("_")[:-1])
-        if pair[1].startswith(stem1):
-            PP3.append(pair)
+    if setting == 'self_consistency':
+        idrthresh = PARAMS['IDR_softthresh_selfconsistency']
+        options += " %s" % PARAMS['IDR_options_selfconsistency']
+    elif setting == "pooled_consistency":
+        idrthresh = PARAMS['IDR_softthresh_pooledconsistency']
+        options += " %s" % PARAMS['IDR_options_pooledconsistency']
 
-    pairs = PP + PP3
+    elif setting == "replicate_consistency":
+        idrthresh = PARAMS['IDR_softthresh_replicateconsistency']
+        options += " %s" % PARAMS['IDR_options_replicateconsistency']
 
-    out = IOTools.openFile(outfile, "w")
-    for p in pairs:
-        out.write("%s\t%s\n" % p)
-    out.close()
+    statement = PipelinePeakcalling.buildIDRStatement(
+        infile1, infile2,
+        outfile,
+        PARAMS['IDR_sourcecommand'],
+        PARAMS['IDR_unsourcecommand'],
+        idrthresh,
+        idrPARAMS, options, oraclefile)
 
+    P.run()
 
 ################################################################
 # QC Steps

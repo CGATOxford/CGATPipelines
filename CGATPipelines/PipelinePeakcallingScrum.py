@@ -339,7 +339,6 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
 #############################################
 # Peakcalling Functions
 
-
 # TS - move to top of file later:
 def getMacsPeakShiftEstimate(infile):
     ''' parse the peak shift estimate file from macs,
@@ -400,7 +399,7 @@ class Peakcaller(object):
         return ""
 
     def build(self, infile, outfile, contigsfile=None, controlfile=None,
-              insertsizef=None, idr=0, idrc=0):
+              insertsizef=None, idr=0, idrc=0, idrsuffix=None, idrcol=None):
         ''' build complete command line statement'''
 
         peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
@@ -410,7 +409,8 @@ class Peakcaller(object):
             infile, outfile, controlfile, insertsizef)
 
         if idr == 1:
-            prepareIDR_cmd = self.preparePeaksForIDR(outfile, idrc)
+            prepareIDR_cmd = self.preparePeaksForIDR(outfile, idrc, idrsuffix,
+                                                     idrcol)
         else:
             prepareIDR_cmd = ""
 
@@ -564,7 +564,7 @@ class Macs2Peakcaller(Peakcaller):
         peaks_headers = ",".join((
             "contig", "start", "end",
             "interval_id",
-            "-log10(pvalue)", "fold", "-log10(qvalue)",
+            "-log10\(pvalue\)", "fold", "-log10\(qvalue\)",
             "macs_nprobes", "macs_peakname"))
 
         if controlfile:
@@ -638,13 +638,164 @@ class Macs2Peakcaller(Peakcaller):
 
         return statement
 
-    def preparePeaksForIDR(self, outfile, idrc):
+    def preparePeaksForIDR(self, outfile, idrc, idrsuffix, idrcol):
         statement = ''
         idrout = "%s_IDRpeaks" % outfile
-        narrowpeaks = "%s_peaks.narrowPeak" % outfile
-        statement += '''sort -h -r -k8,8 %(narrowpeaks)s |
+        narrowpeaks = "%s_peaks.%s" % (outfile, idrsuffix)
+        col = idrcol
+        statement += '''sort -h -r -k%(col)i,%(col)i %(narrowpeaks)s |
         head -%(idrc)s > %(idrout)s''' % locals()
         return statement
+
+
+#############################################
+# IDR Functions
+@cluster_runnable
+def makePairsForIDR(infiles, outfile, useoracle, df):
+    pseudo_reps = []
+    pseudo_pooled = []
+    notpseudo_reps = []
+    notpseudo_pooled = []
+
+    for f in infiles:
+        if "pseudo" in f and "pooled" in f:
+            pseudo_pooled.append(f)
+        elif "pseudo" in f:
+            pseudo_reps.append(f)
+        elif "pooled" in f:
+            notpseudo_pooled.append(f)
+        else:
+            notpseudo_reps.append(f)
+
+    oracledict = dict()
+    cr_pairs = df['Condition'] + "_" + df['Tissue']
+    for cr in cr_pairs:
+        for npp in notpseudo_pooled:
+            npp1 = npp.split("/")[-1]
+            if npp1.startswith(cr):
+                oracledict[cr] = npp
+    i = 0
+    for bam in df['bamReads']:
+        bam = P.snip(bam)
+        cr = cr_pairs[i]
+        for npp in notpseudo_pooled:
+            npp1 = npp.split("/")[-1]
+            if npp1.startswith(cr):
+                oracledict[bam] = npp
+        i += 1
+
+    pseudo_reps = np.array(sorted(pseudo_reps))
+    pseudo_pooled = np.array(sorted(pseudo_pooled))
+
+    into = len(pseudo_reps) / 2
+    pseudoreppairs = np.split(pseudo_reps, into)
+    pseudoreppairs = [tuple(item) for item in pseudoreppairs]
+    pseudoreppairs_rows = []
+    for tup in pseudoreppairs:
+        if useoracle == 1:
+            stem = tup[0].split("/")[-1]
+            stem = re.sub(r'_filtered.*', '', stem)
+            oracle = oracledict[stem]
+        else:
+            oracle = "None"
+        row = ((tup[0], tup[1], "self_consistency", oracle))
+        pseudoreppairs_rows.append(row)
+
+    into = len(pseudo_pooled) / 2
+    pseudopooledpairs = np.split(pseudo_pooled, into)
+    pseudopooledpairs = [tuple(item) for item in pseudopooledpairs]
+    pseudopooledpairs_rows = []
+    for tup in pseudopooledpairs:
+        if useoracle == 1:
+            stem = tup[0].split("/")[-1]
+            stem = re.sub(r'_pooled_filtered.*', '', stem)
+            oracle = oracledict[stem]
+        else:
+            oracle = "None"
+        row = ((tup[0], tup[1], "pooled_consistency", oracle))
+        pseudopooledpairs_rows.append(row)
+
+    # segregate the non pseudo non pooled files into sets of replicates
+    # with the same condition and tissue
+    conditions = df['Condition'].values
+    tissues = df['Tissue'].values
+    names = df['bamReads'].values
+    i = 0
+    repdict = dict()
+    for c in conditions:
+        t = tissues[i]
+        n = names[i]
+        repdict.setdefault("%s_%s" % (c, t), [])
+        repdict["%s_%s" % (c, t)].append("%s_filtered" % P.snip(n))
+        i += 1
+
+    idrrepdict = dict()
+    for k in repdict.keys():
+        reps = repdict[k]
+        idrrepdict.setdefault(k, [])
+        for rep in reps:
+            for f in notpseudo_reps:
+                if rep in f:
+                    idrrepdict[k].append(f)
+
+    # generate every possible pair of replicates
+    reppairs = []
+    for k in idrrepdict.keys():
+        reppairs += list(itertools.combinations(idrrepdict[k], 2))
+
+    reppairs_rows = []
+    for tup in reppairs:
+        if useoracle == 1:
+            stem = tup[0].split("/")[-1]
+            stem = re.sub(r'_filtered.*', '', stem)
+            oracle = oracledict[stem]
+        else:
+            oracle = "None"
+        row = ((tup[0], tup[1], "replicate_consistency", oracle))
+        reppairs_rows.append(row)
+
+    pairs = pseudoreppairs_rows + pseudopooledpairs_rows + reppairs_rows
+
+    out = IOTools.openFile(outfile, "w")
+    for p in pairs:
+        out.write("%s\t%s\t%s\t%s\n" % p)
+
+    out.close()
+
+
+def buildIDRStatement(infile1, infile2, outfile,
+                      sourcec, unsourcec, soft_idr_thresh, idrPARAMS, options,
+                      oraclefile):
+    statement = []
+    statement.append(sourcec)
+
+    log = "%s.log" % P.snip(outfile)
+
+    inputfiletype = idrPARAMS['idrsuffix']
+    rank = idrPARAMS['idrcolname']
+
+    if oraclefile == "None":
+        oraclestatement = ""
+    else:
+        oraclestatement = "--peak-list %s" % oraclefile
+
+    idrstatement = """idr --version >>%(log)s;
+                      idr
+                      --samples %(infile1)s %(infile2)s
+                      --output-file %(outfile)s
+                      --plot
+                      --soft-idr-threshold %(soft_idr_thresh)s
+                      --input-file-type %(inputfiletype)s
+                      --rank %(rank)s
+                      --output-file-type bed
+                       %(oraclestatement)s
+                       %(options)s
+                      --verbose 2>>%(log)s
+    """ % locals()
+    statement.append(idrstatement)
+    statement.append(unsourcec)
+    statement = "; ".join(statement)
+    return statement
 
 #############################################
 # QC Functions
