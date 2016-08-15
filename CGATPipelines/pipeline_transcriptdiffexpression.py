@@ -104,6 +104,18 @@ suitable. For instance, it has been noted that inclusion of poorly
 support transcripts leads to poorer quantification of well-supported
 transcripts.
 
+Note: If the transcripts.fa is not being generated within the
+pipeline, you must ensure the suppled geneset.fa is sorted in gene_id
+order (gtf2gtf --method=sort --sort-order=gene) and you must supply a
+file mapping transcript ids to gene ids called transcript2gene.tsv
+with the following form:
+
+transcript_1   g_1
+transcript_2   g_1
+transcript_3   g_2
+transcript_4   g_3
+
+
 Principal targets
 -----------------
 
@@ -555,6 +567,10 @@ if PARAMS["geneset_auto_generate"]:
         --filter-method=transcript
         --map-tsv-file=%(mapfile)s
         --log=%(outfile)s.log
+        | python %(scriptsdir)s/gtf2gtf.py
+        --method=sort
+        --sort-order=gene+transcript
+        --log=%(outfile)s.log
         | gzip
         > %(outfile)s
         '''
@@ -701,23 +717,77 @@ if PARAMS['simulation_run']:
     @mkdir("simulation.dir")
     @transform(buildReferenceTranscriptome,
                suffix(".fa"),
-               "_kmers.tsv",
+               "_transcript_kmers.tsv",
                output_dir="simulation.dir")
-    def countKmers(infile, outfile):
+    def countTranscriptKmers(infile, outfile):
         ''' count the number of unique and non-unique kmers per transcript '''
 
         job_memory = PARAMS["simulation_kmer_memory"]
 
         statement = '''
-        python %(scriptsdir)s/fasta2unique_kmers.py --input-fasta=%(infile)s
-        --kmer-size=%(kallisto_kmer)s -L %(outfile)s.log > %(outfile)s '''
+        python %(scriptsdir)s/fasta2unique_kmers.py
+        --input-fasta=%(infile)s
+        --method=transcript
+        --kmer-size=%(kallisto_kmer)s
+        -L %(outfile)s.log
+        > %(outfile)s '''
 
         P.run()
 
-    @transform(countKmers,
+    @transform(countTranscriptKmers,
                suffix(".tsv"),
                ".load")
-    def loadKmers(infile, outfile):
+    def loadTranscriptKmers(infile, outfile):
+        ''' load the kmer counts'''
+
+        options = "--add-index=id"
+        P.load(infile, outfile, options=options)
+
+    @mkdir("simulation.dir")
+    @transform(buildReferenceTranscriptome,
+               suffix(".fa"),
+               "_gene_kmers.tsv",
+               output_dir="simulation.dir")
+    def countGeneKmers(infile, outfile):
+        ''' count the number of unique and non-unique kmers per gene '''
+
+        job_memory = PARAMS["simulation_kmer_memory"]
+
+        if PARAMS["geneset_auto_generate"]:
+            genemap = P.getTempFilename(shared=True)
+
+            dbh = connect()
+            select = dbh.execute('''
+            SELECT DISTINCT transcript_id, gene_id FROM transcript_info''')
+
+            with IOTools.openFile(genemap, "w") as outf:
+                for line in select:
+                    outf.write("%s\t%s\n" % (line[0], line[1]))
+
+        else:
+            assert os.path.exists("transcript2gene.tsv"), (
+                "if you want to run the simulation on a user-supplied "
+                "geneset, you need to supply a file mapping "
+                "transcripts to genes " "called transcript2gene.tsv")
+            genemap = "transcript2gene.tsv"
+
+        statement = '''
+        python %(scriptsdir)s/fasta2unique_kmers.py
+        --input-fasta=%(infile)s
+        --method=gene
+        --genemap=%(genemap)s
+        --kmer-size=%(kallisto_kmer)s
+        -L %(outfile)s.log > %(outfile)s '''
+
+        P.run()
+
+        if PARAMS["geneset_auto_generate"]:
+            os.unlink(genemap)
+
+    @transform(countGeneKmers,
+               suffix(".tsv"),
+               ".load")
+    def loadGeneKmers(infile, outfile):
         ''' load the kmer counts'''
 
         options = "--add-index=id"
@@ -983,7 +1053,7 @@ if PARAMS['simulation_run']:
 
     @transform(concatSimulationResults,
                suffix("results.tsv"),
-               add_inputs(countKmers),
+               add_inputs(countTranscriptKmers),
                "correlations.tsv")
     def calculateCorrelations(infiles, outfile):
         ''' calculate correlation across simulation iterations per transcript'''
@@ -1041,7 +1111,8 @@ if PARAMS['simulation_run']:
         P.load(infile, outfile, options=options)
 
     @mkdir("simulation.dir")
-    @follows(loadKmers,
+    @follows(loadTranscriptKmers,
+             loadGeneKmers,
              loadCorrelation,
              loadLowConfidenceTranscripts)
     def simulation():
