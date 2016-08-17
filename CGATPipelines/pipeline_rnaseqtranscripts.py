@@ -275,6 +275,8 @@ import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.Tophat as Tophat
+import CGAT.Sra as Sra
+
 from rpy2.robjects import r as R
 from rpy2.rinterface import RRuntimeError
 
@@ -312,7 +314,8 @@ PipelineGeneset.PARAMS = PARAMS
 ###################################################################
 # collect sra nd fastq.gz tracks
 TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample3).loadFromDirectory(
-    glob.glob("*.bam"), "(\S+).bam")
+    glob.glob("*.bam") + glob.glob("*.remote"),
+    "(\S+).(?:bam|remote)")
 
 ALL = PipelineTracks.Sample3()
 EXPERIMENTS = PipelineTracks.Aggregate(TRACKS, labels=("condition", "tissue"))
@@ -836,10 +839,10 @@ def buildMaskGtf(infile, outfile):
 #########################################################################
 
 
-@transform("*.bam",
-           suffix(".bam"),
+@transform(["*.bam", "*.remote"],
+           formatter(),
            add_inputs(buildMaskGtf, buildReferenceGeneSet),
-           r"\1.gtf.gz")
+           r"{basename[0]}.gtf.gz")
 def buildTranscriptsWithCufflinks(infiles, outfile):
     '''build transcript models for each track separately.
     '''
@@ -880,6 +883,23 @@ def buildTranscriptsWithCufflinks(infiles, outfile):
         %(tmpfilename)s/reference.gtf; ''' % locals()
         options = options + \
             " --GTF-guide %(tmpfilename)s/reference.gtf" % locals()
+    
+    if infile.endswith(".remote"):
+        token = glob.glob("gdc-user-token*")
+
+        if len(token) > 0:
+            token = token[0]
+        else:
+            token = None
+
+        s, infile = Sra.process_remote_BAM(
+            infile, token, tmpfilename,
+            filter_bed=os.path.join(
+                PARAMS["annotations_dir"],
+                PARAMS_ANNOTATIONS["interface_contigs_bed"]))
+
+        infile = " ".join(infile)
+        statement += s + "; "
 
     statement += '''
         cd %(tmpfilename)s;
@@ -2067,7 +2087,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     | gzip
     > %(outfile)s
     '''
-
+    
     P.run()
 
 #########################################################################
