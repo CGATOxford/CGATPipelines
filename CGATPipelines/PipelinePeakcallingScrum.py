@@ -338,7 +338,7 @@ def checkBams(infile, filters, qlim, pe, outfile):
         else:
             counter['improper_pairs'] += 1
 
-        if read.mapping_quality > qlim:
+        if read.mapping_quality >= qlim:
             counter['high_quality'] += 1
         else:
             counter['low_quality'] += 1
