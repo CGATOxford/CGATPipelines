@@ -96,7 +96,8 @@ def readDesignTable(infile, poolinputs):
             inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
                 cond, tissue)
             i += 1
-
+    df['Condition'] = df['Condition'].astype('str')
+    df['Tissue'] = df['Tissue'].astype('str')
     return df, inputD
 
 
@@ -109,7 +110,7 @@ def trackFilters(filtername, bamfile, tabout):
               samtools view -c %(bamfile)s.bam >> %(tabout)s; """ % locals()
 
 
-def appendSamtoolsFilters(statement, inT, tabout, filters, pe):
+def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
     '''
     Apply filters using samtools
     -F - remove these flags
@@ -123,6 +124,8 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, pe):
     for filt in filters:
         if filt == "unmapped":
             string = "-F 4"
+        elif filt == "secondary":
+            string = "-F 0x100"
         elif filt == "unpaired":
             if pe is True:
                 string = "-f 1 -f 2"
@@ -130,8 +133,10 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, pe):
                 E.warn("""Bam file is not paired-end so unpaired reads have
                 not been filtered""")
                 continue
+        elif filt == "lowqual":
+            string = '-q %(qual)i' % locals()
         # append any new samtools filters to this list
-        if filt in ["unmapped", "unpaired"]:
+        if filt in ["unmapped", "unpaired", "lowqual", "secondary"]:
             if i == 0:
                 outT = P.getTempFilename("./filtered_bams.dir")
             else:
@@ -211,7 +216,7 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
     return statement, outT
 
 
-def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip,
+def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                keep_intermediates=False):
     '''
     Applies various filters to bam files.
@@ -235,7 +240,8 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip,
 
     statement, inT = appendPicardFilters(statement, inT, tabout, filters, pe,
                                          bamout)
-    statement, inT = appendSamtoolsFilters(statement, inT, tabout, filters, pe)
+    statement, inT = appendSamtoolsFilters(statement, inT, tabout, filters,
+                                           qual, pe)
     statement, inT = appendBlacklistFilter(statement, inT, tabout, bedfiles,
                                            blthresh, pe)
 
@@ -278,6 +284,111 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip,
     o = open(tabout, "w")
     o.write("%s\n%s" % ("\t".join(ns), "\t".join(nams)))
     o.close()
+
+    # check the filtering is done correctly - write a log file
+    # if unpaired is specified in bamfilters in the pipeline.ini
+    # remove reads whose mate has been filtered out elsewhere
+
+    T = P.getTempFilename(".")
+    checkBams(bamout, filters, qual, pe, T)
+    if int(keep_intermediates) == 1:
+        shutil.copy(bamout, bamout.replace(".bam", "_beforepaircheck.bam"))
+    shutil.move("%s.bam" % T, bamout)
+    shutil.move("%s.filteringlog" % (T),
+                bamout.replace(".bam", ".filteringlog"))
+    if os.path.exists(T):
+        os.remove(T)
+
+
+@cluster_runnable
+def checkBams(infile, filters, qlim, pe, outfile):
+
+    samfile = pysam.AlignmentFile(infile, 'rb')
+
+    outbam = pysam.AlignmentFile("%s.bam" % outfile, "wb",
+                                 template=samfile)
+    sep = '.'
+    logfile = sep.join([outfile, 'filteringlog'])
+
+    counter = collections.Counter()
+    fragment_length = collections.Counter()
+    d = collections.defaultdict(list)
+
+    if "lowqual" not in filters:
+        qlim = 0
+
+    counter['secondary'] = 0
+    counter['proper_pairs'] = 0
+    counter['improper_pairs'] = 0
+    counter['high_quality'] = 0
+    counter['low_quality'] = 0
+    counter['unmapped'] = 0
+    counter['mapped'] = 0
+    counter['multiple_or_1_read_in_pair'] = 0
+
+    for read in samfile.fetch():
+        d[read.query_name].append(read)
+
+        counter['total_reads'] += 1
+        if read.is_secondary:
+            counter['secondary'] += 1
+
+        if read.is_proper_pair:
+            counter['proper_pairs'] += 1
+        else:
+            counter['improper_pairs'] += 1
+
+        if read.mapping_quality > qlim:
+            counter['high_quality'] += 1
+        else:
+            counter['low_quality'] += 1
+
+        if read.is_unmapped:
+            counter['unmapped'] += 1
+        else:
+            counter['mapped'] += 1
+
+    if "unpaired" not in filters or pe is False:
+        shutil.copy(infile, outfile)
+
+    if "unpaired" in filters:
+        for items, values in d.iteritems():
+            if len(values) == 2:
+                if values[0].is_read1 and values[1].is_read2:
+                    outbam.write(values[0])
+                    outbam.write(values[1])
+
+                elif values[0].is_read2 and values[1].is_read1:
+                    outbam.write(values[1])
+                    outbam.write(values[0])
+
+                else:
+                    counter['paired11_paired22'] += 1
+                l = abs(values[0].template_length)
+                fragment_length[l] += 1
+
+            else:
+                counter['multiple_or_1_read_in_pair'] += 1
+                if "secondary" not in filters:
+                    for v in values:
+                        outbam.write(v)
+
+    out = IOTools.openFile(infile.replace(".bam", ".fraglengths"), "w")
+    for key in fragment_length:
+        out.write("%s\t%d\n" % (key, fragment_length[key]))
+    out.close()
+
+    filteringReport(counter, logfile)
+
+    outbam.close()
+    samfile.close()
+
+
+def filteringReport(counter, logfile):
+    logfile = open(logfile, "w")
+    for c in counter:
+        logfile.write("%s\t%s\n" % (c, counter[c]))
+    logfile.close()
 
 
 def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
@@ -331,7 +442,7 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
 
 
 @cluster_runnable
-def makePseudoBams(infile, outfiles, pe, randomseed):
+def makePseudoBams(infile, outfiles, pe, randomseed, filters):
     '''
     Generates pseudo bam files for IDR analysis
     Each read in the input bam is assigned to a pseudo bam at random.
@@ -393,23 +504,32 @@ def makePseudoBams(infile, outfiles, pe, randomseed):
         T = P.getTempFilename(".")
         os.system("""samtools sort %(outf)s -o %(T)s.bam;
         samtools index %(T)s.bam""" % locals())
-    #   pysam.sort(outf, T, catch_stdout=False)
-    #   pysam.index("%s.bam" % T, catch_stdout=False)
+        pysam.sort(outf, T, catch_stdout=False)
+        pysam.index("%s.bam" % T, catch_stdout=False)
+
         bamfile = pysam.AlignmentFile("%s.bam" % T, "rb")
         all = []
         for nam in bamfile:
             all.append(nam.qname)
-        if pe is True:
-            a = len(set(all))
-            a2 = len(all)
+
+        if pe is True and "unpaired" in filters and "secondary" in filters:
+            allreads = len(all)
+            uniquereads = len(set(all))
+            expectedreads = len(all) / 2
             assert (
                 (len(set(all)) <= (len(all) / 2) + 2) &
-                (len(set(all)) >= (len(all) / 2) - 2)) , """
-                Error splitting bam file %(outf)s""" % locals()
+                (len(set(all)) >= (len(all) / 2) - 2)), """
+                Error splitting bam file %(outf)s\
+                %(allreads)i reads in bam file and\
+                %(uniquereads)s unique read names -
+                expecting %(expectedreads)i unique read names\
+                """ % locals()
+
         lens.append(bamfile.count())
-    #     os.remove(T)
+        os.remove(T)
         shutil.move("%s.bam" % T, outf)
         shutil.move("%s.bam.bai" % T, "%s.bai" % outf)
+
     E.info("Bamfile 1 length %i, Bamfile 2 length %i" % (lens[0], lens[1]))
 
 #############################################
@@ -439,7 +559,7 @@ def mergeSortIndex(bamfiles, out):
     infiles = " ".join(bamfiles)
     T1 = P.getTempFilename(".")
     T2 = P.getTempFilename(".")
-    statement = """samtools merge %(T1)s.bam  %(infiles)s;
+    statement = """samtools merge %(T1)s.bam %(infiles)s;
     samtools sort %(T1)s.bam -o %(T2)s.bam;
     samtools index %(T2)s.bam;
     mv %(T2)s.bam %(out)s;
@@ -641,7 +761,8 @@ class Macs2Peakcaller(Peakcaller):
         statement.append(
             '''grep -v "^$" < %(outfile)s_%(suffix)s
             | bgzip > %(outfile)s_%(suffix)s.gz;
-            tabix -f -b 2 -e 3 -S 26 %(outfile)s_%(suffix)s.gz;
+            x=$(zgrep "[#|log]" macs2.dir/K9-13-3.macs2_peaks.xls.gz | wc -l);
+            tabix -f -b 2 -e 3 -S $x %(outfile)s_%(suffix)s.gz;
              checkpoint; rm -f %(outfile)s_%(suffix)s''' % locals())
 
         return "; checkpoint ;".join(statement)
@@ -665,8 +786,7 @@ class Macs2Peakcaller(Peakcaller):
 
         filename_bed = outfile + "_peaks.xls.gz"
         filename_subpeaks = outfile + "_summits.bed"
-        filename_broadpeaks = "%s.broadpeaks.macs_peaks.bed" % (
-            P.snip(outfile, ".macs2"))
+        filename_broadpeaks = "%s_peaks.broadPeak" % outfile
 
         outfile_subpeaks = P.snip(
             outfile, ".macs2", ) + ".subpeaks.macs_peaks.bed"

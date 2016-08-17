@@ -142,6 +142,7 @@ def filterInputBAMs(infile, outfiles):
                                    float(blthresh),
                                    PARAMS['paired_end'],
                                    PARAMS['filters_strip'],
+                                   PARAMS['filters_qual'],
                                    PARAMS['filters_keepint'])
 
 
@@ -162,6 +163,7 @@ def filterChipBAMs(infile, outfiles):
                                    float(blthresh),
                                    PARAMS['paired_end'],
                                    PARAMS['filters_strip'],
+                                   PARAMS['filters_qual'],
                                    PARAMS['filters_keepint'])
 
 
@@ -242,6 +244,11 @@ else:
         '''
         pass
 
+    @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
+               r'filtered_bams.dir/\1.bam')
+    def makePooledInputs(infile, outfile):
+        pass
+
 
 if int(PARAMS['IDR_run']) == 1:
     @follows(mkdir("peakcalling_bams.dir"))
@@ -273,8 +280,11 @@ if int(PARAMS['IDR_run']) == 1:
         PipelinePeakcalling.makePseudoBams(infile, pseudos,
                                            PARAMS['paired_end'],
                                            PARAMS['IDR_randomseed'],
+                                           PARAMS['filters_bamfilters'].split(
+                                               ","),
                                            submit=True)
 else:
+    @follows(mkdir('peakcalling_bams.dir'))
     @transform(filterChipBAMs, regex("filtered_bams.dir/(.*)_filtered.bam"),
                r'peakcalling_bams.dir/\1.bam')
     def makePseudoBams(infile, outfile):
@@ -282,13 +292,13 @@ else:
         Link to original BAMs without generating pseudo bams
         if IDR not requested.
         '''
-        PipelinePeakcalling.makeBamLink(infile, outfile)
+        PipelinePeakcalling.makeBamLink(infile[0], outfile)
 
 
 # These three functions gather and parse the input (control) bam files into the
 # IDR_inputs.dir directory prior to IDR analysis.
 # The method used to do this depends on the IDR_poolinputs parameter
- 
+
 if PARAMS['IDR_poolinputs'] == "none":
     @follows(mkdir('IDR_inputs.dir'))
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
