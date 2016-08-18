@@ -468,7 +468,7 @@ def ldPruneSNPsRound1(infiles, outfile):
 
     plink_files = ",".join([bed_file, fam_file, bim_file])
     out_pattern = ".".join(outfile.split(".")[:-2])
-    job_memory = "4G"
+    job_memory = "6G"
     job_threads = 10
 
     statement = '''
@@ -479,11 +479,11 @@ def ldPruneSNPsRound1(infiles, outfile):
     --method=ld_prune
     --keep=%(gwas_keep)s
     --use-kb
-    --memory=30G
+    --memory=60G
     --ignore-indels
     --genotype-rate=0.1
-    --hardy-weinberg=0.00001
-    --min-allele-frequency=0.005
+    --hardy-weinberg=1e-50
+    --min-allele-frequency=0.01
     --prune-method=%(ld_prune_method)s
     --step-size=%(ld_prune_step)s
     --window-size=%(ld_prune_window)s
@@ -535,7 +535,7 @@ def ldPruneSNPsRound2(infiles, outfile):
 
     plink_files = ",".join([bed_file, fam_file, bim_file])
     out_pattern = ".".join(outfile.split(".")[:-2])
-    job_memory = "4G"
+    job_memory = "6G"
     job_threads = 10
     prune_threshold = PARAMS['ld_prune_threshold'] - 0.05
 
@@ -548,11 +548,11 @@ def ldPruneSNPsRound2(infiles, outfile):
     --method=ld_prune
     --keep=%(gwas_keep)s
     --use-kb
-    --memory=30G
+    --memory=60G
     --ignore-indels
-    --min-allele-frequency=0.005
+    --min-allele-frequency=0.01
     --genotype-rate=0.1
-    --hardy-weinberg=0.00001
+    --hardy-weinberg=1e-50
     --prune-method=%(ld_prune_method)s
     --step-size=%(ld_prune_step)s
     --window-size=%(ld_prune_window)s
@@ -604,9 +604,9 @@ def ldPruneSNPsRound3(infiles, outfile):
 
     plink_files = ",".join([bed_file, fam_file, bim_file])
     out_pattern = ".".join(outfile.split(".")[:-2])
-    job_memory = "4G"
+    job_memory = "6G"
     job_threads = 10
-    prune_threshold = PARAMS['ld_prune_threshold'] - 0.1
+    prune_threshold = PARAMS['ld_prune_threshold'] - 0.05
 
     statement = '''
     python %(scriptsdir)s/geno2qc.py
@@ -617,11 +617,11 @@ def ldPruneSNPsRound3(infiles, outfile):
     --method=ld_prune
     --keep=%(gwas_keep)s
     --use-kb
-    --memory=30G
+    --memory=60G
     --ignore-indels
-    --min-allele-frequency=0.005
+    --min-allele-frequency=0.01
     --genotype-rate=0.1
-    --hardy-weinberg=0.00001
+    --hardy-weinberg=1e-50
     --prune-method=%(ld_prune_method)s
     --step-size=%(ld_prune_step)s
     --window-size=%(ld_prune_window)s
@@ -2262,8 +2262,7 @@ def plotLdExcludedEpistasis(infile, outfile):
 
 @jobs_limit(6)
 @follows(mergeGenotypeAndCovariates,
-         excludeLdVariants,
-         ldExcludedEpistasis)
+         excludeLdVariants)
 @transform(excludeLdVariants,
            regex("target_snps.dir/(.+).exclude"),
            add_inputs([r"epistasis.dir/GwasHits.bed",
