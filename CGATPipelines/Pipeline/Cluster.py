@@ -81,14 +81,15 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
             spec.append("-l %s=%s" % (resource, job_memory))
 
         # if process has multiple threads, use a parallel environment
-        if 'job_threads' in options:
+        multithread = 'job_threads' in options and options['job_threads'] > 1
+        if multithread:
             spec.append(
                 "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
 
-        if "cluster_pe_queue" in options and 'job_threads' in options:
+        if "cluster_pe_queue" in options and multithread:
             spec.append(
                 "-q %(cluster_pe_queue)s")
-        else:
+        elif options['cluster_queue'] != "NONE":
             spec.append("-q %(cluster_queue)s")
 
     elif queue_manager.lower() == "slurm":

@@ -27,13 +27,15 @@ class SleuthResults(IsoformTracker):
 
     def __call__(self, track, slice=None):
 
+        quantifier = track.split("_")[-2]
+
         statement = '''
         SELECT A.gene_name, A.gene_id, A.transcript_id, B.reason AS flagged,
         A.control_mean AS expression, A.fold, A.l2fold, A.p_value,
         A.p_value_adj, A.significant, A.transcript_biotype
         FROM %(track)s_DEresults AS A
-        LEFT JOIN kallisto_flagged_transcripts AS B
-        ON A.test_id = B.transcript_id
+        LEFT JOIN %(quantifier)s_flagged_transcripts AS B
+        ON A.transcript_id = B.transcript_id
         %(where)s
         ORDER BY A.significant DESC, A.l2fold ASC
         '''
@@ -50,25 +52,28 @@ class SleuthResultsSig(SleuthResults):
 
 class SleuthAll(IsoformTracker):
 
+    pattern = ""
     table = ""
 
     def __call__(self, track, slice=None):
 
         statement = '''
         SELECT A.*, B.reason as flagged
-        FROM %(table)s AS A
-        LEFT JOIN kallisto_flagged_transcripts AS B
+        FROM all_%(table)s_%(track)s AS A
+        LEFT JOIN %(track)s_flagged_transcripts AS B
         ON A.transcript_id = B.transcript_id
         '''
         return self.getAll(statement)
 
 
 class SleuthCountsAll(SleuthAll):
-    table = "all_counts"
+    pattern = "all_counts_(.*)"
+    table = "counts"
 
 
 class SleuthTpmAll(SleuthAll):
-    table = "all_tpm"
+    pattern = "all_tpm_(.*)"
+    table = "tpm"
 
 
 class SummarisedResults(IsoformTracker):
@@ -77,16 +82,19 @@ class SummarisedResults(IsoformTracker):
 
     def __call__(self, track, slice=None):
 
+        quantifier = track.split("_")[-2]
+        design = "_".join(track.split("_")[:-2]) + "_design"
+
         select_results = '''SELECT A.*,
         B.p_value, B.p_value_adj, B.l2fold, B.transcript_biotype
-        FROM all_tpm AS A
+        FROM all_tpm_%(quantifier)s AS A
         LEFT JOIN %(track)s_DEresults AS B
         ON A.transcript_id = B.transcript_id
         WHERE B.p_value<0.05'''
 
         results_df = pd.DataFrame(self.getAll(select_results))
 
-        select_design = '''SELECT * FROM %(track)s_design'''
+        select_design = '''SELECT * FROM %(design)s'''
         design_df = self.getDataFrame(select_design)
 
         for group in set(design_df['_group']):
@@ -101,18 +109,51 @@ class SummarisedResults(IsoformTracker):
 
 class SleuthAllGenes(IsoformTracker):
 
+    pattern = ""
     table = ""
 
     def __call__(self, track, slice=None):
 
-        statement = '''SELECT * FROM %(table)s '''
+        statement = "SELECT * FROM all_gene_expression_%(table)s_%(track)s"
 
         return self.getDataFrame(statement)
 
 
 class SleuthCountsAllGenes(SleuthAllGenes):
-    table = "all_counts"
+    pattern = "all_gene_expression_counts_(.*)"
+    table = "counts"
 
 
 class SleuthTpmAllGenes(SleuthAllGenes):
-    table = "all_tpm"
+    pattern = "all_gene_expression_tpm_(.*)"
+    table = "tpm"
+
+
+class Deseq2Results(IsoformTracker):
+
+    pattern = "(.*)_deseq2_DE_results$"
+    direction = ""
+    where = "WHERE p_value NOT NULL"
+
+    def __call__(self, track, slice=None):
+
+        statement = '''
+        SELECT
+        gene_name, gene_id,
+        control_mean AS expression,
+        fold, l2fold,
+        p_value, p_value_adj,
+        significant
+        FROM %(track)s_deseq2_DE_results
+        WHERE p_value NOT NULL
+        ORDER BY significant DESC, l2fold ASC
+        '''
+
+        return self.getAll(statement)
+
+
+class Deseq2ResultsSig(Deseq2Results):
+
+    pattern = "(.*)_deseq2_DE_results$"
+    direction = ""
+    where = "WHERE p_value NOT NULL AND significant == 1 AND ABS(l2fold) > 1"

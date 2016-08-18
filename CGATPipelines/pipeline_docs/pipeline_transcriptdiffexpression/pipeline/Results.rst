@@ -2,8 +2,8 @@
 Differential expression results tables
 ======================================
 
-DE results tables
-=================
+DE Transcripts results tables
+=============================
 
 The following presents the results tables for the differential
 expression (DE) testing for the transcripts. Only transcripts which
@@ -66,3 +66,17 @@ unadjusted p-values < 0.05 are included.
    :force:
 
    Summarised results tables
+
+
+DE Genes results tables
+=======================
+
+Deseq2 results
+
+.. report:: Results.Deseq2ResultsSig
+   :render: xls-table
+   :groupby: track
+   :force:
+
+   Summarised results tables
+

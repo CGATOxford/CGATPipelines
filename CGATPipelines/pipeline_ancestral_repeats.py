@@ -20,7 +20,6 @@ This pipeline performs the following actions:
    * define ancestral repeats
    * compute rates of ancestral repeats
 
-
 Usage
 =====
 
@@ -43,12 +42,24 @@ the input data from directories specified in the configuration files.
 
 The genomic alignment can both be build from :term:`axt` formatted
 pairwise alignments and from :term:`maf` formatted multiple
-alignmentns. However, the latter currently only works if the
-:term:`query` genome is the reference species in the maf files.
+alignments. 
 
-This is a consequence of :file:`maf2Axt` requiring that the strand of
-the reference species is always positive and I have not figured out
-how to invert maf alignments.
+:term:`axt` formatted files (such as file:`chr1.hg19.mm10.net.axt.gz`)
+are build by hierarchically from chains by selecting the
+highest-scoring non-overlapping chains on top and then filling in the
+gaps with lower scoring chains. A net is single-coverage for target
+but not for query, unless it has been filtered to be single-coverage
+on both target and query. Because it's single-coverage in the target,
+it's no longer symmetrical. For ancestral repeat determination, use
+:term:`axt` files that have been filtered to be single-coverage on
+both query and target. By convention, the UCSC adds "rbest" to the net
+filename in that case, such as: `hg19.panTro3.rbest.net.gz`.
+
+:term:`maf` files currently only work if the :term:`query` genome is
+the reference species in the maf files. This is a consequence of
+:file:`maf2Axt` requiring that the strand of the reference species is
+always positive and I have not figured out how to invert maf
+alignments.
 
 .. note::
    ENSEMBL import is not thoroughly tested.
@@ -138,10 +149,6 @@ def getGenomes():
     genome_target = os.path.join(PARAMS["genome_dir"], PARAMS["target"])
     return genome_query, genome_target
 
-#########################################################################
-#########################################################################
-#########################################################################
-
 
 @files([("%s/%s.idx" % (PARAMS["genome_dir"], x), "%s.sizes" % x)
         for x in (PARAMS["query"], PARAMS["target"])])
@@ -155,9 +162,7 @@ def buildSizes(infile, outfile):
             outf.write("%s\t%s\n" % (contig, data[3]))
     outf.close()
 
-#########################################################################
-#########################################################################
-#########################################################################
+
 if "axt_dir" in PARAMS:
     # build pairwise alignment from axt formatted data.'''
     @follows(buildSizes)

@@ -19,13 +19,10 @@ import CGAT.Counts as Counts
 import CGAT.IOTools as IOTools
 
 import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
 
 from CGATPipelines.Pipeline import cluster_runnable
 
-from rpy2.robjects import pandas2ri
 from rpy2.robjects import r as R
-import rpy2.robjects as ro
 
 import pandas as pd
 import numpy as np
@@ -53,7 +50,7 @@ def connect(database, annotations_database):
 
 
 @cluster_runnable
-def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm,
+def runSleuth(design, base_dir, model, contrasts, outfile, counts, tpm,
               fdr, lrt=False, reduced_model=None):
     ''' run sleuth. Note: all samples in the design table must also
     have a directory with the same name in `base_dir` with kallisto
@@ -64,13 +61,13 @@ def runSleuth(design, base_dir, model, contrast, outfile, counts, tpm,
     Design = Expression.ExperimentalDesign(design)
     exp = Expression.DEExperiment_Sleuth()
 
-    res = exp.run(Design, base_dir, model, contrast, outfile_prefix,
+    res = exp.run(Design, base_dir, model, contrasts, outfile_prefix,
                   counts, tpm, fdr, lrt, reduced_model)
 
     res.getResults(fdr)
-
-    res.plotMA(contrast, outfile_prefix)
-    res.plotVolcano(contrast, outfile_prefix)
+    for contrast in set(res.table['contrast']):
+        res.plotMA(contrast, outfile_prefix)
+        res.plotVolcano(contrast, outfile_prefix)
 
     res.table.to_csv(outfile, sep="\t", index=False)
 
@@ -85,35 +82,17 @@ def runSleuthAll(samples, base_dir, counts, tpm):
     '''
 
     design = pd.DataFrame({
-        "sample": samples,
-        "group": ([0, 1] * ((len(samples)+1)/2))[0:len(samples)]})
+        "group": ([0, 1] * ((len(samples)+1)/2))[0:len(samples)],
+        "include": [1, ] * len(samples),
+        "pair": [0, ] * len(samples)})
 
-    r_design_df = pandas2ri.py2ri(design)
+    design.index = samples
 
-    createSleuthTables = R('''
-    function(design_df){
+    Design = Expression.ExperimentalDesign(design)
+    exp = Expression.DEExperiment_Sleuth()
 
-    suppressMessages(library('sleuth'))
-    suppressMessages(library('reshape'))
-    sample_id = design_df$sample
-    kal_dirs <- sapply(sample_id,
-    function(id) file.path('%(base_dir)s', id))
-
-    design_df <- dplyr::select(design_df, sample = sample, group)
-    design_df <- dplyr::mutate(design_df, path = kal_dirs)
-
-    so <- sleuth_prep(design_df, ~group)
-
-    df = cast(so$obs_raw, target_id~sample, value = "est_counts")
-    colnames(df)[1] <- "transcript_id"
-    write.table(df, "%(counts)s", sep="\t", row.names=F, quote=F)
-
-    df = cast(so$obs_raw, target_id~sample, value = "tpm")
-    colnames(df)[1] <- "transcript_id"
-    write.table(df, "%(tpm)s", sep="\t", row.names=F, quote=F)
-    }''' % locals())
-
-    createSleuthTables(r_design_df)
+    res = exp.run(Design, base_dir, counts=counts, tpm=tpm,
+                  model="~group", dummy_run=True)
 
 
 @cluster_runnable
@@ -209,7 +188,7 @@ def mergeAbundanceCounts(infile, outfile, counts):
 
 
 @cluster_runnable
-def calculateCorrelations(infiles, outfile):
+def calculateCorrelations(infiles, outfile, bin_step=1):
     ''' calculate correlation across simulation iterations per transcript'''
 
     abund, kmers = infiles
@@ -240,8 +219,11 @@ def calculateCorrelations(infiles, outfile):
                       left_index=True, right_index=True)
     df_final = pd.merge(df_kmer, df_agg, left_index=True, right_index=True)
     df_final['fraction_bin'] = (
-        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, 1),
+        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, bin_step),
                     right=True))/100.0
+
+    # Multiply bin number by step size to get the fraction for the bin
+    df_final['fraction_bin'] = df_final['fraction_bin'] * bin_step
 
     df_abund_tpm_sum = df_abund.groupby(level=0)["est_tpm", "tpm"].sum()
     df_abund_count_sum = df_abund.groupby(level=0)[
@@ -296,3 +278,48 @@ def loadSleuthTable(infile, outfile, transcript_info, gene_biotypes,
         options = "--add-index=transcript_id"
         P.load(tmpfile, outfile, options=options)
         os.unlink(tmpfile)
+
+
+def loadSleuthTableGenes(infile, outfile, gene_info, gene_biotypes,
+                         database, annotations_database):
+
+        tmpfile = P.getTempFilename("/ifs/scratch/")
+
+        table = os.path.basename(gene_info)
+
+        if gene_biotypes:
+            where_cmd = "WHERE " + " OR ".join(
+                ["gene_biotype = '%s'" % x
+                 for x in gene_biotypes.split(",")])
+        else:
+            where_cmd = ""
+
+        select = """SELECT DISTINCT
+        gene_id, gene_name
+        FROM annotations.%(table)s
+        %(where_cmd)s""" % locals()
+
+        df1 = pd.read_table(infile, sep="\t")
+        df1.set_index("test_id", drop=False, inplace=True)
+
+        df2 = pd.read_sql(select, connect(database, annotations_database))
+        df2.set_index("gene_id", drop=False, inplace=True)
+
+        df = df1.join(df2)
+        df.to_csv(tmpfile, sep="\t", index=True)
+
+        options = "--add-index=gene_id"
+        P.load(tmpfile, outfile, options=options)
+        os.unlink(tmpfile)
+
+
+def convertFromFish(infile, outfile):
+    ''' convert sailfish/salmon output to Sleuth compatible h5 file'''
+
+    infile = os.path.dirname(infile)
+
+    convert = R('''library(wasabi)
+    prepare_fish_for_sleuth("%(infile)s", force=TRUE)
+    ''' % locals())
+
+    convert

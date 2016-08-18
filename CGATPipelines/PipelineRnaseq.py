@@ -383,12 +383,10 @@ def runFeatureCounts(annotations_file,
     if BamTools.isPaired(bamfile):
         # select paired end mode, additional options
         paired_options = "-p -B"
-        # remove .bam extension
-        bam_prefix = P.snip(bam_tmp, ".bam")
         # sort by read name
         paired_processing = \
             """samtools
-            sort -@ %(job_threads)i -n %(bamfile)s %(bam_prefix)s;
+            sort -@ %(job_threads)i -n -o %(bam_tmp)s %(bamfile)s;
             checkpoint; """ % locals()
         bamfile = bam_tmp
     else:

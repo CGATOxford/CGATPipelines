@@ -94,19 +94,24 @@ def writeConfigFiles(pipeline_path, general_path):
     '''create default configuration files in `path`.
     '''
 
-    for src in [
-            os.path.join(pipeline_path, "pipeline.ini"),
-            os.path.join(general_path, "conf.py")]:
-        dest = os.path.basename(src)
+    paths = [pipeline_path, general_path]
+    config_files = ['pipeline.ini', 'conf.py']
+
+    for dest in config_files:
         if os.path.exists(dest):
             E.warn("file `%s` already exists - skipped" % dest)
             continue
 
-        if not os.path.exists(src):
-            raise ValueError("default config file `%s` not found" % src)
-
-        shutil.copyfile(src, dest)
-        E.info("created new configuration file `%s` " % dest)
+        for path in paths:
+            src = os.path.join(path, dest)
+            if os.path.exists(src):
+                shutil.copyfile(src, dest)
+                E.info("created new configuration file `%s` " % dest)
+                break
+        else:
+            raise ValueError(
+                "default config file for `%s` not found in %s" %
+                (config_files, paths))
 
 
 def clonePipeline(srcdir, destdir=None):
@@ -624,6 +629,10 @@ config
 dump
    write pipeline configuration to stdout
 
+printconfig
+   write pipeline configuration to stdout in a user-friendly way so
+   it is easier to debug pipeline parameters
+
 touch
    touch files only, do not run
 
@@ -679,7 +688,7 @@ def main(args=sys.argv):
                       type="choice",
                       choices=(
                           "make", "show", "plot", "dump", "config", "clone",
-                          "check", "regenerate"),
+                          "check", "regenerate", "printconfig"),
                       help="action to take [default=%default].")
 
     parser.add_option("--pipeline-format", dest="pipeline_format",
@@ -997,6 +1006,11 @@ def main(args=sys.argv):
         # convert to normal dictionary (not defaultdict) for parsing purposes
         # do not change this format below as it is exec'd in peekParameters()
         print "dump = %s" % str(dict(PARAMS))
+
+    elif options.pipeline_action == "printconfig":
+        print "Printing out pipeline parameters: "
+        for k in sorted(PARAMS):
+            print k, "=", PARAMS[k]
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
