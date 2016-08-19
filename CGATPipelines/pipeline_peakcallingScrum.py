@@ -2,7 +2,7 @@
 pipeline_peakcalling.py - Produce Peaklist from Bam Files 
 ===================================================
 
-:Author: Andreas Heger
+:Author: Katy Brown & Charlie George
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -13,8 +13,8 @@ Methods
 
 Pipeline Usage
 =============
-	- Takes Bam files that you want to call peaks in and thier appropriate
-	 'input' controls.
+	- Takes Bam files that you want to call peaks in and thier 
+	  appropriate 'input' controls.
 	- Call peaks for bam files matching them to thier inputs. 
 	- Produce Bed files containing peaks for downstram analysis 
 
@@ -22,13 +22,16 @@ Pipeline Usage
 	-------------------
 	- Filter Bam files to remove:
 			- Duplicates
+			- Secondary alignments
+			- Unpaired reads for paired-end files
 			- Reads overlapping 'blacklisted' regions 
+			- Mapping quality (MAPQ) score
 			- Other things ????? 
-	- Pool input files for peakcalling to give better peakcalling when inputs
-	  have poor coverage or lack of sequening depth 
-	- Perform Irreprodcible Discovery Rate analysis to get a consensus list of 
-	  Highly reproducible peaks and assess replicate quaility 
-
+	- Pool input files for peakcalling to give better peakcalling
+	  when inputs have poor coverage or lack of sequening depth 
+	- Perform Irreproducible Discovery Rate analysis (described 
+	  further below) to get a consensus list of 
+	  'highly reproducible peaks' and assess replicate quaility 
 
 
 NOTE: WARNINGS!!!! 
@@ -37,33 +40,38 @@ NOTE: WARNINGS!!!!
 best with transcription factor CHIPs or methodologies producing 'narrow peaks'
 or peaks with well defined boundaries 
 	
-BroadPeak IDR might not work becuase peak boundary's are harder to defines and 
-may not be so reproducible between replicates 
+BroadPeak IDR might not work becuase peak boundary's are harder
+to define and thus may not be so reproducible between replicates 
 
-2.	Always check your output from this pipeline in a genome browser to check 
+2. Always check your output from this pipeline in a genome browser to check 
 peaks are being called suffiently!
 
-3. This pipeline references Chip bams throughout in the code -this referencces
-the immunoprecipitated (IP) sample from a ChIP experiment (i.e. the file you 
-want to find peaks in) it could just as easily be 
-an ATAC-Seq bam file or other bam file in which you are looking for peaks
+3. This pipeline references ChIP bams throughout in the code -this 
+referencces the immunoprecipitated (IP) sample from a ChIP experiment 
+(i.e. the file you want to find peaks in), Input bams refer to the 
+bams of the input control samples that are used for background 
+normalisation in peak calling. Although we refer to ChIP bams 
+this is only nomenclature and you could just as easily use
+an ATAC-Seq bam file or other bam file in which you are looking for 
+peaks
 
+Requirements 
+============
+
+Macs2 
+IDR 
 
 
 Usage
 =====
-Inputs 
-
-
-	
-
-
 
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general
 information how to use CGAT pipelines.
 
 Configuration
 -------------
+
+What is this section?? 
 
 Input
 -----
@@ -73,7 +81,8 @@ Sample_bam = bam file you want to call peaks on
 Input_bam = control file used as background reference in peakcallign 
 (e.g. input file for ChIP-seq) 
 
-Pipeline.ini = file containing paramaters for running the pipeline
+Pipeline.ini = File containing paramaters and options for
+running the pipeline
 
 Desgin.tsv = Design file based on design file for R package Diff Bind 
 Has the following collumns: 
@@ -81,6 +90,47 @@ Has the following collumns:
 
 Pipeline output
 ===============
+
+The aim of this pipeline is to output a list of peaks that
+can be used for further downstream analysis. 
+
+The pipeline generates several new directories containing 
+output files - these can roughly be grouped into XXX main 
+stages of the pipeline 
+
+1) Bam file preparation 
+   --------------------
+   - filtered_bams.dir: 
+   Contains bams files (and thier indexes) 
+   that have been filtered according to pipeline.ini and a number
+   of log files relating to the number of reads that have been 
+   filtered out for each reason. Also contains file with the 
+   fragment length (insert size) distribution for paired-end 
+   samples. 
+   
+   
+IDR.dir
+
+IDR_inputs.dir
+
+macs2.dir/
+
+peakcalling_bams.dir/
+
+peaks_for_IDR.dir/
+
+pooled_bams.dir/
+Peaksets:
+	
+Conservative Peakset = Only obtained if IDR analysis run
+IDR analysis 
+This analysis does a comparision on a pair of peak files to 
+	
+Tables 
+Contained in the database are several tables used for QC and 
+analysis 
+
+
 
 
 Code
@@ -110,7 +160,7 @@ import numpy as np
 #########################################################################
 ###########Load PARAMS Dictionary from Pipeline.innni file options ######
 #########################################################################
-# load options from pipeline.ini file
+# load options from pipeline.ini file into PARAMS dictionary
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
@@ -217,9 +267,13 @@ def filterInputBAMs(infile, outfiles):
 def filterChipBAMs(infile, outfiles):
     '''
     Applies various filters specified in the pipeline.ini to the bam file
-    Currently implemented are filtering unmapped, unpaired and duplicate
-    reads and filtering reads overlapping with blacklisted regions
-    based on a list of bam files.
+    Currently implemented are filtering:
+    	unmapped reads
+    	unpaired reads
+    	duplicate reads
+    	secondary alignment reads
+    	reads below a mapping quality (MAPQ) score
+    	reads overlapping with blacklisted regions specified in bed file.
     '''
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
