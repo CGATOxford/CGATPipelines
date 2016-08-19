@@ -298,6 +298,7 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                 bamout.replace(".bam", ".filteringlog"))
     if os.path.exists(T):
         os.remove(T)
+    sortIndex(bamout)
 
 
 @cluster_runnable
@@ -479,8 +480,11 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
     dest = outfiles[i]
     if pe is True:
         for read in sorted_bamfile:
+            # if j is even
             if j % 2 == 0:
+                # take item i from intlist
                 destint = intlist[i]
+                # sends to output bam file 0 or 1
                 dest = outs[destint]
                 i += 1
             dest.write(read)
@@ -504,8 +508,8 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
         T = P.getTempFilename(".")
         os.system("""samtools sort %(outf)s -o %(T)s.bam;
         samtools index %(T)s.bam""" % locals())
-        pysam.sort(outf, T, catch_stdout=False)
-        pysam.index("%s.bam" % T, catch_stdout=False)
+  #      pysam.sort(outf, T, catch_stdout=False)
+  #      pysam.index("%s.bam" % T, catch_stdout=False)
 
         bamfile = pysam.AlignmentFile("%s.bam" % T, "rb")
         all = []
@@ -569,6 +573,20 @@ def mergeSortIndex(bamfiles, out):
     os.remove(T1)
 
 
+def sortIndex(bamfile):
+    '''
+    Merge bamfiles into a single sorted, indexed outfile.
+    '''
+    T1 = P.getTempFilename(".")
+    bamfile = P.snip(bamfile)
+    statement = """
+    samtools sort %(bamfile)s.bam -o %(T1)s.bam;
+    samtools index %(T1)s.bam;
+    mv %(T1)s.bam %(bamfile)s.bam;
+    mv %(T1)s.bam.bai %(bamfile)s.bam.bai""" % locals()
+    P.run()
+
+
 def makeBamLink(currentname, newname):
     '''
     Make links to an existing bam file and its index
@@ -577,6 +595,15 @@ def makeBamLink(currentname, newname):
     os.system("""
     ln -s %(cwd)s/%(currentname)s %(cwd)s/%(newname)s;
     ln -s %(cwd)s/%(currentname)s.bai %(cwd)s/%(newname)s.bai;
+    """ % locals())
+
+def makeLink(currentname, newname):
+    '''
+    Make links to an existing bam file and its index
+    '''
+    cwd = os.getcwd()
+    os.system("""
+    ln -s %(cwd)s/%(currentname)s %(cwd)s/%(newname)s;
     """ % locals())
 
 
@@ -761,7 +788,7 @@ class Macs2Peakcaller(Peakcaller):
         statement.append(
             '''grep -v "^$" < %(outfile)s_%(suffix)s
             | bgzip > %(outfile)s_%(suffix)s.gz;
-            x=$(zgrep "[#|log]" macs2.dir/K9-13-3.macs2_peaks.xls.gz | wc -l);
+            x=$(zgrep "[#|log]" %(outfile)s_%(suffix)s.gz | wc -l);
             tabix -f -b 2 -e 3 -S $x %(outfile)s_%(suffix)s.gz;
              checkpoint; rm -f %(outfile)s_%(suffix)s''' % locals())
 
@@ -1004,6 +1031,8 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
     pairs = pseudoreppairs_rows + pseudopooledpairs_rows + reppairs_rows
 
     out = IOTools.openFile(outfile, "w")
+    out.write(
+        "file1\tfile2\tIDR_comparison_type\toutput_file\tCondition\tTissue\n")
     for p in pairs:
         out.write("%s\t%s\t%s\t%s\t%s\t%s\n" % p)
 
@@ -1012,7 +1041,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
 
 def buildIDRStatement(infile1, infile2, outfile,
                       sourcec, unsourcec, soft_idr_thresh, idrPARAMS, options,
-                      oraclefile):
+                      oraclefile, test=False):
     statement = []
     statement.append(sourcec)
 
@@ -1031,23 +1060,280 @@ def buildIDRStatement(infile1, infile2, outfile,
     else:
         outputfiletype = "narrowPeak"
 
-    idrstatement = """idr --version >>%(log)s;
-                      idr
-                      --samples %(infile1)s %(infile2)s
-                      --output-file %(outfile)s
-                      --plot
-                      --soft-idr-threshold %(soft_idr_thresh)s
-                      --input-file-type %(inputfiletype)s
-                      --rank %(rank)s
-                      --output-file-type %(outputfiletype)s
-                       %(oraclestatement)s
-                       %(options)s
-                      --verbose 2>>%(log)s
-    """ % locals()
+    T = P.getTempFilename(".")
+
+    if test is True:
+        idrstatement = """idr --version >>%(log)s;
+                          idr
+                          --samples %(infile1)s %(infile2)s
+                          --output-file %(outfile)s
+                          --soft-idr-threshold %(soft_idr_thresh)s
+                          --input-file-type %(inputfiletype)s
+                          --rank %(rank)s
+                          --output-file-type %(outputfiletype)s
+                           %(oraclestatement)s
+                           %(options)s
+                          --only-merge-peaks
+                          --verbose 2>>%(log)s
+        """ % locals()
+
+    else:
+        idrstatement = """idr --version >>%(log)s;
+                          idr
+                          --samples %(infile1)s %(infile2)s
+                          --output-file %(outfile)s
+                          --plot
+                          --soft-idr-threshold %(soft_idr_thresh)s
+                          --input-file-type %(inputfiletype)s
+                          --rank %(rank)s
+                          --output-file-type %(outputfiletype)s
+                           %(oraclestatement)s
+                           %(options)s
+                          --verbose 2>>%(log)s
+        """ % locals()
     statement.append(idrstatement)
     statement.append(unsourcec)
     statement = "; ".join(statement)
     return statement
+
+
+def summariseIDR(infiles, outfile, pooledc, selfc, repc):
+    tables = [i[1] for i in infiles[:-1]]
+    pairs = infiles[-1]
+
+    alltab = pd.DataFrame()
+    for table in tables:
+        tab = pd.read_csv(table, sep="\t")
+        tab['Output_Filename'] = table.split("/")[-1]
+        alltab = alltab.append(tab)
+    pairtab = pd.read_csv(pairs, sep="\t", names=['Input_File_1',
+                                                  'Input_File_2',
+                                                  'Replicate_Type',
+                                                  'Oracle_Peak_File',
+                                                  'Condition',
+                                                  'Tissue',
+                                                  'IDR_Successful'])
+
+    # Generate a temporary column to merge the two tables
+    pairstrings = []
+    for p in pairtab.index.values:
+        p = pairtab.ix[p]
+        p1 = P.snip(p[0].split("/")[-1])
+        p2 = P.snip(p[1].split("/")[-1])
+        pairstring = "%s_v_%s_table.tsv" % (p1, p2)
+        pairstrings.append(pairstring)
+
+    pairtab['pairstring'] = pairstrings
+    alltab = alltab.merge(pairtab, left_on='Output_Filename',
+                          right_on='pairstring')
+    alltab = alltab.drop('pairstring', 1)
+
+    thresholds = []
+    for item in alltab['Replicate_Type']:
+        if item == "pooled_consistency":
+            thresholds.append(pooledc)
+        elif item == "self_consistency":
+            thresholds.append(selfc)
+        elif item == "replicate_consistency":
+            thresholds.append(repc)
+
+    alltab['IDR_Thresholds'] = thresholds
+    alltab['IDR_Thresholds'] = alltab['IDR_Thresholds'].astype('float')
+    alltab['IDR_Transformed_Thresholds'] = -(np.log10(thresholds))
+
+    alltab = alltab.rename(columns={'IDR_Successful_x': 'IDR_Successful'})
+    alltab = alltab[['Output_Filename', 'Replicate_Type', 'Total_Peaks',
+                     'Peaks_Passing_IDR', 'Percentage_Peaks_Passing_IDR',
+                     'Peaks_Failing_IDR', 'IDR_Thresholds',
+                     'IDR_Transformed_Thresholds',
+                     'Input_File_1', 'Input_File_2', 'Condition', 'Tissue',
+                     'Oracle_Peak_File', 'IDR_Successful']]
+
+    alltab['Condition'] = alltab['Condition'].astype('str')
+    alltab['Tissue'] = alltab['Tissue'].astype('str')
+    alltab['Experiment'] = alltab['Condition'] + "_" + alltab['Tissue']
+    alltab['Conservative_Peak_List'] = False
+    replicates = alltab[alltab['Replicate_Type'] == 'replicate_consistency']
+    for exp in set(replicates['Experiment'].values):
+        subtab = replicates[replicates['Experiment'] == exp]
+        m = max(subtab['Peaks_Passing_IDR'])
+        val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
+        alltab.ix[val, 'Conservative_Peak_List'] = True
+
+    alltab['Optimal_Peak_List'] = False
+    for exp in set(alltab['Experiment'].values):
+        subtab = alltab[((alltab['Experiment'] == exp) &
+                         ((alltab['Replicate_Type'] == 'pooled_consistency') |
+                          (alltab['Replicate_Type'] ==
+                           'replicate_consistency')))]
+        m = max(subtab['Peaks_Passing_IDR'])
+        val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
+        alltab.ix[val, 'Optimal_Peak_List'] = True
+
+    alltab.to_csv(outfile, sep="\t", index=False)
+
+
+def doIDRQC(infile, outfile):
+    alltab = pd.read_csv(infile, sep="\t")
+    outputrows = []
+    self_c_alltab = alltab[alltab['Replicate_Type'] == 'self_consistency']
+    pooled_c_alltab = alltab[alltab['Replicate_Type'] == "pooled_consistency"]
+    replicate_c_alltab = alltab[alltab['Replicate_Type'] ==
+                                'replicate_consistency']
+
+    for exp in set(self_c_alltab['Experiment'].values):
+
+        # Self-Consistency
+        # Make a sub-table of only the self consistency IDRs for this
+        # experiment
+        # (Tissue and Condition)
+        subtab = self_c_alltab[self_c_alltab['Experiment'] == exp]
+
+        # Take the number of peaks passing IDR for each replicate of the
+        # experiment
+        # and the names of the files containing these peaks
+        Ns = subtab['Peaks_Passing_IDR'].values
+        reps = subtab['Output_Filename'].values
+
+        # Generate every possible pair of replicates within the experiment
+        pairs = list(itertools.combinations(range(len(reps)), 2))
+
+        names = []
+
+        # For each pair of replicates
+        for pair in pairs:
+            # record the filenames of this pair
+            names = ((reps[pair[0]], reps[pair[1]]))
+
+            # record the number of peaks passing IDR for this pair
+            N1N2 = ((Ns[pair[0]], Ns[pair[1]]))
+
+            m = max(N1N2)
+            i = N1N2.index(m)
+
+            maxN1N2 = float(N1N2[i])
+            maxname = names[i]
+            pmax = pair[i]
+
+            if i == 0:
+                minN1N2 = float(N1N2[1])
+                minname = names[1]
+                pmin = pair[1]
+            else:
+                minN1N2 = float(N1N2[0])
+                minname = names[0]
+                pmin = pair[0]
+
+            # calculate the self-consistency ratio -
+            # the maxiumum of N1 and N2 divided by the minimum of N1 and N2
+            # This should be less than 2
+            if minN1N2 == 0:
+                self_con_ratio = float('nan')
+            else:
+                self_con_ratio = maxN1N2 / minN1N2
+
+            # store the self-consistency ratio for this pair
+            subname1 = re.sub("_filtered.*", "", maxname)
+            subname2 = re.sub("_filtered.*", "", minname)
+
+            row = ((exp, 'self-consistency ratio (N%i / N%i)' % (pmax, pmin),
+                    '%s / %s' % (subname1, subname2), self_con_ratio,
+                    names[0], names[1]))
+
+            outputrows.append(row)
+
+        # Comparison Pooled Pseudo-replicates
+
+        # Take the subset of the table containing pooled pseudoreplicates
+        # for this
+        # experiment
+        pooledsubtab = pooled_c_alltab[pooled_c_alltab['Experiment'] == exp]
+
+        # Find Np - the number of peaks which pass the IDR threshold when
+        # comparing
+        # pooled pseudoreplicates
+        Np = pooledsubtab['Peaks_Passing_IDR'].values[0]
+
+        # Keep track of which file this is
+        poolednam = pooledsubtab['Output_Filename'].values[0]
+        pooledsubname = re.sub("_filtered.*", "", poolednam)
+
+        # Take the subset of the table containing true replicates for this
+        # experiment
+        replicatesubtab = replicate_c_alltab[
+            replicate_c_alltab['Experiment'] == exp]
+
+        # Extract the names and the number of peaks passing IDR from this
+        # table
+        replicatenames = list(replicatesubtab['Output_Filename'].values)
+        replicatescores = list(replicatesubtab['Peaks_Passing_IDR'].values)
+
+        # Find Nt - the maximum number of peaks passing IDR for true replicates
+        Nt = max(replicatescores)
+        whichNt = replicatescores.index(Nt)
+
+        # Keep track of which file Nt came from
+        maxrepname = replicatenames[whichNt]
+        maxrepsubname = re.sub("_filtered.*", "", maxrepname)
+
+        # The rescue ratio is max(Np, Nt) / min (Np, Nt) - find which
+        # is max and which is min
+        NpNt = ((Np, Nt))
+        maxNpNt = max(NpNt)
+        minNpNt = min(NpNt)
+
+        # Rescue ratio
+        if min(NpNt) == 0:
+            RR = float('nan')
+        else:
+            RR = float(maxNpNt) / float(minNpNt)
+
+        i = NpNt.index(maxNpNt)
+        if i == 0:
+            NpNtstring = "Np / Nt"
+            f1 = pooledsubname
+            f2 = maxrepsubname
+        else:
+            NpNtstring = "Nt / Np"
+            f1 = maxrepsubname
+            f2 = pooledsubname
+
+        formula = "%s / %s" % (f1, f2)
+
+        # Generate a table row with this data
+        row = ((
+            exp, 'rescue ratio (%s)' % NpNtstring, formula, RR, ",".join(
+                replicatenames), poolednam))
+
+        # keep this data to put in the output table
+        outputrows.append(row)
+
+    outputtab = pd.DataFrame(outputrows,
+                             columns=['Experiment', 'Ratio_Type',
+                                      'Ratio_Formula',  'Ratio',
+                                      'Comparison_File_1',
+                                      'Comparison_File_2'])
+
+    outputtab[
+        'Individual_Reproducibility'] = [
+            'PASS' if x < 2 else 'WARN' for x in outputtab['Ratio']]
+
+    outputtab['Experiment_Reproducibility'] = ""
+
+    finaltab = pd.DataFrame(columns=outputtab.columns)
+
+    for exp in set(outputtab['Experiment'].values):
+        exptab = outputtab[outputtab['Experiment'] == exp]
+        reps = list(set(exptab['Individual_Reproducibility']))
+        if len(reps) != 1:
+            exptab['Experiment_Reproducibility'] = "WARN"
+        elif reps[0] == "PASS":
+            exptab['Experiment_Reproducibility'] = "PASS"
+        elif reps[0] == "WARN":
+            exptab['Experiment_Reproducibility'] = "FAIL"
+        finaltab = finaltab.append(exptab)
+
+    finaltab.to_csv(outfile, sep="\t", index=None)
 
 #############################################
 # QC Functions

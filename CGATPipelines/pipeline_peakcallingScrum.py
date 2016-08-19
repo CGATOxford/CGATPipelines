@@ -159,17 +159,17 @@ df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
 INPUTBAMS = list(set(df['bamControl'].values))
 CHIPBAMS = list(set(df['bamReads'].values))
 
-################################################################################
+###############################################################################
 # Check if reads are paired end
 if Bamtools.isPaired(CHIPBAMS[0]) is True:
     PARAMS['paired_end'] = True
 else:
     PARAMS['paired_end'] = False
-################################################################################
+###############################################################################
 
 
 
-#Make database 
+# Make database
 def connect():
     '''connect to database.
 
@@ -188,6 +188,12 @@ def connect():
 ###############################################################################
 # Preprocessing Steps
 ###############################################################################
+
+
+@transform("design.tsv", suffix(".tsv"), "design.load")
+def loadDesignTable(infile, outfile):
+    P.load(infile, outfile)
+
 
 @follows(mkdir("filtered_bams.dir"))
 @transform(INPUTBAMS, regex("(.*).bam"),
@@ -230,6 +236,12 @@ def filterChipBAMs(infile, outfiles):
                                    PARAMS['filters_strip'],
                                    PARAMS['filters_qual'],
                                    PARAMS['filters_keepint'])
+
+
+#@merge((filterChipBAMs, filterInputBAMs), "filtering.load")
+#def loadFiltering(infiles, outfile):
+ #   counts = infiles[0][1]
+ #   filters = infiles[1].replace(".bam", ".
 
 
 # These steps are required for IDR and are only run if IDR is requested
@@ -574,7 +586,9 @@ def makeIDRPairs(infiles, outfile):
 @follows(mkdir("IDR.dir"))
 @split(makeIDRPairs, "IDR.dir/*.dummy")
 def splitForIDR(infile, outfiles):
-    pairs = pd.read_csv(infile, sep="\t", header=None)
+    pairs = pd.read_csv(infile, sep="\t")
+    pairs['Condition'] = pairs['Condition'].astype('str')
+    pairs['Tissue'] = pairs['Tissue'].astype('str')
     for p in pairs.index.values:
         p = pairs.ix[p]
         p1 = P.snip(p[0].split("/")[-1])
@@ -604,15 +618,39 @@ def runIDR(infile, outfile):
         idrthresh = PARAMS['IDR_softthresh_replicateconsistency']
         options += " %s" % PARAMS['IDR_options_replicateconsistency']
 
+    T = P.getTempFilename(".")
     statement = PipelinePeakcalling.buildIDRStatement(
         infile1, infile2,
-        outfile,
+        T,
         PARAMS['IDR_sourcecommand'],
         PARAMS['IDR_unsourcecommand'],
         idrthresh,
-        idrPARAMS, options, oraclefile)
+        idrPARAMS, options, oraclefile, test=True)
 
     P.run()
+    lines = IOTools.openFile(T).readlines()
+    os.remove(T)
+
+    if len(lines) >= 20:
+        statement = PipelinePeakcalling.buildIDRStatement(
+            infile1, infile2,
+            outfile,
+            PARAMS['IDR_sourcecommand'],
+            PARAMS['IDR_unsourcecommand'],
+            idrthresh,
+            idrPARAMS, options, oraclefile)
+
+        P.run()
+
+    else:
+        E.warn("""
+        *******************************************************\
+        IDR failed for %(infile1)s vs %(infile2)s - fewer than 20\
+        peaks in the merged peak list\
+        *******************************************************""" % locals())
+        out = IOTools.openFile(outfile, "w")
+        out.write("IDR FAILED - NOT ENOUGH PEAKS IN MERGED PEAK LIST")
+        out.close()
 
 
 @transform(runIDR, suffix(".tsv"), ["_filtered.tsv",
@@ -630,96 +668,83 @@ def filterIDR(infile, outfiles):
     Column headings are added and output is sorted by signalValue.
     '''
     IDRdata = pd.read_csv(infile, sep="\t", header=None)
-    if idrPARAMS['idrsuffix'] == "broadPeaks":
-        IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name", "score",
-                           "strand", "signalValue", "p-value", "q-value",
-                           "localIDR", "globalIDR",
-                           "rep1_chromStart", "rep2_chromEnd",
-                           "rep1_signalValue", "rep2_chromStart",
-                           "rep2_chromEnd", "rep2_signalValue"]
+
+    if 'FAILED' in IDRdata[0][0]:
+        IDRdata.to_csv(outfiles[0], sep="\t")
+        IDRpassed = 0
     else:
-        IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name", "score",
-                           "strand", "signalValue", "p-value", "q-value",
-                           "summit", "localIDR", "globalIDR",
-                           "rep1_chromStart", "rep2_chromEnd",
-                           "rep1_signalValue", "rep1_summit",
-                           "rep2_chromStart", "rep2_chromEnd",
-                           "rep2_signalValue", "rep2_summit"]
+        IDRpassed = 1
 
-    IDRdataP = IDRdata[IDRdata['score'] == 1000]
-    IDRdataF = IDRdata[IDRdata['score'] != 1000]
+        if idrPARAMS['idrsuffix'] == "broadPeak":
+            IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name",
+                               "score", "strand", "signalValue",
+                               "p-value", "q-value",
+                               "localIDR", "globalIDR",
+                               "rep1_chromStart", "rep2_chromEnd",
+                               "rep1_signalValue", "rep2_chromStart",
+                               "rep2_chromEnd", "rep2_signalValue"]
+        else:
+            IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name",
+                               "score", "strand", "signalValue", "p-value",
+                               "q-value",
+                               "summit", "localIDR", "globalIDR",
+                               "rep1_chromStart", "rep2_chromEnd",
+                               "rep1_signalValue", "rep1_summit",
+                               "rep2_chromStart", "rep2_chromEnd",
+                               "rep2_signalValue", "rep2_summit"]
 
-    IDRdataP = IDRdataP.sort_values('signalValue', ascending=False)
-    IDRdataF = IDRdataF.sort_values('signalValue', ascending=False)
+        IDRdataP = IDRdata[IDRdata['score'] == 1000]
+        IDRdataF = IDRdata[IDRdata['score'] != 1000]
+
+        IDRdataP = IDRdataP.sort_values('signalValue', ascending=False)
+        IDRdataF = IDRdataF.sort_values('signalValue', ascending=False)
+        IDRdataP.to_csv(outfiles[0], sep="\t")
 
     H = ['Total_Peaks', 'Peaks_Passing_IDR', 'Peaks_Failing_IDR',
-         'Percentage_Peaks_Passing_IDR']
-    T = ((len(IDRdata), len(IDRdataP), len(IDRdataF),
-          round(float(len(IDRdataP)) / float(len(IDRdata)), 4) * 100))
+         'Percentage_Peaks_Passing_IDR', 'IDR_Successful']
+
+    if IDRpassed == 1:
+        T = ((len(IDRdata), len(IDRdataP), len(IDRdataF),
+              round(float(len(IDRdataP)) / float(len(IDRdata)), 4) * 100,
+              "TRUE"))
+    else:
+        T = ((0, 0, 0, 0, 0, "FALSE"))
 
     out = IOTools.openFile(outfiles[1], "w")
     out.write("%s\n" % "\t".join(H))
     out.write("%s\n" % "\t".join([str(t) for t in T]))
 
-    IDRdataP.to_csv(outfiles[0], sep="\t")
-
 
 @merge((filterIDR, makeIDRPairs), "IDR_results.tsv")
 def summariseIDR(infiles, outfile):
-    tables = [i[1] for i in infiles[:-1]]
-    pairs = infiles[-1]
+    pooledc, selfc, repc = (PARAMS['IDR_softthresh_pooledconsistency'],
+                            PARAMS['IDR_softthresh_selfconsistency'],
+                            PARAMS['IDR_softthresh_replicateconsistency'])
 
-    alltab = pd.DataFrame()
-    for table in tables:
-        tab = pd.read_csv(table, sep="\t")
-        tab['Output_Filename'] = table.split("/")[-1]
-        alltab = alltab.append(tab)
-    pairtab = pd.read_csv(pairs, sep="\t", names=['Input_File_1',
-                                                  'Input_File_2',
-                                                  'Replicate_Type',
-                                                  'Oracle_Peak_File',
-                                                  'Condition',
-                                                  'Tissue'])
+    PipelinePeakcalling.summariseIDR(infiles, outfile, pooledc, selfc, repc)
 
-    # Generate a temporary column to merge the two tables
-    pairstrings = []
-    for p in pairtab.index.values:
-        p = pairtab.ix[p]
-        p1 = P.snip(p[0].split("/")[-1])
-        p2 = P.snip(p[1].split("/")[-1])
-        pairstring = "%s_v_%s_table.tsv" % (p1, p2)
-        pairstrings.append(pairstring)
 
-    pairtab['pairstring'] = pairstrings
-    alltab = alltab.merge(pairtab, left_on='Output_Filename',
-                          right_on='pairstring')
-    alltab = alltab.drop('pairstring', 1)
+@transform(summariseIDR, suffix("results.tsv"), "QC.tsv")
+def runIDRQC(infile, outfile):
+    PipelinePeakcalling.doIDRQC(infile, outfile)
 
-    thresholds = []
-    for item in alltab['Replicate_Type']:
-        if item == "pooled_consistency":
-            thresholds.append(PARAMS['IDR_softthresh_pooledconsistency'])
-        elif item == "self_consistency":
-            thresholds.append(PARAMS['IDR_softthresh_selfconsistency'])
-        elif item == "replicate_consistency":
-            thresholds.append(PARAMS['IDR_softthresh_replicateconsistency'])
-    print thresholds
-    alltab['IDR_Thresholds'] = thresholds
-    alltab['IDR_Thresholds'] = alltab['IDR_Thresholds'].astype('float')
-    alltab['IDR_Transformed_Thresholds'] = -(np.log10(thresholds))
 
-    alltab = alltab[['Output_Filename', 'Replicate_Type', 'Total_Peaks',
-                     'Peaks_Passing_IDR', 'Percentage_Peaks_Passing_IDR',
-                     'Peaks_Failing_IDR', 'IDR_Thresholds',
-                     'IDR_Transformed_Thresholds',
-                     'Input_File_1', 'Input_File_2', 'Condition', 'Tissue',
-                     'Oracle_Peak_File']]
-    alltab.to_csv(outfile, sep="\t", index=False)
+@follows(mkdir("conservative_peaks.dir"))
+@split(summariseIDR, "conservative_peaks.dir/*.tsv")
+def findConservativePeaks(infile, outfiles):
+    tab = pd.read_csv(infile, sep="\t")
+    cps = tab['Output_Filename'][tab['Conservative_Peak_List'] == True].values
+    cps = ["IDR.dir/%s" % i.replace("_table", "") for i in cps]
+    for cp in cps:
+        PipelinePeakcalling.makeLink(cp, cp.replace("IDR.dir",
+                                                    "conservative_peaks.dir"))
 
-@transform(summariseIDR, suffix("results.tsv"), "analysis.tsv")
-def analyseIDR(infile, outfile):
-    table = pd.read_csv(infile, sep="\t")
-    
+
+@follows(findConservativePeaks)
+@follows(runIDRQC)
+def IDR():
+    pass
+
 
 ################################################################
 # QC Steps
