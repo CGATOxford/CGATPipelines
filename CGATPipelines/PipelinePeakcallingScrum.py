@@ -26,6 +26,13 @@ import pysam
 import numpy as np
 import shutil
 from CGATPipelines.Pipeline import cluster_runnable
+import rpy2
+from rpy2.robjects import r as R
+import rpy2.robjects as ro
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.packages import importr
+pandas2ri.activate()
+
 
 ##############################################
 # Preprocessing Functions
@@ -1337,3 +1344,25 @@ def doIDRQC(infile, outfile):
 
 #############################################
 # QC Functions
+
+
+def runCHIPQC(infile, outfiles, rdir):
+    runCHIPQC_R = R('''
+    function(samples, outdir, cwd){
+        library("ChIPQC")
+        cwd = "/ifs/projects/katherineb/test_data_peakcalling/test3"
+        print ("cwd")
+        print (cwd)
+        print ("samples")
+        print (samples)
+        setwd(cwd)
+        print (getwd())
+        samples$Tissue = as.factor(samples$Tissue)
+        samples$Factor = as.factor(samples$Factor)
+        samples$Replicate = as.factor(samples$Replicate)
+        experiment = ChIPQC(samples)
+        ChIPQCreport(experiment, reportFolder=outdir)
+    }
+    ''' % locals())
+    cwd = os.getcwd()
+    runCHIPQC_R(pandas2ri.py2ri(infile), rdir, cwd)

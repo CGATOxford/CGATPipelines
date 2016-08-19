@@ -13,9 +13,9 @@ Methods
 
 Pipeline Usage
 =============
-	- Takes Bam files that you want to call peaks in and thier 
-	  appropriate 'input' controls.
-	- Call peaks for bam files matching them to thier inputs. 
+- Takes Bam files that you want to call peaks in and their
+appropriate 'input' controls.
+- Call peaks for bam files matching them to thier inputs. 
 	- Produce Bed files containing peaks for downstram analysis 
 
 	Optional functions: 
@@ -156,6 +156,12 @@ import CGAT.BamTools as Bamtools
 import itertools
 import pandas as pd
 import numpy as np
+import rpy2
+from rpy2.robjects import r as R
+import rpy2.robjects as ro
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.packages import importr
+
 
 #########################################################################
 ###########Load PARAMS Dictionary from Pipeline.innni file options ######
@@ -784,17 +790,40 @@ def runIDRQC(infile, outfile):
 
 
 @follows(mkdir("conservative_peaks.dir"))
-@split(summariseIDR, "conservative_peaks.dir/*.tsv")
+@split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
 def findConservativePeaks(infile, outfiles):
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab['Output_Filename'][tab['Conservative_Peak_List'] == True].values
-    cps = ["IDR.dir/%s" % i.replace("_table", "") for i in cps]
-    for cp in cps:
-        PipelinePeakcalling.makeLink(cp, cp.replace("IDR.dir",
-                                                    "conservative_peaks.dir"))
+    cps = tab[tab['Conservative_Peak_List'] == True]
+    experiments = cps['Experiment'].values
+    peakfiles = cps['Output_Filename'].values
+
+    peakfiles = ["IDR.dir/%s" % i.replace("_table", "") for i in peakfiles]
+    i = 0
+    for peakfile in peakfiles:
+        outnam = "conservative_peaks.dir/%s.tsv" % experiments[i]
+        PipelinePeakcalling.makeLink(peakfile, outnam)
+        i += 1
+
+
+@follows(mkdir("optimal_peaks.dir"))
+@split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
+def findOptimalPeaks(infile, outfiles):
+    tab = pd.read_csv(infile, sep="\t")
+    cps = tab[tab['Optimal_Peak_List'] == True]
+    experiments = cps['Experiment'].values
+    peakfiles = cps['Output_Filename'].values
+
+    peakfiles = ["IDR.dir/%s" % i.replace("_table", "") for i in peakfiles]
+
+    i = 0
+    for peakfile in peakfiles:
+        outnam = "optimal_peaks.dir/%s.tsv" % experiments[i]
+        PipelinePeakcalling.makeLink(peakfile, outnam)
+        i += 1
 
 
 @follows(findConservativePeaks)
+@follows(findOptimalPeaks)
 @follows(runIDRQC)
 def IDR():
     pass
@@ -803,56 +832,40 @@ def IDR():
 ################################################################
 # QC Steps
 
+@merge(("design.tsv", makeBamInputTable),
+       ["ChIPQC_design_conservative.tsv",
+       "ChIPQC_design_optimal.tsv"])
+def makeCHIPQCInputTables(infiles, outfiles):
+    design = pd.read_csv(infiles[0], sep="\t")
+    inputs = pd.read_csv(infiles[1], sep="\t")
+    inputs['SampleID'] = inputs[
+        'ChipBam'].str.split("/").str.get(-1).str.split(".").str.get(0)
+    inputs['SampleID'] = [i.replace("_filtered", "")
+                          for i in inputs['SampleID']]
+    tab = design.merge(inputs)
+    tab = tab.drop("ControlID", 1)
+    tab = tab.drop("bamReads", 1)
+    tab = tab.rename(columns={"ChipBam": "bamReads"})
+    tab = tab[['SampleID', 'Tissue', 'Condition', 'Replicate',
+               'bamReads']]
+    tab = tab.rename(columns={'Condition': 'Factor'})
+    tab['Factor'] = tab['Factor'].astype('str')
+    tab['Tissue'] = tab['Tissue'].astype('str')
 
-################################################################
-# Fragment GC% distribution
-################################################################
+    tab['Peaks'] = ("conservative_peaks.dir/" + tab['Factor'] + "_" +
+                    tab['Tissue'] + ".tsv")
 
-"""
-@follows(mkdir("QC.dir"))
-@transform(BAMS, regex("(.*).bam"), r"QC.dir/\1.tsv")
-def fragLenDist(infile, outfile):
+    tab.to_csv(outfiles[0], sep="\t", index=None)
 
-    if PARAMS["paired_end"] == 1:
-        function = "--merge-pairs"
-    else:
-        function = "--fragment"
-
-    genome = os.path.join(PARAMS["general_genome_dir"],
-                          PARAMS["general_genome"])
-    genome = genome + ".fasta"
-
-    statement = '''
-    samtools view -s 0.2 -ub %(infile)s |
-    python %(scriptsdir)s/bam2bed.py  %(function)s |
-    python %(scriptsdir)s/bed2table.py --counter=composition-na -g %(genome)s\
-    > %(outfile)s
-    '''
-    P.run()
+    tab['Peaks'] = ("optimal_peaks.dir/" + tab['Factor'] + "_" +
+                    tab['Tissue'] + ".tsv")
+    tab.to_csv(outfiles[1], sep="\t", index=None)
 
 
-@merge(BAMS, regex("(.*).bam"), r"QC.dir/genomic_coverage.tsv")
-def buildReferenceNAComposition(infiles, outfile):
-
-    infile = infiles[0]
-    contig_sizes = os.path.join(PARAMS["annotations_dir"],
-                                PARAMS["annotations_interface_contigs"])
-    gaps_bed = os.path.join(PARAMS["annotations_dir"].
-                            PARAMS["annotations_interface_gaps_bed"])
-
-    statement = '''bedtools shuffle
-    -i %(infile)s
-    -g %(contig_sizes)s
-    -excl %(gaps_bed)s
-    -chromFirst
-    | python %(scriptsdir)s/bed2table.py
-    --counter=composition-na
-    -g %(genome)s > %(outfile)s
-    '''
-
-    P.run()
-################################################################
-"""
+#@follows(mkdir("ChIPQC.dir"))
+#@transform(makeCHIPQCInputTable, regex("(.*)_(.*).tsv"), r'ChIPQC.dir/\1.pdf')
+#def runCHIPQC(infiles, outfiles):
+#    R('''''')
 
 
 def full():
