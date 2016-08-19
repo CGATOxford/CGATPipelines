@@ -26,10 +26,9 @@ appropriate 'input' controls.
 			- Unpaired reads for paired-end files
 			- Reads overlapping 'blacklisted' regions 
 			- Mapping quality (MAPQ) score
-			- Other things ????? 
 	- Pool input files for peakcalling to give better peakcalling
 	  when inputs have poor coverage or lack of sequening depth 
-	- Perform Irreproducible Discovery Rate analysis (described 
+	- Perform Irreproducible Discovery Rate (IDR) analysis (described 
 	  further below) to get a consensus list of 
 	  'highly reproducible peaks' and assess replicate quaility 
 
@@ -73,6 +72,8 @@ Configuration
 
 What is this section?? 
 
+IDR 
+
 Input
 -----
 
@@ -109,7 +110,13 @@ stages of the pipeline
    samples. 
    
    
-IDR.dir
+   IDR.dir:
+   Directory conatining the output files from IDR analysis 
+   These include the lists of reproducible peaks and stats and 
+   QC tables summarising the output of the IDR analysis
+   
+   IDR_inputs.dir 
+   This directory contains the files that are 
 
 IDR_inputs.dir
 
@@ -222,10 +229,8 @@ if Bamtools.isPaired(CHIPBAMS[0]) is True:
 else:
     PARAMS['paired_end'] = False
 ###############################################################################
-
-
-
 # Make database
+
 def connect():
     '''connect to database.
 
@@ -242,7 +247,7 @@ def connect():
     return dbh
 
 ###############################################################################
-# Preprocessing Steps
+# Preprocessing Steps - Filter bam files 
 ###############################################################################
 
 
@@ -258,9 +263,13 @@ def loadDesignTable(infile, outfile):
 def filterInputBAMs(infile, outfiles):
     '''
     Applies various filters specified in the pipeline.ini to the bam file
-    Currently implemented are filtering unmapped, unpaired and duplicate
-    reads and filtering reads overlapping with blacklisted regions
-    based on a list of bam files.
+    Currently implemented are filtering:
+    	unmapped reads
+    	unpaired reads
+    	duplicate reads
+    	secondary alignment reads
+    	reads below a mapping quality (MAPQ) score
+    	reads overlapping with blacklisted regions specified in bed file.
     '''
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
@@ -588,6 +597,23 @@ def preprocessing(infile, outfile):
            add_inputs(makeBamInputTable),
            r"macs2.dir/\1.macs2")
 def callMacs2peaks(infiles, outfile):
+    '''
+    Takes Bam and pairs with input using design files to 
+    call peaks using macs2 
+    
+    Inputs 
+    ======
+    bam file
+    design file - looks up to identify which input file should be used
+    for peakcalling 
+    instertsize.tsv - gets insert size to use for peak calling
+    
+    Output
+    -----
+    Macs2 output files 
+    hmmm- plus a couple of others - check the module file 
+    
+    '''
     D = PipelinePeakcalling.readTable(infiles[1])
     bam = infiles[0]
     inputf = D[bam]
@@ -609,10 +635,15 @@ def callMacs2peaks(infiles, outfile):
     P.run()
 
 
+# list of peak callers to use
 PEAKCALLERS = []
+# list of peakcallers to use for IDR - currently IDR only works with a 
+# single peakcaller at a time
 IDRPEAKCALLERS = []
+#create dictionary of peakcallers and thier functions
 mapToPeakCallers = {'macs2': (callMacs2peaks,)}
 
+#Call the peakcallers specified in the list
 for x in P.asList(PARAMS['peakcalling_peakcallers']):
     PEAKCALLERS.extend(mapToPeakCallers[x])
 
@@ -620,11 +651,12 @@ for x in P.asList(PARAMS['peakcalling_peakcallers']):
 @follows(*PEAKCALLERS)
 def peakcalling():
     '''
-    dummy task to define upstream peakcalling tasks
+    dummy task to collate upstream peakcalling tasks
     '''
 
 ################################################################
 # IDR Steps
+################################################################
 
 @follows(peakcalling)
 @follows(mkdir("peaks_for_IDR.dir"))
@@ -632,12 +664,38 @@ def peakcalling():
            regex("(.*)/(.*)"),
            r"peaks_for_IDR.dir/\2.IDRpeaks")
 def getIDRInputs(infile, outfile):
+    '''
+    Get the resulting peaks file from peakcalling
+    and place them in IDR.dir so they can all be 
+    easilly found and indentified for IDR analysis
+    
+    inputs
+    ======
+    _IDRpeak files in peakcaller directorys
+    (e.g. macs2.dir)
+    
+    output
+    copy of _IDRpeak files in 'peaks_for_IDR.dir'
+    '''
     IDRpeaks = "%s_IDRpeaks" % infile
     shutil.copy(IDRpeaks, outfile)
 
 
 @merge(getIDRInputs, "IDR_pairs.tsv")
 def makeIDRPairs(infiles, outfile):
+    '''
+    generate table of files to pair up for 
+    IDR analysis 
+    
+    inputs 
+    -----
+    list of peak files in 'peaks_for_IDR.dir'
+    
+    Outputs
+    -------
+    table detailing the file pairings for IDR 
+    analysis
+    '''
     useoracle = PARAMS['IDR_useoracle']
     PipelinePeakcalling.makePairsForIDR(infiles, outfile,
                                         PARAMS['IDR_useoracle'],
@@ -646,6 +704,14 @@ def makeIDRPairs(infiles, outfile):
 @follows(mkdir("IDR.dir"))
 @split(makeIDRPairs, "IDR.dir/*.dummy")
 def splitForIDR(infile, outfiles):
+    '''
+    infile = "IDR_pairs.tsv" file 
+    output = 
+    dummy file to act as placeholder for ruffus
+    updated "IDR_pairs.tsv" file 
+    containainf tissue and condition information and 
+    the name of IDR output file
+    '''
     pairs = pd.read_csv(infile, sep="\t")
     pairs['Condition'] = pairs['Condition'].astype('str')
     pairs['Tissue'] = pairs['Tissue'].astype('str')
@@ -663,6 +729,17 @@ def splitForIDR(infile, outfiles):
 
 @transform(splitForIDR, suffix(".dummy"), ".tsv")
 def runIDR(infile, outfile):
+    ''' takes the  "IDR_pairs.tsv" detailing the files to be compared
+    for IDR and uses this to run IDR analysis for the approriate files 
+    
+    IDR_options = string from pipeline ini file detailing IDR options
+    Different IDR comparisions (e.g. selfconistency, pooledconsistency or 
+    replicate consistancy might require different IDR thresholds) these can be
+    set in the pipeline.ini file in the IDR section 
+    
+    Oracle files = oracle peakset - see IDR analysis for details of what this means? 
+    
+    '''
     lines = [line.strip() for line in IOTools.openFile(infile).readlines()]
     infile1, infile2, setting, oraclefile, condition, tissue = lines
     options = PARAMS['IDR_options']
@@ -777,6 +854,9 @@ def filterIDR(infile, outfiles):
 
 @merge((filterIDR, makeIDRPairs), "IDR_results.tsv")
 def summariseIDR(infiles, outfile):
+    '''
+    
+    '''
     pooledc, selfc, repc = (PARAMS['IDR_softthresh_pooledconsistency'],
                             PARAMS['IDR_softthresh_selfconsistency'],
                             PARAMS['IDR_softthresh_replicateconsistency'])
@@ -867,9 +947,13 @@ def makeCHIPQCInputTables(infiles, outfiles):
 #def runCHIPQC(infiles, outfiles):
 #    R('''''')
 
-
 def full():
+    ''' runs entire pipeline '''
     pass
+
+###############################################################
+#Report functions 
+###############################################################
 
 
 @follows(mkdir("report"))
@@ -892,7 +976,7 @@ def update_report():
          mkdir("%s/medips" % PARAMS["web_dir"]),
          )
 def publish():
-    '''publish files.'''
+    '''publish files to web directory'''
 
     # directory : files
 
