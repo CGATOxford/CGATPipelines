@@ -482,7 +482,7 @@ def ldPruneSNPsRound1(infiles, outfile):
     --memory=60G
     --ignore-indels
     --genotype-rate=0.1
-    --hardy-weinberg=1e-50
+    --hardy-weinberg=1e-5
     --min-allele-frequency=0.01
     --prune-method=%(ld_prune_method)s
     --step-size=%(ld_prune_step)s
@@ -537,7 +537,7 @@ def ldPruneSNPsRound2(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-2])
     job_memory = "6G"
     job_threads = 10
-    prune_threshold = PARAMS['ld_prune_threshold'] - 0.05
+    prune_threshold = PARAMS['ld_prune_threshold'] - 0.10
 
     statement = '''
     python %(scriptsdir)s/geno2qc.py
@@ -552,7 +552,7 @@ def ldPruneSNPsRound2(infiles, outfile):
     --ignore-indels
     --min-allele-frequency=0.01
     --genotype-rate=0.1
-    --hardy-weinberg=1e-50
+    --hardy-weinberg=1e-5
     --prune-method=%(ld_prune_method)s
     --step-size=%(ld_prune_step)s
     --window-size=%(ld_prune_window)s
@@ -621,7 +621,7 @@ def ldPruneSNPsRound3(infiles, outfile):
     --ignore-indels
     --min-allele-frequency=0.01
     --genotype-rate=0.1
-    --hardy-weinberg=1e-50
+    --hardy-weinberg=1e-5
     --prune-method=%(ld_prune_method)s
     --step-size=%(ld_prune_step)s
     --window-size=%(ld_prune_window)s
@@ -657,7 +657,7 @@ def makeTrimmedData(infiles, outfile):
 
     plink_files = ",".join([bed_file, fam_file, bim_file])
     outpattern = ".".join(outfile.split(".")[:-1])
-    job_memory = "32G"
+    job_memory = "60G"
     job_threads = 1
 
     tmpfile = P.getTempFilename(shared=True)
@@ -1487,55 +1487,105 @@ def mergeExclusions(infiles, outfile):
 
     P.run()
 
+if PARAMS['gwas_model'] == "linear":
+    @follows(convertToPlink,
+             mergeExclusions,
+             mkdir("gwas.dir"))
+    @transform("plink.dir/chr*",
+               regex("plink.dir/(.+).bed"),
+               add_inputs([r"plink.dir/\1.fam",
+                           r"plink.dir/\1.bim",
+                           r"exclusions.dir/WholeGenome.gwas_exclude"]),
+               r"gwas.dir/\1_assoc.qassoc")
+    def unadjustedAssociation(infiles, outfile):
+        '''
+        Run an unadjusted association analysis on SNPs MAF >= 1%
+        Need to condition on array batch - field 22000
+        '''
 
-@follows(convertToPlink,
-         mergeExclusions,
-         mkdir("gwas.dir"))
-@transform("plink.dir/chr*",
-           regex("plink.dir/(.+).bed"),
-           add_inputs([r"plink.dir/\1.fam",
-                       r"plink.dir/\1.bim",
-                       r"exclusions.dir/WholeGenome.gwas_exclude"]),
-           r"gwas.dir/\1_assoc.assoc")
-def unadjustedAssociation(infiles, outfile):
-    '''
-    Run an unadjusted association analysis on SNPs MAF >= 1%
-    Need to condition on array batch - field 22000
-    '''
+        job_memory = "36G"
 
-    job_memory = "36G"
+        mem = int(job_memory.strip("G"))
+        bed_file = infiles[0]
+        fam_file = infiles[1][0]
+        bim_file = infiles[1][1]
 
-    mem = int(job_memory.strip("G"))
-    bed_file = infiles[0]
-    fam_file = infiles[1][0]
-    bim_file = infiles[1][1]
+        gwas_exclude = infiles[1][2]
+        plink_files = ",".join([bed_file, fam_file, bim_file])
 
-    gwas_exclude = infiles[1][2]
-    plink_files = ",".join([bed_file, fam_file, bim_file])
+        out_pattern = ".".join(outfile.split(".")[:-1])
 
-    out_pattern = ".".join(outfile.split(".")[:-1])
+        statement = '''
+        python %(scriptsdir)s/geno2assoc.py
+        --program=plink2
+        --input-file-format=plink_binary
+        --phenotypes-file=%(data_phenotypes)s
+        --pheno=%(format_pheno)s
+        --method=association
+        --keep=%(gwas_keep)s
+        --remove-individuals=%(gwas_exclude)s
+        --association-method=assoc
+        --genotype-rate=0.1
+        --hardy-weinberg=0.000000000000001
+        --min-allele-frequency=0.001
+        --output-file-pattern=%(out_pattern)s
+        --memory=%(mem)s
+        -v 5
+        %(plink_files)s
+        > %(outfile)s.plink.log
+        '''
 
-    statement = '''
-    python %(scriptsdir)s/geno2assoc.py
-    --program=plink2
-    --input-file-format=plink_binary
-    --phenotypes-file=%(data_phenotypes)s
-    --pheno=%(format_pheno)s
-    --method=association
-    --keep=%(gwas_keep)s
-    --remove-individuals=%(gwas_exclude)s
-    --association-method=assoc
-    --genotype-rate=0.1
-    --hardy-weinberg=0.000000000000001
-    --min-allele-frequency=0.001
-    --output-file-pattern=%(out_pattern)s
-    --memory=%(mem)s
-    -v 5
-    %(plink_files)s
-    > %(outfile)s.plink.log
-    '''
+        P.run()
 
-    P.run()
+else:
+    @follows(convertToPlink,
+             mergeExclusions,
+             mkdir("gwas.dir"))
+    @transform("plink.dir/chr*",
+               regex("plink.dir/(.+).bed"),
+               add_inputs([r"plink.dir/\1.fam",
+                           r"plink.dir/\1.bim",
+                           r"exclusions.dir/WholeGenome.gwas_exclude"]),
+               r"gwas.dir/\1_assoc.assoc")
+    def unadjustedAssociation(infiles, outfile):
+        '''
+        Run an unadjusted association analysis on SNPs MAF >= 1%
+        Need to condition on array batch - field 22000
+        '''
+
+        job_memory = "36G"
+
+        mem = int(job_memory.strip("G"))
+        bed_file = infiles[0]
+        fam_file = infiles[1][0]
+        bim_file = infiles[1][1]
+
+        gwas_exclude = infiles[1][2]
+        plink_files = ",".join([bed_file, fam_file, bim_file])
+
+        out_pattern = ".".join(outfile.split(".")[:-1])
+
+        statement = '''
+        python %(scriptsdir)s/geno2assoc.py
+        --program=plink2
+        --input-file-format=plink_binary
+        --phenotypes-file=%(data_phenotypes)s
+        --pheno=%(format_pheno)s
+        --method=association
+        --keep=%(gwas_keep)s
+        --remove-individuals=%(gwas_exclude)s
+        --association-method=assoc
+        --genotype-rate=0.1
+        --hardy-weinberg=0.000000000000001
+        --min-allele-frequency=0.001
+        --output-file-pattern=%(out_pattern)s
+        --memory=%(mem)s
+        -v 5
+        %(plink_files)s
+        > %(outfile)s.plink.log
+        '''
+
+        P.run()
 
 
 @follows(mkdir("covariates.dir"),
@@ -1624,7 +1674,7 @@ def pcAdjustedAssociation(infiles, outfile):
 @follows(mkdir("plots.dir"),
          unadjustedAssociation)
 @collate(unadjustedAssociation,
-         regex("gwas.dir/(.+)_assoc.assoc"),
+         regex("gwas.dir/(.+)_assoc.(.+)"),
          r"plots.dir/WholeGenome_manhattan.png")
 def plotUnadjustedManhattan(infiles, outfile):
     '''
