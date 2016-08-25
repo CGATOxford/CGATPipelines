@@ -407,10 +407,13 @@ def nameVariants(infiles, outfile):
     %(bim_file)s;
     cat %(temp_file)s.triallelic %(temp_file)s.duplicates
     %(temp_file)s.overlapping | sort | uniq >> %(outfile)s;
-    touch %(outfile)s;
     '''
 
-    statement = ";".join([state0, state1])
+    state2 = '''
+    touch %(outfile)s
+    '''
+
+    statement = ";".join([state0, state1, state2])
     P.run()
 
 # ----------------------------------------------------------------------------------------#
