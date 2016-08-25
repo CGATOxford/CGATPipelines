@@ -394,7 +394,7 @@ def nameVariants(infiles, outfile):
     state0 = '''
     cat %(bim_file)s | awk '{if($2 == ".") {printf("%%s\\t%%s_%%s_%%s_%%s\\t%%s\\t%%s\\t%%s\\t%%s\\n",
     $1,$1,$4,$5,$6,$3,$4,$5,$6)} else{print $0}}' > %(temp_file)s.bim;
-    mv %(temp_file)s.bim %(bim_file)s;
+    mv %(temp_file)s.bim %(bim_file)s
     '''
 
     # create files to remove triallelic variants, overlapping variants
@@ -406,10 +406,14 @@ def nameVariants(infiles, outfile):
     --log=%(outfile)s.log
     %(bim_file)s;
     cat %(temp_file)s.triallelic %(temp_file)s.duplicates
-    %(temp_file)s.overlapping | sort | uniq >> %(outfile)s;
+    %(temp_file)s.overlapping | sort | uniq >> %(outfile)s
     '''
 
-    statement = ";".join([state0, state1])
+    state2 = '''
+    touch %(outfile)s
+    '''
+
+    statement = ";".join([state0, state1, state2])
     P.run()
 
 # ----------------------------------------------------------------------------------------#
