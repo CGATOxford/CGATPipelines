@@ -394,7 +394,7 @@ def nameVariants(infiles, outfile):
     state0 = '''
     cat %(bim_file)s | awk '{if($2 == ".") {printf("%%s\\t%%s_%%s_%%s_%%s\\t%%s\\t%%s\\t%%s\\t%%s\\n",
     $1,$1,$4,$5,$6,$3,$4,$5,$6)} else{print $0}}' > %(temp_file)s.bim;
-    mv %(temp_file)s.bim %(bim_file)s
+    mv %(temp_file)s.bim %(bim_file)s;
     '''
 
     # create files to remove triallelic variants, overlapping variants
@@ -406,7 +406,8 @@ def nameVariants(infiles, outfile):
     --log=%(outfile)s.log
     %(bim_file)s;
     cat %(temp_file)s.triallelic %(temp_file)s.duplicates
-    %(temp_file)s.overlapping | sort | uniq >> %(outfile)s
+    %(temp_file)s.overlapping | sort | uniq >> %(outfile)s;
+    touch %(outfile)s;
     '''
 
     statement = ";".join([state0, state1])
@@ -606,7 +607,7 @@ def ldPruneSNPsRound3(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-2])
     job_memory = "6G"
     job_threads = 10
-    prune_threshold = PARAMS['ld_prune_threshold'] - 0.05
+    prune_threshold = PARAMS['ld_prune_threshold'] - 0.18
 
     statement = '''
     python %(scriptsdir)s/geno2qc.py
@@ -2293,7 +2294,7 @@ def plotLdExcludedEpistasis(infile, outfile):
     of the adjusted epistasis analysis
     '''
 
-    job_memory = "4G"
+    job_memory = "8G"
 
     plot_path = "_".join(outfile.split("_")[:-1])
 
@@ -2327,7 +2328,7 @@ def adjustedEpistasis(infiles, outfile):
     covariates.
     '''
 
-    job_memory = "60G"
+    job_memory = "75G"
     job_threads = 1
 
     snp = infiles[0].split("/")[-1].split(".")[0]
