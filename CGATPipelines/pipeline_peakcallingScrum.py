@@ -251,7 +251,7 @@ def connect():
 ###############################################################################
 
 
-@transform("design.tsv", suffix(".tsv"), "design.load")
+@transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
     P.load(infile, outfile)
 
@@ -307,10 +307,37 @@ def filterChipBAMs(infile, outfiles):
                                    PARAMS['filters_keepint'])
 
 
-#@merge((filterChipBAMs, filterInputBAMs), "filtering.load")
-#def loadFiltering(infiles, outfile):
- #   counts = infiles[0][1]
- #   filters = infiles[1].replace(".bam", ".
+@merge((filterChipBAMs, filterInputBAMs), "post_filtering_read_counts.tsv")
+def mergeFilteringStats(infiles, outfile):
+    '''
+    Generates a table of read counts in each bam file after removal of:
+    duplicates: duplicates reads
+    secondary:  secondary alignment
+    unpaired: unpaired reads
+    unmapped: unmapped reads
+    lowqual: low quality reads
+    blacklist xxx: reads in the blacklist file xxx
+    '''
+
+    counts = [i[1] for i in infiles]
+    bigtab = pd.DataFrame()
+    for c in counts:
+        tab = pd.read_csv(c, sep="\t")
+        tab['Input_Bam'] = c.replace("_counts.tsv", ".bam").split("/")[-1]
+        bigtab = bigtab.append(tab)
+    bigtab = bigtab.rename(columns={'none': 'pre_filtering'})
+    cs = []
+    for c in bigtab.columns:
+        if c.endswith(".bed"):
+            c = "blacklist_%s" % c.split("/")[-1]
+        cs.append(c)
+    bigtab.columns = cs
+    bigtab.to_csv(outfile, sep="\t", index=False)
+
+
+@merge(mergeFilteringStats, "post_filtering_read_counts.load")
+def loadFilteringStats(infile, outfile):
+    P.load(infile, outfile)
 
 
 # These steps are required for IDR and are only run if IDR is requested
@@ -550,6 +577,11 @@ def makeBamInputTable(outfile):
     out.close()
 
 
+@transform(makeBamInputTable, suffix(".tsv"), ".load")
+def loadBamInputTable(infile, outfile):
+    P.load(infile, outfile)
+
+
 @transform(makePseudoBams, suffix(".bam"), "_insertsize.tsv")
 def estimateInsertSize(infile, outfile):
     '''
@@ -576,6 +608,15 @@ def mergeInsertSizes(infiles, outfile):
     out.close()
 
 
+@transform(mergeInsertSizes, suffix(".tsv"), ".load")
+def loadInsertSizes(infile, outfile):
+    P.load(infile, outfile)
+
+
+@follows(loadInsertSizes)
+@follows(loadFilteringStats)
+@follows(loadDesignTable)
+@follows(loadBamInputTable)
 @follows(makeBamInputTable)
 @follows(mergeInsertSizes)
 @transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),
@@ -633,7 +674,7 @@ def callMacs2peaks(infiles, outfile):
                                  PARAMS['macs2_idrsuffix'],
                                  PARAMS['macs2_idrcol'])
     P.run()
-
+    peakcaller.summarise(outfile)
 
 # list of peak callers to use
 PEAKCALLERS = []
@@ -648,7 +689,22 @@ for x in P.asList(PARAMS['peakcalling_peakcallers']):
     PEAKCALLERS.extend(mapToPeakCallers[x])
 
 
-@follows(*PEAKCALLERS)
+@merge(PEAKCALLERS, "peakcalling_summary.tsv")
+def summarisePeakCalling(infiles, outfile):
+    bigtab = pd.DataFrame()
+    for i in infiles:
+        i = "%s_log.table" % i
+        tab = pd.read_csv(i, sep="\t")
+        bigtab = bigtab.append(tab)
+    bigtab.to_csv(outfile, sep="\t", index=False)
+
+
+@transform(summarisePeakCalling, suffix(".tsv"), ".load")
+def loadPeakCallingStats(infile, outfile):
+    P.load(infile, outfile)
+
+
+@follows(loadPeakCallingStats)
 def peakcalling():
     '''
     dummy task to collate upstream peakcalling tasks
@@ -700,6 +756,12 @@ def makeIDRPairs(infiles, outfile):
     PipelinePeakcalling.makePairsForIDR(infiles, outfile,
                                         PARAMS['IDR_useoracle'],
                                         df, submit=True)
+
+
+@transform(makeIDRPairs, suffix(".tsv"), ".load")
+def loadIDRPairs(infile, outfile):
+    P.load(infile, outfile)
+
 
 @follows(mkdir("IDR.dir"))
 @split(makeIDRPairs, "IDR.dir/*.dummy")
@@ -855,7 +917,6 @@ def filterIDR(infile, outfiles):
 @merge((filterIDR, makeIDRPairs), "IDR_results.tsv")
 def summariseIDR(infiles, outfile):
     '''
-    
     '''
     pooledc, selfc, repc = (PARAMS['IDR_softthresh_pooledconsistency'],
                             PARAMS['IDR_softthresh_selfconsistency'],
@@ -864,9 +925,19 @@ def summariseIDR(infiles, outfile):
     PipelinePeakcalling.summariseIDR(infiles, outfile, pooledc, selfc, repc)
 
 
+@transform(summariseIDR, suffix(".tsv"), ".load")
+def loadIDRsummary(infile, outfile):
+    P.load(infile, outfile)
+
+
 @transform(summariseIDR, suffix("results.tsv"), "QC.tsv")
 def runIDRQC(infile, outfile):
     PipelinePeakcalling.doIDRQC(infile, outfile)
+
+
+@transform(runIDRQC, suffix(".tsv"), ".load")
+def loadIDRQC(infile, outfile):
+    P.load(infile, outfile)
 
 
 @follows(mkdir("conservative_peaks.dir"))
@@ -902,6 +973,9 @@ def findOptimalPeaks(infile, outfiles):
         i += 1
 
 
+@follows(loadIDRPairs)
+@follows(loadIDRsummary)
+@follows(loadIDRQC)
 @follows(findConservativePeaks)
 @follows(findOptimalPeaks)
 @follows(runIDRQC)

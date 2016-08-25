@@ -12,10 +12,6 @@ Reference
 import os
 import re
 import collections
-import pandas
-import math
-import numpy
-import numpy.ma as ma
 import itertools
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -919,6 +915,78 @@ class Macs2Peakcaller(Peakcaller):
         return statement
 
 
+    def summarise(self, infile):
+        '''Parses the MACS2 logfile to extract
+        peak calling parameters and results.
+
+        TODO: doesn't report peak numbers...
+
+        Arguments
+        ---------
+        infiles : string
+            Input files in MACS2 log file format.
+        outfile : string
+            Filename of output file in tab-delimited text format.
+        '''
+
+        infile = "%s_log" % infile
+        outfile = "%s.table" % infile
+
+        map_targets = [
+            ("fragment size = (\d+)",
+             "fragment_size", ()),
+            ("total fragments in treatment:\s+(\d+)",
+             "fragment_treatment_total", ()),
+            ("fragments after filtering in treatment:\s+(\d+)",
+             "fragment_treatment_filtered", ()),
+            ("total fragments in control:\s+(\d+)",
+             "fragment_control_total", ()),
+            ("fragments after filtering in control:\s+(\d+)",
+             "fragment_control_filtered", ())
+        ]
+
+        mapper, mapper_header = {}, {}
+        for x, y, z in map_targets:
+            mapper[y] = re.compile(x)
+            mapper_header[y] = z
+
+        keys = [x[1] for x in map_targets]
+
+        results = collections.defaultdict(list)
+        with IOTools.openFile(infile) as f:
+            for line in f:
+                for x, y in mapper.items():
+                    s = y.search(line)
+                    if s:
+                        results[x].append(s.groups()[0])
+                        break
+
+        row = [P.snip(os.path.basename(infile), ".macs2_log")]
+        for key in keys:
+            val = results[key]
+            if len(val) == 0:
+                v = "na"
+            else:
+                c = len(mapper_header[key])
+                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
+            row.append(v)
+
+        peaks = IOTools.openFile(
+            infile.replace(".macs2_log",
+                           ".macs2_peaks.xls.gz")).readlines()
+        npeaks = 0
+        for line in peaks:
+            if "#" not in line and "log10" not in line:
+                npeaks += 1
+
+        row.extend([str(npeaks)])
+        keys.extend(["number_of_peaks"])
+
+        out = IOTools.openFile(outfile, "w")
+        out.write("sample\t%s\n%s\n" % ("\t".join(keys), "\t".join(row)))
+        out.close()
+
+
 #############################################
 # IDR Functions
 
@@ -1366,3 +1434,88 @@ def runCHIPQC(infile, outfiles, rdir):
     ''' % locals())
     cwd = os.getcwd()
     runCHIPQC_R(pandas2ri.py2ri(infile), rdir, cwd)
+
+
+def summariseMACS2(infiles, outfile):
+    '''Parses the MACS2 logfile to extract
+    peak calling parameters and results.
+
+    TODO: doesn't report peak numbers...
+
+    Arguments
+    ---------
+    infiles : string
+        Input files in MACS2 log file format.
+    outfile : string
+        Filename of output file in tab-delimited text format.
+    '''
+
+    def __get(line, stmt):
+        x = line.search(stmt)
+        if x:
+            return x.groups()
+
+    # mapping patternts to values.
+    # tuples of pattern, label, subgroups
+    map_targets = [
+        ("tags after filtering in treatment:\s+(\d+)",
+         "fragment_treatment_filtered", ()),
+        ("total tags in treatment:\s+(\d+)",
+         "fragment_treatment_total", ()),
+        ("tags after filtering in control:\s+(\d+)",
+         "fragment_control_filtered", ()),
+        ("total tags in control:\s+(\d+)",
+         "fragment_control_total", ()),
+        ("predicted fragment length is (\d+) bps",
+         "fragment_length", ()),
+        # Number of peaks doesn't appear to be reported!.
+        ("#3 Total number of candidates: (\d+)",
+         "ncandidates", ("positive", "negative")),
+        ("#3 Finally, (\d+) peaks are called!",
+         "called",
+         ("positive", "negative"))
+    ]
+
+    mapper, mapper_header = {}, {}
+    for x, y, z in map_targets:
+        mapper[y] = re.compile(x)
+        mapper_header[y] = z
+
+    keys = [x[1] for x in map_targets]
+
+    outs = IOTools.openFile(outfile, "w")
+
+    headers = []
+    for k in keys:
+        if mapper_header[k]:
+            headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
+        else:
+            headers.append(k)
+    outs.write("track\t%s" % "\t".join(headers) + "\n")
+
+    for infile in infiles:
+        results = collections.defaultdict(list)
+        with IOTools.openFile(infile) as f:
+            for line in f:
+                if "diag:" in line:
+                    break
+                for x, y in mapper.items():
+                    s = y.search(line)
+                    if s:
+                        results[x].append(s.groups()[0])
+                        break
+
+        row = [P.snip(os.path.basename(infile), ".macs2")]
+        for key in keys:
+            val = results[key]
+            if len(val) == 0:
+                v = "na"
+            else:
+                c = len(mapper_header[key])
+                # append missing data (no negative peaks without control files)
+                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
+            row.append(v)
+            # assert len(row) -1 == len( headers )
+        outs.write("\t".join(row) + "\n")
+
+    outs.close()
