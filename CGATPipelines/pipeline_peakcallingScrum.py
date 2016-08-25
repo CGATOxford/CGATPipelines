@@ -13,10 +13,12 @@ Methods
 
 Pipeline Usage
 =============
-- Takes Bam files that you want to call peaks in and their
-appropriate 'input' controls.
-- Call peaks for bam files matching them to thier inputs. 
-	- Produce Bed files containing peaks for downstram analysis 
+
+Takes Bam files you want to call peaks in (e.g. ChIP-Seq or ATAC-Seq samples) 
+and their appropriate 'input' controls and produces peak lists in bed files
+to takeforward for downstream analysis. 
+
+Also runs ChIPQC R package for QC statistics
 
 	Optional functions: 
 	-------------------
@@ -37,9 +39,10 @@ NOTE: WARNINGS!!!!
 
 1. IDR analysis may not be approprate for all type of peak file - It works 
 best with transcription factor CHIPs or methodologies producing 'narrow peaks'
-or peaks with well defined boundaries 
-	
-BroadPeak IDR might not work becuase peak boundary's are harder
+or peaks with well defined boundaries. 
+
+'BroadPeak' IDR (e.g. for widespread histone marks such as H3K27ac)
+might not work becuase peak boundary's are harder
 to define and thus may not be so reproducible between replicates 
 
 2. Always check your output from this pipeline in a genome browser to check 
@@ -79,7 +82,7 @@ Input
 
 Sample_bam = bam file you want to call peaks on 
 
-Input_bam = control file used as background reference in peakcallign 
+Input_bam = control file used as background reference in peakcalling 
 (e.g. input file for ChIP-seq) 
 
 Pipeline.ini = File containing paramaters and options for
@@ -106,7 +109,7 @@ stages of the pipeline
    that have been filtered according to pipeline.ini and a number
    of log files relating to the number of reads that have been 
    filtered out for each reason. Also contains file with the 
-   fragment length (insert size) distribution for paired-end 
+   frequency of fragment lengths (the 3' end to 5'end of sequenced) for paired-end 
    samples. 
    
    
