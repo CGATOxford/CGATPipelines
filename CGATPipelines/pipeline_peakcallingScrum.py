@@ -343,6 +343,34 @@ def loadFilteringStats(infile, outfile):
     P.load(infile, outfile)
 
 
+@merge((filterChipBAMs, filterInputBAMs), "post_filtering_check.tsv")
+def mergeFilteringChecks(infiles, outfile):
+    counts = [i[0].replace(".bam", ".filteringlog") for i in infiles]
+    bigtab = pd.DataFrame()
+    for c in counts:
+        tab = pd.read_csv(c, sep="\t", index_col=0,  header=None)
+        tab = tab.transpose()
+        tab['Input_Filename'] = c.split("/")[-1].replace(".filteringlog",
+                                                         "")
+        bigtab = bigtab.append(tab)
+    bigtab.to_csv(outfile, sep="\t", index=False)
+
+
+@transform(mergeFilteringChecks, suffix(".tsv"), ".load")
+def loadFilteringChecks(infile, outfile):
+    P.load(infile, outfile)
+
+
+@transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
+           "_fraglengths.load")
+def loadFragmentLengthDistributions(infiles, outfile):
+    infile = infiles[0].replace(".bam", ".fraglengths")
+    if len(IOTools.openFile(infile).readlines()) != 0:
+        P.load(infile, outfile)
+    else:
+        os.system("touch %s" % outfile)
+
+
 # These steps are required for IDR and are only run if IDR is requested
 if int(PARAMS['IDR_run']) == 1:
     @follows(mkdir("pooled_bams.dir"))
@@ -620,6 +648,7 @@ def loadInsertSizes(infile, outfile):
 @follows(loadFilteringStats)
 @follows(loadDesignTable)
 @follows(loadBamInputTable)
+@follows(loadFilteringChecks)
 @follows(makeBamInputTable)
 @follows(mergeInsertSizes)
 @transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),

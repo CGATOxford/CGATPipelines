@@ -1,14 +1,3 @@
-'''
-======================================================================
-
-Requirements:
-
-
-Reference
----------
-
-'''
-
 import os
 import re
 import collections
@@ -34,80 +23,22 @@ pandas2ri.activate()
 # Preprocessing Functions
 
 
-def readDesignTable(infile, poolinputs):
-    '''
-    This function reads the design table and generates
-
-    1. A dictionary, inputD, linking each input file and each of the various
-    IDR subfiles to the appropriate input, as specified in the design table
-
-    2. A pandas dataframe, df, containing the information from the
-    design table
-
-    This dictionary includes the filenames that the IDR output files will have
-    once these steps of the pipeline are run
-    If IDR is not requsted, these dictionary values will still exist but will
-    not be used.
-
-    poolinputs has three possible options:
-
-    none
-    Use the input files per replicate as specified in the design files
-    Input files will still also be pooled if IDR is specified as IDR requires
-    BAM files representing pooled replicates as well as BAM files for each
-    replicate
-
-    all
-    Pool all input files and use this single pooled input BAM file as the input
-    for any peakcalling.  Used when input is low depth or when only a single
-    input or replicates of a single input are available.
-
-    condition
-    pool the input files within each combination of conditions and tissues
-    '''
-
-    df = pd.read_csv("design.tsv", sep="\t")
-    pairs = zip(df['bamReads'], df['bamControl'])
-    CHIPBAMS = list(set(df['bamReads'].values))
-
-    if poolinputs == "none":
-        inputD = dict(pairs)
-        conditions = df['Condition'].values
-        tissues = df['Tissue'].values
-        i = 0
-        for C in CHIPBAMS:
-            cond = conditions[i]
-            tissue = tissues[i]
-            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
-                cond, tissue)
-            i += 1
-
-    elif poolinputs == "all":
-        inputD = dict()
-        for C in CHIPBAMS:
-            inputD[C] = "pooled_all.bam"
-
-    elif poolinputs == "condition":
-        inputD = dict()
-        conditions = df['Condition'].values
-        tissues = df['Tissue'].values
-        i = 0
-        for C in CHIPBAMS:
-            cond = conditions[i]
-            tissue = tissues[i]
-            inputD[C] = "%s_%s_pooled.bam" % (cond, tissue)
-            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
-                cond, tissue)
-            i += 1
-    df['Condition'] = df['Condition'].astype('str')
-    df['Tissue'] = df['Tissue'].astype('str')
-    return df, inputD
-
-
 def trackFilters(filtername, bamfile, tabout):
     '''
-    Keeps track of which filters are being used on the bam files and generates
-    a statement segment which records this in a log file
+    Keeps track of which filters are being used on which bam files and
+    generates a statement fragment which records this in a log file.
+    Echos the name of the filter (filtername) followed by the number of reads
+    in the filtered bam file to the table tabout.
+
+    Example Fragment:
+    echo unpaired >> K9-13-2_counts.tsv;
+    samtools view -c ctmpPGGJro.bam >> K9-13-2_counts.tsv;
+
+    Parameters
+    ----------
+    filtername: name of filter applied, can be any string
+    bamfile: path to filtered bam file
+    tabout: table to write the output to
     '''
     return """echo %(filtername)s >> %(tabout)s;
               samtools view -c %(bamfile)s.bam >> %(tabout)s; """ % locals()
@@ -115,11 +46,37 @@ def trackFilters(filtername, bamfile, tabout):
 
 def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
     '''
-    Apply filters using samtools
+    Appends a fragment to an existing command line statement to
+    apply filters using samtools
+    see https://samtools.github.io/hts-specs/SAMv1.pdf
+
+    Samtools uses the following arguments:
     -F - remove these flags
     -f - keep only these flags
-    -f1, -f2 remove reads which are unpaired or not properly paired
-    -F4 removes unmapped reads
+
+    If the following strings are in the "filters" list these samtools filters
+    are applied
+    unpaired: -f1, -f2 remove reads which are unpaired or not properly paired
+    unmapped: -F4 removes unmapped reads
+    secondary: -F 0x100 removed secondary alignments
+    lowqual: -q qual removes reads with quality scores < qual
+
+    Example Fragment:
+    samtools view -b -q 40 ctmpPGGJro.bam > ctmpnV2rQY.bam;
+    rm -f ctmpPGGJro.bam; rm -f ctmpPGGJro;
+
+    The original input file is deleted on the assumption that this is part of
+    a list of filters which are applied to a series of temporary files
+
+    Parameters
+    ----------
+    statement: statement to append to
+    inT: temporary input bam file - output of previous filtering step
+    tabout: table to store the number of reads remaining after filtering
+    filters: list of filters to apply - this list is searched for
+    unmapped, unpaired, secondary, lowqual
+    pe: 1 = paired end, 0 = single end
+    outfile: output file
     '''
     i = 0
     j = 0
@@ -146,6 +103,7 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
                 inT = outT
                 outT = P.getTempFilename("./filtered_bams.dir")
 
+            # filter to a temporary file, remove the original temporary file
             statement += """samtools view -b %(string)s %(inT)s.bam
             > %(outT)s.bam; rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
             statement += trackFilters(filt, outT, tabout)
@@ -157,8 +115,38 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
 
 def appendPicardFilters(statement, inT, tabout, filters, pe, outfile):
     '''
-    Apply filters using Picard.
-    MarkDuplicates removes duplicate reads.
+    Appends a fragment to an existing command line statement to
+    filter bam files using Picard.
+    Currently only the MarkDuplicates Picard filter is
+    implemented, which removes duplicate reads.
+
+    Example Fragment:
+
+    MarkDuplicates
+    INPUT=ctmp87pq2s.bam
+    ASSUME_SORTED=true
+    REMOVE_DUPLICATES=true
+    OUTPUT=ctmphJw7oO.bam
+    METRICS_FILE=/dev/null
+    VALIDATION_STRINGENCY=SILENT
+    2> K9-13-2_filtered_duplicates.log;
+    rm -f ctmp87pq2s.bam;
+    rm -f ctmp87pq2s;
+
+    The original input file is deleted on the assumption that this is part of
+    a list of filters which are applied to a series of temporary files
+
+    Parameters
+    ----------
+    statement: statement to append to
+    inT: temporary input bam file - output of previous filtering step
+    tabout: table to store the number of reads remaining after filtering
+    filters: list of filters to apply - if "duplicates" is in
+    this list then the MarkDuplicates fragment will be appended, otherwise
+    nothing is appended
+    pe: 1 = paired end, 0 = single end
+    outfile: output file
+
     '''
     outT = inT
     if 'duplicates' in filters:
@@ -181,11 +169,35 @@ def appendPicardFilters(statement, inT, tabout, filters, pe, outfile):
 
 def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
     '''
-    Filters blacklisted regions based on a list of bed files
-    By default the read is removed if it has any overlap with the blacklisted
+    Appends a fragment to an existing command line statement to
+    filters blacklisted regions from a bam file based on a list of bed files
+    using either pairToBed (for paired end) or intersect (for single end)
+    from bedtools.
+
+    Example Fragment:
+    samtools sort -n ctmpnV2rQY.bam -o ctmpL7A2ni.bam;
+    rm -f ctmpnV2rQY.bam;
+    rm -f ctmpnV2rQY;
+    pairToBed -abam ctmpL7A2ni.bam -b chr14.bed -f 0.00000010 -type neither
+    > ctmpXbXeki.bam; rm -f ctmpL7A2ni.bam;
+
+    By default a read is removed if it has any overlap with any blacklisted
     region on either end.
     If the read is paired end both halves of the pair are removed if one
     overlaps with a blacklisted region
+
+    The original input file is deleted on the assumption that this is part of
+    a list of filters which are applied to a series of temporary files.
+
+    Parameters
+    ----------
+    statement: statement to append to
+    inT: temporary input bam file - output of previous filtering step
+    tabout: table to store the number of reads remaining after filtering
+    blthresh: threshold number of bases of overlap with a blacklisted region
+    above which to filter
+    pe: 1 = paired end, 0 = single end
+
     '''
     outT = P.getTempFilename("./filtered_bams.dir")
     if pe is True:
@@ -222,12 +234,45 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
 def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                keep_intermediates=False):
     '''
-    Applies various filters to bam files.
-    Builds a statement to process the bam file - the file is sorted
-    then the samtools and picard filters specified in the pipeline.ini
-    are applied.  Reads overlapping with regions in the specified bed
-    files are filtered out.  The filtered bam file is then indexed.  Read
-    counts after each filtering step are stored in filtered_bams/*_counts.tsv.
+    Builds a statement which applies various filters to bam files.
+
+    The file is sorted then filters are applied.
+
+    The appendPicardFilters, appendSamtoolsFilters and appendBlacklistFilter
+    functions above will add fragments to this statement to
+    carry out the filtering steps.
+
+    The filtered bam file is then indexed.
+    Read counts after each filtering step are logged in infile_counts.tsv using
+    the trackFilters function.
+
+    Example Statement:
+    samtools sort K9-13-2.bam -o ctmp87pq2s.bam;
+    echo none >> K9-13-2_counts.tsv;
+    samtools view -c ctmp87pq2s.bam >> K9-13-2_counts.tsv;
+    ...
+    samtools sort ctmpXbXeki.bam -o ctmpWm5mq9.bam;
+    rm -f ctmpXbXeki.bam;
+    rm -f ctmpXbXeki;
+    mv ctmpWm5mq9.bam K9-13-2_filtered.bam;
+    rm -f ctmpWm5mq9;
+
+    ... represents the statement fragments generated by the filtering functions
+
+    Parameters
+    ----------
+    infile: input file
+    outfiles: names of output bam file and output table
+    filters: list of filters to apply: can be lowqual, unpaired,
+    secondary, unmapped, duplicates
+    bedfiles: list of bed files to use as blacklists
+    blthresh: threshold base pair overlap with blacklisted regions above which
+    to filter
+    pe: 1 = paired end, 0 = single end
+    strip: should bam files be stripped after processing, 1 = yes, 0 = no
+    qual: minimum mapping quality to keep
+    keep_intermediates: keep temporary files if True
+
     '''
     bamout, tabout = outfiles
     o = open(tabout, "w")
@@ -306,6 +351,39 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
 
 @cluster_runnable
 def checkBams(infile, filters, qlim, pe, outfile):
+    '''
+    Generates a table to ensure that post filtering bam files do not
+    contain any of the reads which should have been filtered out.  This table
+    is written to a file with the suffix .filteringlog.
+
+    Uses pysam functions is_secondary, is_unmapped, is_proper_pair and
+    read.mapping_quality to categorise reads as:
+    - proper_pair vs improper_pair
+    - high_quality vs low_quality
+    - unmapped vs mapped
+    - primary vs secondary
+
+    If pipeline_peakcalling is used and filtering has been sucessful then the
+    following is expected if these filters are applied:
+    "lowqual" filter - low_quality = 0
+    "unmapped" filter - unmapped = 0
+    "secondary" filter - secondary = 0
+    "unpaired" filter - improper_pair = 0
+
+    For paired end, properly paired reads, fragment length is also calculated
+    using the pysam template_length function and a second output table is
+    generated showing the frequency of each possible fragment length in the
+    bam file.  This file will have the suffix .fraglengths.  For unpaired
+    data this file is generated but is blank.
+
+    Parameters
+    ----------
+    infile: input file
+    filters:  list of filters to check for
+    - can be lowqual, unpaired, secondary, unmapped, duplicates
+    qlim: minimum mapping quality to classify as "high quality"
+    outfile: output file
+    '''
 
     samfile = pysam.AlignmentFile(infile, 'rb')
 
@@ -321,6 +399,7 @@ def checkBams(infile, filters, qlim, pe, outfile):
     if "lowqual" not in filters:
         qlim = 0
 
+    counter['primary'] = 0
     counter['secondary'] = 0
     counter['proper_pairs'] = 0
     counter['improper_pairs'] = 0
@@ -336,6 +415,8 @@ def checkBams(infile, filters, qlim, pe, outfile):
         counter['total_reads'] += 1
         if read.is_secondary:
             counter['secondary'] += 1
+        else:
+            counter['primary'] += 1
 
         if read.is_proper_pair:
             counter['proper_pairs'] += 1
@@ -378,6 +459,7 @@ def checkBams(infile, filters, qlim, pe, outfile):
                         outbam.write(v)
 
     out = IOTools.openFile(infile.replace(".bam", ".fraglengths"), "w")
+    out.write("frequency\tfrag_length\n")
     for key in fragment_length:
         out.write("%s\t%d\n" % (key, fragment_length[key]))
     out.close()
@@ -389,6 +471,16 @@ def checkBams(infile, filters, qlim, pe, outfile):
 
 
 def filteringReport(counter, logfile):
+    '''
+    Writes a table of the counts contained in the dictionary
+    generated in the checkBams function.
+
+    Parameters
+    ----------
+    counter: dictionary where keys are types of read (e.g. unpaired)
+    and values are the number of reads of this type.
+    logfile: path to file to write the output table
+    '''
     logfile = open(logfile, "w")
     for c in counter:
         logfile.write("%s\t%s\n" % (c, counter[c]))
@@ -396,15 +488,26 @@ def filteringReport(counter, logfile):
 
 
 def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
-    '''predict fragment size.
+    '''
+    Predicts fragment size for a bam file and writes it to a table.
 
-    For single end data, use MACS2, for paired-end data
-    use the bamfile.
+    For single end data the MACS2 predictd function is used,
+    for paired-end data Bamtools is used.
 
     In some BAM files the read length (rlen) attribute
     is not set, which causes MACS2 to predict a 0.
 
     Thus it is computed here from the CIGAR string if rlen is 0.
+
+    Parameters
+    ----------
+    infile: path to bam file on which to predict fragment size
+    outfile: path to output table
+    pe: 1 = paired end, 0 = single end
+    nalignments - number of lines from bam file to use to predict 
+    insert size if data is paired end.
+    m2opts - string to append when running macs2 predictd
+    containing additional options
     '''
 
     print infile
@@ -448,9 +551,23 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
 @cluster_runnable
 def makePseudoBams(infile, outfiles, pe, randomseed, filters):
     '''
-    Generates pseudo bam files for IDR analysis
-    Each read in the input bam is assigned to a pseudo bam at random.
-    If reads are paired end the pair will go to the same bam.
+    Generates pseudo bam files by splitting a bam file into two
+    equally sized subfiles.  Each read in the input bam is assigned
+    to a pseudo bam at random.
+    If reads are paired end both reads in the pair are assigned
+    to the same bam file.
+
+    Parameters
+    ----------
+    infile: input bam file
+    outfile: output bam files
+    pe: 1 = paired end, 0 = single end
+    randomseed: seed to use to generate random numbers
+    filters: list of filters previously applied to the bam file.  If this
+    list contains the strings 'unpaired' and 'secondary'
+    then reads are assumed to be paired end and a check is performed that
+    each pseudo bam file contains exactly twice as many reads as read names.
+    Anything else in this list is ignored by this function.
     '''
 
     # read bam file
@@ -511,8 +628,8 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
         T = P.getTempFilename(".")
         os.system("""samtools sort %(outf)s -o %(T)s.bam;
         samtools index %(T)s.bam""" % locals())
-  #      pysam.sort(outf, T, catch_stdout=False)
-  #      pysam.index("%s.bam" % T, catch_stdout=False)
+#      pysam.sort(outf, T, catch_stdout=False)
+#      pysam.index("%s.bam" % T, catch_stdout=False)
 
         bamfile = pysam.AlignmentFile("%s.bam" % T, "rb")
         all = []
@@ -544,8 +661,10 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
 
 
 def getMacsPeakShiftEstimate(infile):
-    ''' parse the peak shift estimate file from macs,
-    return the fragment size '''
+    '''
+    Parses the peak shift estimate file from macs2 and
+    return the fragment size.
+    '''
 
     with IOTools.openFile(infile, "r") as inf:
 
@@ -1519,3 +1638,97 @@ def summariseMACS2(infiles, outfile):
         outs.write("\t".join(row) + "\n")
 
     outs.close()
+
+
+# Pipeline Specific Functions
+
+
+def readDesignTable(infile, poolinputs):
+    '''
+    This function reads a design table named "design.tsv"  and generates
+    objects to be used to match peaks called in samples to the appropriate
+    inputs prior to IDR analysis.
+
+    These objects are:
+
+    1. A dictionary, inputD, linking each input file and each of the various
+    subfiles required for IDR to the appropriate input,
+    as specified in the design table
+
+    2. A pandas dataframe, df, containing the information from the
+    design table
+
+    This dictionary includes the filenames that the IDR output files will be
+    generated downstream in pipeline_peakcalling, so if these steps are run
+    outside of the pipeline they need to be named according to the same
+    convention.
+
+    If IDR is not requsted, these dictionary values will still exist but will
+    not be used.
+
+    poolinputs has three possible options:
+
+    none
+    Use the input files per replicate as specified in the design file
+    Input files will still also be pooled if IDR is specified as IDR requires
+    BAM files representing pooled replicates as well as BAM files for each
+    replicate
+
+    all
+    Pool all input files and use this single pooled input BAM file as the input
+    for any peakcalling.  Used when input is low depth or when only a single
+    input or replicates of a single input are available.
+
+    condition
+    pool the input files within each combination of conditions and tissues
+
+    Parameters
+    ----------
+    infile: path to design file
+    poolinputs: can be "none", "all" or "condition" as specified above
+    '''
+
+    # read the design table
+    df = pd.read_csv(infile, sep="\t")
+    pairs = zip(df['bamReads'], df['bamControl'])
+    CHIPBAMS = list(set(df['bamReads'].values))
+
+    # if poolinputs is none, the inputs are as specified in the design table
+    if poolinputs == "none":
+        inputD = dict(pairs)
+        conditions = df['Condition'].values
+        tissues = df['Tissue'].values
+        i = 0
+        # preempts what the pooled input files for IDR analysis will be
+        # named
+        for C in CHIPBAMS:
+            cond = conditions[i]
+            tissue = tissues[i]
+            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
+                cond, tissue)
+            i += 1
+
+    elif poolinputs == "all":
+        # if poolinputs is all, all inputs will be pooled and used any time
+        # an input is needed
+        inputD = dict()
+        for C in CHIPBAMS:
+            inputD[C] = "pooled_all.bam"
+
+    elif poolinputs == "condition":
+        inputD = dict()
+        conditions = df['Condition'].values
+        tissues = df['Tissue'].values
+        i = 0
+        # preempts the name of all input files for all combinations of
+        # files while will be generated for the IDR
+        for C in CHIPBAMS:
+            cond = conditions[i]
+            tissue = tissues[i]
+            inputD[C] = "%s_%s_pooled.bam" % (cond, tissue)
+            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
+                cond, tissue)
+            i += 1
+    df['Condition'] = df['Condition'].astype('str')
+    df['Tissue'] = df['Tissue'].astype('str')
+    return df, inputD
