@@ -409,11 +409,7 @@ def nameVariants(infiles, outfile):
     %(temp_file)s.overlapping | sort | uniq >> %(outfile)s;
     '''
 
-    state2 = '''
-    touch %(outfile)s
-    '''
-
-    statement = ";".join([state0, state1, state2])
+    statement = ";".join([state0, state1])
     P.run()
 
 # ----------------------------------------------------------------------------------------#
