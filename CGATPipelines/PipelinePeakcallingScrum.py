@@ -36,9 +36,12 @@ def trackFilters(filtername, bamfile, tabout):
 
     Parameters
     ----------
-    filtername: name of filter applied, can be any string
-    bamfile: path to filtered bam file
-    tabout: table to write the output to
+    filtername: str
+        name of filter applied, can be any string
+    bamfile: str
+        path to filtered bam file
+    tabout: str
+        path to table to write the output to
     '''
     return """echo %(filtername)s >> %(tabout)s;
               samtools view -c %(bamfile)s.bam >> %(tabout)s; """ % locals()
@@ -70,13 +73,19 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
 
     Parameters
     ----------
-    statement: statement to append to
-    inT: temporary input bam file - output of previous filtering step
-    tabout: table to store the number of reads remaining after filtering
-    filters: list of filters to apply - this list is searched for
-    unmapped, unpaired, secondary, lowqual
-    pe: 1 = paired end, 0 = single end
-    outfile: output file
+    statement: str
+        statement to append to
+    inT: str
+        path to temporary input bam file - output of previous filtering step
+    tabout: str
+        path to table to store the number of reads remaining after filtering
+    filters: list
+       list of filters to apply - this list is searched for
+       unmapped, unpaired, secondary, lowqual
+    pe: bool
+        1 = paired end, 0 = single end
+    outfile: str
+        path to output file
     '''
     i = 0
     j = 0
@@ -138,14 +147,20 @@ def appendPicardFilters(statement, inT, tabout, filters, pe, outfile):
 
     Parameters
     ----------
-    statement: statement to append to
-    inT: temporary input bam file - output of previous filtering step
-    tabout: table to store the number of reads remaining after filtering
-    filters: list of filters to apply - if "duplicates" is in
-    this list then the MarkDuplicates fragment will be appended, otherwise
-    nothing is appended
-    pe: 1 = paired end, 0 = single end
-    outfile: output file
+    statement: str
+        cmd line statement to append to
+    inT: str
+        path to temporary input bam file - output of previous filtering step
+    tabout: str
+        path to table to store the number of reads remaining after filtering
+    filters: list
+        list of filters to apply - if "duplicates" is in
+        this list then the MarkDuplicates fragment will be appended, otherwise
+        nothing is appended
+    pe: bool
+        1 = paired end, 0 = single end
+    outfile: str
+        path to output file
 
     '''
     outT = inT
@@ -191,12 +206,17 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
 
     Parameters
     ----------
-    statement: statement to append to
-    inT: temporary input bam file - output of previous filtering step
-    tabout: table to store the number of reads remaining after filtering
-    blthresh: threshold number of bases of overlap with a blacklisted region
-    above which to filter
-    pe: 1 = paired end, 0 = single end
+    statement: str
+        cmd line statement to append to
+    inT: str
+        path to temporary input bam file - output of previous filtering step
+    tabout: str
+        path to table to store the number of reads remaining after filtering
+    blthresh: int
+        threshold number of bases of overlap with a blacklisted region
+        above which to filter
+    pe: bool
+        1 = paired end, 0 = single end
 
     '''
     outT = P.getTempFilename("./filtered_bams.dir")
@@ -261,17 +281,26 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
 
     Parameters
     ----------
-    infile: input file
-    outfiles: names of output bam file and output table
-    filters: list of filters to apply: can be lowqual, unpaired,
-    secondary, unmapped, duplicates
-    bedfiles: list of bed files to use as blacklists
-    blthresh: threshold base pair overlap with blacklisted regions above which
-    to filter
-    pe: 1 = paired end, 0 = single end
-    strip: should bam files be stripped after processing, 1 = yes, 0 = no
-    qual: minimum mapping quality to keep
-    keep_intermediates: keep temporary files if True
+    infile: str
+        path to input file
+    outfiles: list
+        list of two strings - names of output bam file and output table
+    filters: list
+        list of filters to apply: can be lowqual, unpaired,
+        secondary, unmapped, duplicates
+    bedfiles: list
+        list of bed files to use as blacklists
+    blthresh: int
+        threshold base pair overlap with blacklisted regions above which
+        to filter
+    pe: bool
+        1 = paired end, 0 = single end
+    strip: bool
+        should bam files be stripped after processing, 1 = yes, 0 = no
+    qual: int
+        minimum mapping quality to keep
+    keep_intermediates: bool
+        keep temporary files if True
 
     '''
     bamout, tabout = outfiles
@@ -378,11 +407,15 @@ def checkBams(infile, filters, qlim, pe, outfile):
 
     Parameters
     ----------
-    infile: input file
-    filters:  list of filters to check for
-    - can be lowqual, unpaired, secondary, unmapped, duplicates
-    qlim: minimum mapping quality to classify as "high quality"
-    outfile: output file
+    infile: str
+        input file
+    filters:  list
+        list of filters to check for
+        - can be lowqual, unpaired, secondary, unmapped, duplicates
+    qlim: int
+        minimum mapping quality to classify as "high quality"
+    outfile: str
+        path to output file
     '''
 
     samfile = pysam.AlignmentFile(infile, 'rb')
@@ -477,9 +510,11 @@ def filteringReport(counter, logfile):
 
     Parameters
     ----------
-    counter: dictionary where keys are types of read (e.g. unpaired)
-    and values are the number of reads of this type.
-    logfile: path to file to write the output table
+    counter: dict
+        dictionary where keys are types of read (e.g. unpaired)
+        and values are the number of reads of this type.
+    logfile: str
+        path to file to write the output table
     '''
     logfile = open(logfile, "w")
     for c in counter:
@@ -501,13 +536,20 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
 
     Parameters
     ----------
-    infile: path to bam file on which to predict fragment size
-    outfile: path to output table
-    pe: 1 = paired end, 0 = single end
-    nalignments - number of lines from bam file to use to predict 
-    insert size if data is paired end.
-    m2opts - string to append when running macs2 predictd
-    containing additional options
+    infile: str
+        path to bam file on which to predict fragment size
+    outfile: str
+        path to output table
+    pe: bool
+        1 = paired end, 0 = single end
+    nalignments: int
+        number of lines from bam file to use to predict
+        insert size if data is paired end.
+    m2opts: str
+        string to append when running macs2 predictd
+        containing additional options specific to macs2.  Can be an empty
+        string for default options, additional options here:
+        https://github.com/taoliu/MACS
     '''
 
     print infile
@@ -559,15 +601,20 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
 
     Parameters
     ----------
-    infile: input bam file
-    outfile: output bam files
-    pe: 1 = paired end, 0 = single end
-    randomseed: seed to use to generate random numbers
-    filters: list of filters previously applied to the bam file.  If this
-    list contains the strings 'unpaired' and 'secondary'
-    then reads are assumed to be paired end and a check is performed that
-    each pseudo bam file contains exactly twice as many reads as read names.
-    Anything else in this list is ignored by this function.
+    infile: str
+        path to input bam file
+    outfiles: list
+        list of paths to the two output bam files
+    pe: bool
+        1 = paired end, 0 = single end
+    randomseed: int
+        seed to use to generate random numbers
+    filters: list
+        list of filters previously applied to the bam file.  If this
+        list contains the strings 'unpaired' and 'secondary'
+        then reads are assumed to be paired end and a check is performed that
+        each pseudo bam file contains exactly twice as many reads as read
+        names. Anything else in this list is ignored by this function.
     '''
 
     # read bam file
@@ -662,8 +709,13 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
 
 def getMacsPeakShiftEstimate(infile):
     '''
-    Parses the peak shift estimate file from macs2 and
-    return the fragment size.
+    Parses the peak shift estimate file from the estimateInsertSize
+    function and returns the fragment size, which is used in the macs2
+    postprocessing steps as the "offset" for bed2table
+    Parameters
+    ----------
+    infile: str
+        path to input file
     '''
 
     with IOTools.openFile(infile, "r") as inf:
@@ -681,6 +733,23 @@ def getMacsPeakShiftEstimate(infile):
 def mergeSortIndex(bamfiles, out):
     '''
     Merge bamfiles into a single sorted, indexed outfile.
+    Generates and runs a command line statement.
+
+    Example Statement:
+    samtools merge ctmpljriXY.bam K9-13-1_filtered.bam K9-13-2_filtered.bam
+    K9-13-3_filtered.bam;
+    samtools sort ctmpljriXY.bam -o ctmpYH6llm.bam;
+    samtools index ctmpYH6llm.bam;
+    mv ctmpYH6llm.bam 13_Heart_pooled_filtered.bam;
+    mv ctmpYH6llm.bam.bai 13_Heart_pooled_filtered.bam.bai;
+
+    Parameters
+    ----------
+    bamfiles: list
+        list of paths to bam files to merge
+    out: str
+        path to output file
+
     '''
     infiles = " ".join(bamfiles)
     T1 = P.getTempFilename(".")
@@ -697,7 +766,22 @@ def mergeSortIndex(bamfiles, out):
 
 def sortIndex(bamfile):
     '''
-    Merge bamfiles into a single sorted, indexed outfile.
+    Sorts and indexes a bam file.
+    Generates and runs a command line statement.
+
+    Example Statement:
+    samtools sort K9-10-1_filtered.bam -o ctmpvHoczK.bam;
+    samtools index ctmpvHoczK.bam;
+    mv ctmpvHoczK.bam K9-10-1_filtered.bam;
+    mv ctmpvHoczK.bam.bai K9-10-1_filtered.bam.bai
+
+    The input bam file is replaced by the sorted bam file.
+
+    Parameters
+    ----------
+    bamfile: str
+        path to bam file to sort and index
+
     '''
     T1 = P.getTempFilename(".")
     bamfile = P.snip(bamfile)
@@ -711,7 +795,15 @@ def sortIndex(bamfile):
 
 def makeBamLink(currentname, newname):
     '''
-    Make links to an existing bam file and its index
+    Makes soft links to an existing bam file and its index - used instead
+    of copying files.
+    Generates and runs a command line statement.
+
+    Parameters:
+    currentname: str
+        path to original file
+    newname: str
+        path to link location
     '''
     cwd = os.getcwd()
     os.system("""
@@ -719,9 +811,18 @@ def makeBamLink(currentname, newname):
     ln -s %(cwd)s/%(currentname)s.bai %(cwd)s/%(newname)s.bai;
     """ % locals())
 
+
 def makeLink(currentname, newname):
     '''
-    Make links to an existing bam file and its index
+    Makes a soft link to an existing file- used instead
+    of copying files.
+    Generates and runs a command line statement.
+
+    Parameters:
+    currentname: str
+        path to original file
+    newname: str
+        path to link location
     '''
     cwd = os.getcwd()
     os.system("""
@@ -729,23 +830,19 @@ def makeLink(currentname, newname):
     """ % locals())
 
 
-def readTable(tabfile):
-    '''
-    Used to read the "peakcalling_bams_and_inputs.tsv" file back
-    into memory.
-    '''
-    df = pd.read_csv(tabfile, sep="\t")
-    chips = df['ChipBam'].values
-    inputs = df['InputBam'].values
-    pairs = zip(chips, inputs)
-    D = dict(pairs)
-    return D
-
-
 class Peakcaller(object):
-    ''' base class for peakcallers
+    '''
+    Base class for peakcallers
     Peakcallers call peaks from a BAM file and then post-process peaks
     to generate a uniform output
+
+    Every new peak caller added requires one or more of
+    the following functions:
+    callPeaks - builds a command line statement to call peaks
+    compressOutput - builds a command line statement to compress peakcalling
+    output
+    postProcessPeaks - builds a command line statement to postprocess peaks
+    preparePeaksForIDR - builds a command line statement to prepare IDR input
 
     Attributes
     ----------
@@ -753,40 +850,147 @@ class Peakcaller(object):
     threads: int
         number of threads to use for peakcalling
     paired_end: bool
-        BAM contains paired end reads
-    output_all: bool
-        output all peaks (required for IDR)
+        1 = paired end, 0 = single end
+    tool_options: str
+        string to append to the cmd statement to run the peakcaller containing
+        tool specific options
 
     '''
     def __init__(self,
                  threads=1,
                  paired_end=True,
-                 output_all=True,
                  tool_options=None):
         self.threads = threads
         self.paired_end = paired_end
-        self.output_all = output_all
         self.tool_options = tool_options
 
     def callPeaks(self, infile, outfile, controlfile):
-        ''' build command line statement to call peaks'''
+        '''
+        Build command line statement to call peaks.
+        Returns an empty string if no callPeaks function is defined for the
+        peakcaller used.
+        Parameters
+        ----------
+        infile: str
+            path to input bam file
+        outfile: str
+            path to standard output file (other outputs will also be created
+            with the same stem.
+        controlfile: path to control (input) bam file
+        '''
         return ""
 
     def compressOutput(self, infile, outfile, contigsfile, controlfile):
-        ''' build command line statement to compress outfiles'''
+        '''
+        Build command line statement to compress peakcalling output files.
+        Returns an empty string if no compressOutput function is defined for
+        the peakcaller used.
+        Parameters
+        ----------
+        infile: str
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        contigsfile: str
+           path to tab delimited file with the name of each contig in the
+           genome in column 0 and contig lengths in column 1. Used by
+           bedGraph2bigwig in generating bigwig formatted output files.
+        controlfile: str
+           path to the control (input) bam file
+        '''
         return ""
 
-    def postProcessPeaks(self, infile, outfile):
-        ''' build command line statement to postprocess peaks'''
+    def postProcessPeaks(self, infile, outfile, controlfile,
+                         insertsizefile):
+        '''
+        Build command line statement to postprocess peakcalling output.
+
+        Currently none of these outputs are used downstream so any outputs
+        of interest to the user of the specific peak caller can be generated.
+
+        Returns an empty string if no postProcess function is defined for
+        the peakcaller used
+
+        Parameters
+        ----------
+        infile: str
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        controlfile: str
+           path to the control (input) bam file
+        insertsizefile: str
+           path to table containing insert size data, with columns
+           filename, mode, fragmentsize_mean, fragmentsize_std, tagsize
+           generated by the estimateInsertSizes function
+           this is parsed and used by bedGraphToBigWig
+        '''
         return ""
 
-    def preparePeaksForIDR(self, infile, outfile):
-        ''' build command line statement to prepare the IDR input'''
+
+    def preparePeaksForIDR(self, infile, outfile, idr, idrc,
+                           idrsuffix, idrcol):
+        '''
+        Build command line statement to prepare the IDR input.
+
+        IDR requires a sorted file containing the x best peaks from the
+        peakcalling step, but the number of peaks to output and the column
+        on which to rank depends on the peakcaller.
+
+        Returns an empty string if no preparePeaksForIDR function is defined
+        for the peakcaller used
+
+        Parameters
+        ----------
+        infile: str
+            path to bam file
+        outfile: str
+            path to peakcalling output
+        idr: bool
+            1 = IDR is enabled 0 = IDR is disabled
+        idrc: int
+            number of peaks to keep for IDR for this particular peakcaller
+        idrsuffix: str
+            output file type from this peakcaller to use for IDR
+        idrcol: str
+            the name of the column on which to rank the peaks for IDR for this
+            peakcaller
+        '''
         return ""
 
     def build(self, infile, outfile, contigsfile=None, controlfile=None,
               insertsizef=None, idr=0, idrc=0, idrsuffix=None, idrcol=None):
-        ''' build complete command line statement'''
+        '''
+        Runs the above functions and uses these to build a complete command
+        line statement to run the peakcaller and process its output.
+
+        Parameters
+        ----------
+        infile: str
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        contigsfile: str
+           path to tab delimited file with the name of each contig in the
+           genome in column 0 and contig lengths in column 1. Used by
+           bedGraph2bigwig in generating bigwig formatted output files.
+        controlfile: str
+           path to the control (input) bam file
+        insertsizefile: str
+           path to table containing insert size data, with columns
+           filename, mode, fragmentsize_mean, fragmentsize_std, tagsize
+           generated by the estimateInsertSizes function
+           this is parsed and used by bedGraphToBigWig
+        idr: bool
+            1 = IDR is enabled 0 = IDR is disabled
+        idrc: int
+            number of peaks to keep for IDR for this particular peakcaller
+        idrsuffix: str
+            output file type from this peakcaller to use for IDR
+        idrcol: int
+            the index (0 based) of the column on which to rank the peaks for
+            IDR for this peakcaller
+        '''
 
         peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
         compress_cmd = self.compressOutput(
@@ -807,27 +1011,80 @@ class Peakcaller(object):
 
 
 class Macs2Peakcaller(Peakcaller):
-    ''' call peaks with macs2
+    '''
+    Peakcaller subclass to call peaks with macs2 and process the macs2 output.
+
+    Attributes
+    ----------
+    threads: int
+        number of threads to use for peakcalling
+    paired_end: bool
+        1 = paired end, 0 = single end
+    tool_options: str
+        string to append to the cmd statement with macs2 specific options
+    tagsize: int
+        if tag size is known it can be added here, otherwise it is calculated
     '''
 
     def __init__(self,
                  threads=1,
                  paired_end=True,
-                 output_all=True,
                  tool_options=None,
                  tagsize=None):
         super(Macs2Peakcaller, self).__init__(threads, paired_end,
-                                              output_all, tool_options)
+                                              tool_options)
         self.tagsize = tagsize
 
     def callPeaks(self, infile,  outfile, controlfile=None):
-        ''' build command line statement to call peaks.
+        '''
+        Build command line statement fragment to call peaks with macs2.
 
-        The _log file represents the logging output from MACS2
+        Example Statement
+        macs2 callpeak --format=BAMPE
+        --treatment K9-13-2_filtered_pseudo_2.bam --verbose=10
+        --name=macs2.dir/K9-13-2_filtered_pseudo_2.macs2
+        --qvalue=0.01 --bdg --SPMR --mfold 10 30 --gsize mm
+        --broad --broad-cutoff 0.1
+        --control IDR_inputs.dir/K9-IN-1_filtered.bam --tsize 75
+        >& K9-13-2_filtered_pseudo_2.macs2;
+        mv K9-13-2_filtered_pseudo_2.macs2 K9-13-2_filtered_pseudo_2.macs2_log;
+
+        Output files have the same stem but various suffixes.  Details are
+        here: https://github.com/taoliu/MACS
+        Briefly:
+            .macs2_log
+             Raw macs2 log file
+
+            .macs2_treat_pileup.bdg
+             Bedgraph file of the fragment pileup in the treatment file
+
+            .macs2_control_lambda.brg
+             Bedgraph file of the control lambda
+
+            .macs2_peaks.xls
+             Tabular file which contains information about called peaks
+
+            .macs2_peaks.broadPeak or .macs2.peaks.narrowPeak
+             bed file of peak locations (plus peak summits for narrowPeak)
+
+            .macs2_peaks.gappedPeak
+             bed file of narrow and broad peaks
+
+            .macs2_summits.bed
+             bed file of summit locations (narrow peaks only)
 
         The original location for the logging file (suffixed .macs2)
         is overwritten by the output from passing the macs2 xls to
         bed2table.py to give the final required outfile
+
+        Parameters
+        ----------
+        infile: str
+            path to input bam file
+        outfile: str
+            path to .macs2 output file
+        controlfile: str
+           path to control (input) bam file
         '''
 
         if self.tool_options:
@@ -836,18 +1093,15 @@ class Macs2Peakcaller(Peakcaller):
             options = []
         if controlfile:
             options.append("--control %s" % controlfile)
+
+        # tag size is estimated using BamTools
         if self.tagsize is None:
             self.tagsize = BamTools.estimateTagSize(infile)
 
         options.append("--tsize %i" % self.tagsize)
         options = " ".join(options)
 
-        # example statement: macs2 callpeak -t R1-paupar-R1.call.bam -c
-        # R1-lacZ-R1.call.bam -f BAMPE -g 2.39e9 --verbose 5 --bw 150 -q
-        # 0.01 -m 10 100000 --set-name test
-
-        # format bam needs to be set explicitely, autodetection does not
-        # work. Use paired end mode to detect tag size
+        # Check the paired_end paramter is correct
         if self.paired_end:
             if not BamTools.isPaired(infile):
                 raise ValueError(
@@ -878,7 +1132,53 @@ class Macs2Peakcaller(Peakcaller):
 
     def compressOutput(self, infile, outfile,
                        contigsfile, controlfile):
-        ''' build command line statement to compress outfiles'''
+        '''
+        Builds a command line statement to compress macs2 outfiles.
+        XLS file is compressed using bgzip and tabix
+        bedGraph files are compressed using bedGraphToBigWig
+
+        Example Statement:
+        bedGraphToBigWig K9-13-2_filtered_pseudo_2.macs2_treat_pileup.bdg
+        assembly.dir/contigs.tsv
+        K9-13-2_filtered_pseudo_2.macs2_treat_pileup.bw;
+        checkpoint;
+        rm -rf K9-13-2_filtered_pseudo_2.macs2_treat_pileup.bdg;
+        checkpoint;
+
+        bedGraphToBigWig K9-13-2_filtered_pseudo_2.macs2_control_lambda.bdg
+        assembly.dir/contigs.tsv
+        K9-13-2_filtered_pseudo_2.macs2_control_lambda.bw;
+        checkpoint;
+        rm -rf K9-13-2_filtered_pseudo_2.macs2_control_lambda.bdg;
+        checkpoint;
+
+        grep -v "^$" < K9-13-2_filtered_pseudo_2.macs2_peaks.xls |
+        bgzip > K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz;
+        x=$(zgrep "[#|log]" K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz |
+        wc -l);
+        tabix -f -b 2 -e 3 -S $x K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz;
+        checkpoint;
+        rm -f K9-13-2_filtered_pseudo_2.macs2_peaks.xls;
+        checkpoint;
+
+        Output files from the callPeaks step are compressed as follows:
+        .macs2_treat_pileup.bdg > .macs2_treat_pileup.bw
+        .macs2_control_lambda.brg > .macs2_control_lambda.bw
+        .macs2_peaks.xls > .macs2_peaks.xls.gz and .macs2_peaks.xls.gz.tbi
+
+        Parameters
+        ----------
+         infile: str
+            path to input bam file
+        outfile: str
+            path to .macs2 output file
+        contigsfile: str
+           path to tab delimited file with the name of each contig in the
+           genome in column 0 and contig lengths in column 1. Used by
+           bedGraph2bigwig in generating bigwig formatted output files.
+        controlfile: str
+           path to control (input) bam file
+        '''
 
         statement = []
 
@@ -918,19 +1218,63 @@ class Macs2Peakcaller(Peakcaller):
 
     def postProcessPeaks(self, infile, outfile, controlfile, insertsizefile):
         '''
-        postprocess MACS 2 results
+        Generates a command line statement to postprocess MACS 2 results,
+        producing further output files which may be of interest.
 
-        Output files from MACS2 are passed to bed2table to annotate
-        them with various metrics including the centre of the peak and
+        The .xls.gz output table from compressOutput is filtered to remove
+        comments and column headings then
+        bed2table is used to annotate these with various metrics
+        including the centre of the peak and
         the number of reads in the sample bam and control bam at the
-        peak position.
+        peak position.  This output is stored with the suffix .macs
 
-        The xls output from macs2 is passed to bed2table to generate
-        the final outfile.
+        The .broadPeaks or .narrowPeaks file is processed to output a table,
+        suffix .broadpeaks.macs_peaks.bed or .subpeaks.macs_peaks.bed,
+        with these metrics plus a "peak height" column.
 
-        Depending on the peak calling method of macs2,
-        either the a summits or broadpeak macs2 output will also be passed to
-        bed2table for annotation.
+
+        Example Statement
+        zcat K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz |
+        awk '$1!="chr"' |
+        python /ifs/devel/katherineb/cgat/scripts/bed2table.py --counter=peaks
+        --bam-file=K9-13-2_filtered_pseudo_2.bam
+        --offset=168
+        --control-bam-file=K9-IN-1_filtered.bam
+        --control-offset=168
+        --output-all-fields
+        --output-bed-headers=contig,start,end,interval_id,
+        -log10\(pvalue\),fold,-log10\(qvalue\),macs_nprobes,macs_peakname
+        --log=K9-13-2_filtered_pseudo_2.macs2.log
+        > K9-13-2_filtered_pseudo_2.macs;
+
+        cat macs2.dir/K9-13-2_filtered_pseudo_2.macs2_peaks.broadPeak |
+        awk '/Chromosome/ {next; } {printf("%s\t%i\t%i\t%i\t%i\n",
+        $1,$2,$3,++a,$4)}' |
+        python /ifs/devel/katherineb/cgat/scripts/bed2table.py
+        --counter=peaks
+        --bam-file=K9-13-2_filtered_pseudo_2.bam
+        --offset=168
+        --control-bam-file=K9-IN-1_filtered.bam
+        --control-offset=168
+        --output-all-fields
+        --output-bed-headers=contig,start,end,interval_id,Height
+        --log=K9-13-2_filtered_pseudo_2.macs2.log
+        > K9-13-2_filtered_pseudo_2.broadpeaks.macs_peaks.bed;
+
+        Parameters
+        ----------
+        infile: str
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        controlfile: str
+           path to the control (input) bam file
+        insertsizefile: str
+           path to table containing insert size data, with columns
+           filename, mode, fragmentsize_mean, fragmentsize_std, tagsize
+           generated by the estimateInsertSizes function
+           this is parsed and used by bedGraphToBigWig
+        
         '''
 
         filename_bed = outfile + "_peaks.xls.gz"
@@ -1025,6 +1369,14 @@ class Macs2Peakcaller(Peakcaller):
         return statement
 
     def preparePeaksForIDR(self, outfile, idrc, idrsuffix, idrcol):
+        '''
+        Generates a statement fragment which sorts and filters the macs2
+        output to provide an input for IDR.
+        This involves taking column "idrcol" (currently recommended - column 8
+        from the .narrowPeaks or .broadPeaks file)
+
+        '''
+        
         statement = ''
         idrout = "%s_IDRpeaks" % outfile
         narrowpeaks = "%s_peaks.%s" % (outfile, idrsuffix)
@@ -1032,7 +1384,6 @@ class Macs2Peakcaller(Peakcaller):
         statement += '''sort -h -r -k%(col)i,%(col)i %(narrowpeaks)s |
         head -%(idrc)s > %(idrout)s''' % locals()
         return statement
-
 
     def summarise(self, infile):
         '''Parses the MACS2 logfile to extract
@@ -1732,3 +2083,16 @@ def readDesignTable(infile, poolinputs):
     df['Condition'] = df['Condition'].astype('str')
     df['Tissue'] = df['Tissue'].astype('str')
     return df, inputD
+
+
+def readTable(tabfile):
+    '''
+    Used to read the "peakcalling_bams_and_inputs.tsv" file back
+    into memory.
+    '''
+    df = pd.read_csv(tabfile, sep="\t")
+    chips = df['ChipBam'].values
+    inputs = df['InputBam'].values
+    pairs = zip(chips, inputs)
+    D = dict(pairs)
+    return D

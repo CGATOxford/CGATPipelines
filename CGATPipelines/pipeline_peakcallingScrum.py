@@ -695,7 +695,6 @@ def callMacs2peaks(infiles, outfile):
     peakcaller = PipelinePeakcalling.Macs2Peakcaller(
         threads=1,
         paired_end=True,
-        output_all=True,
         tool_options=PARAMS['macs2_options'],
         tagsize=None)
 
