@@ -2286,7 +2286,7 @@ def ldExcludedEpistasis(infiles, outfile):
 @follows(ldExcludedEpistasis)
 @transform(ldExcludedEpistasis,
            regex("epistasis.dir/rs(.+).epi.cc"),
-           r"plots.dir/rs\1-epistasis_manhattan.png")
+           r"plots.dir/rs\1-naive_epistasis_manhattan.png")
 def plotLdExcludedEpistasis(infile, outfile):
     '''
     Generate a manhattan plot and QQplot
@@ -2312,7 +2312,8 @@ def plotLdExcludedEpistasis(infile, outfile):
 
 @jobs_limit(6)
 @follows(mergeGenotypeAndCovariates,
-         excludeLdVariants)
+         excludeLdVariants,
+         plotLdExcludedEpistasis)
 @transform(excludeLdVariants,
            regex("target_snps.dir/(.+).exclude"),
            add_inputs([r"epistasis.dir/GwasHits.bed",
@@ -3484,6 +3485,130 @@ def summariseAbfResults(infiles, outfile):
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
+# Perform colocalization testing between association summary statistics and additional
+# summary statistics from an eQTL analysis e.g. GTex
+# inputs needed: gwas summary, MAF file, trait summary
+@follows(splitConditionalRegions,
+         mkdir("coloc.dir"))
+@transform("hit_regions.dir/*_significant.tsv",
+           regex("hit_regions.dir/chr([0-9]+)_(\d+)_(\S+)_significant.tsv"),
+           add_inputs(r"%s/chr\1_genes.tsv" % PARAMS['eqtl_dir']),
+           r"coloc.dir/chr\1_\2_genes.tsv")
+def selectRegionGenes(infiles, outfile):
+    '''
+    Select the gene symbols that lie within
+    each association region to be tested for
+    colocalisation.
+
+    The input gene file needs to contain start and end
+    co-ordinates.
+
+    Genes are selected who's TSS and TSE lie within the
+    boundary of the fine mapping interval, generally
+    1.5Mb +/- lead SNP position.  The gene file should be
+    in BED4 format, with column 4 containing gene symbols
+    '''
+
+    resfile = infiles[0]
+    gene_file = infiles[1]
+    start = resfile.split("/")[-1].split("_")[1]
+
+    statement = '''
+    cat %(gene_file)s |
+    awk '{if(($2 >= %(start)s - 1500000) && ($3 <= %(start)s + 1500000))
+    {print $0}}' | cut -f 4 | sort | uniq > %(outfile)s
+    '''
+
+    P.run()
+
+# trait summary statistic results files need to contain
+# just the variants in LD with each other, say r^2 >=0.5
+@follows(selectRegionGenes)
+@transform("hit_regions.dir/*_significant.tsv",
+           regex("hit_regions.dir/chr([0-9]+)_(.+)_(.+)significant.tsv"),
+           add_inputs(r"ld.dir/chr\1.ld.bgz"),
+           r"coloc.dir/chr\1_\2_\3ldextract.tsv")
+def ldExtractResults(infile, outfile):
+    '''
+    Extract only those variants in LD r^2 >= 0.5
+    to make sure only independent association
+    signals are used in the colocalisation
+    analysis
+    '''
+
+    components = infile[0].split("/")[-1].rstrip("_significant.tsv")
+    lead_snp = "_".join(components.split("_")[2:])
+    chrome = int(components.split("_")[0].strip("chr"))
+    ld_file = infile[1]
+    snpos = int(components.split("_")[1])
+    start = snpos - 1500000
+    end = snpos + 1500000
+    if start < 1:
+        start = 1
+    else:
+        pass
+
+    statement = '''
+    tabix %(ld_file)s %(chrome)i:%(start)i-%(end)i
+    | awk '{if($2 == %(snpos)i || $5 == %(snpos)i) {print $0}}'
+    | awk '$7 >= 0.5 {print $0}'
+    | cut -f 3,6 | sed 's/\\t/\\n/' | sort | uniq
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+@follows(selectRegionGenes,
+         ldExtractResults)
+@transform("hit_regions.dir/*_significant.tsv",
+           regex("hit_regions.dir/chr([0-9]+)_(\d+)_(\S+)_significant.tsv"),
+           add_inputs([r"%s/chr\1_eQTL.txt.gz" % PARAMS['eqtl_dir'],
+                       r"coloc.dir/chr\1_\2_genes.tsv",
+                       r"coloc.dir/chr\1_\2_ldextract.tsv",
+                       r"%s/chr\1.frq" % PARAMS['coloc_mafdir']]),
+           r"coloc.dir/chr\1_\2_\3.coloc")
+def colocTesteQTL(infiles, outfile):
+    '''
+    Perform a colocalisation test between trait summary statistics
+    and eQTL result summary statistics
+    '''
+
+    trait1_results = infiles[0]
+    trait2_results = infiles[1][0]
+    gene_list = infiles[1][1]
+    ld_extract = infiles[1][2]
+    maf_table = infiles[1][3]
+
+    job_memory = "8G"
+
+    statement = '''
+    python %(scriptsdir)s/assoc2coloc.py
+    --trait1-results=%(trait1_results)s
+    --trait2-results=%(trait2_results)sta
+    --trait2-p-column=%(eqtl_pcol)s
+    --trait1-prevalence=%(coloc_prevalence)s
+    --trait2-size=%(eqtl_nsize)i
+    --trait1-snplist=%(ld_extract)s
+    --R-script=%(r_scripts)s
+    --gene-list=%(gene_list)s
+    --maf-table=%(maf_table)s
+    --log=%(outfile)s.log
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+# ----------------------------------------------------------------------------------------#
+# ----------------------------------------------------------------------------------------#
+# ----------------------------------------------------------------------------------------#
+
+
+
+# ----------------------------------------------------------------------------------------#
+# ----------------------------------------------------------------------------------------#
+# ----------------------------------------------------------------------------------------#
 # Variance components analysis on GWAS hit regions and observed epistatic interactions
 # Detect genetic overlap with additional traits by estimating h2 additive from GWAS and
 # epistasis regions.
@@ -3846,31 +3971,6 @@ def transformGwasToCojo(infile, outfile):
 
     P.run()
 
-
-@follows(transformGwasToCojo,
-         calcPicsScores)
-@transform("plink.dir/chr*",
-           regex("plink.dir/(.+).bed"),
-           add_inputs([r"plink.dir/\1.fam",
-                       r"plink.dir/\1.bim",
-                       r"exclusions.dir/WholeGenome.gwas_exclude"]),
-           r"gwas.dir/\1_adj.assoc.%s" % PARAMS['gwas_model'])
-def jointAnalysisOfPhenotypes(infiles, outfile):
-    '''
-    Perform conditional analysis between two traits
-    on a subset of SNPs.  Requires GWAS results
-    from one phenotype, genotypes and phenotype
-    values for the second.
-    '''
-
-    job_memory = "75G"
-
-    statement = '''
-    --covariates-file=%(mlm_cont_covarfile)s
-    --discrete-covariates-file=%(mlm_discrete_covarfile)s
-    '''
-
-    pass
 
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
