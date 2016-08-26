@@ -3522,7 +3522,9 @@ def selectRegionGenes(infiles, outfile):
     P.run()
 
 # trait summary statistic results files need to contain
-# just the variants in LD with each other, say r^2 >=0.5
+# just the variants in LD with each other, say r^2 >=0.2
+# there needs to be balance so that some SNPs are still
+# retained for analysis
 @follows(selectRegionGenes)
 @transform("hit_regions.dir/*_significant.tsv",
            regex("hit_regions.dir/chr([0-9]+)_(.+)_(.+)significant.tsv"),
@@ -3551,7 +3553,7 @@ def ldExtractResults(infile, outfile):
     statement = '''
     tabix %(ld_file)s %(chrome)i:%(start)i-%(end)i
     | awk '{if($2 == %(snpos)i || $5 == %(snpos)i) {print $0}}'
-    | awk '$7 >= 0.5 {print $0}'
+    | awk '$7 >= 0.2 {print $0}'
     | cut -f 3,6 | sed 's/\\t/\\n/' | sort | uniq
     > %(outfile)s
     '''
