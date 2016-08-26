@@ -3572,7 +3572,7 @@ def ldExtractResults(infile, outfile):
            regex("hit_regions.dir/chr([0-9]+)_(\d+)_(\S+)_significant.tsv"),
            add_inputs([r"%s/chr\1_eQTL.txt.gz" % PARAMS['eqtl_dir'],
                        r"coloc.dir/chr\1_\2_genes.tsv",
-                       r"coloc.dir/chr\1_\2_ldextract.tsv",
+                       r"coloc.dir/chr\1_\2_\3_ldextract.tsv",
                        r"%s/chr\1.frq" % PARAMS['coloc_mafdir']]),
            r"coloc.dir/chr\1_\2_\3.coloc")
 def colocTesteQTL(infiles, outfile):
@@ -3592,7 +3592,7 @@ def colocTesteQTL(infiles, outfile):
     statement = '''
     python %(scriptsdir)s/assoc2coloc.py
     --trait1-results=%(trait1_results)s
-    --trait2-results=%(trait2_results)sta
+    --trait2-results=%(trait2_results)s
     --trait2-p-column=%(eqtl_pcol)s
     --trait1-prevalence=%(coloc_prevalence)s
     --trait2-size=%(eqtl_nsize)i
