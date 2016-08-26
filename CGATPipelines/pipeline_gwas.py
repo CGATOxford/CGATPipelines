@@ -394,7 +394,7 @@ def nameVariants(infiles, outfile):
     state0 = '''
     cat %(bim_file)s | awk '{if($2 == ".") {printf("%%s\\t%%s_%%s_%%s_%%s\\t%%s\\t%%s\\t%%s\\t%%s\\n",
     $1,$1,$4,$5,$6,$3,$4,$5,$6)} else{print $0}}' > %(temp_file)s.bim;
-    mv %(temp_file)s.bim %(bim_file)s;
+    mv %(temp_file)s.bim %(bim_file)s
     '''
 
     # create files to remove triallelic variants, overlapping variants
@@ -406,10 +406,14 @@ def nameVariants(infiles, outfile):
     --log=%(outfile)s.log
     %(bim_file)s;
     cat %(temp_file)s.triallelic %(temp_file)s.duplicates
-    %(temp_file)s.overlapping | sort | uniq >> %(outfile)s;
+    %(temp_file)s.overlapping | sort | uniq >> %(outfile)s
     '''
 
-    statement = ";".join([state0, state1])
+    state2 = '''
+    touch %(outfile)s
+    '''
+
+    statement = ";".join([state0, state1, state2])
     P.run()
 
 # ----------------------------------------------------------------------------------------#
@@ -3521,6 +3525,7 @@ def selectRegionGenes(infiles, outfile):
 
     P.run()
 
+
 # trait summary statistic results files need to contain
 # just the variants in LD with each other, say r^2 >=0.2
 # there needs to be balance so that some SNPs are still
@@ -3553,7 +3558,7 @@ def ldExtractResults(infile, outfile):
     statement = '''
     tabix %(ld_file)s %(chrome)i:%(start)i-%(end)i
     | awk '{if($2 == %(snpos)i || $5 == %(snpos)i) {print $0}}'
-    | awk '$7 >= 0.2 {print $0}'
+    | awk '$7 >= %(coloc_ldthresh)s {print $0}'
     | cut -f 3,6 | sed 's/\\t/\\n/' | sort | uniq
     > %(outfile)s
     '''
