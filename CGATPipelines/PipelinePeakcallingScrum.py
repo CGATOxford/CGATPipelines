@@ -1679,7 +1679,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
     # Write all the table rows to the output file
     out = IOTools.openFile(outfile, "w")
     out.write(
-        "file1\tfile2\tIDR_comparison_type\toutput_file\tCondition\tTissue\n")
+        "file1\tfile2\tIDR_comparison_type\tOracle_Peak_File\tCondition\tTissue\n")
     for p in pairs:
         out.write("%s\t%s\t%s\t%s\t%s\t%s\n" % p)
 
@@ -1864,7 +1864,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
     pairtab = pd.read_csv(pairs, sep="\t", names=['Input_File_1',
                                                   'Input_File_2',
                                                   'Replicate_Type',
-                                                  'Output_File'
+                                                  'Oracle_Peak_File',
                                                   'Condition',
                                                   'Tissue'])
 
@@ -1872,7 +1872,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
     # the "Output_Filename" column in the summary table
     pairstrings = []
     for p in pairtab.index.values:
-        p = pairtab.ix[p]
+        p = list(pairtab.ix[p])
         p1 = P.snip(p[0].split("/")[-1])
         p2 = P.snip(p[1].split("/")[-1])
         pairstring = "%s_v_%s_table.tsv" % (p1, p2)
