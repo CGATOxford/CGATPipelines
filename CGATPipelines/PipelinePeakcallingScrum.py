@@ -1017,13 +1017,14 @@ class Peakcaller(object):
         Function to run after peaks are called and processed to generate a row
         which can later be appended to a summary table for peakcalling for
         all input files.
-        
+
         Parameters
         ----------
         infile: str
             path to bam file
         '''
         pass
+
 
 class Macs2Peakcaller(Peakcaller):
     '''
@@ -1496,10 +1497,62 @@ class Macs2Peakcaller(Peakcaller):
 
 @cluster_runnable
 def makePairsForIDR(infiles, outfile, useoracle, df):
+    '''
+    Generates a table containing the pairs of files to compare for IDR
+    analysis.
+    Various pairs of files are needed:
+         Self-consistency analysis
+         Pairs of pseudo-bam files generated from the same replicate are
+         compared
+
+         Replicate-consistency analysis
+         Every possible pair of replicates for each combination of condition
+         and treatment are compared
+
+         Pooled-consistency analysis
+         Pairs of pseudo bam files generated from pooled replicates for each
+         combination of condition and treatment are compared.
+
+    Generates a table with 6 columns:
+        file1: path to first input bam file in the pair
+        file2: path to the second input bam file in the pair
+        IDR_comparison_type: self_consistency, replicate_consistency,
+        pooled_consistency
+        output_file: path to output table
+        Condition: Condition from design table
+        Tissue: Tissue from design table
+
+    Parameters
+    ----------
+    infiles: list
+        list of files containing peaks for each replicate, pseudo replicate
+        and pooled pseudo replicate
+    outilfe: str
+        path to output table
+    useoracle: bool
+        1 = an "oracle peak list" - the peaks from the pooled bam file for each
+        combination of condition and tissue will be written to the table as the
+        oracle peak list for downstream use
+        0 = "None" will be written to the oracle peak list column of the table
+        if this is not required
+    df: pandas dataframe
+        the design table for the experiment, read using the readDesignTable
+        function
+
+    '''
     pseudo_reps = []
     pseudo_pooled = []
     notpseudo_reps = []
     notpseudo_pooled = []
+
+    # Categorise files as "pseudo_pooled", "pseudo_reps", "notpseudo_pooled"
+    # and "notpseudo_reps
+    # pseudo_pooled - peaks from pseudo bam files generated from pooled
+    #                 replicates
+    # pseudo_reps - peaks from pseudo bam files generated from individual
+    #                 replicates
+    # notpseudo_reps - peaks from original bam files for individual replicates
+    # notpseudo_pooled - peaks from original bam files pooled across replicates
 
     for f in infiles:
         if "pseudo" in f and "pooled" in f:
@@ -1511,13 +1564,21 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
         else:
             notpseudo_reps.append(f)
 
+    # The "oracle peaks" file is the notpseudo_pooled file for each condition
+    # and tissue combination
     oracledict = dict()
+    # This loop finds the appropriate oracle peak list for the pseudo_pooled
+    # pairs and stores this in a dictionary
     cr_pairs = df['Condition'] + "_" + df['Tissue']
     for cr in cr_pairs:
         for npp in notpseudo_pooled:
             npp1 = npp.split("/")[-1]
             if npp1.startswith(cr):
                 oracledict[cr] = npp
+
+    # This loop finds the appropriate oracle peak list for the pseudo_reps
+    # and pseudo_pooled pairs and stores this in the dictionary
+
     i = 0
     for bam in df['bamReads']:
         bam = P.snip(bam)
@@ -1531,6 +1592,10 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
     pseudo_reps = np.array(sorted(list(set(pseudo_reps))))
     pseudo_pooled = np.array(sorted(list(set(pseudo_pooled))))
 
+    # Generate the table rows for the pseudo_reps peak lists
+    # This is achieved by sorting the file names and taking two items at a
+    # time from the list - the paired pseudo replicates will be next to
+    # each other in this list
     into = len(pseudo_reps) / 2
     pseudoreppairs = np.split(pseudo_reps, into)
     pseudoreppairs = [tuple(item) for item in pseudoreppairs]
@@ -1548,6 +1613,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
                 condition))
         pseudoreppairs_rows.append(row)
 
+    # Generates the table rows for the pseudo_pooled peak lists
     into = len(pseudo_pooled) / 2
     pseudopooledpairs = np.split(pseudo_pooled, into)
     pseudopooledpairs = [tuple(item) for item in pseudopooledpairs]
@@ -1566,7 +1632,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
 
         pseudopooledpairs_rows.append(row)
 
-    # segregate the non pseudo non pooled files into sets of replicates
+    # segregate the true replicates (notpseudo_reps) into groups
     # with the same condition and tissue
     conditions = df['Condition'].values
     tissues = df['Tissue'].values
@@ -1589,11 +1655,12 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
                 if rep in f:
                     idrrepdict[k].append(f)
 
-    # generate every possible pair of replicates
+    # generate every possible pair of notpseudo_reps
     reppairs = []
     for k in idrrepdict.keys():
         reppairs += list(itertools.combinations(idrrepdict[k], 2))
 
+    # Generate the table rows for the notpseudo_reps
     reppairs_rows = []
     for tup in reppairs:
         stem = tup[0].split("/")[-1]
@@ -1609,6 +1676,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
         reppairs_rows.append(row)
     pairs = pseudoreppairs_rows + pseudopooledpairs_rows + reppairs_rows
 
+    # Write all the table rows to the output file
     out = IOTools.openFile(outfile, "w")
     out.write(
         "file1\tfile2\tIDR_comparison_type\toutput_file\tCondition\tTissue\n")
@@ -1620,7 +1688,49 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
 
 def buildIDRStatement(infile1, infile2, outfile,
                       sourcec, unsourcec, soft_idr_thresh, idrPARAMS, options,
-                      oraclefile, test=False):
+                      oraclefile=None, test=False):
+    '''
+    Constructs a command line statement to run the idr software package -
+    https://github.com/nboley/idr
+    The idr software fails if less than 20 peaks are identified unless the
+    --only-merge-peaks parameters is specified, so if "test" is True, this
+    parameter is specified and the peaks are counted.  The output of this
+    step can then be used to determine if a full analysis should be
+    attempted.
+
+    Parameters
+    ----------
+    infile1: str
+        path to first IDR input bam file
+    infile2: str
+        path to second IDR input bam file
+    outfile: str
+        path to main IDR output file
+    sourcec: str
+        statement to source the environment in which to run IDR software
+    unsourcec: str
+        statement to revert to the original environment
+    soft_idr_thresh:
+        threshold below which to discard peaks
+    idrPARAMS: dict
+        dictionary containing parameters for IDR.
+        These are:
+        idrsuffix:  suffix for the file type to use for IDR for this peakcaller
+        for macs2 this is "narrowPeak" or "broadPeak"
+        idrcol: 0 based column index to use to rank peaks for IDR, for macs2
+        this is 8
+        idrcolname: column name of the column referred to in idrcol, for macs2
+        this is p.value
+        useoracle: should the "oracle" peak list be used instead of the
+        standard peak list - 1 yes 0 no
+    options: str
+        string containing additional options for the idr software
+    oraclefile: str
+        path to the oracle peak list, if this is requested
+    test: bool
+        1 = run IDR test to see if > 20 peaks are identified (as otherwise
+        the scripts will fail downstream) 0 = run full IDR analysis
+    '''
     statement = []
     statement.append(sourcec)
 
@@ -1677,23 +1787,89 @@ def buildIDRStatement(infile1, infile2, outfile,
 
 
 def summariseIDR(infiles, outfile, pooledc, selfc, repc):
+    '''
+    Builds a summary table for the output from the IDR software.
+    This table has the following columns:
+    Output_Filename: Name of the main IDR output file
+    Replicate_Type: This can be self_consistency, replicate_consistency or
+    pooled_consistency depending on the replicate type.
+        self_consistency - consistency between pseudo replicates within one
+        true replicate
+        replicate_consistency - consistency between true replicates
+        pooled_consistency - consistency between pseudo replicates within
+        pooled replicates for this tissue and condition combination
+    Total_Peaks: Number of peaks called in both samples
+    Peaks_Passing_IDR: Number of peaks which passed IDR
+    Percentage_Peaks_Passing_IDR: (Peaks_Passing_IDR / Total_Peaks) * 100
+    Peaks_Failing_IDR: Total_Peaks - Peaks_Passing_IDR
+    IDR_Thresholds: Threshold for peaks to pass IDR QC for this replicate type
+    IDR_Transformed_Thresholds: -log10 IDR_Threshold
+    Input_File_1: IDR input file 1
+    Input_File_2: IDR_input file 2
+    Condition: Condition from design table
+    Tissue: Tissue from design table
+    Oracle_Peak_File: List of peaks from pooled replicates (if requested)
+    IDR_Successful: Were enough peaks (20) called for IDR to be run -
+    True or False
+    Conservative_Peak_List: Is this the conservative peak list - the longest
+    of the lists of peaks for each condition and tissue combination for the
+    replicate_consistency replicates
+    Optimal_Peak_List: Is this the optimal peak list - the longest of the
+    lists of peaks for each condition and tissue combination for the
+    replicate_consistency and pooled_consistency replicates.
+
+
+    The input files for this step are:
+       the filtered IDR output files in bed format
+       the IDR summary tables for each IDR test - these have the columns
+       "Total_Peaks", "Peaks_Passing_IDR", "Peaks_Failing_IDR",
+       "Percentage_Peaks_Failing_IDR" and "IDR_Successful" which correspond to
+       the column names in the output file here described above
+       a tsv file containing tab delimited pairs of files on which IDR has been
+       performed generated using the makePairsForIDR function above.
+
+
+    Parameters
+    ----------
+    infiles: tuple
+        This tuple should have the layout:
+        (((filtered, table), (filtered, table), (filtered, table)), pairs)
+        where each (filtered, table) pair is the filtered bed file and summary
+        table for an IDR run and "pairs" is the table specifying on which
+        pairs of files IDR has been performed.
+    outfile: str
+        path to output file
+    pooledc: float
+        the soft threshold used to filter IDR peaks in the pooled_consistency
+        replicates
+    selfc: float
+        the soft threshold used to filter IDR peaks in the self_consistency
+        replicates
+    repc: float
+        the soft threshold used to filter IDR peaks in the
+        replicate_consistency replicates
+    '''
     tables = [i[1] for i in infiles[:-1]]
     pairs = infiles[-1]
 
+    # read all the IDR summary tables into a single file
     alltab = pd.DataFrame()
     for table in tables:
         tab = pd.read_csv(table, sep="\t")
         tab['Output_Filename'] = table.split("/")[-1]
         alltab = alltab.append(tab)
+
+    # read the table containing the pairs of files on which IDR
+    # has been performed
     pairtab = pd.read_csv(pairs, sep="\t", names=['Input_File_1',
                                                   'Input_File_2',
                                                   'Replicate_Type',
-                                                  'Oracle_Peak_File',
+                                                  'Output_File'
                                                   'Condition',
-                                                  'Tissue',
-                                                  'IDR_Successful'])
+                                                  'Tissue'])
 
-    # Generate a temporary column to merge the two tables
+    # Generate a temporary column to merge the two tables corresponding to
+    # the "Output_Filename" column in the summary table
     pairstrings = []
     for p in pairtab.index.values:
         p = pairtab.ix[p]
@@ -1702,11 +1878,14 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
         pairstring = "%s_v_%s_table.tsv" % (p1, p2)
         pairstrings.append(pairstring)
 
+    # Tidy up the column names etc in the output tables
     pairtab['pairstring'] = pairstrings
     alltab = alltab.merge(pairtab, left_on='Output_Filename',
                           right_on='pairstring')
     alltab = alltab.drop('pairstring', 1)
 
+    # Find the appropriate thresholds for each replicate type and store in a
+    # list
     thresholds = []
     for item in alltab['Replicate_Type']:
         if item == "pooled_consistency":
@@ -1731,6 +1910,8 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
     alltab['Condition'] = alltab['Condition'].astype('str')
     alltab['Tissue'] = alltab['Tissue'].astype('str')
     alltab['Experiment'] = alltab['Condition'] + "_" + alltab['Tissue']
+
+    # find the "Conservative_Peak_List" for each experiment
     alltab['Conservative_Peak_List'] = False
     replicates = alltab[alltab['Replicate_Type'] == 'replicate_consistency']
     for exp in set(replicates['Experiment'].values):
@@ -1739,6 +1920,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
         val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
         alltab.ix[val, 'Conservative_Peak_List'] = True
 
+    # find the "Optimal_Peak_List" for each experiment
     alltab['Optimal_Peak_List'] = False
     for exp in set(alltab['Experiment'].values):
         subtab = alltab[((alltab['Experiment'] == exp) &
@@ -1753,6 +1935,41 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
 
 
 def doIDRQC(infile, outfile):
+    '''
+    Generates a table containing various quality control statistics for the IDR
+    analysis.
+    The input file is the output table from the summariseIDR function
+    above.
+    The output table has the following columns:
+    Experiment: Tissue and condition
+    Ratio_Type: Name of this summary statistic
+    Ratio_Formula: How the statistic was calculated
+    Ratio: Value of summary statistic
+    Comparison_File_1: First file used to generate this statistic
+    Comparison_File_2: Second file used to generate this statistic.
+
+    The following statistics are calculated:
+    self-consistency ratio - this is calculated as N1/N2 for every possible
+    pair of true replicates within a condition and tissue combination, where
+    N1 and N2 are the number of peaks passing IDR for the self-consistency
+    test (comparing two pseudo replicates) for replicate 1 and replicate 2
+    respectively.
+    
+    rescue ratio - this is calculated for each combination of tissue and
+    condition as max(Np, Nt) / min(Np, Nt) where
+    Np is the number of peaks passing the pooled consistency IDR (comparing
+    pseudo replicates generated from the pooled bam file for the experiment)
+    and Nt is the length of the longest peak list generated from the
+    replicate_consistency tests of this experiment.
+
+    Parameters
+    ----------
+    infile: str
+        path to input table, which should be the output from summariseIDR
+        above
+    outfile: str
+        path to output table
+    '''
     alltab = pd.read_csv(infile, sep="\t")
     outputrows = []
     self_c_alltab = alltab[alltab['Replicate_Type'] == 'self_consistency']
@@ -1917,8 +2134,24 @@ def doIDRQC(infile, outfile):
 #############################################
 # QC Functions
 
-
 def runCHIPQC(infile, outfiles, rdir):
+    '''
+    Runs the R package ChIPQC to plot and record various quality control
+    statistics on peaks.
+    
+    Parameters
+    ----------
+    infile: str
+       path to a design table formatted for the ChIPQC package as specified
+       here  -
+       https://www.bioconductor.org/packages/devel/bioc/
+       vignettes/ChIPQC/inst/doc/ChIPQC.pdf
+    outfile: str
+       path to main output file
+    rdir: str
+       path to directory in which to place the output files
+    '''
+    
     runCHIPQC_R = R('''
     function(samples, outdir, cwd){
         library("ChIPQC")
@@ -1938,91 +2171,6 @@ def runCHIPQC(infile, outfiles, rdir):
     ''' % locals())
     cwd = os.getcwd()
     runCHIPQC_R(pandas2ri.py2ri(infile), rdir, cwd)
-
-
-def summariseMACS2(infiles, outfile):
-    '''Parses the MACS2 logfile to extract
-    peak calling parameters and results.
-
-    TODO: doesn't report peak numbers...
-
-    Arguments
-    ---------
-    infiles : string
-        Input files in MACS2 log file format.
-    outfile : string
-        Filename of output file in tab-delimited text format.
-    '''
-
-    def __get(line, stmt):
-        x = line.search(stmt)
-        if x:
-            return x.groups()
-
-    # mapping patternts to values.
-    # tuples of pattern, label, subgroups
-    map_targets = [
-        ("tags after filtering in treatment:\s+(\d+)",
-         "fragment_treatment_filtered", ()),
-        ("total tags in treatment:\s+(\d+)",
-         "fragment_treatment_total", ()),
-        ("tags after filtering in control:\s+(\d+)",
-         "fragment_control_filtered", ()),
-        ("total tags in control:\s+(\d+)",
-         "fragment_control_total", ()),
-        ("predicted fragment length is (\d+) bps",
-         "fragment_length", ()),
-        # Number of peaks doesn't appear to be reported!.
-        ("#3 Total number of candidates: (\d+)",
-         "ncandidates", ("positive", "negative")),
-        ("#3 Finally, (\d+) peaks are called!",
-         "called",
-         ("positive", "negative"))
-    ]
-
-    mapper, mapper_header = {}, {}
-    for x, y, z in map_targets:
-        mapper[y] = re.compile(x)
-        mapper_header[y] = z
-
-    keys = [x[1] for x in map_targets]
-
-    outs = IOTools.openFile(outfile, "w")
-
-    headers = []
-    for k in keys:
-        if mapper_header[k]:
-            headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
-        else:
-            headers.append(k)
-    outs.write("track\t%s" % "\t".join(headers) + "\n")
-
-    for infile in infiles:
-        results = collections.defaultdict(list)
-        with IOTools.openFile(infile) as f:
-            for line in f:
-                if "diag:" in line:
-                    break
-                for x, y in mapper.items():
-                    s = y.search(line)
-                    if s:
-                        results[x].append(s.groups()[0])
-                        break
-
-        row = [P.snip(os.path.basename(infile), ".macs2")]
-        for key in keys:
-            val = results[key]
-            if len(val) == 0:
-                v = "na"
-            else:
-                c = len(mapper_header[key])
-                # append missing data (no negative peaks without control files)
-                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
-            row.append(v)
-            # assert len(row) -1 == len( headers )
-        outs.write("\t".join(row) + "\n")
-
-    outs.close()
 
 
 # Pipeline Specific Functions
@@ -2121,8 +2269,13 @@ def readDesignTable(infile, poolinputs):
 
 def readTable(tabfile):
     '''
-    Used to read the "peakcalling_bams_and_inputs.tsv" file back
+    Used by the pipeline_peakcalling.py pipeline
+    to read the "peakcalling_bams_and_inputs.tsv" file back
     into memory.
+    Parameters
+    ----------
+    tabfile: str
+        path to peakcalling_bams_and_inputs.tsv table
     '''
     df = pd.read_csv(tabfile, sep="\t")
     chips = df['ChipBam'].values
