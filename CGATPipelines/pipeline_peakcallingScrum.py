@@ -8,17 +8,24 @@ pipeline_peakcalling.py - Produce Peaklist from Bam Files
 :Tags: Python
 
 
-Methods
-=======
+Overview
+========
 
-Pipeline Usage
-=============
+The aim of this pipeline is to create peaklists in :term:`bed` files from 
+aligned reads in :term:`bam` files that can then be taken on to downstream 
+analysis (e.g. motif identification, quantification of peaks etc.). Pipeline
+also and generates QC  statistics that will inform you about the quality of
+the peaksets generated.
 
-Takes Bam files you want to call peaks in (e.g. ChIP-Seq or ATAC-Seq samples) 
-and their appropriate 'input' controls and produces peak lists in bed files
-to takeforward for downstream analysis. 
+Functionality
+-------------
 
-Also runs ChIPQC R package for QC statistics
+- Takes Paired-end or single end :term:`Bam` files you want to call peaks in 
+  (e.g. ChIP-Seq or ATAC-Seq samples and their appropriate 'input' controls). 
+- Runs peakcallers
+- Runs ChIPQC R package for QC statistics
+- Produces peak lists in bed files to takeforward for downstream analysis. 
+
 
 	Optional functions: 
 	-------------------
@@ -35,15 +42,17 @@ Also runs ChIPQC R package for QC statistics
 	  'highly reproducible peaks' and assess replicate quaility 
 
 
-NOTE: WARNINGS!!!! 
+NOTE: WARNINGS!!!!
+------------------
 
 1. IDR analysis may not be approprate for all type of peak file - It works 
 best with transcription factor CHIPs or methodologies producing 'narrow peaks'
 or peaks with well defined boundaries. 
 
 'BroadPeak' IDR (e.g. for widespread histone marks such as H3K27ac)
-might not work becuase peak boundary's are harder
-to define and thus may not be so reproducible between replicates 
+might not work because peak boundary's are harder to define and thus may
+not be so reproducible between replicates 
+
 
 2. Always check your output from this pipeline in a genome browser to check 
 peaks are being called suffiently!
@@ -57,12 +66,85 @@ this is only nomenclature and you could just as easily use
 an ATAC-Seq bam file or other bam file in which you are looking for 
 peaks
 
+4) Whilst you can call peaks with as many peakcallers that are implemented in the
+pipeline, only the results from one peakcaller can be taken forward for IDR
+analysis. If you want to run IDR analysis on the output of multiple peakcallers
+you will need first run IDR with one peakcaller then clone the pipeline, modify 
+pipeline.ini file and delete the appripriate files to rerun the IDR analysis on 
+the output from a different peakcaller. Bewarned that IDR analysis generates 
+a large number of peakfiles and it is best to decide on your prefered peakcaller
+before running the IDR analysis. 
+
+
+References
+==========
+
+This pipeline follows closely the ENCODE3 version 1 peakprocessing pipeline 
+described by Anshul Kundaje's group:
+
+(https://docs.google.com/document/d/1lG_Rd7fnYgRpSIqrIfuVlAz2dW1VaSQThzk836Db99c/edit#heading=h.9ecc41kilcvq)
+
+and the open source AQUAS TF ChIP-Seq pipeline implemented by the Kundaje group
+https://github.com/kundajelab/TF_chipseq_pipeline
+
+
+IDR analysis workflow is described here
+	* (https://sites.google.com/site/anshulkundaje/projects/idr)
+
+for troubleshooting/discussion of the IDR workflow see and extra documentation
+see:
+
+	* (https://groups.google.com/forum/#!forum/idr-discuss)
+
+IDR Analysis
+============
+
+IDR analysis is used to:
+	* Give an indication of how reproducible the peaks that are produced by the 
+	  peakcallers are within a single sample
+	* Give an indication of how reproducible the peaks that are produced by the 
+	  peakcallers are within replicates
+	* produce a `conservative` peak list of highly reproducible peaks
+	* produce an `oracle` peakset of the a large number of mostly reproducible
+	  peaks
+	* sometimes the `conserative` and the `oracle` peakset will be the same
+
+
+
 Requirements 
 ============
 
-Macs2 
-IDR 
+The pipeline requires the results from
+:doc:`pipeline_annotations`. Set the configuration variable
+:py:data:`annotations_database` and :py:data:`annotations_dir`.
 
+On top of the default CGAT setup, the pipeline requires the following
+software to be in the path:
+
++---------+------------+------------------------------------------------+
+|*Program*|*Version*   |*Purpose*                                       |
++---------+------------+------------------------------------------------+
+|samtools |>=0.1.16    |bam/sam files                                   |
++---------+------------+------------------------------------------------+
+|bedtools |            |working with intervals                          |
++---------+------------+------------------------------------------------+
+|picard   |>=1.42      |bam/sam files. The .jar files need to be in your|
+|         |            | CLASSPATH environment variable.                |
++---------+------------+------------------------------------------------+
+|macs2	  |>=2.1.1.	   |peakcalling                               	    |                                   |
++---------+------------+------------------------------------------------+
+|Conda	  |			   |		?????????????							|
++---------+------------+------------------------------------------------+
+
+Also required IDR version >= 2.0.2 from: (https://github.com/nboley/idr)
+
+
+
+IDR analysis 
+
+	- IDR analysis requires peaks are called with a relaxed threshold to geneerate
+	a peaklist that contains (ideally) > 120,000 peaks that will contain
+	reproducible or 'true' peaks
 
 Usage
 =====
@@ -109,7 +191,8 @@ stages of the pipeline
    that have been filtered according to pipeline.ini and a number
    of log files relating to the number of reads that have been 
    filtered out for each reason. Also contains file with the 
-   frequency of fragment lengths (the 3' end to 5'end of sequenced) for paired-end 
+   frequency of fragment lengths (the 3' end to 5'end of sequenced) 
+   for paired-end 
    samples. 
    
    
