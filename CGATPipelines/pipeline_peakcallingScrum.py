@@ -259,6 +259,7 @@ def loadDesignTable(infile, outfile):
     P.load(infile, outfile)
 
 
+@active_if(PARAMS['input'] != 0)
 @follows(mkdir("filtered_bams.dir"))
 @transform(INPUTBAMS, regex("(.*).bam"),
            [r"filtered_bams.dir/\1_filtered.bam",
@@ -267,12 +268,12 @@ def filterInputBAMs(infile, outfiles):
     '''
     Applies various filters specified in the pipeline.ini to the bam file
     Currently implemented are filtering:
-    	unmapped reads
-    	unpaired reads
-    	duplicate reads
-    	secondary alignment reads
-    	reads below a mapping quality (MAPQ) score
-    	reads overlapping with blacklisted regions specified in bed file.
+        unmapped reads
+        unpaired reads
+        duplicate reads
+        secondary alignment reads
+        reads below a mapping quality (MAPQ) score
+        reads overlapping with blacklisted regions specified in bed file.
     '''
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
@@ -405,7 +406,7 @@ if int(PARAMS['IDR_run']) == 1:
             # all bam files for this tissue and condition
             PipelinePeakcalling.mergeSortIndex(innames, out)
 
-    @active_if(PARAMS['IDR_poolinputs'] != "all")
+    @active_if(PARAMS['IDR_poolinputs'] != "all" and PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @split(filterInputBAMs, "IDR_inputs.dir/*_pooled_filtered.bam")
     def makePooledInputs(infiles, outfiles):
@@ -447,7 +448,7 @@ else:
         Dummy task if IDR not requested.
         '''
         pass
-
+    @active_if(PARAMS['input'] != 0)
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
                r'filtered_bams.dir/\1.bam')
     def makePooledInputs(infile, outfile):
@@ -504,6 +505,7 @@ else:
 # The method used to do this depends on the IDR_poolinputs parameter
 
 if PARAMS['IDR_poolinputs'] == "none":
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
                r'IDR_inputs.dir/\1.bam')
@@ -518,6 +520,7 @@ if PARAMS['IDR_poolinputs'] == "none":
 
 
 elif PARAMS['IDR_poolinputs'] == "all":
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @merge(filterInputBAMs, "IDR_inputs.dir/pooled_all.bam")
     def makeIDRInputBams(infiles, outfile):
@@ -531,6 +534,7 @@ elif PARAMS['IDR_poolinputs'] == "all":
 
 
 elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @split(filterInputBAMs, r'IDR_inputs.dir/*.bam')
     def makeIDRInputBams(infiles, outfiles):
@@ -562,6 +566,7 @@ elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
 
 
 elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] == 1:
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @follows(mkdir('IDR_inputs.dir'))
     @transform(makePooledInputs, regex("IDR_inputs.dir/(.*).bam"),
@@ -599,8 +604,11 @@ def makeBamInputTable(outfile):
         inputstem = inputD[k]
         chipstem = k
         chipstem = P.snip(chipstem)
-        inputstem = P.snip(inputstem)
-        inputfile = "IDR_inputs.dir/%s_filtered.bam" % inputstem
+        if PARAMS['input'] == 0:
+            inputfile = "-"
+        else:
+            inputstem = P.snip(inputstem)
+            inputfile = "IDR_inputs.dir/%s_filtered.bam" % inputstem
 
         for b in bamfiles:
             if b.startswith(chipstem) and b.endswith('bam'):
@@ -689,7 +697,10 @@ def callMacs2peaks(infiles, outfile):
     '''
     D = PipelinePeakcalling.readTable(infiles[1])
     bam = infiles[0]
-    inputf = D[bam]
+    if PARAMS['input'] == 0:
+        inputf = None
+    else:
+        inputf = D[bam]
     insertsizef = "%s_insertsize.tsv" % (P.snip(bam))
 
     peakcaller = PipelinePeakcalling.Macs2Peakcaller(
@@ -709,7 +720,7 @@ def callMacs2peaks(infiles, outfile):
 
 # list of peak callers to use
 PEAKCALLERS = []
-# list of peakcallers to use for IDR - currently IDR only works with a 
+# list of peakcallers to use for IDR - currently IDR only works with a
 # single peakcaller at a time
 IDRPEAKCALLERS = []
 #create dictionary of peakcallers and thier functions
