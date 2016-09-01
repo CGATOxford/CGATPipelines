@@ -307,7 +307,8 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
     o = open(tabout, "w")
     o.close()
     inT = infile
-
+    if not os.path.exists("filtered_bams.dir"):
+        os.mkdir("filtered_bams.dir")
     outT = P.getTempFilename("./filtered_bams.dir")
 
     statement = """samtools sort %(inT)s -o %(outT)s.bam; """ % locals()
@@ -419,9 +420,6 @@ def checkBams(infile, filters, qlim, pe, outfile):
     '''
 
     samfile = pysam.AlignmentFile(infile, 'rb')
-
-    outbam = pysam.AlignmentFile("%s.bam" % outfile, "wb",
-                                 template=samfile)
     sep = '.'
     logfile = sep.join([outfile, 'filteringlog'])
 
@@ -466,10 +464,9 @@ def checkBams(infile, filters, qlim, pe, outfile):
         else:
             counter['mapped'] += 1
 
-    if "unpaired" not in filters or pe is False:
-        shutil.copy(infile, outfile)
-
-    if "unpaired" in filters:
+    if "unpaired" in filters and pe == 1:
+        outbam = pysam.AlignmentFile("%s.bam" % outfile, "wb",
+                                     template=samfile)
         for items, values in d.iteritems():
             if len(values) == 2:
                 if values[0].is_read1 and values[1].is_read2:
@@ -490,7 +487,10 @@ def checkBams(infile, filters, qlim, pe, outfile):
                 if "secondary" not in filters:
                     for v in values:
                         outbam.write(v)
-
+        outbam.close()
+    else:
+        outbam = "%s.bam" % outfile
+        shutil.copy(infile, outbam)
     out = IOTools.openFile(infile.replace(".bam", ".fraglengths"), "w")
     out.write("frequency\tfrag_length\n")
     for key in fragment_length:
@@ -498,8 +498,6 @@ def checkBams(infile, filters, qlim, pe, outfile):
     out.close()
 
     filteringReport(counter, logfile)
-
-    outbam.close()
     samfile.close()
 
 
