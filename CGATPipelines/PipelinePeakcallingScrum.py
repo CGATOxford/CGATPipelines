@@ -251,6 +251,7 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
     return statement, outT
 
 
+@cluster_runnable
 def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                keep_intermediates=False):
     '''
@@ -368,7 +369,7 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
     # remove reads whose mate has been filtered out elsewhere
 
     T = P.getTempFilename(".")
-    checkBams(bamout, filters, qual, pe, T)
+    checkBams(bamout, filters, qual, pe, T, submit=True)
     if int(keep_intermediates) == 1:
         shutil.copy(bamout, bamout.replace(".bam", "_beforepaircheck.bam"))
     shutil.move("%s.bam" % T, bamout)
