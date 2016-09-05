@@ -353,6 +353,7 @@ def loadDesignTable(infile, outfile):
     P.load(infile, outfile)
 
 
+@active_if(PARAMS['input'] != 0)
 @follows(mkdir("filtered_bams.dir"))
 @transform(INPUTBAMS, regex("(.*).bam"),
            [r"filtered_bams.dir/\1_filtered.bam",
@@ -437,6 +438,34 @@ def loadFilteringStats(infile, outfile):
     P.load(infile, outfile)
 
 
+@merge((filterChipBAMs, filterInputBAMs), "post_filtering_check.tsv")
+def mergeFilteringChecks(infiles, outfile):
+    counts = [i[0].replace(".bam", ".filteringlog") for i in infiles]
+    bigtab = pd.DataFrame()
+    for c in counts:
+        tab = pd.read_csv(c, sep="\t", index_col=0,  header=None)
+        tab = tab.transpose()
+        tab['Input_Filename'] = c.split("/")[-1].replace(".filteringlog",
+                                                         "")
+        bigtab = bigtab.append(tab)
+    bigtab.to_csv(outfile, sep="\t", index=False)
+
+
+@transform(mergeFilteringChecks, suffix(".tsv"), ".load")
+def loadFilteringChecks(infile, outfile):
+    P.load(infile, outfile)
+
+
+@transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
+           "_fraglengths.load")
+def loadFragmentLengthDistributions(infiles, outfile):
+    infile = infiles[0].replace(".bam", ".fraglengths")
+    if len(IOTools.openFile(infile).readlines()) != 0:
+        P.load(infile, outfile)
+    else:
+        os.system("touch %s" % outfile)
+
+
 # These steps are required for IDR and are only run if IDR is requested
 if int(PARAMS['IDR_run']) == 1:
     @follows(mkdir("pooled_bams.dir"))
@@ -471,7 +500,7 @@ if int(PARAMS['IDR_run']) == 1:
             # all bam files for this tissue and condition
             PipelinePeakcalling.mergeSortIndex(innames, out)
 
-    @active_if(PARAMS['IDR_poolinputs'] != "all")
+    @active_if(PARAMS['IDR_poolinputs'] != "all" and PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @split(filterInputBAMs, "IDR_inputs.dir/*_pooled_filtered.bam")
     def makePooledInputs(infiles, outfiles):
@@ -513,7 +542,7 @@ else:
         Dummy task if IDR not requested.
         '''
         pass
-
+    @active_if(PARAMS['input'] != 0)
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
                r'filtered_bams.dir/\1.bam')
     def makePooledInputs(infile, outfile):
@@ -570,6 +599,7 @@ else:
 # The method used to do this depends on the IDR_poolinputs parameter
 
 if PARAMS['IDR_poolinputs'] == "none":
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
                r'IDR_inputs.dir/\1.bam')
@@ -584,6 +614,7 @@ if PARAMS['IDR_poolinputs'] == "none":
 
 
 elif PARAMS['IDR_poolinputs'] == "all":
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @merge(filterInputBAMs, "IDR_inputs.dir/pooled_all.bam")
     def makeIDRInputBams(infiles, outfile):
@@ -597,6 +628,7 @@ elif PARAMS['IDR_poolinputs'] == "all":
 
 
 elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @split(filterInputBAMs, r'IDR_inputs.dir/*.bam')
     def makeIDRInputBams(infiles, outfiles):
@@ -628,6 +660,7 @@ elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
 
 
 elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] == 1:
+    @active_if(PARAMS['input'] != 0)
     @follows(mkdir('IDR_inputs.dir'))
     @follows(mkdir('IDR_inputs.dir'))
     @transform(makePooledInputs, regex("IDR_inputs.dir/(.*).bam"),
@@ -665,8 +698,11 @@ def makeBamInputTable(outfile):
         inputstem = inputD[k]
         chipstem = k
         chipstem = P.snip(chipstem)
-        inputstem = P.snip(inputstem)
-        inputfile = "IDR_inputs.dir/%s_filtered.bam" % inputstem
+        if PARAMS['input'] == 0:
+            inputfile = "-"
+        else:
+            inputstem = P.snip(inputstem)
+            inputfile = "IDR_inputs.dir/%s_filtered.bam" % inputstem
 
         for b in bamfiles:
             if b.startswith(chipstem) and b.endswith('bam'):
@@ -714,6 +750,7 @@ def loadInsertSizes(infile, outfile):
 @follows(loadFilteringStats)
 @follows(loadDesignTable)
 @follows(loadBamInputTable)
+@follows(loadFilteringChecks)
 @follows(makeBamInputTable)
 @follows(mergeInsertSizes)
 @transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),
@@ -754,13 +791,15 @@ def callMacs2peaks(infiles, outfile):
     '''
     D = PipelinePeakcalling.readTable(infiles[1])
     bam = infiles[0]
-    inputf = D[bam]
+    if PARAMS['input'] == 0:
+        inputf = None
+    else:
+        inputf = D[bam]
     insertsizef = "%s_insertsize.tsv" % (P.snip(bam))
 
     peakcaller = PipelinePeakcalling.Macs2Peakcaller(
         threads=1,
         paired_end=True,
-        output_all=True,
         tool_options=PARAMS['macs2_options'],
         tagsize=None)
 
