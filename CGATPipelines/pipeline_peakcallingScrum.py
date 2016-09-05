@@ -1,5 +1,5 @@
 """
-pipeline_peakcalling.py - Produce Peaklist from Bam Files 
+pipeline_peakcalling.py - Produce Peaklist from Bam Files
 ===================================================
 
 :Author: Katy Brown & Charlie George
@@ -11,8 +11,8 @@ pipeline_peakcalling.py - Produce Peaklist from Bam Files
 Overview
 ========
 
-The aim of this pipeline is to create peaklists in :term:`bed` files from 
-aligned reads in :term:`bam` files that can then be taken on to downstream 
+The aim of this pipeline is to create peaklists in :term:`bed` files from
+aligned reads in :term:`bam` files that can then be taken on to downstream
 analysis (e.g. motif identification, quantification of peaks etc.). Pipeline
 also and generates QC  statistics that will inform you about the quality of
 the peaksets generated.
@@ -20,66 +20,66 @@ the peaksets generated.
 Functionality
 -------------
 
-- Takes Paired-end or single end :term:`Bam` files you want to call peaks in 
-  (e.g. ChIP-Seq or ATAC-Seq samples and their appropriate 'input' controls). 
+- Takes Paired-end or single end :term:`Bam` files you want to call peaks in
+  (e.g. ChIP-Seq or ATAC-Seq samples and their appropriate 'input' controls).
 - Runs peakcallers
 - Runs ChIPQC R package for QC statistics
-- Produces peak lists in bed files to takeforward for downstream analysis. 
+- Produces peak lists in bed files to takeforward for downstream analysis.
 
 
-	Optional functions: 
-	-------------------
-	- Filter Bam files to remove:
-			- Duplicates
-			- Secondary alignments
-			- Unpaired reads for paired-end files
-			- Reads overlapping 'blacklisted' regions 
-			- Mapping quality (MAPQ) score
-	- Pool input files for peakcalling to give better peakcalling
-	  when inputs have poor coverage or lack of sequening depth 
-	- Perform Irreproducible Discovery Rate (IDR) analysis (described 
-	  further below) to get a consensus list of 
-	  'highly reproducible peaks' and assess replicate quaility 
+    Optional functions:
+    -------------------
+    - Filter Bam files to remove:
+            - Duplicates
+            - Secondary alignments
+            - Unpaired reads for paired-end files
+            - Reads overlapping 'blacklisted' regions
+            - Mapping quality (MAPQ) score
+    - Pool input files for peakcalling to give better peakcalling
+      when inputs have poor coverage or lack of sequening depth
+    - Perform Irreproducible Discovery Rate (IDR) analysis (described
+      further below) to get a consensus list of 'highly reproducible peaks'
+      and assess replicate quaility.
 
 
 NOTE: WARNINGS!!!!
 ------------------
 
-1. IDR analysis may not be approprate for all type of peak file - It works 
+1. IDR analysis may not be approprate for all type of peak file - It works
 best with transcription factor CHIPs or methodologies producing 'narrow peaks'
-or peaks with well defined boundaries. 
+or peaks with well defined boundaries.
 
 'BroadPeak' IDR (e.g. for widespread histone marks such as H3K27ac)
 might not work because peak boundary's are harder to define and thus may
-not be so reproducible between replicates 
+not be so reproducible between replicates
 
 
-2. Always check your output from this pipeline in a genome browser to check 
+2. Always check your output from this pipeline in a genome browser to check
 peaks are being called suffiently!
 
-3. This pipeline references ChIP bams throughout in the code -this 
-referencces the immunoprecipitated (IP) sample from a ChIP experiment 
-(i.e. the file you want to find peaks in), Input bams refer to the 
-bams of the input control samples that are used for background 
-normalisation in peak calling. Although we refer to ChIP bams 
+3. This pipeline references ChIP bams throughout in the code -this
+referencces the immunoprecipitated (IP) sample from a ChIP experiment
+(i.e. the file you want to find peaks in), Input bams refer to the
+bams of the input control samples that are used for background
+normalisation in peak calling. Although we refer to ChIP bams
 this is only nomenclature and you could just as easily use
-an ATAC-Seq bam file or other bam file in which you are looking for 
+an ATAC-Seq bam file or other bam file in which you are looking for
 peaks
 
-4) Whilst you can call peaks with as many peakcallers that are implemented in the
-pipeline, only the results from one peakcaller can be taken forward for IDR
+4) Whilst you can call peaks with as many peakcallers that are implemented in
+the pipeline, only the results from one peakcaller can be taken forward for IDR
 analysis. If you want to run IDR analysis on the output of multiple peakcallers
-you will need first run IDR with one peakcaller then clone the pipeline, modify 
-pipeline.ini file and delete the appripriate files to rerun the IDR analysis on 
-the output from a different peakcaller. Bewarned that IDR analysis generates 
+you will need first run IDR with one peakcaller then clone the pipeline, modify
+pipeline.ini file and delete the appripriate files to rerun the IDR analysis on
+the output from a different peakcaller. Bewarned that IDR analysis generates
 a large number of peakfiles and it is best to decide on your prefered peakcaller
-before running the IDR analysis. 
+before running the IDR analysis.
 
 
 References
 ==========
 
-This pipeline follows closely the ENCODE3 version 1 peakprocessing pipeline 
+This pipeline follows closely the ENCODE3 version 1 peakprocessing pipeline
 described by Anshul Kundaje's group:
 
 (https://docs.google.com/document/d/1lG_Rd7fnYgRpSIqrIfuVlAz2dW1VaSQThzk836Db99c/edit#heading=h.9ecc41kilcvq)
@@ -89,29 +89,35 @@ https://github.com/kundajelab/TF_chipseq_pipeline
 
 
 IDR analysis workflow is described here
-	* (https://sites.google.com/site/anshulkundaje/projects/idr)
+    * (https://sites.google.com/site/anshulkundaje/projects/idr)
 
 for troubleshooting/discussion of the IDR workflow see and extra documentation
 see:
 
-	* (https://groups.google.com/forum/#!forum/idr-discuss)
+    * (https://groups.google.com/forum/#!forum/idr-discuss)
 
 IDR Analysis
 ============
 
 IDR analysis is used to:
-	* Give an indication of how reproducible the peaks that are produced by the 
-	  peakcallers are within a single sample
-	* Give an indication of how reproducible the peaks that are produced by the 
-	  peakcallers are within replicates
-	* produce a `conservative` peak list of highly reproducible peaks
-	* produce an `oracle` peakset of the a large number of mostly reproducible
-	  peaks
-	* sometimes the `conserative` and the `oracle` peakset will be the same
+    * Give an indication of how reproducible the peaks that are produced by the
+      peakcallers are within a single sample
+    * Give an indication of how reproducible the peaks that are produced by the
+      peakcallers are within biological replicates
+    * produce a `conservative` peak list of highly reproducible peaks that
+      can be taken forward to downstream analysis
+    * produce an `oracle` peakset of the a large number of mostly reproducible
+      peaks that can be taken forward to downstream analysis
+    * sometimes the `conserative` and the `oracle` peakset will be the same
+      list.
+    * for further information on IDR analysis see the links above
 
+Important notes:
+IDR analysis requires peaks are called with a relaxed threshold to generate
+a peaklist that contains (ideally) > 120,000 peaks that will contain
+reproducible or 'true' peaks along with alot of irreproduible 'false' peaks.
 
-
-Requirements 
+Requirements
 ============
 
 The pipeline requires the results from
@@ -128,23 +134,29 @@ software to be in the path:
 +---------+------------+------------------------------------------------+
 |bedtools |            |working with intervals                          |
 +---------+------------+------------------------------------------------+
-|picard   |>=1.42      |bam/sam files. The .jar files need to be in your|
-|         |            | CLASSPATH environment variable.                |
+|picard   |>=1.42      |duplication stats. The .jar files need to be in |
+|         |            | your CLASSPATH environment variable.           |
 +---------+------------+------------------------------------------------+
-|macs2	  |>=2.1.1.	   |peakcalling                               	    |                                   |
+|macs2	  |>=2.1.1.	   |peakcalling                               	    |
 +---------+------------+------------------------------------------------+
 |Conda	  |			   |		?????????????							|
 +---------+------------+------------------------------------------------+
+|python   |>= 3.0	   |run IDR analysis - currently set up in a        |
+|         | 		   |conda enviroment that the pipeline calls		|
++---------+------------+------------------------------------------------+
+|IDR      |>= 2.0.2    |IDR analysis of peaks (bed files)               |
+|         |            |from: (https://github.com/nboley/idr)           |
++---------+------------+------------------------------------------------+
+|R        |            | used for QC stats                              |
++---------+------------+------------------------------------------------+
+|ChIPQC   |            |                                                |
+|R Package|            |                                                |
++---------+------------+------------------------------------------------+
 
-Also required IDR version >= 2.0.2 from: (https://github.com/nboley/idr)
 
 
 
-IDR analysis 
 
-	- IDR analysis requires peaks are called with a relaxed threshold to geneerate
-	a peaklist that contains (ideally) > 120,000 peaks that will contain
-	reproducible or 'true' peaks
 
 Usage
 =====
@@ -155,54 +167,53 @@ information how to use CGAT pipelines.
 Configuration
 -------------
 
-What is this section?? 
+What is this section??
 
-IDR 
+IDR
 
 Input
 -----
 
-Sample_bam = bam file you want to call peaks on 
+Sample_bam = bam file you want to call peaks on
 
-Input_bam = control file used as background reference in peakcalling 
-(e.g. input file for ChIP-seq) 
+Input_bam = control file used as background reference in peakcalling
+(e.g. input file for ChIP-seq)
 
 Pipeline.ini = File containing paramaters and options for
 running the pipeline
 
-Desgin.tsv = Design file based on design file for R package Diff Bind 
-Has the following collumns: 
+Desgin.tsv = Design file based on design file for R package Diff Bind
+Has the following collumns:
 
 
 Pipeline output
 ===============
 
 The aim of this pipeline is to output a list of peaks that
-can be used for further downstream analysis. 
+can be used for further downstream analysis.
 
-The pipeline generates several new directories containing 
-output files - these can roughly be grouped into XXX main 
-stages of the pipeline 
+The pipeline generates several new directories containing
+output files - these can roughly be grouped into XXX main
+stages of the pipeline
 
-1) Bam file preparation 
-   --------------------
-   - filtered_bams.dir: 
-   Contains bams files (and thier indexes) 
-   that have been filtered according to pipeline.ini and a number
-   of log files relating to the number of reads that have been 
-   filtered out for each reason. Also contains file with the 
-   frequency of fragment lengths (the 3' end to 5'end of sequenced) 
-   for paired-end 
-   samples. 
-   
-   
-   IDR.dir:
-   Directory conatining the output files from IDR analysis 
-   These include the lists of reproducible peaks and stats and 
-   QC tables summarising the output of the IDR analysis
-   
-   IDR_inputs.dir 
-   This directory contains the files that are 
+1) Bam file preparation
+    --------------------
+    - filtered_bams.dir:
+    Contains bams files (and thier indexes)
+    that have been filtered according to pipeline.ini and a number
+    of log files relating to the number of reads that have been
+    filtered out for each reason. Also contains file with the
+    frequency of fragment lengths (the 3' end to 5'end of sequenced)
+    for paired-end samples.
+
+
+    IDR.dir:
+    Directory conatining the output files from IDR analysis
+    These include the lists of reproducible peaks and stats and
+    QC tables summarising the output of the IDR analysis
+
+    IDR_inputs.dir
+    This directory contains the files that are
 
 IDR_inputs.dir
 
@@ -214,14 +225,14 @@ peaks_for_IDR.dir/
 
 pooled_bams.dir/
 Peaksets:
-	
+
 Conservative Peakset = Only obtained if IDR analysis run
-IDR analysis 
-This analysis does a comparision on a pair of peak files to 
-	
-Tables 
-Contained in the database are several tables used for QC and 
-analysis 
+IDR analysis
+This analysis does a comparision on a pair of peak files to
+
+Tables
+Contained in the database are several tables used for QC and
+analysis
 
 
 
@@ -257,7 +268,7 @@ from rpy2.robjects.packages import importr
 
 
 #########################################################################
-###########Load PARAMS Dictionary from Pipeline.innni file options ######
+# Load PARAMS Dictionary from Pipeline.innni file options ###############
 #########################################################################
 # load options from pipeline.ini file into PARAMS dictionary
 P.getParameters(
@@ -285,10 +296,9 @@ idrPARAMS['idrcolname'] = PARAMS['%s_idrcolname' % idrpc]
 idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 
 
-
-#####################################################################
-########### Match ChIP/ATAC-Seq Bams with Inputs ####################
-#####################################################################
+###############################################################################
+# Match ChIP/ATAC-Seq Bams with Inputs ########################################
+###############################################################################
 
 
 # This function reads the design table and generates
@@ -317,6 +327,7 @@ else:
 ###############################################################################
 # Make database
 
+
 def connect():
     '''connect to database.
 
@@ -333,7 +344,7 @@ def connect():
     return dbh
 
 ###############################################################################
-# Preprocessing Steps - Filter bam files 
+# Preprocessing Steps - Filter bam files
 ###############################################################################
 
 
@@ -350,12 +361,12 @@ def filterInputBAMs(infile, outfiles):
     '''
     Applies various filters specified in the pipeline.ini to the bam file
     Currently implemented are filtering:
-    	unmapped reads
-    	unpaired reads
-    	duplicate reads
-    	secondary alignment reads
-    	reads below a mapping quality (MAPQ) score
-    	reads overlapping with blacklisted regions specified in bed file.
+        unmapped reads
+        unpaired reads
+        duplicate reads
+        secondary alignment reads
+        reads below a mapping quality (MAPQ) score
+        reads overlapping with blacklisted regions specified in bed file.
     '''
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
@@ -375,12 +386,12 @@ def filterChipBAMs(infile, outfiles):
     '''
     Applies various filters specified in the pipeline.ini to the bam file
     Currently implemented are filtering:
-    	unmapped reads
-    	unpaired reads
-    	duplicate reads
-    	secondary alignment reads
-    	reads below a mapping quality (MAPQ) score
-    	reads overlapping with blacklisted regions specified in bed file.
+        unmapped reads
+        unpaired reads
+        duplicate reads
+        secondary alignment reads
+        reads below a mapping quality (MAPQ) score
+        reads overlapping with blacklisted regions specified in bed file.
     '''
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
@@ -725,21 +736,21 @@ def preprocessing(infile, outfile):
            r"macs2.dir/\1.macs2")
 def callMacs2peaks(infiles, outfile):
     '''
-    Takes Bam and pairs with input using design files to 
-    call peaks using macs2 
-    
-    Inputs 
+    Takes Bam and pairs with input using design files to
+    call peaks using macs2
+
+    Inputs
     ======
     bam file
     design file - looks up to identify which input file should be used
-    for peakcalling 
+    for peakcalling
     instertsize.tsv - gets insert size to use for peak calling
-    
+
     Output
     -----
-    Macs2 output files 
-    hmmm- plus a couple of others - check the module file 
-    
+    Macs2 output files
+    hmmm- plus a couple of others - check the module file
+
     '''
     D = PipelinePeakcalling.readTable(infiles[1])
     bam = infiles[0]
@@ -764,13 +775,13 @@ def callMacs2peaks(infiles, outfile):
 
 # list of peak callers to use
 PEAKCALLERS = []
-# list of peakcallers to use for IDR - currently IDR only works with a 
+# list of peakcallers to use for IDR - currently IDR only works with a
 # single peakcaller at a time
 IDRPEAKCALLERS = []
-#create dictionary of peakcallers and thier functions
+# create dictionary of peakcallers and thier functions
 mapToPeakCallers = {'macs2': (callMacs2peaks,)}
 
-#Call the peakcallers specified in the list
+# Call the peakcallers specified in the list
 for x in P.asList(PARAMS['peakcalling_peakcallers']):
     PEAKCALLERS.extend(mapToPeakCallers[x])
 
@@ -800,6 +811,7 @@ def peakcalling():
 # IDR Steps
 ################################################################
 
+
 @follows(peakcalling)
 @follows(mkdir("peaks_for_IDR.dir"))
 @transform(mapToPeakCallers[PARAMS['peakcalling_idrpeakcaller']],
@@ -808,14 +820,14 @@ def peakcalling():
 def getIDRInputs(infile, outfile):
     '''
     Get the resulting peaks file from peakcalling
-    and place them in IDR.dir so they can all be 
+    and place them in IDR.dir so they can all be
     easilly found and indentified for IDR analysis
-    
+
     inputs
     ======
     _IDRpeak files in peakcaller directorys
     (e.g. macs2.dir)
-    
+
     output
     copy of _IDRpeak files in 'peaks_for_IDR.dir'
     '''
@@ -826,16 +838,16 @@ def getIDRInputs(infile, outfile):
 @merge(getIDRInputs, "IDR_pairs.tsv")
 def makeIDRPairs(infiles, outfile):
     '''
-    generate table of files to pair up for 
-    IDR analysis 
-    
-    inputs 
+    generate table of files to pair up for
+    IDR analysis
+
+    inputs
     -----
     list of peak files in 'peaks_for_IDR.dir'
-    
+
     Outputs
     -------
-    table detailing the file pairings for IDR 
+    table detailing the file pairings for IDR
     analysis
     '''
     useoracle = PARAMS['IDR_useoracle']
@@ -853,11 +865,11 @@ def loadIDRPairs(infile, outfile):
 @split(makeIDRPairs, "IDR.dir/*.dummy")
 def splitForIDR(infile, outfiles):
     '''
-    infile = "IDR_pairs.tsv" file 
-    output = 
+    infile = "IDR_pairs.tsv" file
+    output =
     dummy file to act as placeholder for ruffus
-    updated "IDR_pairs.tsv" file 
-    containainf tissue and condition information and 
+    updated "IDR_pairs.tsv" file
+    containainf tissue and condition information and
     the name of IDR output file
     '''
     pairs = pd.read_csv(infile, sep="\t")
@@ -878,15 +890,16 @@ def splitForIDR(infile, outfiles):
 @transform(splitForIDR, suffix(".dummy"), ".tsv")
 def runIDR(infile, outfile):
     ''' takes the  "IDR_pairs.tsv" detailing the files to be compared
-    for IDR and uses this to run IDR analysis for the approriate files 
-    
+    for IDR and uses this to run IDR analysis for the approriate files
+
     IDR_options = string from pipeline ini file detailing IDR options
-    Different IDR comparisions (e.g. selfconistency, pooledconsistency or 
+    Different IDR comparisions (e.g. selfconistency, pooledconsistency or
     replicate consistancy might require different IDR thresholds) these can be
-    set in the pipeline.ini file in the IDR section 
-    
-    Oracle files = oracle peakset - see IDR analysis for details of what this means? 
-    
+    set in the pipeline.ini file in the IDR section
+
+    Oracle files = oracle peakset - see IDR analysis for details of what this
+    means?
+
     '''
     lines = [line.strip() for line in IOTools.openFile(infile).readlines()]
     infile1, infile2, setting, oraclefile, condition, tissue = lines
@@ -1072,6 +1085,7 @@ def IDR():
 ################################################################
 # QC Steps
 
+
 @merge(("design.tsv", makeBamInputTable),
        ["ChIPQC_design_conservative.tsv",
        "ChIPQC_design_optimal.tsv"])
@@ -1102,9 +1116,9 @@ def makeCHIPQCInputTables(infiles, outfiles):
     tab.to_csv(outfiles[1], sep="\t", index=None)
 
 
-#@follows(mkdir("ChIPQC.dir"))
-#@transform(makeCHIPQCInputTable, regex("(.*)_(.*).tsv"), r'ChIPQC.dir/\1.pdf')
-#def runCHIPQC(infiles, outfiles):
+# @follows(mkdir("ChIPQC.dir"))
+# @transform(makeCHIPQCInputTable,regex("(.*)_(.*).tsv"), r'ChIPQC.dir/\1.pdf')
+# def runCHIPQC(infiles, outfiles):
 #    R('''''')
 
 def full():
@@ -1112,7 +1126,7 @@ def full():
     pass
 
 ###############################################################
-#Report functions 
+# Report functions
 ###############################################################
 
 
