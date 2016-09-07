@@ -1082,7 +1082,7 @@ def plotPcaResults(infiles, outfile):
     --fam-file=%(fam_file)s
     --group-labels=%(format_ethnicity_var)s
     --log=%(outfile)s.log
-    --output-file
+    --output-file=%(outfile)s
     %(pcs_file)s
     '''
 
