@@ -2250,7 +2250,12 @@ else:
 @follows(mkdir('ontologies.dir'))
 @files([(None, PARAMS["interface_go_ensembl"]), ])
 def createGO(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    '''
+    Downloads GO annotations from ensembl
+    Uses the go_host, go_database and go_port parameters from the ini file
+    and runs the runGO.py "filename-dump" option.
+    This calls DumpGOFromDatabase from GO.py
+    '''
     PipelineGO.createGOFromENSEMBL(infile, outfile)
 
 
@@ -2259,7 +2264,9 @@ def createGO(infile, outfile):
            regex("(.*)"),
            PARAMS["interface_goslim_ensembl"])
 def createGOSlim(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    '''
+    Downloads GO slim annotations from ensembl
+    '''
     PipelineGO.createGOSlimFromENSEMBL(infile, outfile)
 
 
@@ -2320,21 +2327,34 @@ def imputeGO(infiles, outfile):
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
 #THIS IS CURRRENTLY FAILYING - NEED TO CHECK R CODE 
-#AND FIX 
+#AND FIX
+
+# I have fixed it in a commit to cgat/CGAT/Biomart.py - KB
 @jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
 @files(None, PARAMS['interface_kegg'])
 def importKEGGAssignments(infile, outfile):
-    ''' import the KEGG annotations from the R KEGG.db
-    annotations package. Note that since KEGG is no longer
+    '''
+    Imports the KEGG annotations from the R KEGG.db package
+
+    Note that since KEGG is no longer
     publically availible, this is not up-to-date and maybe removed
-    from bioconductor in future releases '''
+    from bioconductor in future releases
+
+    Entrez IDs are downloaded from Biomart
+    Corresponding KEGG IDs are downloaded from KEGG.db using
+    KEGGEXTID2PATHID then translated to path names using
+    KEGGPATHID2NAME.
+    '''
 
     biomart_dataset = PARAMS["KEGG_dataset"]
     mart = PARAMS["KEGG_mart"]
-    host = PARAMS["KEGG_host"]
 
+    # Possibly this should use the same biomart version as the rest of the
+    # pipeline by calling ensembl_biomart_host instead of
+    # KEGG_host from PARAMS KB
+    host = PARAMS["KEGG_host"]
     PipelineKEGG.importKEGGAssignments(outfile, mart, host, biomart_dataset)
 
 

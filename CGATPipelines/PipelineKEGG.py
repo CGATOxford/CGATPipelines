@@ -48,6 +48,8 @@ def importKEGGAssignments(outfile, mart, host, biomart_dataset):
     R.library("KEGG.db")
 
     E.info("getting entrez to ensembl mapping ...")
+
+    # Generates an iterator containing the data from biomart
     entrez2ensembl = Biomart.biomart_iterator(
         ("ensembl_gene_id", "entrezgene"),
         biomart=mart,
