@@ -972,7 +972,7 @@ def calculateIdentityByDescent(infiles, outfile):
            regex("genome.dir/(.+).bed"),
            add_inputs([r"genome.dir/\1.bim",
                        r"genome.dir/\1.fam"]),
-           r"pca.dir/\1_naive.evec")
+           r"pca.dir/\1_naive.pcs")
 def runNaivePCA(infiles, outfile):
     '''
     flashPCA breaks with too many SNPs.
@@ -1008,7 +1008,7 @@ def runNaivePCA(infiles, outfile):
            regex("genome.dir/(.+).bed"),
            add_inputs([r"genome.dir/\1.fam",
                        r"genome.dir/\1.bim"]),
-           r"pca.dir/\1_filtered.evec")
+           r"pca.dir/\1_filtered.pcs")
 def runFilteredPCA(infiles, outfile):
     '''
     Pre-filter samples for ethnicity.
@@ -1036,6 +1036,7 @@ def runFilteredPCA(infiles, outfile):
     '''
 
     out_pattern = ".".join(outfile.split(".")[:-1])
+    job_threads = PARAMS['pca_threads']
 
     statement2 = '''
     flashpca --numthreads %(job_threads)i
