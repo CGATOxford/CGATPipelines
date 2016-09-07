@@ -16,6 +16,8 @@ Reference
 import os
 import collections
 import sqlite3
+import pandas as pd
+import pandas.io.sql as pdsql
 
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
@@ -348,6 +350,150 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
     P.run()
 
 
+def loadEnsemblTranscriptInformation(ensembl_gtf, geneset_gtf,
+                                     outfile,
+                                     csvdb,
+                                     set_biotype=None,
+                                     set_transcript_support=None):
+    '''
+    Parse and annotate a geneset_gtf using the original Ensembl
+    GTF attributes.
+
+    The ensembl GTF structure is not static, so this needs to maintain
+    backwards compatibility.  For certain versions, attributes may be
+    present in later versions which are used downstream.  These should
+    be set with default/missing values if they are not natively present.
+
+    Therefore, gene_biotype is taken from the "feature" field if it is
+    not present, and transcript_support = NA if missing.
+
+    Arguments
+    ---------
+    ensembl_gtf: string
+      PATH to ensemlb gtf containing all annotation information and
+      attributes
+
+    geneset_gtf: string
+      PATH to the geneset GTF to annotate with ensembl attributes
+
+    outfile: string
+      PATH to output filtered, annotated and sorted by gene position
+
+    csvdb: string
+      PATH to the SQLite database to upload transcript information
+      table
+
+    ensembl_version: int
+      Ensembl build version used
+
+    set_biotype: string
+      should the gene_ and transcript_biotype columns be set
+      to a default value.  If false, and not present, default
+      value is to use the "feature" attribute
+
+    set_transcript_support: int
+      should the transcript_support_level be set to a default value,
+      if not it will be set to NA
+    '''
+
+    table = P.toTable(outfile)
+
+    gtf_file = IOTools.openFile(geneset_gtf, "rb")
+    gtf_iterator = GTF.transcript_iterator(GTF.iterator(gtf_file))
+
+    ensembl_file = IOTools.openFile(ensembl_gtf, "rb")
+    ensembl_iterator = GTF.transcript_iterator(GTF.iterator(ensembl_file))
+
+    # parse the two gtfs, creating keys from the GTF entries
+    parse_ensembl = {}
+    for ens_gtf in ensembl_iterator:
+        for ens_trans in ens_gtf:
+            ens_att = ens_trans.asDict()
+            ens_vals = dict(zip(ens_trans.keys(),
+                                [ens_trans[x] for x in ens_trans.keys()]))
+            ens_att.update(ens_vals)
+            parse_ensembl[ens_trans.transcript_id] = ens_att
+    ensembl_file.close()
+
+    parse_gtf = {}
+    for gtf in gtf_iterator:
+        for trans in gtf:
+            trans_atts = trans.asDict()
+            trans_vals = dict(zip(trans.keys(),
+                                  [trans[g] for g in trans.keys()]))
+            trans_atts.update(trans_vals)
+            parse_gtf[trans.transcript_id] = trans_atts
+    gtf_file.close()
+
+    # convert to dataframe for easier merging, annotating
+    # and ultimately SQL database insertion
+    # these are large dictionaries to parse, so might
+    # be quite memory and compute heavy
+    ensembl_df = pd.DataFrame(parse_ensembl).T
+    gtf_df = pd.DataFrame(parse_gtf).T
+
+    # check for presence of gene_biotype and
+    # transcript_support_level
+    merged_df = pd.merge(gtf_df, ensembl_df,
+                         left_on=[cx for cx in gtf_df.columns],
+                         right_on=[rx for rx in gtf_df.columns],
+                         how='left')
+
+    try:
+        merged_df["transcript_support_level"]
+    except KeyError:
+        if set_transcript_support:
+            merged_df["transcript_support_level"] = set_transcript_support
+        else:
+            merged_df["transcript_support_level"] = "NA"
+
+    try:
+        merged_df["gene_biotype"]
+    except KeyError:
+        if set_biotype:
+            merged_df["gene_biotype"] = set_biotype
+            merged_df["transcript_biotype"] = set_biotype
+        else:
+            merged_df["gene_biotype"] = "NA"
+            merged_df["transcript_biotype"] = "NA"
+
+    # sort on gene then transcript id
+    # remove exon_number and exon_id to maintain
+    # compatibility with previous code
+    try:
+        merged_df.drop(["exon_id", "exon_number"],
+                       axis=1, inplace=True)
+    except KeyError:
+        try:
+            merged_df.drop(["exon_id"], axis=1,
+                           inplace=True)
+        except KeyError:
+            try:
+                merged_df.drop(["exon_number"],
+                               axis=1, inplace=True)
+            except KeyError:
+                pass
+
+    # sort the output and load into the csvdb
+    # add a multindex to use multiple SQL indices
+    merged_df.sort_values(by=["gene_id",
+                              "transcript_id"],
+                          inplace=True)
+
+    merged_df.set_index(["gene_id", "gene_name",
+                         "protein_id", "transcript_id"],
+                        inplace=True, drop=True)
+
+    merged_df.to_sql(name=table,
+                     con=sqlite3.connect(csvdb),
+                     if_exists='replace',
+                     index_label=["gene_id",
+                                  "gene_name",
+                                  "protein_id",
+                                  "transcript_id"])
+    return 1
+
+
 def loadTranscriptInformation(infile, outfile,
                               only_proteincoding=False):
     '''load transcript-related attributes from :term:`gtf` file into database.
@@ -355,6 +501,8 @@ def loadTranscriptInformation(infile, outfile,
     This method takes transcript-associated features from an
     :term:`gtf` file and collects the gene-related attributes in the
     9th column of the gtf file, ignoring exon_id and exon_number.
+    To handle different Ensembl versions, gene_biotype and
+    transcript_support are enforced if they are missing.
 
     Arguments
     ---------

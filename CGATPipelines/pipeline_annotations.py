@@ -1169,74 +1169,16 @@ def downloadTranscriptInformation(infile, outfile):
        in mart to output table.
     '''
 
-    # If mart is not set, use old fasionhed gtf parsing
-    if not PARAMS["ensembl_biomart_mart"]:
-        PipelineGeneset.loadTranscriptInformation(infile, outfile)
-        return
-
     tablename = P.toTable(outfile)
    
-   
-   # Change to rely on the gtf - avoid biomart 
-   # if need to acess biomart for additional collumns parameterise the name of collumn to use to access the attribute in the ini file. 
-   #add a version number to ini file to handle the extra collumns (gene biotype, transcript level support, that have changed in more recent versions) 
-    # only use transcript relevant information. Uniprot ids
-    # should go into a separate table. There is some duplication
-    # here of gene information
-    columns = {
-        "ensembl_gene_id": "gene_id",
-        "ensembl_transcript_id": "transcript_id",
-        "ensembl_peptide_id": "protein_id",
-        "gene_biotype": "gene_biotype",
-        "transcript_biotype": "transcript_biotype",
-        "source": "source",
-        "status": "gene_status",
-        "transcript_status": "transcript_status",
-        "external_gene_name": "gene_name",
-        "transcript_tsl": "transcript_support"
-    }
-
-    data = Biomart.biomart_iterator(
-        columns.keys(),
-        biomart=PARAMS[
-            "ensembl_biomart_mart"],
-        dataset=PARAMS[
-            "ensembl_biomart_dataset"],
-        host=PARAMS["ensembl_biomart_host"])
-
-    # The full list of genes from this table is too extensive. The
-    # following are removed: 1. Some genes are present as LRGxxx
-    # identifiers """LRG stands for Locus Reference Genomic. An LRG is
-    # a fixed sequence, independent of the genome, specifically
-    # created for the diagnostic community to record DNA sequence
-    # variation on a fixed framework""" These are removed below:
-    data = filter(lambda x: not x['ensembl_gene_id'].startswith("LRG"), data)
-
-    # 2. Some genes are present on artificial chromosomes such as
-    # ENSG00000265928 on HG271_PATCH.
-    # To filter these out, the gene ids are cross-checked against those in
-    # the ensembl gtf file.
-    
-    
-    #SCRUM Note - double check this keeps the genes on  _alt, _hap _random contigs. 
-    #SCRUM Note - This section should be removed if we are no longer using biomart?? 
-    
-    gene_ids = set()
-    with IOTools.openFile(infile) as inf:
-        for gtf in GTF.iterator(inf):
-            gene_ids.add(gtf.gene_id)
-
-    data = filter(lambda x: x['ensembl_gene_id'] in gene_ids, data)
-
-   #SCRUM NOTE - all these indicies can be removed if we are using the gtf 
-   #need to parameteised the uniprot_id - this still needs to come from biomart
-    P.importFromIterator(
-        outfile, tablename,
-        data,
-        columns=columns,
-        indices=("gene_id", "transcript_id", "protein_id",
-                 "gene_name", "transcript_name", "uniprot_id")
-    )
+    # use the GTF parsing approach to load the transcript information table
+    PipelineGeneset.loadEnsemblTranscriptInformation(ensembl_gtf=PARAMS['ensembl_filename_gtf'],
+                                                     geneset_gtf=infile,
+                                                     outfile=outfile,
+                                                     csvdb=PARAMS['database_name'],
+                                                     set_biotype=False,
+                                                     set_transcript_support=False)
+                                                     
 
     # validate: 1:1 mapping between gene_ids and gene_names
     dbh = connect()
