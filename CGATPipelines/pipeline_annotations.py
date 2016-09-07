@@ -1200,6 +1200,8 @@ def downloadTranscriptInformation(infile, outfile):
             '''ALTER TABLE %(tablename)s ADD COLUMN uniprot_name NULL''' %
             locals())
 
+    P.touch(outfile)
+
 
 @jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @follows(mkdir('ensembl.dir'))
