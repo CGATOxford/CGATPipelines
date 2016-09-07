@@ -1146,7 +1146,7 @@ def downloadTranscriptInformation(infile, outfile):
     * source: source
     * status: gene_status
     * transcript_status: transcript_status
-    * external_gene_name: gene_name
+    * external_gene_id: gene_name
 
     Only transcripts within the mart and within the supplied
     gene set are uploaded.
@@ -1192,9 +1192,12 @@ def downloadTranscriptInformation(infile, outfile):
         "source": "source",
         "status": "gene_status",
         "transcript_status": "transcript_status",
-        "external_gene_name": "gene_name",
-        "transcript_tsl": "transcript_support"
+        "external_gene_id": "gene_name",
+        
     }
+
+        #removed this for ensembl75 as not exist
+        # "transcript_tsl": "transcript_support"
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -1289,6 +1292,10 @@ def downloadEntrezToEnsembl(infile, outfile):
        Biomart dataset to use.
     ensembl_biomart_host : PARAMS
        Biomart host to use.
+    biomart_ensemble_gene_id : PARAMS
+        Biomart attribute containing ensembl gene id
+    biomart_entrez_gene_id : PARAMS
+        Biomart attribute containing entrez gene id
 
     '''
     #SCRUM NOTE - Consider changing the source of the ENTREZ to ENSEMBL mapping to mygene.info
@@ -1304,8 +1311,9 @@ def downloadEntrezToEnsembl(infile, outfile):
     tablename = P.toTable(outfile)
 
     columns = {
-        "ensembl_gene_id": "gene_id",
-        "entrezgene": "entrez_id"}
+        PARAMS["biomart_ensembl_gene_id"]:"gene_id",
+        PARAMS["biomart_entrez_gene_id"]: "entrez_id"
+        }
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -1334,7 +1342,7 @@ def downloadTranscriptSynonyms(infile, outfile):
     columns:
 
     * ensembl_transcript_id: transcript_id
-    * external_transcript_name: transcript_name
+    * external_transcript_id: transcript_name
     * refseq_mrna: refseq_id
 
     Arguments
@@ -1350,8 +1358,14 @@ def downloadTranscriptSynonyms(infile, outfile):
        Biomart dataset to use.
     ensembl_biomart_host : PARAMS
        Biomart host to use.
-
+    biomart_ensemble_transcript_id : PARAMS
+        Biomart attribute containing ensembl transcript id
+    biomart_transcript_name : PARAMS
+        Biomart attribute containing transcript name
+    biomart_refseq_id : PARAMS
+        Biomart attribute containing refseq ids
     """
+
    #SCRUM NOTE - change this also to rely on mygene_info 
    # BUT CHECK THAT my.geneinfo can access older version of ensembl 
    # if not keep biomart but minimise the number of things being acessed
@@ -1363,12 +1377,12 @@ def downloadTranscriptSynonyms(infile, outfile):
         return None
 
     tablename = P.toTable(outfile)
-
+    
     columns = {
-        "ensembl_transcript_id": "transcript_id",
-        "external_transcript_name": "transcript_name",
-        "refseq_mrna": "refseq_id",
-    }
+        PARAMS["biomart_ensembl_transcript_id"]:"transcript_id",
+        PARAMS["biomart_transcript_name"]: "transcript_name",
+        PARAMS["biomart_refseq_id"]: "refseq_id"
+        }
 
     data = Biomart.biomart_iterator(
         columns.keys(),
