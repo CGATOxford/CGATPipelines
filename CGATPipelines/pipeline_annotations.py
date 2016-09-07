@@ -1170,7 +1170,7 @@ def downloadTranscriptInformation(infile, outfile):
     '''
 
     tablename = P.toTable(outfile)
-   
+
     # use the GTF parsing approach to load the transcript information table
     PipelineGeneset.loadEnsemblTranscriptInformation(ensembl_gtf=PARAMS['ensembl_filename_gtf'],
                                                      geneset_gtf=infile,
@@ -1236,11 +1236,11 @@ def downloadEntrezToEnsembl(infile, outfile):
         Biomart attribute containing entrez gene id
 
     '''
-    #SCRUM NOTE - Consider changing the source of the ENTREZ to ENSEMBL mapping to mygene.info
-    #This is a more upto date and better maintained then biomart? 
-    #Remember to add ability to access archived versions
-    #Katie has some code already - pipeline_geneinfo.py
-    
+    # SCRUM NOTE - Consider changing the source of the ENTREZ to ENSEMBL mapping to mygene.info
+    # This is a more upto date and better maintained then biomart?
+    # Remember to add ability to access archived versions
+    # Katie has some code already - pipeline_geneinfo.py
+
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
         P.touch(outfile)
@@ -1249,7 +1249,7 @@ def downloadEntrezToEnsembl(infile, outfile):
     tablename = P.toTable(outfile)
 
     columns = {
-        PARAMS["biomart_ensembl_gene_id"]:"gene_id",
+        PARAMS["biomart_ensembl_gene_id"]: "gene_id",
         PARAMS["biomart_entrez_gene_id"]: "entrez_id"
         }
 
@@ -1304,20 +1304,20 @@ def downloadTranscriptSynonyms(infile, outfile):
         Biomart attribute containing refseq ids
     """
 
-   #SCRUM NOTE - change this also to rely on mygene_info 
-   # BUT CHECK THAT my.geneinfo can access older version of ensembl 
-   # if not keep biomart but minimise the number of things being acessed
-   # reduce the possibliltiy of name changes and paramterise in ini 
-   # looks like its only refseq
+    # SCRUM NOTE - change this also to rely on mygene_info
+    # BUT CHECK THAT my.geneinfo can access older version of ensembl
+    # if not keep biomart but minimise the number of things being acessed
+    # reduce the possibliltiy of name changes and paramterise in ini
+    # looks like its only refseq
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
         P.touch(outfile)
         return None
 
     tablename = P.toTable(outfile)
-    
+
     columns = {
-        PARAMS["biomart_ensembl_transcript_id"]:"transcript_id",
+        PARAMS["biomart_ensembl_transcript_id"]: "transcript_id",
         PARAMS["biomart_transcript_name"]: "transcript_name",
         PARAMS["biomart_refseq_id"]: "refseq_id"
         }
@@ -1393,8 +1393,8 @@ def buildSelenoList(infile, outfile):
        Output filename in :term:`tsv` format.
 
     """
-   # Not sure when this list is relevent or in what case it would be used - please add to documentation
-   
+    # Not sure when this list is relevent or in what case it would be used - please add to documentation
+
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''
     SELECT DISTINCT transcript_id
@@ -1434,9 +1434,9 @@ def buildTranscriptRegions(infile, outfile):
        Unused.
     outfile : string
        Output filename in :term:`tsv` format.
-   
+
     """
-   # THIS DOCUMENTATION IS NOT CORRECT - THIS NEEDS TO BE UPDATED 
+    # THIS DOCUMENTATION IS NOT CORRECT - THIS NEEDS TO BE UPDATED
     statement = """
     gunzip < %(infile)s
     | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
@@ -1712,7 +1712,7 @@ def buildIntergenicRegions(infiles, outfile):
 def importRNAAnnotationFromUCSC(infile, outfile):
     """This task downloads UCSC repetetive RNA types.
     """
-    #SCRUM NOTE - Why are we access ing UCSC here 
+    # SCRUM NOTE - Why are we access ing UCSC here
     # is this a legacy thing? Andreas? Would it be better to access biomart?
     PipelineUCSC.getRepeatsFromUCSC(
         dbhandle=connectToUCSC(),
@@ -1728,7 +1728,7 @@ def importRepeatsFromUCSC(infile, outfile):
     """This task downloads UCSC repeats types as identified
     in the configuration file.
     """
-    #SCRUM NOTE - Why are we access ing UCSC here 
+    # SCRUM NOTE - Why are we access ing UCSC here
     # is this a legacy thing? Andreas? Would it be better to access biomart?
     PipelineUCSC.getRepeatsFromUCSC(
         dbhandle=connectToUCSC(),
@@ -1744,7 +1744,7 @@ def importCpGIslandsFromUCSC(infile, outfile):
 
     The repeats are stored as a :term:`bed` formatted file.
     '''
-    #SCRUM NOTE - Why are we access ing UCSC here 
+    # SCRUM NOTE - Why are we access ing UCSC here
     # is this a legacy thing? Andreas? Would it be better to access biomart?
     PipelineUCSC.getCpGIslandsFromUCSC(
         dbhandle=connectToUCSC(),
@@ -1768,7 +1768,7 @@ def loadRepeats(infile, outfile):
         derived from outfile.
 
     """
-   #SCRUM NOTE - Why are we access ing UCSC here 
+    # SCRUM NOTE - Why are we access ing UCSC here
     # is this a legacy thing? Andreas? Would it be better to access biomart?
     load_statement = P.build_load_statement(
         tablename="repeats",
@@ -2194,8 +2194,8 @@ else:
 
 # ---------------------------------------------------------------
 # Ontologies
-# SCRUM NOTES - ARE THESE LEGACY FROM OLD ENRICHMENT PIPELINE? 
-# Can we remove them to streamline the pipeline - its failing here 
+# SCRUM NOTES - ARE THESE LEGACY FROM OLD ENRICHMENT PIPELINE?
+# Can we remove them to streamline the pipeline - its failing here
 # on KEGG and on GO - No don't remove just make it work
 
 @P.add_doc(PipelineGO.createGOFromENSEMBL)
@@ -2278,10 +2278,12 @@ def imputeGO(infiles, outfile):
     '''
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
-#THIS IS CURRRENTLY FAILYING - NEED TO CHECK R CODE 
-#AND FIX
+# THIS IS CURRRENTLY FAILYING - NEED TO CHECK R CODE
+# AND FIX
 
 # I have fixed it in a commit to cgat/CGAT/Biomart.py - KB
+
+
 @jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
@@ -2329,10 +2331,10 @@ def annotateGenome(infile, outfile):
     often overlap between adjacent protein coding genes.
 
     """
-    #This could case problems if source collumn have changed 
-    # need to add in a check that this is acessing the right info 
-    # maybe make more explicit so that it can know the right gtf attribute to access 
-    # Add in ability to output some stats on how many annotations, how many are pt-coding 
+    # This could case problems if source collumn have changed
+    # need to add in a check that this is acessing the right info
+    # maybe make more explicit so that it can know the right gtf attribute to access
+    # Add in ability to output some stats on how many annotations, how many are pt-coding
     PipelineGeneset.annotateGenome(infile,
                                    outfile,
                                    only_proteincoding=True)
@@ -2505,15 +2507,17 @@ def buildGREATRegulatoryDomains(infile, outfile):
        PARAMS["interface_genomic_context_bed"])
 def buildGenomicContext(infiles, outfile):
     PipelineGeneset.buildGenomicContext(infiles, outfile)
-    # Scrum notes 
-    # This needs some attention - check the output of this between the builds 
+    # Scrum notes
+    # This needs some attention - check the output of this between the builds
     # are all the collumn headers the same, are there similar numbers in each one
-    # does this have overlapping contexts or can a region have only one context 
-    
-    # This feeds down to context stats - this also needs attention after this step has been verified 
-    # make sure there are stats on this table in some part of the report 
+    # does this have overlapping contexts or can a region have only one context
 
-   # HEre are the stats - check these are reasonable and in report 
+    # This feeds down to context stats - this also needs attention after this step has been verified
+    # make sure there are stats on this table in some part of the report
+
+    # HEre are the stats - check these are reasonable and in report
+
+
 @transform(buildGenomicContext, suffix(".bed.gz"), ".tsv")
 def buildGenomicContextStats(infile, outfile):
     """compute overlap between annotations in a :term:`bed` file.
