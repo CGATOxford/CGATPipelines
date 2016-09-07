@@ -1146,7 +1146,7 @@ def downloadTranscriptInformation(infile, outfile):
     * source: source
     * status: gene_status
     * transcript_status: transcript_status
-    * external_gene_name: gene_name
+    * external_gene_id: gene_name
 
     Only transcripts within the mart and within the supplied
     gene set are uploaded.
@@ -1188,9 +1188,12 @@ def downloadTranscriptInformation(infile, outfile):
         "source": "source",
         "status": "gene_status",
         "transcript_status": "transcript_status",
-        "external_gene_name": "gene_name",
-        "transcript_tsl": "transcript_support"
+        "external_gene_id": "gene_name",
+        
     }
+
+        #removed this for ensembl75 as not exist
+        # "transcript_tsl": "transcript_support"
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -1319,7 +1322,7 @@ def downloadTranscriptSynonyms(infile, outfile):
     columns:
 
     * ensembl_transcript_id: transcript_id
-    * external_transcript_name: transcript_name
+    * external_transcript_id: transcript_name
     * refseq_mrna: refseq_id
 
     Arguments
@@ -1347,7 +1350,7 @@ def downloadTranscriptSynonyms(infile, outfile):
 
     columns = {
         "ensembl_transcript_id": "transcript_id",
-        "external_transcript_name": "transcript_name",
+        "external_transcript_id": "transcript_name",
         "refseq_mrna": "refseq_id",
     }
 
