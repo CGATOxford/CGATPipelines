@@ -957,7 +957,7 @@ def calculateIdentityByDescent(infiles, outfile):
     --threads=%(job_threads)s
     --method=IBD
     --IBD-parameter=norm
-    --output-file-pattern=%(outfile)s
+    --output-file-pattern=%(out_pattern)s
     --log=%(outfile)s.log
     %(plink_files)s
     > %(outfile)s.plink.log
@@ -1941,52 +1941,6 @@ def mergeGwasHits(infiles, outfile):
 
     P.run()
 
-# This takes too long and creates massive files, not necessary
-# @follows(mergeGwasHits)
-# @transform(mergeGwasHits,
-#            regex("epistasis.dir/(.+).bed"),
-#            add_inputs([r"epistasis.dir/\1.fam",
-#                        r"epistasis.dir/\1.bim"]),
-#            r"epistasis.dir/\1.epi.cc")
-# def screenEpistasis(infiles, outfile):
-#     '''
-#     Screen for epistatic interactions between
-#     target loci of interest using fast-epistasis.
-
-#     Specific interactions can be tested concretely
-#     once candidates are identified
-
-#     Only test SNPs with MAF >= 0.5%
-#     '''
-
-#     bed_file = infiles[0]
-#     fam_file = infiles[1][0]
-#     bim_file = infiles[1][1]
-#     plink_files = ",".join([bed_file, fam_file, bim_file])
-
-#     out_pattern = ".".join(outfile.split(".")[:-2])
-#     job_memory = "1G"
-#     job_threads = 11
-
-#     statement = '''
-#     python /ifs/devel/projects/proj045/gwas_pipeline/geno2assoc.py
-#     --program=plink2
-#     --input-file-format=plink_binary
-#     --method=epistasis
-#     --epistasis-method=fast_epistasis
-#     --epistasis-parameter=joint-effects
-#     --min-allele-freq=0.005
-#     --epistasis-threshold=%(epistasis_threshold)s
-#     --epistasis-report-threshold=%(epistasis_reporting)s
-#     --output-file-pattern=%(out_pattern)s
-#     --log=%(outfile)s.log
-#     --threads=%(job_threads)s
-#     %(plink_files)s
-#     > %(outfile)s.plink.log
-#     '''
-
-#     P.run()
-
 
 @follows(mergeGwasHits)
 @transform(mergeGwasHits,
@@ -2035,7 +1989,7 @@ def testEpistasisVsRegion(infiles, outfile):
 
 ############################################
 # We want to test for epistasis explicitly between target region variants
-# and all others whilst adjusting for covariats and removing sources of
+# and all others whilst adjusting for covariates and removing sources of
 # type I error.
 # This means for each target region variant any SNPs in LD must be removed.
 # So first create lists of variants, for each target variant, that are NOT
