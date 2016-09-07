@@ -1146,7 +1146,7 @@ def downloadTranscriptInformation(infile, outfile):
     * source: source
     * status: gene_status
     * transcript_status: transcript_status
-    * external_gene_name: gene_name
+    * external_gene_id: gene_name
 
     Only transcripts within the mart and within the supplied
     gene set are uploaded.
@@ -1178,7 +1178,6 @@ def downloadTranscriptInformation(infile, outfile):
                                                      csvdb=PARAMS['database_name'],
                                                      set_biotype=False,
                                                      set_transcript_support=False)
-                                                     
 
     # validate: 1:1 mapping between gene_ids and gene_names
     dbh = connect()
@@ -1231,6 +1230,10 @@ def downloadEntrezToEnsembl(infile, outfile):
        Biomart dataset to use.
     ensembl_biomart_host : PARAMS
        Biomart host to use.
+    biomart_ensemble_gene_id : PARAMS
+        Biomart attribute containing ensembl gene id
+    biomart_entrez_gene_id : PARAMS
+        Biomart attribute containing entrez gene id
 
     '''
     #SCRUM NOTE - Consider changing the source of the ENTREZ to ENSEMBL mapping to mygene.info
@@ -1246,8 +1249,9 @@ def downloadEntrezToEnsembl(infile, outfile):
     tablename = P.toTable(outfile)
 
     columns = {
-        "ensembl_gene_id": "gene_id",
-        "entrezgene": "entrez_id"}
+        PARAMS["biomart_ensembl_gene_id"]:"gene_id",
+        PARAMS["biomart_entrez_gene_id"]: "entrez_id"
+        }
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -1276,7 +1280,7 @@ def downloadTranscriptSynonyms(infile, outfile):
     columns:
 
     * ensembl_transcript_id: transcript_id
-    * external_transcript_name: transcript_name
+    * external_transcript_id: transcript_name
     * refseq_mrna: refseq_id
 
     Arguments
@@ -1292,8 +1296,14 @@ def downloadTranscriptSynonyms(infile, outfile):
        Biomart dataset to use.
     ensembl_biomart_host : PARAMS
        Biomart host to use.
-
+    biomart_ensemble_transcript_id : PARAMS
+        Biomart attribute containing ensembl transcript id
+    biomart_transcript_name : PARAMS
+        Biomart attribute containing transcript name
+    biomart_refseq_id : PARAMS
+        Biomart attribute containing refseq ids
     """
+
    #SCRUM NOTE - change this also to rely on mygene_info 
    # BUT CHECK THAT my.geneinfo can access older version of ensembl 
    # if not keep biomart but minimise the number of things being acessed
@@ -1305,12 +1315,12 @@ def downloadTranscriptSynonyms(infile, outfile):
         return None
 
     tablename = P.toTable(outfile)
-
+    
     columns = {
-        "ensembl_transcript_id": "transcript_id",
-        "external_transcript_name": "transcript_name",
-        "refseq_mrna": "refseq_id",
-    }
+        PARAMS["biomart_ensembl_transcript_id"]:"transcript_id",
+        PARAMS["biomart_transcript_name"]: "transcript_name",
+        PARAMS["biomart_refseq_id"]: "refseq_id"
+        }
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -2192,7 +2202,12 @@ else:
 @follows(mkdir('ontologies.dir'))
 @files([(None, PARAMS["interface_go_ensembl"]), ])
 def createGO(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    '''
+    Downloads GO annotations from ensembl
+    Uses the go_host, go_database and go_port parameters from the ini file
+    and runs the runGO.py "filename-dump" option.
+    This calls DumpGOFromDatabase from GO.py
+    '''
     PipelineGO.createGOFromENSEMBL(infile, outfile)
 
 
@@ -2201,7 +2216,9 @@ def createGO(infile, outfile):
            regex("(.*)"),
            PARAMS["interface_goslim_ensembl"])
 def createGOSlim(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    '''
+    Downloads GO slim annotations from ensembl
+    '''
     PipelineGO.createGOSlimFromENSEMBL(infile, outfile)
 
 
@@ -2262,21 +2279,34 @@ def imputeGO(infiles, outfile):
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
 #THIS IS CURRRENTLY FAILYING - NEED TO CHECK R CODE 
-#AND FIX 
+#AND FIX
+
+# I have fixed it in a commit to cgat/CGAT/Biomart.py - KB
 @jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
 @files(None, PARAMS['interface_kegg'])
 def importKEGGAssignments(infile, outfile):
-    ''' import the KEGG annotations from the R KEGG.db
-    annotations package. Note that since KEGG is no longer
+    '''
+    Imports the KEGG annotations from the R KEGG.db package
+
+    Note that since KEGG is no longer
     publically availible, this is not up-to-date and maybe removed
-    from bioconductor in future releases '''
+    from bioconductor in future releases
+
+    Entrez IDs are downloaded from Biomart
+    Corresponding KEGG IDs are downloaded from KEGG.db using
+    KEGGEXTID2PATHID then translated to path names using
+    KEGGPATHID2NAME.
+    '''
 
     biomart_dataset = PARAMS["KEGG_dataset"]
     mart = PARAMS["KEGG_mart"]
-    host = PARAMS["KEGG_host"]
 
+    # Possibly this should use the same biomart version as the rest of the
+    # pipeline by calling ensembl_biomart_host instead of
+    # KEGG_host from PARAMS KB
+    host = PARAMS["KEGG_host"]
     PipelineKEGG.importKEGGAssignments(outfile, mart, host, biomart_dataset)
 
 
