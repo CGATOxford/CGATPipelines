@@ -1262,8 +1262,8 @@ def plotIbdHistogram(infile, outfile):
     '''
     plot the distribution of IBD estimates
     '''
-    
-    job_memory="300G"
+
+    job_memory = "300G"
 
     statement = '''
     python %(scriptsdir)s/qcs2qc.py
