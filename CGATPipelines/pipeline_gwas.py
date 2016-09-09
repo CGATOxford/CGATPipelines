@@ -1262,6 +1262,8 @@ def plotIbdHistogram(infile, outfile):
     '''
     plot the distribution of IBD estimates
     '''
+    
+    job_memory="300G"
 
     statement = '''
     python %(scriptsdir)s/qcs2qc.py
@@ -1580,9 +1582,10 @@ else:
         --keep=%(gwas_keep)s
         --remove-individuals=%(gwas_exclude)s
         --association-method=assoc
-        --genotype-rate=0.1
-        --hardy-weinberg=0.000000000000001
-        --min-allele-frequency=0.001
+        --genotype-rate=%(gwas_geno)s
+        --hardy-weinberg=%(gwas_hwe)s
+        --min-allele-frequency=%(gwas_maf)s
+        --indiv-missing=%(gwas_mind)s
         --output-file-pattern=%(out_pattern)s
         --memory=%(mem)s
         -v 5
@@ -1663,9 +1666,10 @@ def pcAdjustedAssociation(infiles, outfile):
     --keep=%(gwas_keep)s
     --remove-individuals=%(remove)s
     --association-method=%(gwas_model)s
-    --genotype-rate=0.05
-    --hardy-weinberg=1e-50
-    --min-allele-frequency=0.001
+    --genotype-rate=%(gwas_geno)s
+    --hardy-weinberg=%(gwas_hwe)s
+    --min-allele-frequency=%(gwas_maf)s
+    --indiv-missing=%(gwas_mind)s
     --output-file-pattern=%(out_pattern)s
     --memory=%(mem)s
     -v 5
