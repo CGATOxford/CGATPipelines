@@ -1308,6 +1308,7 @@ def buildDiamondGeneCounts(infile, outfile):
     '''
     build gene level counts
     '''
+    job_memory = PARAMS.get("genes_memory")
     options = PARAMS.get("genes_count_options")
     statement = '''zcat %(infile)s |
                    python %(scriptsdir)s/diamond2counts.py
