@@ -449,6 +449,13 @@ def loadEnsemblTranscriptInformation(ensembl_gtf, geneset_gtf,
 
     try:
         merged_df["gene_biotype"]
+        try:
+            merged_df["transcript_biotype"]
+        except KeyError:
+            if set_biotype:
+                merged_df["transcript_biotype"] = set_biotype
+            else:
+                merge_df["transcript_biotype"] = "NA"
     except KeyError:
         if set_biotype:
             merged_df["gene_biotype"] = set_biotype
