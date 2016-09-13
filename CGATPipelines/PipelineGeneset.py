@@ -441,7 +441,9 @@ def loadEnsemblTranscriptInformation(ensembl_gtf, geneset_gtf,
 
     try:
         merged_df["transcript_support_level"]
+        E.info("transcript_support_level is present")
     except KeyError:
+        E.info("transcript_support_level is not present")
         if set_transcript_support:
             merged_df["transcript_support_level"] = set_transcript_support
         else:
@@ -449,14 +451,18 @@ def loadEnsemblTranscriptInformation(ensembl_gtf, geneset_gtf,
 
     try:
         merged_df["gene_biotype"]
+        E.info("gene biotype is present")
         try:
             merged_df["transcript_biotype"]
+            E.info("transcript biotype is present")
         except KeyError:
+            E.info("transcript biotype is not present")
             if set_biotype:
                 merged_df["transcript_biotype"] = set_biotype
             else:
-                merge_df["transcript_biotype"] = "NA"
+                merged_df["transcript_biotype"] = "NA"
     except KeyError:
+        E.info("gene biotype is not present")
         if set_biotype:
             merged_df["gene_biotype"] = set_biotype
             merged_df["transcript_biotype"] = set_biotype
