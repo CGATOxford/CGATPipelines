@@ -1238,10 +1238,8 @@ def downloadEntrezToEnsembl(infile, outfile):
         Biomart attribute containing entrez gene id
 
     '''
-    # SCRUM NOTE - Consider changing the source of the ENTREZ to ENSEMBL mapping to mygene.info
-    # This is a more upto date and better maintained then biomart?
-    # Remember to add ability to access archived versions
-    # Katie has some code already - pipeline_geneinfo.py
+    # SCRUM note - paramterised features being selected from biomaRt 
+    #in the ini file 
 
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
@@ -1306,11 +1304,12 @@ def downloadTranscriptSynonyms(infile, outfile):
         Biomart attribute containing refseq ids
     """
 
-    # SCRUM NOTE - change this also to rely on mygene_info
-    # BUT CHECK THAT my.geneinfo can access older version of ensembl
-    # if not keep biomart but minimise the number of things being acessed
-    # reduce the possibliltiy of name changes and paramterise in ini
-    # looks like its only refseq
+
+
+
+    # SCRUM note - paramterised features being selected from biomaRt 
+    #in the ini file 
+
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
         P.touch(outfile)
