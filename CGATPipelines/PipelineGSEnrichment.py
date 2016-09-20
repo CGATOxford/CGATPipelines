@@ -1034,6 +1034,7 @@ class StatsTest(object):
     def collapse(self):
         # collapses the lists of genes back to the original id type
         # as different types of ID do not have a 1:1 relationship
+        # avoids this if idtype already ensemblg
         if self.idtype != "ensemblg":
             db = sqlite3.connect(self.dbname)
             tab = pd.read_sql_query(
