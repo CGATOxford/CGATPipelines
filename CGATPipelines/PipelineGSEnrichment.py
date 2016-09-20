@@ -931,6 +931,13 @@ class EliminateET(EnrichmentTester):
             if s in self.terms:
                 p_sortedL.append(s)
 
+        # if no terms associated with foreground function output is empty
+        if not p_sortedL:
+            results = dict()
+            self.writeStats(results, self.outfile, self.outfile2,
+                            writegenes, host, ngenes)
+            return
+
         # find the "level" of each gene in the ontology - the number of
         # steps in the longest path from the node to the root
         levels = dict()
@@ -1027,21 +1034,22 @@ class StatsTest(object):
     def collapse(self):
         # collapses the lists of genes back to the original id type
         # as different types of ID do not have a 1:1 relationship
-        db = sqlite3.connect(self.dbname)
-        tab = pd.read_sql_query(
-            "SELECT * FROM ensemblg2%s$geneid" % self.idtype, db)
-        id = list(tab.columns)
-        id.remove('ensemblg')
-        id = id[0]
-        self.GenesWith = set(tab[id][tab['ensemblg'].isin(self.GenesWith)])
-        self.GenesWithout = set(
-            tab[id][tab['ensemblg'].isin(self.GenesWithout)])
-        self.foreground = set(tab[id][tab['ensemblg'].isin(self.foreground)])
-        self.background = set(tab[id][tab['ensemblg'].isin(self.background)])
+        if self.idtype != "ensemblg":
+            db = sqlite3.connect(self.dbname)
+            tab = pd.read_sql_query(
+                "SELECT * FROM ensemblg2%s$geneid" % self.idtype, db)
+            id = list(tab.columns)
+            id.remove('ensemblg')
+            id = id[0]
+            self.GenesWith = set(tab[id][tab['ensemblg'].isin(self.GenesWith)])
+            self.GenesWithout = set(
+                tab[id][tab['ensemblg'].isin(self.GenesWithout)])
+            self.foreground = set(tab[id][tab['ensemblg'].isin(self.foreground)])
+            self.background = set(tab[id][tab['ensemblg'].isin(self.background)])
 
-        self.foreground = self.foreground & self.ofg
-        if self.obg is not None:
-            self.background = self.background & self.obg
+            self.foreground = self.foreground & self.ofg
+            if self.obg is not None:
+                self.background = self.background & self.obg
 
     def correct(self, pvalue):
         '''
