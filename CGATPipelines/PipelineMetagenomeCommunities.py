@@ -132,18 +132,18 @@ def barplotAlignmentStats(infile, outfile, **kwargs):
 ###################################################################
 
 
-def runPCA(infile, outfile):
+def runPCA(infile, outfile, rownames=1):
     '''
     run principle components analysis on 
     normalised matrix
     '''
-    ncol = len(open(infile).readline().strip("\n").split("\t"))
+#    ncol = len(open(infile).readline().strip("\n").split("\t"))
     # read in and format data
     R('''dat <- read.csv("%s",
                           header=T,
                           stringsAsFactors=F,
                           sep="\t",
-                          row.names=%i)''' % (infile, ncol))
+                          row.names=%i)''' % (infile, rownames))
     # run PCA
     R('''pc.dat <- prcomp(as.matrix(t(dat)))''')
     
@@ -280,7 +280,7 @@ def plotMDS(infile, outfile):
 ###################################################################
 
 
-def testDistSignificance(infile, outfile):
+def testDistSignificance(infile, outfile, rownames=1, method="adonis"):
     '''
     use permanova to test significance of differences
     in distance metrics
@@ -290,10 +290,9 @@ def testDistSignificance(infile, outfile):
     R('''library(vegan)''')
     R('''dat <- read.csv("%s",
                          header = T,
-                         stringsAsFactors = F, sep = "\t")''' % infile)
-    R('''rownames(dat) <- dat$taxa
-         dat <- dat[,1:ncol(dat)-1]
-         dat <- dat[, mixedsort(colnames(dat))]
+                         stringsAsFactors = F, sep = "\t",
+                         row.names=%i)''' % (infile, rownames))
+    R('''dat <- dat[, mixedsort(colnames(dat))]
          conds <- unlist(strsplit(colnames(dat),
                          ".R[0-9]"))[seq(1, ncol(dat)*2, 2)]
          conds <- unlist(strsplit(conds, ".",

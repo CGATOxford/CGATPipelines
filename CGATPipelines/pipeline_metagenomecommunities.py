@@ -1589,7 +1589,7 @@ def Alignment_stats():
 ###################################################################
 ###################################################################
 # Differential abundance analysis of taxa and genes. We use
-# metagenomeSeq here to assess differential abundance
+# metagenomeSeq and DESeq2 here to assess differential abundance
 ###################################################################
 ###################################################################
 ###################################################################
@@ -1662,14 +1662,60 @@ def runMetagenomeSeq(infile, outfile):
 
     P.run()
 
-
 ###################################################################
 ###################################################################
 ###################################################################
 
 
-@subdivide(runMetagenomeSeq,
-           regex("(\S+)/(\S+).diff.tsv"),
+@follows(mkdir("deseq2.dir"))
+@transform(CLASSIFIER_TARGETS + [mergeDiamondGeneCounts],
+           regex("(\S+)/(\S+).tsv.gz"),
+           r"deseq2.dir/\2.diff.tsv")
+def runDESeq2(infile, outfile):
+    '''
+    run DESeq2 - a tool for calculating significance
+    based on gene counts
+    '''
+    # build design as a temporary file
+    design = P.getTempFile(".")
+    design.write("track\tgroup\tinclude\tpair\n")
+    samples = IOTools.openFile(infile).readline()[:-1].split("\t")
+    samples = samples[1:]
+    conditions = [x.split("-")[1] for x in samples]
+    for i in range(len(samples)):
+        design.write("%s\t%s\t1\t0\n" % (samples[i], conditions[i]))
+    design.close()
+    d = design.name
+
+    # run DESeq2
+    outpattern = P.snip(outfile, ".diff.tsv") + "_"
+    fdr = PARAMS.get("deseq2_fdr")
+    min_rowcounts = PARAMS.get("deseq2_filter_min_counts_per_row")
+    min_samplecounts = PARAMS.get("deseq2_filter_min_counts_per_sample")
+    percentile_rowsums = PARAMS.get("deseq2_filter_percentile_rowsums")
+    statement = '''python %(scriptsdir)s/runExpression.py
+                   --method=deseq2
+                   --outfile=%(outfile)s
+                   --output-filename-pattern=%(outpattern)s
+                   --fdr=%(fdr)s
+                   --tags-tsv-file=%(infile)s
+                   --design-tsv-file=%(d)s
+                   --filter-min-counts-per-row=%(min_rowcounts)s
+                   --filter-min-counts-per-sample=%(min_samplecounts)s
+                   --filter-percentile-rowsums=%(percentile_rowsums)s
+                   --log=%(outfile)s.log'''
+
+    P.run()
+
+    os.unlink(design.name)
+    
+###################################################################
+###################################################################
+###################################################################
+
+
+@subdivide([runMetagenomeSeq, runDESeq2],
+           regex("(\S+)/(\S+).diff.tsv*"),
            add_inputs(aggregateTaxaMaps),
            r"\1/*.\2.diff.tsv")
 def splitResultsByKingdom(infiles, outfiles):
@@ -1680,7 +1726,14 @@ def splitResultsByKingdom(infiles, outfiles):
     P.submit
     '''
     result, mapfile = infiles
-    matrix = P.snip(result, ".diff.tsv") + ".norm.matrix"
+
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in .rlog.tsv.gz
+    if os.path.dirname(infiles[0]) == "deseq2.dir":
+        matrix = P.snip(infiles[0], ".diff.tsv") + "_rlog.tsv.gz"
+    else:
+        matrix = P.snip(infiles[0], ".diff.tsv") + ".norm.matrix"
+
     hierarchy = PipelineMetagenomeCommunities.readHierarchy(mapfile)
 
     # need to do it for both the results
@@ -1700,6 +1753,9 @@ def splitResultsByKingdom(infiles, outfiles):
                 suffix = ".norm.matrix"
                 # last column in the matrix file
                 taxon_ind = -1
+            elif inf.endswith("_rlog.tsv.gz"):
+                suffix = "_rlog.tsv.gz"
+                taxon_ind = 0
             else:
                 suffix = None
                 taxon_ind = 8
@@ -1721,7 +1777,7 @@ def splitResultsByKingdom(infiles, outfiles):
 ###################################################################
 
 
-@transform([runMetagenomeSeq, splitResultsByKingdom],
+@transform([runMetagenomeSeq, runDESeq2, splitResultsByKingdom],
            suffix(".tsv"), ".load")
 def loadDifferentialAbundance(infile, outfile):
     '''
@@ -1852,22 +1908,27 @@ def runPathwaysAnalysis(infiles, outfiles):
 
 
 @jobs_limit(1, "R")
-@transform([runMetagenomeSeq, splitResultsByKingdom],
+@transform([runMetagenomeSeq, runDESeq2, splitResultsByKingdom],
            suffix(".diff.tsv"),
            ".pca.tsv")
 def runPCA(infile, outfile):
     '''
     run principle components analysis
     '''
-    # the infile is a separate file output by
-    # run_metagenomeseq = normalised counts
-    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in .rlog.tsv.gz
+    if os.path.dirname(infile) == "deseq2.dir":
+        inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
+        rownames=1
+    else:
+        inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+        rownames = len(open(inf).readline().strip("\n").split("\t"))
     if len(IOTools.openFile(inf).readlines()) <= 2:
         E.warn("Empty matrix %s: Check this is correct" % inf)
         P.touch(outfile)
         P.touch(outfile.replace(".tsv", ".ve.tsv"))
     else:
-        PipelineMetagenomeCommunities.runPCA(inf, outfile)
+        PipelineMetagenomeCommunities.runPCA(inf, outfile, rownames=rownames)
 
 ###################################################################
 ###################################################################
@@ -1897,14 +1958,17 @@ def plotPCA(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.pdf")
+@transform([runMetagenomeSeq, runDESeq2], suffix(".diff.tsv"), ".mds.pdf")
 def runMDS(infile, outfile):
     '''
     run MDS analysis
     '''
-    # the infile is a separate file output by
-    # run_metagenomeseq = normalised counts
-    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in _rlog.tsv.gz
+    if os.path.dirname(infile) == "deseq2.dir":
+        inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
+    else:
+        inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
     PipelineMetagenomeCommunities.plotMDS(inf, outfile)
 
 ###################################################################
@@ -1913,23 +1977,31 @@ def runMDS(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform([runMetagenomeSeq, splitResultsByKingdom],
+@transform([runMetagenomeSeq, runDESeq2, splitResultsByKingdom],
            suffix(".diff.tsv"),
            ".mds.sig")
 def runPermanova(infile, outfile):
     '''
     run permanova on euclidean distances
     '''
-    # the infile is a separate file output by
-    # run_metagenomeseq = normalised counts
-    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in _rlog.tsv.gz
+    if os.path.dirname(infile) == "deseq2.dir":
+        inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
+        rownames=1
+    else:
+        inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+        rownames = len(open(inf).readline().strip("\n").split("\t"))
 
     # only run if the file is not empty
     if len(IOTools.openFile(inf).readlines()) == 1:
         E.warn("Empty matrix %s: Check this is correct" % inf)
         P.touch(outfile)
     else:
-        PipelineMetagenomeCommunities.testDistSignificance(inf, outfile)
+        PipelineMetagenomeCommunities.testDistSignificance(inf,
+                                                           outfile,
+                                                           rownames=rownames,
+                                                           method="adonis")
 
 ###################################################################
 ###################################################################
