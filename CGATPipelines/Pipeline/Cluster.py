@@ -163,6 +163,55 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
         jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
                                                            '.bashrc')})
 
+    elif queue_manager.lower() == "pbspro":
+
+        # PBS Pro docs
+        # http://www.pbsworks.com/PBSProduct.aspx?n=PBS-Professional&c=Overview-and-Capabilities
+        # DRMAA for PBS Pro is the same as for torque:
+        # http://apps.man.poznan.pl/trac/pbs-drmaa
+        # Webpages with some examples:
+        # https://wiki.galaxyproject.org/Admin/Config/Performance/Cluster#PBS
+        # https://sites.google.com/a/case.edu/hpc-upgraded-cluster/home/Software-Guide/pbs-drmaa
+
+        # PBS Pro has some differences with torque so separating for now to test
+
+        # Set environment variables (~/.cgat , .bashrc):
+            # PBS_DRMAA_CONF to eg ~/.pbs_drmaa.conf
+            # DRMAA_LIBRARY_PATH to eg /xxx/libdrmaa.so
+
+        #PBSPro only takes the first 15 characters, throws uninformative error if longer:
+        spec = ["-N %s" % job_name[0:14],
+                "-l mem=%s" % job_memory]
+
+#        if options["cluster_priority"]:
+#            spec.append("-p %(cluster_priority)i")
+
+        if options["cluster_options"]:
+            spec.append("%(cluster_options)s")
+
+        if not options["cluster_memory_resource"]:
+            raise ValueError("The cluster memory resource must be specified")
+
+        for resource in options["cluster_memory_resource"].split(","):
+            spec.append("-l %s=%s" % (resource, job_memory, ))
+
+        # if process has multiple threads, use a parallel environment
+#        multithread = 'job_threads' in options and options['job_threads'] > 1
+#        if multithread:
+#            spec.append(
+#                "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
+
+#        if "cluster_pe_queue" in options and multithread:
+#            spec.append(
+#                "-q %(cluster_pe_queue)s")
+#        elif options['cluster_queue'] != "NONE":
+#            spec.append("-q %(cluster_queue)s")
+
+        # As for torque, there is no equivalent to sge -V option for pbs-drmaa:
+        jt.jobEnvironment = os.environ
+        jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
+                                                           '.bashrc')})            
+
     else:
         raise ValueError("Queue manager %s not supported" % queue_manager)
 
