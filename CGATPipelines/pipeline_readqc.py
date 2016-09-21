@@ -168,18 +168,18 @@ PARAMS = P.PARAMS
 
 # define input files and preprocessing steps
 # list of acceptable input formats
-INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz"]
+INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz", "*.remote"]
 
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
-REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
 # Regular expression to extract a track from both processed and unprocessed
 # files
 REGEX_TRACK_BOTH = \
-    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
-SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
 
 def connect():
@@ -259,23 +259,26 @@ if PARAMS.get("preprocessors", None):
         '''
         trimmomatic_options = PARAMS["trimmomatic_options"]
 
+        if PARAMS["trimmomatic_adapter"]:
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
+                PARAMS["trimmomatic_adapter"],
+                PARAMS["trimmomatic_mismatches"],
+                PARAMS["trimmomatic_p_thresh"],
+                PARAMS["trimmomatic_c_thresh"],
+                PARAMS["trimmomatic_min_adapter_len"],
+                PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
+
         if PARAMS["auto_remove"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
                 "contaminants.fasta",
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
-                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
-
-        else:
-            if PARAMS["trimmomatic_adapter"]:
-                trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
-                    PARAMS["trimmomatic_adapter"],
-                    PARAMS["trimmomatic_mismatches"],
-                    PARAMS["trimmomatic_p_thresh"],
-                    PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
+                PARAMS["trimmomatic_c_thresh"],
+                PARAMS["trimmomatic_min_adapter_len"],
+                PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
 
         job_threads = PARAMS["threads"]
-        job_memory = "7G"
+        job_memory = "12G"
 
         track = re.match(REGEX_TRACK, infile).groups()[0]
 
@@ -320,7 +323,8 @@ if PARAMS.get("preprocessors", None):
                 m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
                     threads=PARAMS["threads"],
-                    untrimmed=PARAMS['cutadapt_reroute_untrimmed']))
+                    untrimmed=PARAMS['cutadapt_reroute_untrimmed'],
+                    process_paired=PARAMS["cutadapt_process_paired"]))
             else:
                 raise NotImplementedError("tool '%s' not implemented" % tool)
 

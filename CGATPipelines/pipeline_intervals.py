@@ -1115,14 +1115,17 @@ def loadTomTom(infile, outfile):
         return
 
     # get the motif name from the xml file
-
     tree = xml.etree.ElementTree.ElementTree()
     tree.parse(xml_file)
     motifs = tree.find("targets")
     name2alt = {}
     for motif in motifs.getiterator("motif"):
         name = motif.get("name")
+        if name is None:
+            name = motif.get("id")
         alt = motif.get("alt")
+        if alt is None:
+            alt = name
         name2alt[name] = alt
 
     tmpfile = P.getTempFile(".")

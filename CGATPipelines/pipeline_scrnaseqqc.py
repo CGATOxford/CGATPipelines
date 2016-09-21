@@ -356,7 +356,7 @@ def transformSailfishOutput(infile, outfile):
 
 @follows(transformSailfishOutput)
 @collate(transformSailfishOutput,
-         regex("tpm.dir/(.+)_(.+)-(.+).quant"),
+         regex("tpm.dir/(.+)_(.+)_(.+).quant"),
          r"tpm.dir/\1.tpm")
 def mergeSailfishRuns(infiles, outfile):
     '''
@@ -396,7 +396,7 @@ def loadSailfishTpm(infile, outfile):
 @follows(transformSailfishOutput,
          mergeSailfishRuns)
 @collate(transformSailfishOutput,
-         regex("tpm.dir/(.+)_(.+)-(.+).quant"),
+         regex("tpm.dir/(.+)_(.+)_(.+).quant"),
          r"tpm.dir/\1.counts")
 def mergeSailfishCounts(infiles, outfile):
     '''
@@ -438,7 +438,7 @@ def loadSailfishCounts(infile, outfile):
 
 BAMDIR = PARAMS['bam_dir']
 BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
-BAMREGEX = regex(r".*/(\d+)_([0-9]+)-([0-9]+).(\S+).bam$")
+BAMREGEX = regex(r".*/(\S+)_([0-9]+)_([0-9]+).(\S+).bam$")
 
 
 @follows(mkdir("dedup.dir"))
@@ -606,7 +606,8 @@ def getContextStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
+    --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
     --table-name=%(mapping_context_stats)s
@@ -624,7 +625,8 @@ def getAlignmentStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
+    --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
     --table-name=%(mapping_alignment_stats)s
@@ -642,8 +644,9 @@ def getPicardAlignStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
+    --task=extract_table
     --database=%(mapping_db)s
     --table-name=%(mapping_picard_alignments)s
     > %(outfile)s
@@ -660,8 +663,9 @@ def getPicardInsertStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
+    --task=extract_table
     --database=%(mapping_db)s
     --table-name=%(mapping_picard_inserts)s
     > %(outfile)s
@@ -678,8 +682,9 @@ def getDuplicationStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --log=%(outfile)s.log
+    --task=extract_table
     --database=%(mapping_db)s
     --table-name=%(mapping_picard_dups)s
     > %(outfile)s
@@ -700,7 +705,7 @@ def getCoverageStats(outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -759,7 +764,7 @@ def cleanQcTable(infile, outfile):
     '''
 
     statement = '''
-    python /ifs/devel/projects/proj056/project_pipeline/extract_stats.py
+    python %(scriptsdir)s/extract_stats.py
     --task=clean_table
     --log=%(outfile)s.log
     %(infile)s
