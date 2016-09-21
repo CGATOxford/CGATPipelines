@@ -495,7 +495,7 @@ def loadCufflinks(infile, outfile):
 def mergeCufflinksGeneFPKM(infiles, outfile):
     '''build aggregate table with cufflinks FPKM values.
 
-        Takes cufflinks results from sample.genes_tracking.gz and 
+        Takes cufflinks results from sample.genes_tracking.gz and
         builds summary "_fpkm_genes.tsv.gz" in "fpkm.dir"'''
     PipelineRnaseq.mergeCufflinksFPKM(
         infiles,
@@ -512,7 +512,7 @@ def mergeCufflinksGeneFPKM(infiles, outfile):
 def mergeCufflinksIsoformFPKM(infiles, outfile):
     '''build aggregate table with cufflinks FPKM values.
 
-        Takes cufflinks results from sample.fpkm_tracking.gz and 
+        Takes cufflinks results from sample.fpkm_tracking.gz and
         builds summary "_fpkm_isoforms.tsv.gz" in "fpkm.dir"'''
     PipelineRnaseq.mergeCufflinksFPKM(
         infiles,
@@ -533,20 +533,20 @@ def mergeCufflinksIsoformFPKM(infiles, outfile):
 def loadCufflinksFPKM(infile, outfile):
     '''Loads merged fkpm data into table in database.
 
-    Takes merged cufflinks fpkm :term:`tsv` files (e.g. 
-    "refcoding_fpkm_genes.tsv.gz" or "refcoding_fpkm_isoforms.tsv.gz") and 
-    loads fpkm data across samples for genes or isoforms into 
-    "refcoding_fpkm_genes" or "refcoding_fpkm_isoforms" database tables. 
+    Takes merged cufflinks fpkm :term:`tsv` files (e.g.
+    "refcoding_fpkm_genes.tsv.gz" or "refcoding_fpkm_isoforms.tsv.gz") and
+    loads fpkm data across samples for genes or isoforms into
+    "refcoding_fpkm_genes" or "refcoding_fpkm_isoforms" database tables.
 
     Parameters
     ----------
-    infile : string 
+    infile : string
         refers to :term:`tsv`.gz file generated from cufflinks fpkm
-        output files (e.g "refcoding_fpkm_genes.tsv.gz" or 
+        output files (e.g "refcoding_fpkm_genes.tsv.gz" or
         "refcoding_fpkm_isoforms.tsv.gz")
 
     outfile : string
-        creates infile.load to detail information loaded into database 
+        creates infile.load to detail information loaded into database
         tables'''
 
     P.load(infile, outfile,
@@ -726,11 +726,12 @@ def loadGeneLevelReadCounts(infile, outfile):
     ----------
 
     infile : string
-        takes infile, a :term:`tsv` file containing gene level read count 
-        information e.g. exon coverage statisitics from buildGeneLevelReadCounts
+        takes infile, a :term:`tsv` file containing gene level read count
+        information e.g. exon coverage statisitics from
+        buildGeneLevelReadCounts
     outfile: string
-        creates `.load` file for each input file detailing loading of information
-        into "_genecounts" table in database'''
+        creates `.load` file for each input file detailing loading of
+        information into "_genecounts" table in database'''
 
     P.load(infile, outfile, options="--add-index=gene_id")
 
@@ -739,29 +740,29 @@ def loadGeneLevelReadCounts(infile, outfile):
          regex("genecounts.dir/([^.]+)\.([^.]+).tsv.gz"),
          r"genecounts.dir/\2.genecounts.tsv.gz")
 def aggregateGeneLevelReadCounts(infiles, outfile):
-    ''' build a matrix of counts with genes and tracks dimensions 
+    ''' build a matrix of counts with genes and tracks dimensions
 
-    Takes a list of :term:`tsv` detailing coverage statisitics from 
-    buildGeneLevelReadCounts for each sample and builds a matrix of counts 
-    with genes and tracks dimenisions summarising all samples (i.e. tracks) 
+    Takes a list of :term:`tsv` detailing coverage statisitics from
+    buildGeneLevelReadCounts for each sample and builds a matrix of counts
+    with genes and tracks dimenisions summarising all samples (i.e. tracks)
     in outfile (e.g. "refcoding.genecounts.tsv.gz") using combine_tables.py.
     Outfile also has accompanying ".log" file.
 
     .. note::
-        THIS USES ANYSENSE UNIQUE COUNTS - THIS NEEDS TO BE PARAMTERISED 
+        THIS USES ANYSENSE UNIQUE COUNTS - THIS NEEDS TO BE PARAMTERISED
         FOR STRANDED/UNSTRANDED RNASEQ DATA
 
 
     Parameters
     ----------
 
-    infiles : list        
-        list of :term:`tsv` files detailing coverage statisitics from 
-        buildGeneLevelReadCounts 
+    infiles : list
+        list of :term:`tsv` files detailing coverage statisitics from
+        buildGeneLevelReadCounts
     outfile : string
-        names the output files "genecounts.tsv.gz" output files are:        
+        names the output files "genecounts.tsv.gz" output files are:
 
-        1. ".genecounts.tsv.gz" :term:`tsv` file containing matrix 
+        1. ".genecounts.tsv.gz" :term:`tsv` file containing matrix
         of genes (rows) and counts per sample/track (columns).
 
         2. ".genecounts.tsv.gz.log"'''
@@ -796,34 +797,34 @@ def buildGeneLevelReadExtension(infile, outfile):
 
     Counters used in gtf2table.py:
 
-    * read-extension: This counter outputs the read density in bins upstream, 
-      within and downstream of transcript models. The counter can be used to 
+    * read-extension: This counter outputs the read density in bins upstream,
+      within and downstream of transcript models. The counter can be used to
       predict the length of the 3' and 5' UTR.
 
-    * position: output genomic coordinates of transcript/gene 
+    * position: output genomic coordinates of transcript/gene
     (chromosome, start, end)
 
     Parameters
     ----------
 
     infile : string
-        A :term:`bam` file containing aligned reads to enable calculation of 
+        A :term:`bam` file containing aligned reads to enable calculation of
         coverage over the cds
 
     annotations_interface_geneset_cds_gtf : string
-        :term:`PARAMS` _geneset_cds.gtf.gz. 
+        :term:`PARAMS` _geneset_cds.gtf.gz.
         This is set in pipeline.ini in annotations directory
 
     annotations_interface_territories_gff : string
-        :term:`PARAMS` refering to territories.gff.gz. 
+        :term:`PARAMS` refering to territories.gff.gz.
         This is set in pipeline.ini in annotations directory
 
     annotations_interface_annotation_gff : string
-        :term:`PARAMS` refering to annotation.gff.gz. 
+        :term:`PARAMS` refering to annotation.gff.gz.
         This is set in pipeline.ini in annotations directory
 
-    outfile : string 
-        A "extension_counts.tsv.gz" file. A :term:`tsv` file detailing coverage 
+    outfile : string
+        A "extension_counts.tsv.gz" file. A :term:`tsv` file detailing coverage
         of reads over the extension of the cds
 
     '''
@@ -891,11 +892,11 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     Parameters
     ----------
     infiles : list
-        A list of :term:`bam` - :term:`gtf` pairs. :term:`bam` files contain 
-            aligned reads, :term:`gtf` files files contain the gene models 
+        A list of :term:`bam` - :term:`gtf` pairs. :term:`bam` files contain
+            aligned reads, :term:`gtf` files files contain the gene models
 
     outfile : string
-        Name of a :term:`tsv` file containing counts of reads falling within 
+        Name of a :term:`tsv` file containing counts of reads falling within
         gene models. Also names accompanying ".log" file
 
     '''
@@ -979,7 +980,7 @@ def aggregateTranscriptLevelReadCounts(infiles, outfile):
         list of :term:`tsv` files detailing coverage statisitics from
         buildTranscriptLevelReadCounts
     outfile : string
-        names the output files "transcriptcounts.tsv.gz" output files are:        
+        names the output files "transcriptcounts.tsv.gz" output files are:
 
         1. ".transcriptcounts.tsv.gz" :term:`tsv` file containing matrix
         of transcripts (rows) and counts per sample/track (columns).
@@ -1025,22 +1026,22 @@ def buildFeatureCounts(infiles, outfile):
     Parameters
     ----------
     infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with 
-        the aligned reads, the second containing a list of :term:`gtf` files 
+        Two lists of file names, one containing list of :term:`bam` files with
+        the aligned reads, the second containing a list of :term:`gtf` files
         containing the "features" to be counted.
     featurecounts_threads : int
-        :term:`PARAMS` - number of threads to run feature counts. This is 
+        :term:`PARAMS` - number of threads to run feature counts. This is
         specified in pipeline.ini
     featurecounts_strand : int
-        :term:`PARAMS` - see feature counts --help for details of how to set 
+        :term:`PARAMS` - see feature counts --help for details of how to set
     featurecounts_options : string
-        :term:`PARAMS` - options for running feature counts, set using 
-        pipeline.ini See feature counts --help for details of how to set 
+        :term:`PARAMS` - options for running feature counts, set using
+        pipeline.ini See feature counts --help for details of how to set
     outfile : string
-        used to denote output files from feature counts. Three output files are 
+        used to denote output files from feature counts. Three output files are
         produced for each input :term:`bam` - :term:`gtf` pair. These are:
 
-        * input_bam.input_gtf.tsv.gz: contains list of gene id's and counts 
+        * input_bam.input_gtf.tsv.gz: contains list of gene id's and counts
         * input_bam.input_gtf.tsv.summary: contains summary of reads counted
         * input_bam.input_gtf.tsv.log: log file produced by feature counts
 
@@ -1061,9 +1062,9 @@ def buildFeatureCounts(infiles, outfile):
 def aggregateFeatureCounts(infiles, outfile):
     ''' Build a matrix of counts with genes and tracks dimensions.
 
-    Uses `combine_tables.py` to combine all the `tsv.gz` files output from 
+    Uses `combine_tables.py` to combine all the `tsv.gz` files output from
     buildFeatureCounts into a single :term:`tsv` file named
-    "featurecounts.tsv.gz". A `.log` file is also produced. 
+    "featurecounts.tsv.gz". A `.log` file is also produced.
 
     .. note::
         This uses column 7 as counts This is a possible source of bugs, the
@@ -1072,11 +1073,11 @@ def aggregateFeatureCounts(infiles, outfile):
     Parameters
     ---------
     infiles : list
-        a list of `tsv.gz` files from the feature_counts.dir that were the 
+        a list of `tsv.gz` files from the feature_counts.dir that were the
         output from feature counts
     outfile : string
-        a filename denoting the file containing a matrix of counts with genes as
-        rows and tracks as the columns - this is a `tsv.gz` file        '''
+        a filename denoting the file containing a matrix of counts with genes
+        as rows and tracks as the columns - this is a `tsv.gz` file      '''
 
     infiles = " ".join(infiles)
     statement = '''python %(scriptsdir)s/combine_tables.py
@@ -1092,14 +1093,31 @@ def aggregateFeatureCounts(infiles, outfile):
 
     P.run()
 
+
 @collate(buildFeatureCounts,
          regex("featurecounts.dir/([^.]+)\.([^.]+).tsv.gz"),
          r"featurecounts.dir/\2.genelengths.tsv.gz")
 def aggregateFeatureLengths(infiles, outfile):
-    ''' build a matrix of counts with genes and tracks dimensions.
-    '''
+    ''' Build a matrix of count lengths with genes and tracks dimensions.
 
-    # Use column 7 as counts This is a possible source of bugs, the
+    Uses `combine_tables.py` to combine all the `tsv.gz` files output from
+    buildFeatureCounts into a single :term:`tsv` file named
+    "featurecounts.tsv.gz". A `.log` file is also produced.
+
+    .. note::
+        This uses column 6 as count lengths This is a possible source of bugs,
+        the column position has changed before.
+
+    Parameters
+    ---------
+    infiles : list
+        a list of `tsv.gz` files from the feature_counts.dir that were the
+        output from feature counts
+    outfile : string
+        a filename denoting the file containing a matrix of counts with genes
+        as rows and tracks as the columns - this is a `tsv.gz` file      '''
+
+    # Use column 6 as lengths. This is a possible source of bugs, the
     # column position has changed before.
 
     infiles = " ".join(infiles)
@@ -1117,12 +1135,31 @@ def aggregateFeatureLengths(infiles, outfile):
     P.run()
 
 
-
-
 @transform(aggregateFeatureCounts,
            suffix(".tsv.gz"),
            ".load")
 def loadFeatureCounts(infile, outfile):
+    '''Load aggregated feature counts into database.
+
+    Load the aggregted feature counts of all tracks into a database table.
+    For example "refcoding.genelengths.tsv.gz" will be table
+    "refcoding_genelengths" in database.
+
+    Parameters
+    ----------
+    infile : string
+        filename of aggregated feature lengths (e.g. `genelengths.tsv.gz`).
+    outfile : string
+        filename of `.load` file summarising information loaded into
+        database table'''
+
+    P.load(infile, outfile, "--add-index=gene_id")
+
+
+@transform(aggregateFeatureLengths,
+           suffix(".tsv.gz"),
+           ".load")
+def loadFeatureLengths(infile, outfile):
     '''Load aggregated feature counts into database.
 
     Load the aggregted feature counts of all tracks into a database table.
@@ -1140,25 +1177,18 @@ def loadFeatureCounts(infile, outfile):
     P.load(infile, outfile, "--add-index=gene_id")
 
 
-@transform(aggregateFeatureLengths,
-           suffix(".tsv.gz"),
-           ".load")
-def loadFeatureLengths(infile, outfile):
-    '''load individual feature counts into database'''
-    P.load(infile, outfile, "--add-index=gene_id")
-
 @merge(buildFeatureCounts,
        "featurecounts_summary.load")
 def loadFeatureCountsSummary(infiles, outfile):
     '''Load feature counts summary data into table.
 
-    Merge and load the summary files produced by "feature counts" into a 
+    Merge and load the summary files produced by "feature counts" into a
     "featurecounts_summary" database table.
 
     Parameters
     ----------
     infile : list
-        list of filenames used to detect summary file from feature counts output
+        list of filenames used to detect summary file from featurecounts output
     outfile : string
         filename of `featurecounts_summary.load` file summarising information
          loaded into database table
@@ -1224,22 +1254,22 @@ def summarizeCounts(infile, outfile):
 def summarizeCountsPerDesign(infiles, outfile):
     '''perform summarization of read counts within experiments.
 
-    takes `tsv.gz` files summarizing "feature counts" output and "gtf2table" 
-    genecounts output across all tracks, grouped as specified by `design*.tsv` 
-    design file and generates several different summary statistics and plots 
-    for each design on the read count data using `runExpression.py`. 
+    takes `tsv.gz` files summarizing "feature counts" output and "gtf2table"
+    genecounts output across all tracks, grouped as specified by `design*.tsv`
+    design file and generates several different summary statistics and plots
+    for each design on the read count data using `runExpression.py`.
 
 
     Parameters
     ----------
     infiles : list
-        list of filenames of `tsv.gz` files from "feature counts" counts 
-        (e.g. `featurecounts.tsv.gz`) or "gtf2table.py" counts files to be 
-        aggregated into experiments as specified by design file. Outputs are 
-        stored in designs.dir 
+        list of filenames of `tsv.gz` files from "feature counts" counts
+        (e.g. `featurecounts.tsv.gz`) or "gtf2table.py" counts files to be
+        aggregated into experiments as specified by design file. Outputs are
+        stored in designs.dir
 
     outfile : string
-        filenames of output files detailing summary statistics 
+        filenames of output files detailing summary statistics
 
             * `output_file.stats_max_counts.tsv.gz`: details max counts and frequency
             * `output_file.stats_correlation.tsv`: summary of correlations between samples
@@ -1247,7 +1277,7 @@ def summarizeCountsPerDesign(infiles, outfile):
             * `output_file.stats_heatmap.svg`: heatmap of sample clustering
             * `output_file.stats_pca.svg`: principal component plot
            * `output_file.stats_mds.svg`: multidimensional scaling plot
-            * `output_file.stats.tsv.gz.log`: log file 
+            * `output_file.stats.tsv.gz.log`: log file
             * `output_file.stats.tsv.gz`: summarises row statitics for matrix in `tsv.gz` input file   '''
 
     design_file, counts_file = infiles
@@ -1267,16 +1297,16 @@ def summarizeCountsPerDesign(infiles, outfile):
            suffix(".stats.tsv"),
            "_stats.load")
 def loadTagCountSummary(infile, outfile):
-    '''loads summary of summarizeCounts and summarizeCountsPerDesign into 
+    '''loads summary of summarizeCounts and summarizeCountsPerDesign into
     database.
 
-    takes filename of ".stats.tsv" files in designs.dir and loads `_correlation`
-    and `_stats` tables into database 
+    takes filename of ".stats.tsv" files in designs.dir and loads
+    `_correlation' and `_stats` tables into database
 
     Parameters
     ----------
     infile : string
-        takes filename of ".stats.tsv" files in designs.dir 
+        takes filename of ".stats.tsv" files in designs.dir
     outfile : string
         filename specifying following created files and tables in database
 
@@ -1899,7 +1929,7 @@ TARGETS_DIFFEXPRESSION = [mapToTargets[x] for x in
 
 @follows(*TARGETS_DIFFEXPRESSION)
 def diff_expression():
-    '''collect outputs from "feature counts", "gtf2table.py", "cuffdiff", 
+    '''collect outputs from "feature counts", "gtf2table.py", "cuffdiff",
     "DESeq" and "EdgeR"'''
     pass
 
@@ -1907,7 +1937,7 @@ def diff_expression():
 @follows(diff_expression)
 @merge("*_stats.tsv", "de_stats.load")
 def loadDEStats(infiles, outfile):
-    '''load DE stats into table. 
+    '''load DE stats into table.
 
     concatenates and loads `<track>_stats.tsv` files into database table named
     `de_stats` to show overall summary of DE results.
@@ -1936,14 +1966,14 @@ def plotTagStats(infiles, outfile):
 
     plot stats from "feature counts" and "gtf2table.py" :term:`tsv` files
 
-    plots generated in `tagplots.dir` 
+    plots generated in `tagplots.dir`
 
     Parameters
     ----------
 
-    infiles : list 
-        list of filenames of design files and list of filenames of :term:`tsv.gz'
-        files from aggregateGeneLevelReadCounts or aggregateFeatureCounts 
+    infiles : list
+        list of filenames of design files and list of filenames of :term:`tsv.gz
+        files from aggregateGeneLevelReadCounts or aggregateFeatureCounts
     outfile : string
         filename for naming of several output files in format
         <design>.<geneset>.<countmethod>.log These include:
