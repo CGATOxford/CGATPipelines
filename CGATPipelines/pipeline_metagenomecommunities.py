@@ -1708,7 +1708,7 @@ def runDESeq2(infile, outfile):
     P.run()
 
     os.unlink(design.name)
-    
+
 ###################################################################
 ###################################################################
 ###################################################################
@@ -1919,7 +1919,7 @@ def runPCA(infile, outfile):
     # and deseq2 normalised values are in .rlog.tsv.gz
     if os.path.dirname(infile) == "deseq2.dir":
         inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
-        rownames=1
+        rownames = 1
     else:
         inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
         rownames = len(open(inf).readline().strip("\n").split("\t"))
@@ -1988,7 +1988,7 @@ def runPermanova(infile, outfile):
     # and deseq2 normalised values are in _rlog.tsv.gz
     if os.path.dirname(infile) == "deseq2.dir":
         inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
-        rownames=1
+        rownames = 1
     else:
         inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
         rownames = len(open(inf).readline().strip("\n").split("\t"))
