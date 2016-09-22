@@ -367,6 +367,24 @@ def run(**kwargs):
     options.update(getCallerLocals().items())
     options.update(kwargs.items())
 
+    # enforce highest priority for cluster options in command-line
+    if "cmd_cluster_memory_default" in PARAMS:
+        options["cluster_memory_default"] = PARAMS["cmd_cluster_memory_default"]
+    if "cmd_cluster_memory_resource" in PARAMS:
+        options["cluster_memory_resource"] = PARAMS["cmd_cluster_memory_resource"]
+    if "cmd_cluster_num_jobs" in PARAMS:
+       options["cluster_num_jobs"] = PARAMS["cmd_cluster_num_jobs"]
+    if "cmd_cluster_options" in PARAMS:
+        options["cluster_options"] = PARAMS["cmd_cluster_options"]
+    if "cmd_cluster_parallel_environment" in PARAMS:
+        options["cluster_parallel_environment"] = PARAMS["cmd_cluster_parallel_environment"]
+    if "cmd_cluster_priority" in PARAMS:
+        options["cluster_priority"] = PARAMS["cmd_cluster_priority"]
+    if "cmd_cluster_queue" in PARAMS:
+        options["cluster_queue"] = PARAMS["cmd_cluster_queue"]
+    if "cmd_cluster_queue_manager" in PARAMS:
+        options["cluster_queue_manager"] = PARAMS["cmd_cluster_queue_manager"]
+
     # insert legacy synonyms
     options['without_cluster'] = options.get('without_cluster')
 

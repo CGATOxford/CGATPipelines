@@ -784,21 +784,31 @@ def main(args=sys.argv):
 
     PARAMS["dryrun"] = options.dry_run
 
+    # use cmd_cluster_* keys in PARAMS to ensure highest priority
+    # of cluster_* options passed with the command-line
     if options.cluster_memory_default is not None:
+        PARAMS["cmd_cluster_memory_default"] = options.cluster_memory_default
         PARAMS["cluster_memory_default"] = options.cluster_memory_default
     if options.cluster_memory_resource is not None:
+        PARAMS["cmd_cluster_memory_resource"] = options.cluster_memory_resource
         PARAMS["cluster_memory_resource"] = options.cluster_memory_resource
     if options.cluster_num_jobs is not None:
+        PARAMS["cmd_cluster_num_jobs"] = options.cluster_num_jobs
         PARAMS["cluster_num_jobs"] = options.cluster_num_jobs
     if options.cluster_options is not None:
+        PARAMS["cmd_cluster_options"] = options.cluster_options
         PARAMS["cluster_options"] = options.cluster_options
     if options.cluster_parallel_environment is not None:
+        PARAMS["cmd_cluster_parallel_environment"] = options.cluster_parallel_environment
         PARAMS["cluster_parallel_environment"] = options.cluster_parallel_environment
     if options.cluster_priority is not None:
+        PARAMS["cmd_cluster_priority"] = options.cluster_priority
         PARAMS["cluster_priority"] = options.cluster_priority
     if options.cluster_queue is not None:
+        PARAMS["cmd_cluster_queue"] = options.cluster_queue
         PARAMS["cluster_queue"] = options.cluster_queue
     if options.cluster_queue_manager is not None:
+        PARAMS["cmd_cluster_queue_manager"] = options.cluster_queue_manager
         PARAMS["cluster_queue_manager"] = options.cluster_queue_manager
 
     PARAMS["ruffus_checksums_level"] = options.ruffus_checksums_level
