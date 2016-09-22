@@ -250,10 +250,18 @@ def sashimi(infile, outfile):
     if len(Design.groups) != 2:
         raise ValueError("Please specify exactly two groups per experiment.")
 
-    group1 = ",".join(
-        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[0])])
-    group2 = ",".join(
-        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[1])])
+    g1 = Design.getSamplesInGroup(Design.groups[0])
+    g2 = Design.getSamplesInGroup(Design.groups[1])
+
+    if len(g1) != len(g2):
+        g1 = g1[:min(len(g1), len(g2))]
+        g2 = g2[:min(len(g1), len(g2))]
+        E.info("The two groups compared were of unequal size. For visual " +
+               "display using sashimi they have been truncated to the " +
+               "same length")
+
+    group1 = ",".join(["%s.bam" % x for x in g1])
+    group2 = ",".join(["%s.bam" % x for x in g2])
     group1name = Design.groups[0]
     group2name = Design.groups[1]
 
