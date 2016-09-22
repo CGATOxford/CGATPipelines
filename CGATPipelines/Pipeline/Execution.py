@@ -367,11 +367,7 @@ def run(**kwargs):
     options.update(getCallerLocals().items())
     options.update(kwargs.items())
 
-    # insert a few legacy synonyms
-    options['cluster_options'] = options.get('job_options',
-                                             options['cluster_options'])
-    options['cluster_queue'] = options.get('job_queue',
-                                           options['cluster_queue'])
+    # insert legacy synonyms
     options['without_cluster'] = options.get('without_cluster')
 
     # get the memory requirement for the job
