@@ -226,12 +226,28 @@ def configToDictionary(config):
     return p
 
 
+def printIniFiles(filenames=[]):
+
+    s = len(filenames)
+    if s == 0:
+        print "No ini files passed!"
+    elif s >= 1:
+        print " %-11s: %s " % ("Priority", "File")
+        for f in filenames:
+            if s == 1:
+                print " (highest) %s: %s " % (s, f)
+            else:
+                print " %-11s: %s " % (s, f)
+            s -= 1
+
+
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
                   site_ini=True,
                   user_ini=True,
                   default_ini=True,
-                  only_import=None):
+                  only_import=None,
+                  print_ini=False):
     '''read a config file and return as a dictionary.
 
     Sections and keys are combined with an underscore. If a key
@@ -348,6 +364,13 @@ def getParameters(filenames=["pipeline.ini", ],
                          os.path.join(CGATPIPELINES_PIPELINE_DIR,
                                       'configuration',
                                       'pipeline.ini'))
+
+    # E.debug is not working currently because:
+    # 1. you need to call E.Start before E.debug
+    # 2. if you refactor Experiment.py to solve it,
+    #    options.loglevel is not propagated here anyway.
+    if print_ini:
+        printIniFiles(filenames)
 
     CONFIG.read(filenames)
 
