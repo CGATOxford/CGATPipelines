@@ -35,6 +35,7 @@ Reference
 
 import CGAT.Experiment as E
 import CGAT.CSV as CSV
+import CGAT.Sra as Sra
 
 import collections
 import glob
@@ -334,6 +335,27 @@ def quantifyWithStringTie(gtffile, bamfile, outdir):
                              %(stringtie_quant_options)s
                              > /dev/null
                              2> %(outdir)s.log'''
+
+    if bamfile.endswith(".remote"):
+        token = glob.glob("gdc-user-token*")
+        tmpfilename = P.getTempFilename()
+        if len(token) > 0:
+            token = token[0]
+        else:
+            token = None
+
+        s, bamfile = Sra.process_remote_BAM(
+            bamfile, token, tmpfilename,
+            filter_bed=os.path.join(
+                PARAMS["annotations_dir"],
+                PARAMS["annotations_interface_contigs_bed"]))
+
+        bamfile = " ".join(bamfile)
+        statement = "; checkpoint ;".join(
+            ["mkdir %(tmpfilename)s",
+             s,
+             statement,
+             "rm -r %(tmpfilename)s"])
 
     P.run()
 
