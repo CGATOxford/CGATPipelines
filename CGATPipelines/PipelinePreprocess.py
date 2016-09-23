@@ -83,7 +83,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         if re.match("^\d+.*", table):
             table = "_" + table
 
-        cc = dbh.cursor()       
+        cc = dbh.cursor()
         columns = [i[1] for i in cc.execute('PRAGMA table_info(main)')]
 
         if "Possible_Source" and "Sequence" in columns:
