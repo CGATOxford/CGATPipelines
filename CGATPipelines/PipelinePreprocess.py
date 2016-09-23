@@ -83,11 +83,14 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         if re.match("^\d+.*", table):
             table = "_" + table
 
-        query = '''SELECT Possible_Source, Sequence FROM
-        %s_fastqc_Overrepresented_sequences;''' % table
+        cc = dbh.cursor()       
+        columns = [i[1] for i in cc.execute('PRAGMA table_info(main)')]
 
-        cc = dbh.cursor()
-        found_contaminants.extend(cc.execute(query).fetchall())
+        if "Possible_Source" and "Sequence" in columns:
+            query = '''SELECT Possible_Source, Sequence FROM
+            %s_fastqc_Overrepresented_sequences;''' % table
+
+            found_contaminants.extend(cc.execute(query).fetchall())
 
     if len(found_contaminants) == 0:
         P.touch(outfile)
