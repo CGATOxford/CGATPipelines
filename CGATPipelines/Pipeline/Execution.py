@@ -386,6 +386,9 @@ def run(**kwargs):
         options["cluster_queue_manager"] = PARAMS["cmd_cluster_queue_manager"]
 
     # insert legacy synonyms
+    if options["cluster_options"] == "":
+        options["cluster_options"] = options.get("job_options", options["cluster_options"])
+
     options['without_cluster'] = options.get('without_cluster')
 
     # get the memory requirement for the job
