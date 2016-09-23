@@ -227,6 +227,12 @@ def configToDictionary(config):
 
 
 def printIniFiles(filenames=[]):
+    ''' 
+        Print a list of .ini files passed as argument in stdout
+        along with their associated priorities. 
+        Priority 1 is the highest.
+
+    '''
 
     s = len(filenames)
     if s == 0:
@@ -307,6 +313,10 @@ def getParameters(filenames=["pipeline.ini", ],
        default, which is to raise an exception unless the calling
        script is imported or the option ``--is-test`` has been passed
        at the command line.
+    print_ini : bool
+       If set to True, it will print in stdout a list of .ini files
+       passed to this pipeline along with the priority of each.
+       Priority 1 is the highest.
 
     Returns
     -------
