@@ -378,6 +378,11 @@ def buildProcessingSummary(infiles, outfile):
 def indexIntervals(infile, outfile):
     '''index intervals with tabix.
     '''
+
+    # patch for Jenkins - make sure file exists. Some files
+    # seem to appear with a lag.
+    P.touch(outfile)
+
     statement = '''zcat %(infile)s
     | sort -k1,1 -k2,2n
     | bgzip > %(outfile)s;
