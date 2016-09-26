@@ -95,7 +95,7 @@ will fail.
 
 Requirements:
 
-* samtools = 1.1.19
+* samtools
 
 
 Pipeline output
@@ -148,6 +148,12 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
+pythonScriptsDir = R('''
+    function(){
+    pythonScriptsDir = system.file("python_scripts", package="DEXSeq")
+    return(pythonScriptsDir)
+    }''')
+
 
 # -----------------------------------------------
 # Utility functions
@@ -185,53 +191,153 @@ DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 
 
 @mkdir("results.dir")
+@files(PARAMS["annotations_interface_geneset_all_gtf"],
+       "geneset.gtf")
+def buildGtf(infile, outfile):
+    '''creates a gtf
+
+    This takes ensembl annotations (geneset_all.gtf.gz) and writes out
+    all entries that have a 'source' match to "rRNA" or 'contig' match
+    to "chrM" for use as a mask.
+
+    Parameters
+    ----------
+
+    infile : string
+        :term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
+
+    annotations_interface_table_gene_info : string
+        :term:`PARAMS` gene_info table in annotations database - set
+        in pipeline.ini in annotations directory
+
+    annotations_interface_table_gene_stats : string
+        :term:`PARAMS` gene_stats table in annotations database
+        - set in pipeline.ini in annotations directory
+
+    outfile : string
+
+        A :term:`gtf` file for use as "mask file" for cufflinks.  This
+        is created by filtering infile for certain transcripts e.g.
+        rRNA or chrM transcripts and writing them to outfile
+
+    '''
+
+    dbh = connect()
+
+    try:
+        select = dbh.execute("""SELECT DISTINCT gene_id FROM %s
+        WHERE gene_biotype = 'rRNA';""" % os.path.basename(
+            PARAMS["annotations_interface_table_gene_info"]))
+        rrna_list = [x[0] for x in select]
+    except sqlite3.OperationalError as e:
+        E.warn("can't select rRNA annotations, error='%s'" % str(e))
+        rrna_list = []
+
+    try:
+        select2 = dbh.execute("""SELECT DISTINCT gene_id FROM %s
+        WHERE contig = 'chrM';""" % os.path.basename(
+            PARAMS["annotations_interface_table_gene_stats"]))
+        chrM_list = [x[0] for x in select2]
+    except sqlite3.OperationalError as e:
+        E.warn("can't select rRNA annotations, error='%s'" % str(e))
+        chrM_list = []
+
+    geneset = IOTools.openFile(infile)
+    outf = IOTools.openFile(outfile, "wb")
+    for entry in GTF.iterator(geneset):
+        if entry.gene_id in rrna_list or entry.gene_id in chrM_list:
+            outf.write("\t".join((map(
+                str,
+                [entry.contig, entry.source, entry.feature,
+                 entry.start, entry.end, ".", entry.strand,
+                 ".", "transcript_id" + " " + '"' +
+                 entry.transcript_id + '"' + ";" + " " +
+                 "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+
+    outf.close()
+
+
+@transform(buildGtf,
+           suffix(".gtf"),
+           ".gff")
+def buildGff(infile, outfile):
+    '''Creates a gff for DEXSeq
+
+
+    This takes the gtf and flattens it to an exon based input
+    required by DEXSeq
+
+    Parameters
+    ----------
+
+    infile : string
+        :term:`gtf` output from buildGtf function
+
+    outfile : string
+        A :term:`gff` file for use in DEXSeq'''
+
+    statement = '''python %(pythonScriptsDir)s/dexseq_prepare_annotation.py
+                       %(infile)s  %(outfile)s''' % locals()
+
+    P.run
+
+
+@transform(TRACKS,
+           suffix(".bam"),
+           add_inputs(buildgff),
+           ".txt")
+def countDEXSeq(infiles, outfile):
+    '''creates counts for DEXSeq
+
+    This takes the gtf and flattens it to an exon based input
+    required by DEXSeq
+
+    Parameters
+    ----------
+
+    infile[0]: string
+        :term:`bam` file input
+
+    infile[1]: string
+        :term:`gff` output from buildGff function
+
+    outfile : string
+        A :term:`txt` file containing results'''
+
+    infile, gfffile = infiles
+
+    statement = '''python %(pythonScriptsDir)s/dexseq_count.py
+                    %(gfffile)s %(infile)s %(outfile)s''' % locals()
+    P.run
+
+
+@follows(buildGtf)
+@mkdir("results.dir/rMATS")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/\1.dir")
+           r"results.dir/rMATS/\1.dir")
 def runMATS(infile, outfile):
     '''run rMATS.'''
 
     if not os.path.exists(outfile):
         os.makedirs(outfile)
 
-    design = infile
-    Design = Expression.ExperimentalDesign(design)
-    if len(Design.groups) != 2:
+    gtffile = os.path.abspath("geneset.gtf")
+
+    design = Expression.ExperimentalDesign(infile)
+
+    if len(design.groups) != 2:
         raise ValueError("Please specify exactly two groups per experiment.")
 
-    group1 = ",".join(
-        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[0])])
-    group2 = ",".join(
-        ["%s.bam" % x for x in Design.getSamplesInGroup(Design.groups[1])])
-    readlength = BamTools.estimateTagSize(Design.samples[0]+".bam")
+    job_threads = PARAMS["MATS_threads"]
+    job_memory = PARAMS["MATS_memory"]
 
-    statement = '''rMATS
-    -b1 %(group1)s
-    -b2 %(group2)s
-    -gtf <(gunzip < %(gtf)s)
-    -o %(outfile)s
-    -len %(readlength)s
-    -c %(MATS_cutoff)s
-    '''
+    m = PipelineSplicing.rMATS(
+        executable=P.substituteParameters(**locals())["MATS_executable"],
+        pvalue=P.substituteParameters(**locals())["MATS_cutoff"],
+        gtf=gtffile)
 
-    # Specify paired design
-    if Design.has_pairs:
-        statement += "-analysis P "
-
-    # Get Insert Size Statistics if Paired End Reads
-    if BamTools.isPaired(Design.samples[0]+".bam"):
-        inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
-                    for sample in Design.getSamplesInGroup(Design.groups[0])]
-        inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
-                    for sample in Design.getSamplesInGroup(Design.groups[1])]
-        r1 = ",".join(map(str, [item[0] for item in inserts1]))
-        sd1 = ",".join(map(str, [item[1] for item in inserts1]))
-        r2 = ",".join(map(str, [item[0] for item in inserts2]))
-        sd2 = ",".join(map(str, [item[1] for item in inserts2]))
-
-        statement += '''-t paired
-        -r1 %(r1)s -r2 %(r2)s
-        -sd1 %(sd1)s -sd2 %(sd2)s'''
+    statement = m.build(design, outfile)
 
     P.run()
 
@@ -272,7 +378,7 @@ def sashimi(infile, outfile):
     -l1 %(group1name)s
     -l2 %(group2name)s
     -o %(outfile)s
-    '''
+    ''' % locals()
     P.run()
 
 
