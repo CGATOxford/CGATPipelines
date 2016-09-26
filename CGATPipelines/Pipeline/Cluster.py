@@ -218,6 +218,9 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
                 "-q %(cluster_pe_queue)s")
         elif options['cluster_queue'] != "NONE":
             spec.append("-q %(cluster_queue)s")
+	# TO DO: sort out in Parameters.py to allow none values for configparser:
+	elif options ['cluster_queue'] == "NONE": 
+	    pass
 
         # As for torque, there is no equivalent to sge -V option for pbs-drmaa:
         jt.jobEnvironment = os.environ
