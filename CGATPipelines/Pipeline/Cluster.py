@@ -35,6 +35,8 @@ Reference
 import re
 import os
 import stat
+import time
+import CGAT.Experiment as E
 
 try:
     import drmaa
@@ -44,7 +46,7 @@ except RuntimeError:
 
 
 def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
-    '''Sets up a Drmma job template. Currently SGE and SLURM are
+    '''Sets up a Drmma job template. Currently SGE, SLURM, Torque and PBSPro are
        supported'''
 
     if not job_memory:
@@ -167,45 +169,55 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
 
         # PBS Pro docs
         # http://www.pbsworks.com/PBSProduct.aspx?n=PBS-Professional&c=Overview-and-Capabilities
-        # DRMAA for PBS Pro is the same as for torque:
+        # http://technion.ac.il/usg/tamnun/PBSProUserGuide12.1.pdf
+	
+	# DRMAA for PBS Pro is the same as for torque:
         # http://apps.man.poznan.pl/trac/pbs-drmaa
         # Webpages with some examples:
         # https://wiki.galaxyproject.org/Admin/Config/Performance/Cluster#PBS
         # https://sites.google.com/a/case.edu/hpc-upgraded-cluster/home/Software-Guide/pbs-drmaa
+	# https://albertsk.files.wordpress.com/2011/12/pbs.pdf
+	
+        # PBS Pro has some differences with torque so separating
 
-        # PBS Pro has some differences with torque so separating for now to test
-
-        # Set environment variables (~/.cgat , .bashrc):
+        # Set environment variables in .bashrc:
             # PBS_DRMAA_CONF to eg ~/.pbs_drmaa.conf
             # DRMAA_LIBRARY_PATH to eg /xxx/libdrmaa.so
 
-        #PBSPro only takes the first 15 characters, throws uninformative error if longer:
-        spec = ["-N %s" % job_name[0:14],
-                "-l mem=%s" % job_memory]
+        # PBSPro only takes the first 15 characters, throws uninformative error if longer.
+        # mem is maximum amount of RAM used by job; mem_free doesn't seem to be available.
+	spec = ["-N %s" % job_name[0:15], 
+		"-l mem=%s" % job_memory]
 
-#        if options["cluster_priority"]:
-#            spec.append("-p %(cluster_priority)i")
-
+	# TO DO: will error if job options has '-l select' statement with 'mem' specified: 
         if options["cluster_options"]:
-            spec.append("%(cluster_options)s")
+            spec = ["-N %s" % job_name[0:15]]
+	    spec.append("%(cluster_options)s")
 
-        if not options["cluster_memory_resource"]:
-            raise ValueError("The cluster memory resource must be specified")
 
-        for resource in options["cluster_memory_resource"].split(","):
-            spec.append("-l %s=%s" % (resource, job_memory, ))
+	# if process has multiple threads, use a parallel environment:
+        # TO DO: Check error in fastqc build_report, var referenced before assignment.
+	# For now adding to workaround:
+	if 'job_threads' in options:
+            job_threads = options["job_threads"]
+        else:
+            job_threads = 1
 
-        # if process has multiple threads, use a parallel environment
-#        multithread = 'job_threads' in options and options['job_threads'] > 1
-#        if multithread:
-#            spec.append(
-#                "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
+	multithread = 'job_threads' in options and options['job_threads'] > 1
+        if multithread:
+	   # TO DO 'select=1' determines de number of nodes. Should go in a config file.
+	   # mem is per node
+	   # Site dependent but in general setting '#PBS -l select=NN:ncpus=NN:mem=NN{gb|mb}'
+	   # is sufficient for parallel jobs (OpenMP, MPI).
+	   # TO DO: Also architecture dependent, jobs could be hanging if resource doesn't exist. 
+	    spec = ["-N %s" % job_name[0:15], 
+		    "-l select=1:ncpus=%s:mem=%s" % (job_threads, job_memory)] 
 
-#        if "cluster_pe_queue" in options and multithread:
-#            spec.append(
-#                "-q %(cluster_pe_queue)s")
-#        elif options['cluster_queue'] != "NONE":
-#            spec.append("-q %(cluster_queue)s")
+        if "cluster_pe_queue" in options and multithread:
+            spec.append(
+                "-q %(cluster_pe_queue)s")
+        elif options['cluster_queue'] != "NONE":
+            spec.append("-q %(cluster_queue)s")
 
         # As for torque, there is no equivalent to sge -V option for pbs-drmaa:
         jt.jobEnvironment = os.environ
