@@ -189,10 +189,15 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
 	spec = ["-N %s" % job_name[0:15], 
 		"-l mem=%s" % job_memory]
 
-	# TO DO: will error if job options has '-l select' statement with 'mem' specified: 
+	# Leaving walltime to be specified by user as difficult to set dynamically and
+	# depends on site/admin configuration of default values. Likely means setting for 
+	# longest job with trade-off of longer waiting times for other jobs. 
         if options["cluster_options"]:
-            spec = ["-N %s" % job_name[0:15]]
-	    spec.append("%(cluster_options)s")
+	    if "mem" not in options["cluster_options"]:
+	        spec.append("%(cluster_options)s")
+	    elif "mem" in options["cluster_options"]:
+	        spec = ["-N %s" % job_name[0:15]]
+                spec.append("%(cluster_options)s")
 
 
 	# if process has multiple threads, use a parallel environment:
@@ -209,7 +214,8 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
 	   # mem is per node
 	   # Site dependent but in general setting '#PBS -l select=NN:ncpus=NN:mem=NN{gb|mb}'
 	   # is sufficient for parallel jobs (OpenMP, MPI).
-	   # TO DO: Also architecture dependent, jobs could be hanging if resource doesn't exist. 
+	   # Also architecture dependent, jobs could be hanging if resource doesn't exist.
+	   # TO DO: Kill if long waiting time? 
 	    spec = ["-N %s" % job_name[0:15], 
 		    "-l select=1:ncpus=%s:mem=%s" % (job_threads, job_memory)] 
 
