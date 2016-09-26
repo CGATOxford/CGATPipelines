@@ -560,14 +560,14 @@ class SequenceCollectionProcessor(object):
                         if not self.keep_sra:
                             statement.append(Sra.clean_cache(acc))
                         files.extend(extracted_files)
-                    
+
                     elif repo == "ENA":
                         filenames, dl_paths = Sra.fetch_ENA_files(acc)
                         for f in dl_paths:
                             statement.append(Sra.fetch_ENA(f, tmpdir_fastq))
                         files.extend([os.path.join(tmpdir_fastq, x) for x
                                       in filenames])
-                    
+
                     elif repo == "TCGA":
                         tar_name = line.strip().split("\t")[2]
                         token = glob.glob("gdc-user-token*")
@@ -609,9 +609,9 @@ class SequenceCollectionProcessor(object):
                 for old, new in zip(files, new_files):
                     if old != new:
                         statement.append("mv %s %s" % (old, new))
-                    
+
                 fastqfiles.append(new_files)
-                        
+
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
@@ -933,8 +933,6 @@ class Mapper(SequenceCollectionProcessor):
                  remove_non_unique=False,
                  tool_options="",
                  *args, **kwargs):
-        '''
-       '''
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
 
         if executable:

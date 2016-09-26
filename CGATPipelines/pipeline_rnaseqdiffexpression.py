@@ -344,6 +344,11 @@ P.getParameters(
      "../pipeline.ini",
      "pipeline.ini"])
 
+# add configuration values from associated pipelines
+#
+# 1. pipeline_annotations: any parameters will be added with the
+#    prefix "annotations_". The interface will be updated with
+#    "annotations_dir" to point to the absolute path names.
 PARAMS = P.PARAMS
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
@@ -356,7 +361,7 @@ PipelineGeneset.PARAMS = PARAMS
 
 Sample = PipelineTracks.AutoSample
 
-# collect sra nd fastq.gz tracks
+# collect bam tracks
 TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.bam"), "(\S+).bam")
 
