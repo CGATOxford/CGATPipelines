@@ -123,9 +123,8 @@ class Splicer(object):
              of commands separated by ``;`` and/or can be unix pipes.
 
         '''
-        cmd_splicer = self.splicer(self.design, self.gtf, outfile)
-        outfile2 = outfile + "/sashimi"
-        cmd_visualise = self.visualise(outfile2)
+        cmd_splicer = self.splicer(outfile)
+        cmd_visualise = self.visualise(outfile)
         cmd_clean = self.cleanup(outfile)
 
         assert cmd_splicer.strip().endswith(";"),\
@@ -155,6 +154,7 @@ class rMATS(Splicer):
         self.pvalue = pvalue
 
     def splicer(self, outfile):
+        design = self.design
         group1 = ",".join(
             ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[0])])
         group2 = ",".join(
@@ -162,7 +162,6 @@ class rMATS(Splicer):
         readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
         pvalue = self.pvalue
         gtf = self.gtf
-        design = self.design
 
         statement = '''rMATS
         -b1 %(group1)s
@@ -198,9 +197,6 @@ class rMATS(Splicer):
 
     def visualise(self, outfile):
 
-        if not os.path.exists(outfile):
-            os.makedirs(outfile)
-
         results = P.snip(outfile) + ".dir/MATS_output/SE.MATS.JunctionCountOnly.txt"
         Design = self.design
         if len(Design.groups) != 2:
@@ -220,6 +216,9 @@ class rMATS(Splicer):
         group2 = ",".join(["%s.bam" % x for x in g2])
         group1name = Design.groups[0]
         group2name = Design.groups[1]
+        outfile = outfile + ".dir/sashimi"
+        if not os.path.exists(outfile):
+            os.makedirs(outfile)
 
         statement = '''rmats2sashimiplot
         -s1 %(group1)s
