@@ -197,10 +197,9 @@ class rMATS(Splicer):
 
     def visualise(self, outfile):
 
-        results = P.snip(outfile) + ".dir/MATS_output/SE.MATS.JunctionCountOnly.txt"
         Design = self.design
         if len(Design.groups) != 2:
-            raise ValueError("Please specify exactly two groups per experiment.")
+            raise ValueError("Please specify exactly 2 groups per experiment.")
 
         g1 = Design.getSamplesInGroup(Design.groups[0])
         g2 = Design.getSamplesInGroup(Design.groups[1])
@@ -208,26 +207,35 @@ class rMATS(Splicer):
         if len(g1) != len(g2):
             g1 = g1[:min(len(g1), len(g2))]
             g2 = g2[:min(len(g1), len(g2))]
-            E.info("The two groups compared were of unequal size. For visual " +
-                   "display using sashimi they have been truncated to the " +
-                   "same length")
+            E.info("The two groups compared were of unequal size. For  " +
+                   "visual display using sashimi they have been truncated " +
+                   "to the same length")
 
         group1 = ",".join(["%s.bam" % x for x in g1])
         group2 = ",".join(["%s.bam" % x for x in g2])
         group1name = Design.groups[0]
         group2name = Design.groups[1]
-        outfile = outfile + ".dir/sashimi"
+        gtffile = self.gtf
+        outfile2 = outfile + "/sashimi"
         if not os.path.exists(outfile):
             os.makedirs(outfile)
 
-        statement = '''rmats2sashimiplot
-        -s1 %(group1)s
-        -s2 %(group2)s
-        -e %(results)s
-        -l1 %(group1name)s
-        -l2 %(group2name)s
-        -o %(outfile)s;
-        ''' % locals()
+        statement = ""
+        splice_events = ["SE", "A5SS", "A3SS", "MXE", "RI"]
+
+        for event in splice_events:
+            results = P.snip(outfile) \
+                      + ".dir/MATS_output/%s.MATS.JunctionCountOnly.txt"\
+                      % event
+            statement += '''rmats2sashimiplot
+            -b1 %(group1)s
+            -b2 %(group2)s
+            -t %(event)s
+            -e %(results)s
+            -l1 %(group1name)s
+            -l2 %(group2name)s
+            -o %(outfile2)s; Checkpoint;
+            ''' % locals()
 
         return statement
 
