@@ -154,13 +154,15 @@ class rMATS(Splicer):
         Splicer.__init__(self, *args, **kwargs)
         self.pvalue = pvalue
 
-    def splicer(self, design, gtf, outfile):
+    def splicer(self, outfile):
         group1 = ",".join(
             ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[0])])
         group2 = ",".join(
             ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[1])])
         readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
         pvalue = self.pvalue
+        gtf=self.gtf
+        design=self.design
 
         statement = '''rMATS
         -b1 %(group1)s
@@ -244,8 +246,14 @@ class DEXSeq(Splicer):
         Splicer.__init__(self, *args, **kwargs)
         self.pvalue = pvalue
 
-    def run(self,
-            design,
-            outfile_prefix=None):
+    def splicer(self,
+            outfile):
+        # create r objects
+        r_counts = pandas2ri.py2ri(counts.table)
+        r_groups = ro.StrVector(design.conditions)
+        r_pairs = ro.StrVector(design.pairs)
+        r_has_pairs = ro.default_py2ri(design.has_pairs)
+        r_has_replicates = ro.default_py2ri(design.has_replicates)
+    
 
         return

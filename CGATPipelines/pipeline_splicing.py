@@ -351,6 +351,39 @@ def runMATS(infile, outfile):
     P.run()
 
 
+@follows(countDEXSeq)
+@mkdir("results.dir/DEXSeq")
+@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
+           regex("(\S+).txt)",
+           r"results.dir/DEXSeq/\1.dir/sashimi"))
+def runDEXSeq(infile,outfile):
+    '''
+    '''
+    if not design.has_replicates and dispersion is None:
+           raise ValueError("no replicates and no dispersion")
+
+    if not os.path.exists(outfile):
+        os.makedirs(outfile)
+
+    gtffile = os.path.abspath("geneset.gff")
+
+    design = Expression.ExperimentalDesign(infile)
+
+    if len(design.groups) != 2:
+        raise ValueError("Please specify exactly two groups per experiment.")
+
+    # job_threads = PARAMS["MATS_threads"]
+    # job_memory = PARAMS["MATS_memory"]
+
+    m = PipelineSplicing.rMATS(gtf=gtffile, design=design,
+                               pvalue=PARAMS["MATS_cutoff"])
+
+    statement = m.build(outfile)
+
+    P.run()
+
+
+
 @follows(runMATS)
 def full():
     pass
