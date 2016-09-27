@@ -266,7 +266,6 @@ def buildGtf(infile, outfile):
 def buildGff(infile, outfile):
     '''Creates a gff for DEXSeq
 
-
     This takes the gtf and flattens it to an exon based input
     required by DEXSeq
 
@@ -309,12 +308,10 @@ def countDEXSeq(infiles, outfile):
 
     infile, gfffile = infiles
     ps = pythonScriptsDir
-
     if BamTools.isPaired(infile):
         paired = "yes"
     else:
         paired = "no"
-
     strandedness = PARAMS["DEXSeq_strandedness"]
 
     statement = '''python %(ps)s/dexseq_count.py
@@ -329,7 +326,7 @@ def countDEXSeq(infiles, outfile):
 @mkdir("results.dir/rMATS")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/rMATS/\1.dir/summary.txt")
+           r"results.dir/rMATS/\1.dir/sashimi")
 def runMATS(infile, outfile):
     '''run rMATS.'''
 
@@ -355,18 +352,6 @@ def runMATS(infile, outfile):
 
 
 @follows(runMATS)
-@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
-           regex("(\S+).design.tsv"),
-           r"results.dir/\1.sashimi")
-def sashimi(infile, outfile):
-
-    return
-
-# ---------------------------------------------------
-# Generic pipeline tasks
-
-
-@follows(sashimi)
 def full():
     pass
 

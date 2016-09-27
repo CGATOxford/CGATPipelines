@@ -124,7 +124,8 @@ class Splicer(object):
 
         '''
         cmd_splicer = self.splicer(self.design, self.gtf, outfile)
-        cmd_visualise = self.visualise(outfile)
+        outfile2 = outfile + "/sashimi"
+        cmd_visualise = self.visualise(outfile2)
         cmd_clean = self.cleanup(outfile)
 
         assert cmd_splicer.strip().endswith(";"),\
@@ -194,13 +195,12 @@ class rMATS(Splicer):
         return statement
 
     def visualise(self, outfile):
-        return ""
 
         if not os.path.exists(outfile):
             os.makedirs(outfile)
 
         results = P.snip(outfile) + ".dir/MATS_output/SE.MATS.JunctionCountOnly.txt"
-        Design = Expression.ExperimentalDesign(infile)
+        Design = self.design
         if len(Design.groups) != 2:
             raise ValueError("Please specify exactly two groups per experiment.")
 
@@ -225,9 +225,10 @@ class rMATS(Splicer):
         -e %(results)s
         -l1 %(group1name)s
         -l2 %(group2name)s
-        -o %(outfile)s
-        '''
-        P.run()
+        -o %(outfile)s;
+        ''' % locals()
+
+        return statement
 
     def cleanup(self, outfile):
         return ""
