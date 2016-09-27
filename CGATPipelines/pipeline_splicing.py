@@ -354,8 +354,8 @@ def runMATS(infile, outfile):
 @follows(countDEXSeq)
 @mkdir("results.dir/DEXSeq")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
-           regex("(\S+).txt)",
-           r"results.dir/DEXSeq/\1.dir/sashimi"))
+           regex("(\S+).txt"),
+           r"results.dir/DEXSeq/\1.dir")
 def runDEXSeq(infile, outfile):
     '''
     '''
