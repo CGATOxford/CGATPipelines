@@ -79,18 +79,18 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 class Splicer(object):
     ''' base clase for DS experiments '''
 
-    def __init__(self, gtf, design):
-        self.gtf = gtf
+    def __init__(self, design, gtf=None, executable=None):
+        self.design = design
+        if gtf:
+            self.gtf = gtf
+        if executable:
+            self.executable = executable
 
     def __call__(self):
         ''' call DS and generate an initial results table '''
         self.callDifferentialSplicing()
 
-    def preprocess(self):
-        ''' Processing of BAM file to desired format'''
-        return ""
-
-    def splicer(Self):
+    def splicer(self):
         ''' Custom DS functions '''
         return ""
 
@@ -98,7 +98,11 @@ class Splicer(object):
         ''' Visualise results using plots'''
         return ""
 
-    def build(self, infiles, outfile):
+    def cleanup(self):
+        ''' Visualise results using plots'''
+        return ""
+
+    def build(self, outfile):
         '''run mapper
 
         This method combines the output of the :meth:`preprocess`,
@@ -119,26 +123,21 @@ class Splicer(object):
              of commands separated by ``;`` and/or can be unix pipes.
 
         '''
-
-        cmd_preprocess = self.preprocess(infiles, outfile)
-        cmd_splicer = self.splicer(design, outfile)
-        cmd_visualise = self.visualise(infiles, outfile)
+        cmd_splicer = self.splicer(self.design, self.gtf, outfile)
+        cmd_visualise = self.visualise(outfile)
         cmd_clean = self.cleanup(outfile)
 
-        assert cmd_preprocess.strip().endswith(";"),\
-            "missing ';' at end of command %s" % cmd_preprocess.strip()
-        assert cmd_mapper.strip().endswith(";"),\
-            "missing ';' at end of command %s" % cmd_mapper.strip()
-        if cmd_postprocess:
-            assert cmd_postprocess.strip().endswith(";"),\
-                "missing ';' at end of command %s" % cmd_postprocess.strip()
+        assert cmd_splicer.strip().endswith(";"),\
+            "missing ';' at end of command %s" % cmd_splicer.strip()
+        if cmd_visualise:
+            assert cmd_visualise.strip().endswith(";"),\
+                "missing ';' at end of command %s" % cmd_visualise.strip()
         if cmd_clean:
             assert cmd_clean.strip().endswith(";"),\
                 "missing ';' at end of command %s" % cmd_clean.strip()
 
-        statement = " checkpoint; ".join((cmd_preprocess,
-                                          cmd_mapper,
-                                          cmd_postprocess,
+        statement = " checkpoint; ".join((cmd_splicer,
+                                          cmd_visualise,
                                           cmd_clean))
 
         return statement
@@ -149,54 +148,58 @@ class rMATS(Splicer):
        using rMATS
     '''
 
-    def __init__(self, executable="rMATS", pvalue=0.05,
+    def __init__(self, pvalue=0.05,
                  *args, **kwargs):
         Splicer.__init__(self, *args, **kwargs)
-
-        self.executable = executable
         self.pvalue = pvalue
 
-    def splicer(self,
-                design,
-                outfile_prefix=None):
-
-        self.design = design
-
+    def splicer(self, design, gtf, outfile):
         group1 = ",".join(
             ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[0])])
         group2 = ",".join(
             ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[1])])
         readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
+        pvalue = self.pvalue
 
-        statement = '''%(self.executable)s
+
+        statement = '''rMATS
         -b1 %(group1)s
         -b2 %(group2)s
-        -gtf %(self.gtf)s)
+        -gtf %(gtf)s
         -o %(outfile)s
         -len %(readlength)s
-        -c %(self.pvalue)s
+        -c %(pvalue)s
         ''' % locals()
 
         # Specify paired design
         if design.has_pairs:
             statement += "-analysis P "
 
-            # Get Insert Size Statistics if Paired End Reads
-            if BamTools.isPaired(design.samples[0]+".bam"):
-                inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
-                            for sample in design.getSamplesInGroup(design.groups[0])]
-                inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
-                            for sample in design.getSamplesInGroup(design.groups[1])]
-                r1 = ",".join(map(str, [item[0] for item in inserts1]))
-                sd1 = ",".join(map(str, [item[1] for item in inserts1]))
-                r2 = ",".join(map(str, [item[0] for item in inserts2]))
-                sd2 = ",".join(map(str, [item[1] for item in inserts2]))
+        # Get Insert Size Statistics if Paired End Reads
+        if BamTools.isPaired(design.samples[0]+".bam"):
+            inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
+                        for sample in design.getSamplesInGroup(design.groups[0])]
+            inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam", 10000)
+                        for sample in design.getSamplesInGroup(design.groups[1])]
+            r1 = ",".join(map(str, [item[0] for item in inserts1]))
+            sd1 = ",".join(map(str, [item[1] for item in inserts1]))
+            r2 = ",".join(map(str, [item[0] for item in inserts2]))
+            sd2 = ",".join(map(str, [item[1] for item in inserts2]))
 
-                statement += '''-t paired
-                -r1 %(r1)s -r2 %(r2)s
-                -sd1 %(sd1)s -sd2 %(sd2)s''' % locals()
+            statement += '''-t paired
+            -r1 %(r1)s -r2 %(r2)s
+            -sd1 %(sd1)s -sd2 %(sd2)s''' % locals()
+
+        
+        statement += "; "
 
         return statement
+
+    def visualise(self, outfile):
+        return ""
+
+    def cleanup(self, outfile):
+        return ""
 
 
 class DEXSeq(Splicer):
@@ -204,11 +207,9 @@ class DEXSeq(Splicer):
        using DEXSeq
     '''
 
-    def __init__(self, executable="rMATS", pvalue=0.05,
+    def __init__(self, pvalue=0.05,
                  *args, **kwargs):
         Splicer.__init__(self, *args, **kwargs)
-
-        self.executable = executable
         self.pvalue = pvalue
 
     def run(self,

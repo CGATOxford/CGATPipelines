@@ -131,6 +131,7 @@ import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
+import CGATPipelines.PipelineSplicing as PipelineSplicing
 
 # load options from the config file
 PARAMS = P.getParameters(
@@ -288,7 +289,7 @@ def buildGff(infile, outfile):
 @transform(glob.glob("*.bam"),
            regex("(\S+).bam"),
            add_inputs(buildGff),
-           r"results.dir/rMATS/\1.txt")
+           r"\1.txt")
 def countDEXSeq(infiles, outfile):
     '''creates counts for DEXSeq
 
@@ -310,7 +311,7 @@ def countDEXSeq(infiles, outfile):
     infile, gfffile = infiles
     ps = pythonScriptsDir
 
-    if Bamtools.isPaired(infiles):
+    if BamTools.isPaired(infile):
         paired = "yes"
     else:
         paired = "no"
@@ -318,9 +319,10 @@ def countDEXSeq(infiles, outfile):
     strandedness = PARAMS["DEXSeq_strandedness"]
 
     statement = '''python %(ps)s/dexseq_count.py 
-                   -p %(paired)s 
-                   -r %(strandedness)s
-                   -f bam  %(gfffile)s %(infile)s %(outfile)s'''
+    -p %(paired)s 
+    -s %(strandedness)s
+    -r pos
+    -f bam  %(gfffile)s %(infile)s %(outfile)s'''
     P.run()
 
 
@@ -328,7 +330,7 @@ def countDEXSeq(infiles, outfile):
 @mkdir("results.dir/rMATS")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/rMATS/\1.dir")
+           r"results.dir/rMATS/\1.dir/summary.txt")
 def runMATS(infile, outfile):
     '''run rMATS.'''
 
@@ -342,15 +344,13 @@ def runMATS(infile, outfile):
     if len(design.groups) != 2:
         raise ValueError("Please specify exactly two groups per experiment.")
 
-    job_threads = PARAMS["MATS_threads"]
-    job_memory = PARAMS["MATS_memory"]
+    # job_threads = PARAMS["MATS_threads"]
+    # job_memory = PARAMS["MATS_memory"]
 
-    m = PipelineSplicing.rMATS(
-        executable=P.substituteParameters(**locals())["MATS_executable"],
-        pvalue=P.substituteParameters(**locals())["MATS_cutoff"],
-        gtf=gtffile)
+    m = PipelineSplicing.rMATS(gtf=gtffile, design=design,
+                               pvalue=PARAMS["MATS_cutoff"])
 
-    statement = m.build(design, outfile)
+    statement = m.build(outfile)
 
     P.run()
 
@@ -391,7 +391,7 @@ def sashimi(infile, outfile):
     -l1 %(group1name)s
     -l2 %(group2name)s
     -o %(outfile)s
-    ''' % locals()
+    ''' 
     P.run()
 
 
