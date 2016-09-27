@@ -248,7 +248,7 @@ def buildGtf(infile, outfile):
     geneset = IOTools.openFile(infile)
     outf = IOTools.openFile(outfile, "wb")
     for entry in GTF.iterator(geneset):
-        if entry.gene_id in rrna_list or entry.gene_id in chrM_list:
+        if entry.gene_id not in rrna_list or entry.gene_id not in chrM_list:
             outf.write("\t".join((map(
                 str,
                 [entry.contig, entry.source, entry.feature,
