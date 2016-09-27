@@ -326,7 +326,7 @@ def countDEXSeq(infiles, outfile):
 @mkdir("results.dir/rMATS")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/rMATS/\1.dir/sashimi")
+           r"results.dir/rMATS/\1.dir")
 def runMATS(infile, outfile):
     '''run rMATS.'''
 
@@ -356,11 +356,11 @@ def runMATS(infile, outfile):
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).txt)",
            r"results.dir/DEXSeq/\1.dir/sashimi"))
-def runDEXSeq(infile,outfile):
+def runDEXSeq(infile, outfile):
     '''
     '''
     if not design.has_replicates and dispersion is None:
-           raise ValueError("no replicates and no dispersion")
+        raise ValueError("no replicates and no dispersion")
 
     if not os.path.exists(outfile):
         os.makedirs(outfile)
@@ -381,7 +381,6 @@ def runDEXSeq(infile,outfile):
     statement = m.build(outfile)
 
     P.run()
-
 
 
 @follows(runMATS)
