@@ -161,7 +161,6 @@ class rMATS(Splicer):
         readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
         pvalue = self.pvalue
 
-
         statement = '''rMATS
         -b1 %(group1)s
         -b2 %(group2)s
@@ -190,13 +189,45 @@ class rMATS(Splicer):
             -r1 %(r1)s -r2 %(r2)s
             -sd1 %(sd1)s -sd2 %(sd2)s''' % locals()
 
-        
         statement += "; "
 
         return statement
 
     def visualise(self, outfile):
         return ""
+
+        if not os.path.exists(outfile):
+            os.makedirs(outfile)
+
+        results = P.snip(outfile) + ".dir/MATS_output/SE.MATS.JunctionCountOnly.txt"
+        Design = Expression.ExperimentalDesign(infile)
+        if len(Design.groups) != 2:
+            raise ValueError("Please specify exactly two groups per experiment.")
+
+        g1 = Design.getSamplesInGroup(Design.groups[0])
+        g2 = Design.getSamplesInGroup(Design.groups[1])
+
+        if len(g1) != len(g2):
+            g1 = g1[:min(len(g1), len(g2))]
+            g2 = g2[:min(len(g1), len(g2))]
+            E.info("The two groups compared were of unequal size. For visual " +
+                   "display using sashimi they have been truncated to the " +
+                   "same length")
+
+        group1 = ",".join(["%s.bam" % x for x in g1])
+        group2 = ",".join(["%s.bam" % x for x in g2])
+        group1name = Design.groups[0]
+        group2name = Design.groups[1]
+
+        statement = '''rmats2sashimiplot
+        -s1 %(group1)s
+        -s2 %(group2)s
+        -e %(results)s
+        -l1 %(group1name)s
+        -l2 %(group2name)s
+        -o %(outfile)s
+        '''
+        P.run()
 
     def cleanup(self, outfile):
         return ""
