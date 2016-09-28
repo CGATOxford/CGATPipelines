@@ -234,7 +234,7 @@ class rMATS(Splicer):
             -e %(results)s
             -l1 %(group1name)s
             -l2 %(group2name)s
-            -o %(outfile2)s; Checkpoint;
+            -o %(outfile2)s; checkpoint;
             ''' % locals()
 
         return statement
@@ -248,17 +248,59 @@ class DEXSeq(Splicer):
        using DEXSeq
     '''
 
-    def __init__(self, pvalue=0.05,
-                 *args, **kwargs):
+    def __init__(self, counts, model=None, *args, **kwargs):
         Splicer.__init__(self, *args, **kwargs)
-        self.pvalue = pvalue
+        self.counts = counts
+        self.model = model
 
     def splicer(self, outfile):
         # create r objects
+        design = self.design
+        counts = self.counts
+        model = self.model
         r_counts = pandas2ri.py2ri(counts.table)
         r_groups = ro.StrVector(design.conditions)
         r_pairs = ro.StrVector(design.pairs)
         r_has_pairs = ro.default_py2ri(design.has_pairs)
         r_has_replicates = ro.default_py2ri(design.has_replicates)
+
+        if design.factors is not None:
+            r_factors_df = pandas2ri.py2ri(design.factors)
+        else:
+            r_factors_df = ro.default_py2ri(False)
+
+        r_ref_group = ro.default_py2ri(ref_group)
+
+        if contrasts is not None:
+            DEtype = "GLM"
+
+            # if model not included, use the column names from design.factors
+            if not model:
+
+                if design.factors is not None:
+                    model = "~" + "+".join(design.factors.columns)
+                    model_terms = design.factors.columns.values.tolist()
+
+                else:
+                    E.warn("need to supply a full model or else "
+                           "additional columns in the design table "
+                           "which will be taken as the full model")
+            else:
+                model_terms = [x for x in re.split("[\+~ ]+", model)[1:]
+                               if x != "0"]
+
+            r_model = ro.default_py2ri(model)
+
+        else:
+            DEtype = "pairwise"
+
+        r_DEtype = ro.default_py2ri(DEtype)
+
+        E.info('running DEXSeq: groups=%s, pairs=%s, replicates=%s, pairs=%s, '
+               'additional_factors:' %
+               (design.groups, design.pairs, design.has_replicates,
+                design.has_pairs))
+
+        design.table.index = [x.replace("-", ".") for x in design.table.index]
 
         return

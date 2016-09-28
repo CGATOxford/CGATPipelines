@@ -123,7 +123,6 @@ import os
 import glob
 import sqlite3
 from rpy2.robjects import r as R
-import rpy2.robjects as ro
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
 import CGAT.Expression as Expression
@@ -287,7 +286,7 @@ def buildGff(infile, outfile):
 @transform(glob.glob("*.bam"),
            regex("(\S+).bam"),
            add_inputs(buildGff),
-           r"\1.txt")
+           r"counts.dir/\1.txt")
 def countDEXSeq(infiles, outfile):
     '''creates counts for DEXSeq
 
@@ -319,6 +318,39 @@ def countDEXSeq(infiles, outfile):
     -s %(strandedness)s
     -r pos
     -f bam  %(gfffile)s %(infile)s %(outfile)s'''
+    P.run()
+
+
+@collate(countDEXSeq,
+         regex("counts.dir/([^.]+)\.txt"),
+         r"summarycounts.tsv")
+def aggregateExonCounts(infiles, outfile):
+    ''' Build a matrix of counts with exons and tracks dimensions.
+
+    Uses `combine_tables.py` to combine all the `txt` files output from
+    countDEXSeq into a single :term:`tsv` file named
+    "summarycounts.tsv". A `.log` file is also produced.
+
+    Parameters
+    ---------
+    infiles : list
+        a list of `tsv.gz` files from the feature_counts.dir that were the
+        output from feature counts
+    outfile : string
+        a filename denoting the file containing a matrix of counts with genes
+        as rows and tracks as the columns - this is a `tsv.gz` file      '''
+
+    infiles = " ".join(infiles)
+    statement = '''python %(scriptsdir)s/combine_tables.py
+    --columns=1
+    --take=2
+    --use-file-prefix
+    --regex-filename='([^.]+)\.txt'
+    --log=%(outfile)s.log
+    %(infiles)s
+    | sed 's/geneid/gene_id/'
+    > %(outfile)s '''
+
     P.run()
 
 
@@ -365,7 +397,7 @@ def runDEXSeq(infile, outfile):
     if not os.path.exists(outfile):
         os.makedirs(outfile)
 
-    gtffile = os.path.abspath("geneset.gff")
+    gfffile = os.path.abspath("geneset.gff")
 
     design = Expression.ExperimentalDesign(infile)
 
@@ -375,8 +407,8 @@ def runDEXSeq(infile, outfile):
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    m = PipelineSplicing.rMATS(gtf=gtffile, design=design,
-                               pvalue=PARAMS["MATS_cutoff"])
+    m = PipelineSplicing.DEXSeq(gtf=gfffile, design=design, counts=counts,
+                                model=PARAMS["DEXSeq_model"])
 
     statement = m.build(outfile)
 
