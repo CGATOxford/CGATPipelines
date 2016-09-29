@@ -269,7 +269,7 @@ if PARAMS.get("preprocessors", None):
                 PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
 
         if PARAMS["auto_remove"]:
-            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
                 "contaminants.fasta",
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
