@@ -60,6 +60,7 @@ Requirements:
 
 import sys
 import rpy2
+import re
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
 from rpy2.robjects import pandas2ri
@@ -71,6 +72,7 @@ import glob
 import sqlite3
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
+import CGAT.Counts as Counts
 import CGAT.Expression as Expression
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -80,7 +82,7 @@ class Splicer(object):
     ''' base clase for DS experiments '''
 
     def __init__(self, design, gtf=None, executable=None):
-        self.design = design
+        self.design = Expression.ExperimentalDesign(design)
         if gtf:
             self.gtf = gtf
         if executable:
@@ -224,8 +226,7 @@ class rMATS(Splicer):
         splice_events = ["SE", "A5SS", "A3SS", "MXE", "RI"]
 
         for event in splice_events:
-            results = P.snip(outfile) \
-                      + ".dir/MATS_output/%s.MATS.JunctionCountOnly.txt"\
+            results = outfile + "/MATS_output/%s.MATS.JunctionCountOnly.txt"\
                       % event
             statement += '''rmats2sashimiplot
             -b1 %(group1)s
@@ -240,7 +241,8 @@ class rMATS(Splicer):
         return statement
 
     def cleanup(self, outfile):
-        return ""
+        statement = ""
+        return statement
 
 
 class DEXSeq(Splicer):
@@ -248,59 +250,88 @@ class DEXSeq(Splicer):
        using DEXSeq
     '''
 
-    def __init__(self, counts, model=None, *args, **kwargs):
+    def __init__(self, countsdir, model=None, *args, **kwargs):
         Splicer.__init__(self, *args, **kwargs)
-        self.counts = counts
+        self.countsdir = os.path.abspath(countsdir)
         self.model = model
 
     def splicer(self, outfile):
-        # create r objects
         design = self.design
-        counts = self.counts
+        countsdir = self.countsdir
         model = self.model
-        r_counts = pandas2ri.py2ri(counts.table)
+        gff = self.gtf
+
+        pandas2ri.activate()
+
+        # create r objects
         r_groups = ro.StrVector(design.conditions)
         r_pairs = ro.StrVector(design.pairs)
         r_has_pairs = ro.default_py2ri(design.has_pairs)
         r_has_replicates = ro.default_py2ri(design.has_replicates)
+        r_gff = ro.StrVector(gff)
 
         if design.factors is not None:
             r_factors_df = pandas2ri.py2ri(design.factors)
         else:
             r_factors_df = ro.default_py2ri(False)
 
-        r_ref_group = ro.default_py2ri(ref_group)
+        # if model not included, use the column names from design.factors
+        if not model:
 
-        if contrasts is not None:
-            DEtype = "GLM"
+            if design.factors is not None:
+                model = "~" + "+".join(design.factors.columns)
+                model_terms = design.factors.columns.values.tolist()
 
-            # if model not included, use the column names from design.factors
-            if not model:
-
-                if design.factors is not None:
-                    model = "~" + "+".join(design.factors.columns)
-                    model_terms = design.factors.columns.values.tolist()
-
-                else:
-                    E.warn("need to supply a full model or else "
-                           "additional columns in the design table "
-                           "which will be taken as the full model")
             else:
-                model_terms = [x for x in re.split("[\+~ ]+", model)[1:]
-                               if x != "0"]
-
-            r_model = ro.default_py2ri(model)
-
+                E.warn("need to supply a full model or else "
+                       "additional columns in the design table "
+                       "which will be taken as the full model")
         else:
-            DEtype = "pairwise"
+            model_terms = [x for x in re.split("[\+~ ]+", model)[1:]
+                           if x != "0"]
 
-        r_DEtype = ro.default_py2ri(DEtype)
+        print outfile
+        r_model = ro.StrVector(model)
 
-        E.info('running DEXSeq: groups=%s, pairs=%s, replicates=%s, pairs=%s, '
-               'additional_factors:' %
+        E.info('running DEXSeq2: groups=%s, pairs=%s, replicates=%s, pairs=%s,'
+               ' additional_factors:' %
                (design.groups, design.pairs, design.has_replicates,
                 design.has_pairs))
 
-        design.table.index = [x.replace("-", ".") for x in design.table.index]
+        # design.table.index = [x.replace("-", ".") for x in design.table.index]
+
+        # load DEXSeq
+        R('''suppressMessages(library('DEXSeq'))''')
+
+        # build counts dataset
+        df_temp = design.table.rename(columns={'group': 'condition'})
+        r_design = pandas2ri.py2ri(df_temp)
+
+        E.info("%s" % countsdir)
+        E.info("%s" % r_design)
+        E.info("%s" % gff)
+        E.info("%s" % model)
+
+        allfiles = [file for file in os.listdir(countsdir)]
+        countfiles = []
+        for item in list(design.table.index):
+            countfiles += [countsdir+"/"+x for x in allfiles if item in x]
+        r_countfiles = ro.StrVector(countfiles)
+
+        E.info("%s" % r_countfiles)
+
+        buildCountDataSet = R('''
+        function(countFiles, gff, design, model){
+
+        dxd <- suppressMessages(DEXSeqDataSetFromHTSeq(
+                     countFiles,
+                     sampleData=design,
+                     design=model,
+                     flattenedfile=gff))
+
+        return(dxd)
+        }''' % locals())
+        r_dxd = buildCountDataSet(countfiles, gff, df_temp,
+                                  model)
 
         return

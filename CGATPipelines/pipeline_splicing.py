@@ -129,6 +129,7 @@ import CGAT.Expression as Expression
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
+import CGAT.Counts as Counts
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineSplicing as PipelineSplicing
 
@@ -152,7 +153,7 @@ PARAMS.update(P.peekParameters(
     restrict_interface=True))  # add config values from associated pipelines
 
 
-pythonScriptsDir = R('''
+PYTHONSCRIPTSDIR = R('''
     f = function(){
     pythonScriptsDir = system.file("python_scripts", package="DEXSeq")
     }
@@ -277,7 +278,7 @@ def buildGff(infile, outfile):
     outfile : string
         A :term:`gff` file for use in DEXSeq'''
 
-    ps = pythonScriptsDir
+    ps = PYTHONSCRIPTSDIR
 
     statement = '''python %(ps)s/dexseq_prepare_annotation.py %(infile)s %(outfile)s'''
     P.run()
@@ -306,7 +307,7 @@ def countDEXSeq(infiles, outfile):
         A :term:`txt` file containing results'''
 
     infile, gfffile = infiles
-    ps = pythonScriptsDir
+    ps = PYTHONSCRIPTSDIR
     if BamTools.isPaired(infile):
         paired = "yes"
     else:
@@ -346,9 +347,9 @@ def aggregateExonCounts(infiles, outfile):
     --take=2
     --use-file-prefix
     --regex-filename='([^.]+)\.txt'
+    --no-titles
     --log=%(outfile)s.log
     %(infiles)s
-    | sed 's/geneid/gene_id/'
     > %(outfile)s '''
 
     P.run()
@@ -367,15 +368,10 @@ def runMATS(infile, outfile):
 
     gtffile = os.path.abspath("geneset.gtf")
 
-    design = Expression.ExperimentalDesign(infile)
-
-    if len(design.groups) != 2:
-        raise ValueError("Please specify exactly two groups per experiment.")
-
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    m = PipelineSplicing.rMATS(gtf=gtffile, design=design,
+    m = PipelineSplicing.rMATS(gtf=gtffile, design=infile,
                                pvalue=PARAMS["MATS_cutoff"])
 
     statement = m.build(outfile)
@@ -383,31 +379,25 @@ def runMATS(infile, outfile):
     P.run()
 
 
-@follows(countDEXSeq)
+@follows(aggregateExonCounts)
 @mkdir("results.dir/DEXSeq")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
-           regex("(\S+).txt"),
+           regex("(\S+).tsv"),
            r"results.dir/DEXSeq/\1.dir")
-def runDEXSeq(infile, outfile):
+def runDEXSeq(infile,
+              outfile):
     '''
     '''
-    if not design.has_replicates and dispersion is None:
-        raise ValueError("no replicates and no dispersion")
-
     if not os.path.exists(outfile):
         os.makedirs(outfile)
 
+    countsdir = "counts.dir/"
     gfffile = os.path.abspath("geneset.gff")
-
-    design = Expression.ExperimentalDesign(infile)
-
-    if len(design.groups) != 2:
-        raise ValueError("Please specify exactly two groups per experiment.")
 
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    m = PipelineSplicing.DEXSeq(gtf=gfffile, design=design, counts=counts,
+    m = PipelineSplicing.DEXSeq(gtf=gfffile, design=infile, countsdir=countsdir,
                                 model=PARAMS["DEXSeq_model"])
 
     statement = m.build(outfile)
