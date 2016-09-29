@@ -92,15 +92,15 @@ class Splicer(object):
         ''' call DS and generate an initial results table '''
         self.callDifferentialSplicing()
 
-    def splicer(self):
+    def splicer(self, outfile):
         ''' Custom DS functions '''
         return ""
 
-    def visualise(self):
+    def visualise(self, outfile):
         ''' Visualise results using plots'''
         return ""
 
-    def cleanup(self):
+    def cleanup(self, outfile):
         ''' Visualise results using plots'''
         return ""
 
@@ -264,74 +264,36 @@ class DEXSeq(Splicer):
         pandas2ri.activate()
 
         # create r objects
-        r_groups = ro.StrVector(design.conditions)
-        r_pairs = ro.StrVector(design.pairs)
-        r_has_pairs = ro.default_py2ri(design.has_pairs)
-        r_has_replicates = ro.default_py2ri(design.has_replicates)
-        r_gff = ro.StrVector(gff)
-
-        if design.factors is not None:
-            r_factors_df = pandas2ri.py2ri(design.factors)
-        else:
-            r_factors_df = ro.default_py2ri(False)
-
-        # if model not included, use the column names from design.factors
-        if not model:
-
-            if design.factors is not None:
-                model = "~" + "+".join(design.factors.columns)
-                model_terms = design.factors.columns.values.tolist()
-
-            else:
-                E.warn("need to supply a full model or else "
-                       "additional columns in the design table "
-                       "which will be taken as the full model")
-        else:
-            model_terms = [x for x in re.split("[\+~ ]+", model)[1:]
-                           if x != "0"]
-
-        print outfile
-        r_model = ro.StrVector(model)
-
-        E.info('running DEXSeq2: groups=%s, pairs=%s, replicates=%s, pairs=%s,'
+        E.info('running DEXSeq: groups=%s, pairs=%s, replicates=%s, pairs=%s,'
                ' additional_factors:' %
                (design.groups, design.pairs, design.has_replicates,
                 design.has_pairs))
-
-        # design.table.index = [x.replace("-", ".") for x in design.table.index]
 
         # load DEXSeq
         R('''suppressMessages(library('DEXSeq'))''')
 
         # build counts dataset
-        df_temp = design.table.rename(columns={'group': 'condition'})
-        r_design = pandas2ri.py2ri(df_temp)
-
-        E.info("%s" % countsdir)
-        E.info("%s" % r_design)
-        E.info("%s" % gff)
-        E.info("%s" % model)
+        sampleTable = design.table.rename(columns={'group': 'condition'})
 
         allfiles = [file for file in os.listdir(countsdir)]
         countfiles = []
         for item in list(design.table.index):
             countfiles += [countsdir+"/"+x for x in allfiles if item in x]
-        r_countfiles = ro.StrVector(countfiles)
-
-        E.info("%s" % r_countfiles)
 
         buildCountDataSet = R('''
-        function(countFiles, gff, design, model){
+        function(countFiles, gff, sampleTable, model){
+
+        full_model <- formula("%(model)s")
 
         dxd <- suppressMessages(DEXSeqDataSetFromHTSeq(
                      countFiles,
-                     sampleData=design,
-                     design=model,
-                     flattenedfile=gff))
+                     sampleData=sampleTable,
+                     flattenedfile=gff,
+                     design=full_model))
 
         return(dxd)
         }''' % locals())
-        r_dxd = buildCountDataSet(countfiles, gff, df_temp,
+        r_dxd = buildCountDataSet(countfiles, gff, sampleTable,
                                   model)
 
-        return
+        return "ping -c 1 www.ndcn.ox.ac.uk;"
