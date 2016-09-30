@@ -82,7 +82,7 @@ class Splicer(object):
     ''' base clase for DS experiments '''
 
     def __init__(self, design, gtf=None, executable=None):
-        self.design = Expression.ExperimentalDesign(design)
+        self.design = design
         if gtf:
             self.gtf = gtf
         if executable:
@@ -154,6 +154,7 @@ class rMATS(Splicer):
                  *args, **kwargs):
         Splicer.__init__(self, *args, **kwargs)
         self.pvalue = pvalue
+        self.design = Expression.ExperimentalDesign(design)
 
     def splicer(self, outfile):
         design = self.design
@@ -260,40 +261,18 @@ class DEXSeq(Splicer):
         countsdir = self.countsdir
         model = self.model
         gff = self.gtf
+        dexseq_fdr = 0.05
 
-        pandas2ri.activate()
+        statement = '''
+        python %%(scriptsdir)s/counts2table.py
+        --design-tsv-file=%(design)s
+        --output-filename-pattern=%(outfile)s
+        --log=%(outfile)s.log
+        --method=dexseq
+        --fdr=%(dexseq_fdr)s
+        --model=%(model)s
+        --dexseq-counts-dir=%(countsdir)s
+        --dexseq-flattened-file=%(gff)s;
+        ''' % locals()
 
-        # create r objects
-        E.info('running DEXSeq: groups=%s, pairs=%s, replicates=%s, pairs=%s,'
-               ' additional_factors:' %
-               (design.groups, design.pairs, design.has_replicates,
-                design.has_pairs))
-
-        # load DEXSeq
-        R('''suppressMessages(library('DEXSeq'))''')
-
-        # build counts dataset
-        sampleTable = design.table.rename(columns={'group': 'condition'})
-
-        allfiles = [file for file in os.listdir(countsdir)]
-        countfiles = []
-        for item in list(design.table.index):
-            countfiles += [countsdir+"/"+x for x in allfiles if item in x]
-
-        buildCountDataSet = R('''
-        function(countFiles, gff, sampleTable, model){
-
-        full_model <- formula("%(model)s")
-
-        dxd <- suppressMessages(DEXSeqDataSetFromHTSeq(
-                     countFiles,
-                     sampleData=sampleTable,
-                     flattenedfile=gff,
-                     design=full_model))
-
-        return(dxd)
-        }''' % locals())
-        r_dxd = buildCountDataSet(countfiles, gff, sampleTable,
-                                  model)
-
-        return "ping -c 1 www.ndcn.ox.ac.uk;"
+        return statement
