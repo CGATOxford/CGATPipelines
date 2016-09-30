@@ -261,13 +261,13 @@ class DEXSeq(Splicer):
         countsdir = self.countsdir
         model = self.model
         gff = self.gtf
-        dexseq_fdr = 0.05
+        dexseq_fdr = 0.5
 
         statement = '''
         python %%(scriptsdir)s/counts2table.py
         --design-tsv-file=%(design)s
         --output-filename-pattern=%(outfile)s
-        --log=%(outfile)s.log
+        --log=%(outfile)s/DEXSeq.log
         --method=dexseq
         --fdr=%(dexseq_fdr)s
         --model=%(model)s
