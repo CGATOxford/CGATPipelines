@@ -262,12 +262,12 @@ def filterBamfiles(infile, sentinel):
     """
 
     # create tempfile for Picard's MarkDuplicates
-    picard_tmp = picard_tmp = P.getTempDir(PARAMS["scratchdir"])
+    picard_tmp = P.getTempDir(PARAMS["scratchdir"])
 
     outfile = P.snip(sentinel, ".sentinel") + ".bam"
 
     # ensure bamfile is sorted,
-    statement = ["samtools sort @IN@ @OUT@", ]
+    statement = ["samtools sort @IN@ -o @OUT@.bam", ]
 
     # remove unmapped reads
     statement.append("python %(scriptsdir)s/bam2bam.py"
@@ -309,8 +309,8 @@ def filterBamfiles(infile, sentinel):
 
     statement.append("mv @IN@ %(outfile)s")
     statement.append("samtools index %(outfile)s")
-
-    job_options = "-l mem_free=10G"
+    
+    job_memory = "5G"
     statement = P.joinStatements(statement, infile)
 
     P.run()
@@ -564,7 +564,6 @@ def runIDROnIndividualReplicates(infiles, outfile):
     # set IDR parameters (HACK!) WrapperIDR is in /ifs/devel/CGAT
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
 
     # iterate through pairwise combinations of infiles
     for infile1, infile2 in itertools.combinations(infiles, 2):
@@ -574,12 +573,11 @@ def runIDROnIndividualReplicates(infiles, outfile):
                                         outfile,
                                         PARAMS["idr_options_overlap_ratio"],
                                         PARAMS["idr_options_ranking_measure"],
-                                        chr_table,
-                                        idr_script)
+                                        chr_table)
 
         # run
         E.info("applyIDR: processing %s and %s" % (infile1, infile2))
-        job_options = "-l mem_free=5G"
+        job_memory = "5G"
         P.run()
 #        print "\n" + statement + "\n"
 
@@ -590,8 +588,7 @@ def runIDROnIndividualReplicates(infiles, outfile):
            r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForIndividualReplicates(infiles, outfile):
     # HACK!
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
-    statement = IDR.getIDRPlotStatement(infiles, outfile, idr_script)
+    statement = IDR.getIDRPlotStatement(infiles, outfile)
     P.run()
 #    print statement
 
@@ -609,7 +606,6 @@ def runIDROnPseudoreplicates(infiles, outfile):
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -617,12 +613,11 @@ def runIDROnPseudoreplicates(infiles, outfile):
                                     outfile,
                                     PARAMS["idr_options_overlap_ratio"],
                                     PARAMS["idr_options_ranking_measure"],
-                                    chr_table,
-                                    idr_script)
+                                    chr_table)
 
     # run
     E.info("applyIDR: processing %s and %s" % (infiles[0], infiles[1]))
-    job_options = "-l mem_free=5G"
+    job_memory = "5G"
     P.run()
 #    print  "\n" + statement + "\n"
 
@@ -632,8 +627,7 @@ def runIDROnPseudoreplicates(infiles, outfile):
          add_inputs(r"\1*-uri.sav"),
          r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForPseudoreplicates(infiles, outfile):
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
-    statement = IDR.getIDRPlotStatement(infiles[0], outfile, idr_script)
+    statement = IDR.getIDRPlotStatement(infiles[0], outfile)
     P.run()
 
 
@@ -650,7 +644,6 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -658,12 +651,11 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
                                     outfile,
                                     PARAMS["idr_options_overlap_ratio"],
                                     PARAMS["idr_options_ranking_measure"],
-                                    chr_table,
-                                    idr_script)
+                                    chr_table)
 
     # run
     E.info("applyIDR: processing %s and %s" % (infiles[0], infiles[1]))
-    job_options = "-l mem_free=5G"
+    job_memory = "5G"
     P.run()
 #    print "\n" + statement + "\n"
 
@@ -673,8 +665,7 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
          add_inputs(r"\1*-uri.sav"),
          r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForPooledPseudoreplicates(infiles, outfile):
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
-    statement = IDR.getIDRPlotStatement(infiles[0], outfile, idr_script)
+    statement = IDR.getIDRPlotStatement(infiles[0], outfile)
     P.run()
 #    print "\n" + statement + "\n"
 
