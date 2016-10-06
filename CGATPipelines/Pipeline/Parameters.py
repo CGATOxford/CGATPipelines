@@ -149,8 +149,8 @@ HARDCODED_PARAMS = {
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
     # queue manager (supported: sge, slurm, torque, pbspro)
     'cluster_queue_manager': 'sge',
-    # cluster queue to use, 
-    'cluster_queue': "all.q",
+    # cluster queue to use 
+    'cluster_queue': 'all.q',
     # priority of jobs in cluster queue
     'cluster_priority': -10,
     # number of jobs to submit to cluster queue

@@ -356,9 +356,8 @@ def collectSingleJobFromCluster(session, job_id,
 		raise
 	    retval = None
 
-    else:
-	raise
-    retval = None
+    finally:
+        retval = None
 
 ############
 
