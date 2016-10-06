@@ -1,41 +1,49 @@
 # .bashrc file for jobs running on the cluster nodes
 # echo ".bashrc"
 
+# Antonio - This bashrc should be configured per user/system as some options would
+# error elsewhere
+# Antonio - Lack of semi-colons gives (an inconsequential?) error in some systems:
+# -bash: module: line 1: syntax error: unexpected end of file
+# -bash: error importing function definition for `BASH_FUNC_module'
+
 # Source global definitions
 if [ -f /etc/bashrc ]; then
-	. /etc/bashrc
-fi
+	. /etc/bashrc 
+fi 
 
 ## architecture in cluster for Sun Grid Engine
-SGE_ARCH=lx24_x86
-export SGE_ARCH
+SGE_ARCH=lx24_x86 ; 
+export SGE_ARCH ;
 
 # make sure sort behaves
-LANG=C
-export LANG
+LANG=C ;
+export LANG ;
 
-LC_ALL=C
-export LC_ALL
+LC_ALL=C ;
+export LC_ALL ;
 
 # User specific environment and startup programs
-USER=`whoami`
-export USER
+USER=`whoami` ;
+export USER ;
 
 # add CGAT Pipelines scripts directory to PATH
 # by taking location of this script (bashrc.cgat)
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )" ;
 
-PATH=$DIR:$PATH
-export PATH
+PATH=$DIR:$PATH ;
+export PATH ;
 
-ulimit -S -c 0				# max size of core dumps
-ulimit -S -s unlimited			# max stack size (kbytes)
-ulimit -v 100000000                     # limit maximum amount of memory
+ulimit -S -c 0 ;				# max size of core dumps
+ulimit -S -s unlimited ;			# max stack size (kbytes)
+ulimit -v 100000000 ;                     # limit maximum amount of memory
 
-no_exit_on_failed_exec=1		# prevents dying from failing exec
-notify=1				# immediately warn exiting processes
+no_exit_on_failed_exec=1 ;		# prevents dying from failing exec
+notify=1 ;				# immediately warn exiting processes
 
-umask 002				# -rw-rw-r-
+umask 002 ;				# -rw-rw-r-
 
-module load apps/java apps/python apps/perl apps/graphlib bio/alignlib bio/all
-unset -f module
+# Antonio - In other systems this errors, eg:
+# ModuleCmd_Load.c(213):ERROR:105: Unable to locate a modulefile for 'apps/java'
+#module load apps/java apps/python apps/perl apps/graphlib bio/alignlib bio/all 
+#unset -f module ; 

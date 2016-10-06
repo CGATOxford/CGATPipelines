@@ -334,30 +334,31 @@ def collectSingleJobFromCluster(session, job_id,
         # finished but resource usage information and/or
         # termination status could not be provided.":
 
-#        if not msg.message.startswith("code 24"):
-#	     raise
-#        retval = None
+        if not msg.message.startswith("code 24"):
+	     raise
+        retval = None
 
 ############
-        if msg.message.startswith("code 24"): 
-	    pass
+#        if msg.message.startswith("code 24"): 
+#	    pass
 
-    except ValueError, msg:
-	if "too many values to unpack" in msg:
-	    try:
-		joblist += job_id		
-	        retval = session.synchronize(
-		    joblist, drmaa.Session.TIMEOUT_WAIT_FOREVER, False)
+#    except ValueError, msg:
+#	if "too many values to unpack" in msg:
+#	    try:
+#		joblist = []
+#		joblist += job_id		
+#	        retval = session.synchronize(
+#		    joblist, drmaa.Session.TIMEOUT_WAIT_FOREVER, False)
 
-		for curjob in joblist:
-		    retval = session.wait(
-			curjob, drmaa.Session.TIMEOUT_WAIT_FOREVER)
-	    except:
-		raise
-	    retval = None
+#		for curjob in joblist:
+#		    retval = session.wait(
+#			curjob, drmaa.Session.TIMEOUT_WAIT_FOREVER)
+#	    except:
+#		raise
+#	    retval = None
 
-    finally:
-        retval = None
+#    finally:
+#       retval = None
 
 ############
 
