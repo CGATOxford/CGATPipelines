@@ -62,6 +62,117 @@ import CGATPipelines.Pipeline as P
 # import rpy2.robjects.numpy2ri
 # rpy2.robjects.numpy2ri.activate()
 
+class quantifier(object):
+    ''' base class for transcript and gene-level quantification from a
+    BAM or fastq'''
+
+    def __init__(self, infile, transcript_outfile, gene_outfile, job_threads,
+                 strand, options, annotations):
+        self.infile = infile
+        self.transcript_outfile = transcript_outfile
+        self.gene_outfile = gene_outfile
+        self.job_threads = job_threads
+        self.strand = strand
+        self.options = options
+        self.annotations = annotations
+
+        # if infile.endswith(".bam"):
+        #     self.filetype = "bam"
+
+        # if (infile.endswith(".fastq") or
+        #     infile.endswith(".fastq.gz") or
+        #     infile.endswith(".sra")):
+        #     self.filetype = "fastq"
+
+    def runTranscript(self):
+        ''' generate transcript-level quantification estimates'''
+        pass        
+
+    def runGene(self):
+        ''' generate gene-level quantification estimates'''
+        pass
+
+    def runAll(self):
+        self.runTranscript()
+        self.runGene()
+
+
+class featureCounts(quantifier):
+    ''' document me!!!'''
+
+    def runFeatureCounts(self, level="gene_id"):
+        '''run FeatureCounts to collect read counts.
+
+        If `bamfile` is paired, paired-end counting is enabled and the bam
+        file automatically sorted.
+
+        '''
+
+        bamfile = self.infile
+        job_threads = self.job_threads
+        strand = self.strand
+        options = self.options
+        annotations = self.annotations
+
+        if level == "gene_id":
+            outfile = self.gene_outfile
+        elif level == "transcript_id":
+            outfile = self.transcript_outfile
+        else:
+            raise ValueError("level must be gene_id or transcript_id!")
+
+        # featureCounts cannot handle gzipped in or out files
+        outfile = P.snip(outfile, ".gz")
+        tmpdir = P.getTempDir()
+        annotations_tmp = os.path.join(tmpdir,
+                                       'geneset.gtf')
+        bam_tmp = os.path.join(tmpdir,
+                               os.path.basename(bamfile))
+
+        # -p -B specifies count fragments rather than reads, and both
+        # reads must map to the feature
+        # for legacy reasons look at feature_counts_paired
+        if BamTools.isPaired(bamfile):
+            # select paired end mode, additional options
+            paired_options = "-p -B"
+            # sort by read name
+            paired_processing = \
+                """samtools
+                sort -@ %(job_threads)i -n -o %(bam_tmp)s %(bamfile)s;
+                checkpoint; """ % locals()
+            bamfile = bam_tmp
+        else:
+            paired_options = ""
+            paired_processing = ""
+
+        statement = '''mkdir %(tmpdir)s;
+                       zcat %(annotations)s > %(annotations_tmp)s;
+                       checkpoint;
+                       %(paired_processing)s
+                       featureCounts %(options)s
+                                     -T %(job_threads)i
+                                     -s %(strand)s
+                                     -a %(annotations_tmp)s
+                                     %(paired_options)s
+                                     -o %(outfile)s -g %(level)s
+                                     %(bamfile)s
+                        >& %(outfile)s.log;
+                        checkpoint;
+                        gzip -f %(outfile)s;
+                        checkpoint;
+                        rm -rf %(tmpdir)s
+        '''
+
+        P.run()
+
+    def runTranscript(self):
+        ''' generate transcript-level quantification estimates'''
+        self.runFeatureCounts(level="transcript_id")
+
+    def runGene(self):
+        ''' generate gene-level quantification estimates'''
+        self.runFeatureCounts(level="gene_id")
+
 
 def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     '''remove genes from GTF file.

@@ -49,7 +49,7 @@ The pipeline performs the following:
       * featureCounts_
       * gtf2table
 
-   * estimate FPKM using cufflinks for each of the gene sets
+   * estimate FPKM using cufflinks for each of the gene sets 
 
    * perform differential expression analysis. The methods currently
      implemented are:
@@ -367,6 +367,80 @@ GENESETS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.gtf.gz"), "(\S+).gtf.gz")
 
 
+
+
+###################################################
+# define quantification targets
+###################################################
+
+
+
+# @product
+
+# @files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
+#          ["featurecounts.dir/%s.%s.tsv.gz" % (x.asFile(), y.asFile()),
+#         for x, y in itertools.product(TRACKS, GENESETS)])
+
+@follows(mkdir("featurecounts.dir"))
+@product(["%s.bam" % x.asFile() for x in TRACKS], formatter("(.bam)$"),
+         ["%s.gtf.gz" % x.asFile() for x in GENESETS], formatter("(.gtf.gz)$"),
+         ["featurecounts.dir/{basename[0][0]}."
+          "{basename[1][0]}.transcripts.tsv.gz",
+          "featurecounts.dir/{basename[0][0]}."
+          "{basename[1][0]}.genes.tsv.gz"])
+def buildFeatureCountsNew(infiles, outfiles):
+    '''counts reads falling into "features", which by default are genes.
+
+    A read overlaps if at least one bp overlaps.
+
+    Pairs and strandedness can be used to resolve reads falling into
+    more than one feature. Reads that cannot be resolved to a single
+    feature are ignored.
+
+    Output is sent to featurecounts.dir
+
+    See feature counts manual http://bioinf.wehi.edu.au/featureCounts/
+    for information about :term:`PARAMS` options
+
+    Parameters
+    ----------
+    infiles : list
+        Two lists of file names, one containing list of :term:`bam` files with 
+        the aligned reads, the second containing a list of :term:`gtf` files 
+        containing the "features" to be counted.
+    featurecounts_threads : int
+        :term:`PARAMS` - number of threads to run feature counts. This is 
+        specified in pipeline.ini
+    featurecounts_strand : int
+        :term:`PARAMS` - see feature counts --help for details of how to set 
+    featurecounts_options : string
+        :term:`PARAMS` - options for running feature counts, set using 
+        pipeline.ini See feature counts --help for details of how to set 
+    outfile : string
+        used to denote output files from feature counts. Three output files are 
+        produced for each input :term:`bam` - :term:`gtf` pair. These are:
+
+        * input_bam.input_gtf.tsv.gz: contains list of gene id's and counts 
+        * input_bam.input_gtf.tsv.summary: contains summary of reads counted
+        * input_bam.input_gtf.tsv.log: log file produced by feature counts
+
+    '''
+    bamfile, annotations = infiles
+    transcript_outfile, gene_outfile = outfiles
+    featureCounter = PipelineRnaseq.featureCounts(
+        infile=bamfile,
+        transcript_outfile=transcript_outfile,
+        gene_outfile=gene_outfile,
+        job_threads=PARAMS['featurecounts_threads'],
+        strand=PARAMS['featurecounts_strand'],
+        options=PARAMS['featurecounts_options'],
+        annotations=annotations)
+
+    featureCounter.runAll()
+
+###################################################
+###################################################
+
 def connect():
     '''Connect to database (sqlite by default)
 
@@ -383,80 +457,6 @@ def connect():
     return dbh
 
 
-# Expression levels: geneset vs bam files
-TARGETS_FPKM = [(("%s.gtf.gz" % x.asFile(), "%s.bam" % y.asFile()),
-                 "%s_%s.cufflinks" % (x.asFile(), y.asFile()))
-                for x, y in itertools.product(GENESETS, TRACKS)]
-
-
-@files(PARAMS["annotations_interface_geneset_all_gtf"],
-       "geneset_mask.gtf")
-def buildMaskGtf(infile, outfile):
-    '''creates a gtf for cufflinks containing the transcripts you do not
-    want to build transcript models of.
-
-    This takes ensembl annotations (geneset_all.gtf.gz) and writes out
-    all entries that have a 'source' match to "rRNA" or 'contig' match
-    to "chrM" for use as a mask with cufflinks (see cufflinks manual
-    for benefits of mask file
-    http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html).
-
-    Parameters
-    ----------
-
-    infile : string
-        :term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
-
-    annotations_interface_table_gene_info : string
-        :term:`PARAMS` gene_info table in annotations database - set
-        in pipeline.ini in annotations directory
-
-    annotations_interface_table_gene_stats : string
-        :term:`PARAMS` gene_stats table in annotations database
-        - set in pipeline.ini in annotations directory
-
-    outfile : string
-
-        A :term:`gtf` file for use as "mask file" for cufflinks.  This
-        is created by filtering infile for certain transcripts e.g.
-        rRNA or chrM transcripts and writing them to outfile
-
-    '''
-
-    dbh = connect()
-
-    try:
-        select = dbh.execute("""SELECT DISTINCT gene_id FROM %s
-        WHERE gene_biotype = 'rRNA';""" % os.path.basename(
-            PARAMS["annotations_interface_table_gene_info"]))
-        rrna_list = [x[0] for x in select]
-    except sqlite3.OperationalError as e:
-        E.warn("can't select rRNA annotations, error='%s'" % str(e))
-        rrna_list = []
-
-    try:
-        select2 = dbh.execute("""SELECT DISTINCT gene_id FROM %s
-        WHERE contig = 'chrM';""" % os.path.basename(
-            PARAMS["annotations_interface_table_gene_stats"]))
-        chrM_list = [x[0] for x in select2]
-    except sqlite3.OperationalError as e:
-        E.warn("can't select rRNA annotations, error='%s'" % str(e))
-        chrM_list = []
-
-    geneset = IOTools.openFile(infile)
-    outf = IOTools.openFile(outfile, "wb")
-    for entry in GTF.iterator(geneset):
-        if entry.gene_id in rrna_list or entry.gene_id in chrM_list:
-            outf.write("\t".join((map(
-                str,
-                [entry.contig, entry.source, entry.feature,
-                 entry.start, entry.end, ".", entry.strand,
-                 ".", "transcript_id" + " " + '"' +
-                 entry.transcript_id + '"' + ";" + " " +
-                 "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
-
-    outf.close()
-
 
 @P.add_doc(PipelineGeneset.loadGeneStats)
 @transform("*.gtf.gz",
@@ -465,6 +465,12 @@ def buildMaskGtf(infile, outfile):
 def loadGeneSetGeneInformation(infile, outfile):
     # Docs for this function linked to PipelineGeneset; please look there.
     PipelineGeneset.loadGeneStats(infile, outfile)
+
+
+# Expression levels: geneset vs bam files
+TARGETS_FPKM = [(("%s.gtf.gz" % x.asFile(), "%s.bam" % y.asFile()),
+                 "%s_%s.cufflinks" % (x.asFile(), y.asFile()))
+                for x, y in itertools.product(GENESETS, TRACKS)]
 
 
 @P.add_doc(PipelineRnaseq.runCufflinks)
@@ -1643,7 +1649,7 @@ def loadDESeq2(infile, outfile):
     os.unlink(tmpf)
 
 
-@follows(mkdir("cuffdiff.dir"), buildMaskGtf)
+#@follows(mkdir("cuffdiff.dir"), buildMaskGtf)
 @product("design*.tsv",
          formatter(".+/(?P<design>.*).tsv$"),
          "*.gtf.gz",
