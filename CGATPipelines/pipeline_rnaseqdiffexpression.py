@@ -354,20 +354,125 @@ PARAMS.update(P.peekParameters(
 
 PipelineGeneset.PARAMS = PARAMS
 
+# Helper functions mapping tracks to conditions, etc
+# determine the location of the input files (reads).
+try:
+    PARAMS["input"]
+except KeyError:
+    DATADIR = "."
+else:
+    if PARAMS["input"] == 0:
+        DATADIR = "."
+    elif PARAMS["input"] == 1:
+        DATADIR = "data.dir"
+    else:
+        DATADIR = PARAMS["input"]  # not recommended practise.
+
 Sample = PipelineTracks.AutoSample
 
 # collect sra nd fastq.gz tracks
+BAM_TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
+    glob.glob("*.bam"), "(\S+).bam")
 TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.bam"), "(\S+).bam")
 
+SEQUENCESUFFIXES = ("*.fastq.1.gz",
+                    "*.fastq.gz",
+                    "*.sra")
+SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
+                      for suffix_name in SEQUENCESUFFIXES])
+
+
 # group by experiment (assume that last field is a replicate identifier)
-EXPERIMENTS = PipelineTracks.Aggregate(TRACKS, labels=("condition", "tissue"))
+EXPERIMENTS = PipelineTracks.Aggregate(BAM_TRACKS, labels=("condition", "tissue"))
 
 GENESETS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.gtf.gz"), "(\S+).gtf.gz")
 
+alignment_free = False
+if len(set(P.asList(PARAMS['quantifiers'])).intersection(
+        set(("kallisto", "salmon", "sailfish")))) > 0:
+    alignment_free = True
 
 
+
+
+###############################################################################
+# build indexes
+###############################################################################
+
+@transform(["%s.gtf.gz" % x.asFile() for x in GENESETS],
+           suffix(".gtf.gz"),
+           ".fa")
+def buildReferenceTranscriptome(infile, outfile):
+    ''' build reference transcriptome from geneset'''
+
+    genome_file = os.path.abspath(
+        os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
+
+    statement = '''
+    zcat %(infile)s |
+    awk '$3=="exon"'|
+    python %(scriptsdir)s/gff2fasta.py
+    --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
+    --log=%(outfile)s.log > %(outfile)s;
+    samtools faidx %(outfile)s
+    '''
+
+    P.run()
+
+@transform(buildReferenceTranscriptome,
+           suffix(".fa"),
+           ".kallisto.index")
+def buildKallistoIndex(infile, outfile):
+    ''' build a kallisto index'''
+
+    job_memory = "12G"
+
+    statement = '''
+    kallisto index -i %(outfile)s -k %(kallisto_kmer)s %(infile)s
+    '''
+
+    P.run()
+
+@active_if(alignment_free)
+@transform(buildReferenceTranscriptome,
+           suffix(".fa"),
+           ".salmon.index")
+def buildSalmonIndex(infile, outfile):
+    ''' build a salmon index'''
+
+    job_memory = "2G"
+
+    statement = '''
+    salmon index %(salmon_index_options)s -t %(infile)s -i %(outfile)s
+    -k %(salmon_kmer)s
+    '''
+
+    P.run()
+
+@active_if(alignment_free)
+@transform(buildReferenceTranscriptome,
+           suffix(".fa"),
+           ".sailfish.index")
+def buildSailfishIndex(infile, outfile):
+    ''' build a sailfish index'''
+
+    # sailfish indexing is more memory intensive than Salmon/Kallisto
+    job_memory = "6G"
+
+    statement = '''
+    sailfish index --transcripts=%(infile)s --out=%(outfile)s
+    --kmerSize=%(sailfish_kmer)s
+    %(sailfish_index_options)s
+    '''
+
+    P.run()
+
+@active_if(alignment_free)
+@follows(buildKallistoIndex, buildSalmonIndex, buildSailfishIndex)
+def buildIndexes():
+    pass
 
 ###################################################
 # define quantification targets
@@ -375,14 +480,8 @@ GENESETS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 
 
 
-# @product
-
-# @files([(("%s.bam" % x.asFile(), "%s.gtf.gz" % y.asFile()),
-#          ["featurecounts.dir/%s.%s.tsv.gz" % (x.asFile(), y.asFile()),
-#         for x, y in itertools.product(TRACKS, GENESETS)])
-
 @follows(mkdir("featurecounts.dir"))
-@product(["%s.bam" % x.asFile() for x in TRACKS], formatter("(.bam)$"),
+@product(["%s.bam" % x.asFile() for x in BAM_TRACKS], formatter("(.bam)$"),
          ["%s.gtf.gz" % x.asFile() for x in GENESETS], formatter("(.gtf.gz)$"),
          ["featurecounts.dir/{basename[0][0]}."
           "{basename[1][0]}.transcripts.tsv.gz",
@@ -416,18 +515,20 @@ def buildFeatureCountsNew(infiles, outfiles):
     featurecounts_options : string
         :term:`PARAMS` - options for running feature counts, set using 
         pipeline.ini See feature counts --help for details of how to set 
-    outfile : string
-        used to denote output files from feature counts. Three output files are 
-        produced for each input :term:`bam` - :term:`gtf` pair. These are:
+    transcript_outfile/gene_outfile : string used to denote output
+        files from feature counts using transcript_ids or gene_ids.
+        Three output files are produced for each input :term:`bam` -
+        :term:`gtf` pair. These are:`
 
-        * input_bam.input_gtf.tsv.gz: contains list of gene id's and counts 
-        * input_bam.input_gtf.tsv.summary: contains summary of reads counted
-        * input_bam.input_gtf.tsv.log: log file produced by feature counts
+        * input_bam.input_gtf.tsv.gz: contains list of gene id's and
+        * counts input_bam.input_gtf.tsv.summary: contains summary of
+        * reads counted input_bam.input_gtf.tsv.log: log file produced
+        * by feature counts
 
     '''
     bamfile, annotations = infiles
     transcript_outfile, gene_outfile = outfiles
-    featureCounter = PipelineRnaseq.featureCounts(
+    Quantifier = PipelineRnaseq.featureCountsQuantifier(
         infile=bamfile,
         transcript_outfile=transcript_outfile,
         gene_outfile=gene_outfile,
@@ -436,7 +537,141 @@ def buildFeatureCountsNew(infiles, outfiles):
         options=PARAMS['featurecounts_options'],
         annotations=annotations)
 
-    featureCounter.runAll()
+    Quantifier.runAll()
+
+
+@follows(mkdir("gtf2table.dir"))
+@product(["%s.bam" % x.asFile() for x in BAM_TRACKS], formatter("(.bam)$"),
+         ["%s.gtf.gz" % x.asFile() for x in GENESETS], formatter("(.gtf.gz)$"),
+         ["gtf2table.dir/{basename[0][0]}."
+          "{basename[1][0]}.transcripts.tsv.gz",
+          "gtf2table.dir/{basename[0][0]}."
+          "{basename[1][0]}.genes.tsv.gz"])
+def buildGTF2TableNew(infiles, outfiles):
+
+    '''compute read counts and coverage of exons with reads.
+
+    Takes a list of :term:`bam` files defined in "TRACKS" paired with
+    :term:`gtf` files specified in "GENESETS" and produces `.tsv.gz`
+    file using gtf2table.py detailing coverage of exonic reads for
+    each bam.  The :term:`gtf` file is used to define exonic regions
+    and a ".log" file is also produced for each input file.
+
+    .. note::
+        This ignores multimapping reads
+
+    Parameters
+    ----------
+    infiles : list
+        Two lists of file names, one containing list of :term:`bam` files with 
+        the aligned reads, the second containing a list of :term:`gtf` files 
+        containing the "features" to be counted.
+    transcript_outfile/gene_outfile : string used to denote output
+        files from feature counts using transcript_ids or gene_ids.
+        Three output files are produced for each input :term:`bam` -
+        :term:`gtf` pair. These are:`
+
+        * input_bam.input_gtf.tsv.gz: contains list of gene id's and
+        * counts input_bam.input_gtf.tsv.summary: contains summary of
+        * reads counted input_bam.input_gtf.tsv.log: log file produced
+        * by feature counts
+
+    '''
+    bamfile, annotations = infiles
+    transcript_outfile, gene_outfile = outfiles
+    Quantifier = PipelineRnaseq.gtf2tableQuantifier(
+        infile=bamfile,
+        transcript_outfile=transcript_outfile,
+        gene_outfile=gene_outfile,
+        annotations=annotations)
+
+    Quantifier.runAll()
+
+
+# enable multiple fastqs from the same sample to be analysed together
+if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
+    SEQUENCEFILES_REGEX = regex(
+        r"%s/%s.(fastq.1.gz|fastq.gz|sra)" % (
+            DATADIR, PARAMS["merge_pattern_input"].strip()))
+
+    # the last expression counts number of groups in pattern_input
+    SEQUENCEFILES_KALLISTO_OUTPUT = [
+        r"kallisto.dir/%s_transcripts/abundance.h5" % (
+            PARAMS["merge_pattern_output"].strip()),
+        r"kallisto.dir/%s_genes/abundance.h5" % (
+            PARAMS["merge_pattern_output"].strip())]
+
+    SEQUENCEFILES_SALMON_OUTPUT = r"salmon.dir/%s/quant.sf" % (
+        PARAMS["merge_pattern_output"].strip())
+    SEQUENCEFILES_SAILFISH_OUTPUT = r"sailfish.dir/%s/quant.sf" % (
+        PARAMS["merge_pattern_output"].strip())
+else:
+    SEQUENCEFILES_REGEX = regex(
+        ".*.(fastq.1.gz|fastq.gz|sra)")
+    SEQUENCEFILES_KALLISTO_OUTPUT = r"quant.dir/kallisto/\1/abundance.h5"
+    SEQUENCEFILES_SALMON_OUTPUT = r"quant.dir/salmon/\1/quant.sf"
+    SEQUENCEFILES_SAILFISH_OUTPUT = r"quant.dir/sailfish/\1/quant.sf"
+
+
+@follows(mkdir("kallisto.dir"))
+@collate(SEQUENCEFILES,
+         SEQUENCEFILES_REGEX,
+         add_inputs(buildKallistoIndex),
+         SEQUENCEFILES_KALLISTO_OUTPUT)
+def buildKallisto(infiles, outfiles):
+
+    '''compute read counts and coverage of exons with reads.
+
+    Takes a list of :term:`bam` files defined in "TRACKS" paired with
+    :term:`gtf` files specified in "GENESETS" and produces `.tsv.gz`
+    file using gtf2table.py detailing coverage of exonic reads for
+    each bam.  The :term:`gtf` file is used to define exonic regions
+    and a ".log" file is also produced for each input file.
+
+    .. note::
+        This ignores multimapping reads
+
+    Parameters
+    ----------
+    infiles : list
+        Two lists of file names, one containing list of :term:`bam` files with 
+        the aligned reads, the second containing a list of :term:`gtf` files 
+        containing the "features" to be counted.
+    transcript_outfile/gene_outfile : string used to denote output
+        files from feature counts using transcript_ids or gene_ids.
+        Three output files are produced for each input :term:`bam` -
+        :term:`gtf` pair. These are:`
+
+        * input_bam.input_gtf.tsv.gz: contains list of gene id's and
+        * counts input_bam.input_gtf.tsv.summary: contains summary of
+        * reads counted input_bam.input_gtf.tsv.log: log file produced
+        * by feature counts
+
+    '''
+
+    # TS more elegant way to parse infiles and index?
+    fastqfile = [x[0] for x in infiles]
+    index = infiles[0][1]
+
+    transcript_outfile, gene_outfile = outfiles
+    Quantifier = PipelineRnaseq.kallistoQuantifier(
+        infile=fastqfile[0],
+        transcript_outfile=transcript_outfile,
+        gene_outfile=gene_outfile,
+        annotations=index,
+        job_threads=PARAMS["kallisto_threads"],
+        job_memory=PARAMS["kallisto_memory"],
+        options=PARAMS["kallisto_options"],        
+        bootstrap=PARAMS["kallisto_bootstrap"],
+        fragment_length=PARAMS["kallisto_fragment_length"],
+        fragment_sd=PARAMS["kallisto_fragment_sd"])
+
+    Quantifier.runAll()
+
+    kallisto_options = PARAMS["kallisto_options"]
+    bootstrap = PARAMS["kallisto_bootstrap"]
+
+    
 
 ###################################################
 ###################################################

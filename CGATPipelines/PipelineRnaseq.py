@@ -56,18 +56,24 @@ import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 
+import CGATPipelines.PipelineMapping as PipelineMapping
+
 # AH: commented as I thought we wanted to avoid to
 # enable this automatically due to unwanted side
 # effects in other modules.
 # import rpy2.robjects.numpy2ri
 # rpy2.robjects.numpy2ri.activate()
 
+
 class quantifier(object):
     ''' base class for transcript and gene-level quantification from a
     BAM or fastq'''
 
-    def __init__(self, infile, transcript_outfile, gene_outfile, job_threads,
-                 strand, options, annotations):
+    def __init__(self, infile, transcript_outfile, gene_outfile, annotations,
+                 job_threads=None, job_memory=None, strand=None,
+                 options=None, bootstrap=None,
+                 fragment_length=None, fragment_sd=None):
+
         self.infile = infile
         self.transcript_outfile = transcript_outfile
         self.gene_outfile = gene_outfile
@@ -75,14 +81,15 @@ class quantifier(object):
         self.strand = strand
         self.options = options
         self.annotations = annotations
+        self.bootstrap = bootstrap
+        self.job_memory = job_memory
+        self.fragment_length = fragment_length
+        self.fragment_sd = fragment_sd
 
-        # if infile.endswith(".bam"):
-        #     self.filetype = "bam"
-
-        # if (infile.endswith(".fastq") or
-        #     infile.endswith(".fastq.gz") or
-        #     infile.endswith(".sra")):
-        #     self.filetype = "fastq"
+        if infile.endswith(".gz"):
+            self.sample = P.snip(P.snip(os.path.basename(infile), ".gz"))
+        else:
+            self.sample = P.snip(os.path.basename(infile))
 
     def runTranscript(self):
         ''' generate transcript-level quantification estimates'''
@@ -97,8 +104,8 @@ class quantifier(object):
         self.runGene()
 
 
-class featureCounts(quantifier):
-    ''' document me!!!'''
+class featureCountsQuantifier(quantifier):
+    ''' quantifier class to run featureCounts '''
 
     def runFeatureCounts(self, level="gene_id"):
         '''run FeatureCounts to collect read counts.
@@ -113,6 +120,7 @@ class featureCounts(quantifier):
         strand = self.strand
         options = self.options
         annotations = self.annotations
+        sample = self.sample
 
         if level == "gene_id":
             outfile = self.gene_outfile
@@ -121,8 +129,6 @@ class featureCounts(quantifier):
         else:
             raise ValueError("level must be gene_id or transcript_id!")
 
-        # featureCounts cannot handle gzipped in or out files
-        outfile = P.snip(outfile, ".gz")
         tmpdir = P.getTempDir()
         annotations_tmp = os.path.join(tmpdir,
                                        'geneset.gtf')
@@ -145,6 +151,8 @@ class featureCounts(quantifier):
             paired_options = ""
             paired_processing = ""
 
+        outfile_raw = outfile + ".raw"
+
         statement = '''mkdir %(tmpdir)s;
                        zcat %(annotations)s > %(annotations_tmp)s;
                        checkpoint;
@@ -154,11 +162,15 @@ class featureCounts(quantifier):
                                      -s %(strand)s
                                      -a %(annotations_tmp)s
                                      %(paired_options)s
-                                     -o %(outfile)s -g %(level)s
+                                     -o %(outfile_raw)s -g %(level)s
                                      %(bamfile)s
                         >& %(outfile)s.log;
                         checkpoint;
-                        gzip -f %(outfile)s;
+                        echo "id\n%(sample)s" | gzip > %(outfile)s;
+                        cut -f1,7 %(outfile_raw)s | grep -v '^#'|
+                        awk 'NR>1' | gzip >> %(outfile)s;
+                        checkpoint;
+                        gzip -f %(outfile_raw)s;
                         checkpoint;
                         rm -rf %(tmpdir)s
         '''
@@ -172,6 +184,97 @@ class featureCounts(quantifier):
     def runGene(self):
         ''' generate gene-level quantification estimates'''
         self.runFeatureCounts(level="gene_id")
+
+
+class gtf2tableQuantifier(quantifier):
+    ''' quantifier class to run gtf2table'''
+
+    def runGTF2Table(self, level="gene_id"):
+
+        bamfile = self.infile
+        annotations = self.annotations
+        sample = self.sample
+
+        if level == "gene_id":
+            outfile = self.gene_outfile
+            reporter = "genes"
+        elif level == "transcript_id":
+            outfile = self.transcript_outfile
+            reporter = "transcripts"
+        else:
+            raise ValueError("level must be gene_id or transcript_id!")
+
+        if BamTools.isPaired(bamfile):
+            counter = 'readpair-counts'
+        else:
+            counter = 'read-counts'
+
+        outfile_raw = outfile + ".raw.gz"
+
+        # ignore multi-mapping reads
+        statement = '''
+        zcat %(annotations)s
+        | python %(scriptsdir)s/gtf2table.py
+              --reporter=%(reporter)s
+              --bam-file=%(bamfile)s
+              --counter=length
+              --column-prefix="exons_"
+              --counter=%(counter)s
+              --column-prefix=""
+              --counter=read-coverage
+              --column-prefix=coverage_
+              --min-mapping-quality=%(counting_min_mapping_quality)i
+              --multi-mapping-method=ignore
+              --log=%(outfile_raw)s.log
+        | gzip
+        > %(outfile_raw)s
+        '''
+
+        P.run()
+
+        with IOTools.openFile(outfile_raw, "r") as inf:
+            while True:
+                header = inf.readline()
+                if not header.startswith("#"):
+                    break
+            print header
+            column_ix = header.strip().split("\t").index("counted_all")
+
+        statement = '''echo "id\n%(sample)s" | gzip > %(outfile)s;
+        zcat %(outfile_raw)s | cut -f1,%(column_ix)s |
+        grep -v '^#' | awk 'NR>1' | gzip >> %(outfile)s
+        '''
+
+        P.run(without_cluster=True)
+
+    def runTranscript(self):
+        ''' generate transcript-level quantification estimates'''
+        self.runGTF2Table(level="transcript_id")
+
+    def runGene(self):
+        ''' generate gene-level quantification estimates'''
+        self.runGTF2Table(level="gene_id")
+
+
+class kallistoQuantifier(quantifier):
+    ''' quantifier class to run kallisto'''
+
+    def runTranscript(self):
+
+        fastqfile = self.infile
+        index = self.annotations
+        job_threads = self.job_threads
+        job_memory = self.job_memory
+        kallisto_options = self.options
+        kallisto_bootstrap = self.bootstrap
+        kallisto_fragment_length = self.fragment_length
+        kallisto_fragment_sd = self.fragment_sd
+
+        m = PipelineMapping.Kallisto(readable=True)
+        statement = m.build((fastqfile,),
+                            self.transcript_outfile)
+
+        P.run()
 
 
 def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):

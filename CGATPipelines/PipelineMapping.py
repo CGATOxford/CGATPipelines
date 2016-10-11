@@ -184,7 +184,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
     ---------
     infile : string
        Input filename in :term:`gtf` format
-    outfile : string
+#    outfile : string
        Output filename in :term:`gtf` format
     logfile : string
        Output filename for logging information.
@@ -1256,10 +1256,11 @@ class Kallisto(Mapper):
     '''run Kallisto to quantify transcript abundance from fastq files
     - set pseudobam to True to output a pseudobam along with the quantification'''
 
-    def __init__(self, pseudobam=False, *args, **kwargs):
+    def __init__(self, pseudobam=False, readable=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.pseudobam = pseudobam
+        self.readable = readable
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles'''
@@ -1317,6 +1318,14 @@ class Kallisto(Mapper):
         statement = ('''
         mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
+
+        if self.readable:
+
+            outfile_readable = outfile + ".tsv"
+            statement += ('''
+            kallisto h5dump -o %(tmpdir)s %(outfile)s;
+            mv %(tmpdir)s/abundance.tsv %(outfile_readable)s;
+            rm -rf %(tmpdir)s/bs_abundance_*.tsv;''' % locals())
 
         return statement
 
