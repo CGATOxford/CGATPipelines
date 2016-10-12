@@ -395,15 +395,14 @@ if len(set(P.asList(PARAMS['quantifiers'])).intersection(
     alignment_free = True
 
 
-
-
 ###############################################################################
 # build indexes
 ###############################################################################
 
+@mkdir('geneset.dir')
 @transform(["%s.gtf.gz" % x.asFile() for x in GENESETS],
-           suffix(".gtf.gz"),
-           ".fa")
+           regex("(\S+).gtf.gz"),
+           r"geneset.dir/\1.fa")
 def buildReferenceTranscriptome(infile, outfile):
     ''' build reference transcriptome from geneset'''
 
@@ -421,6 +420,7 @@ def buildReferenceTranscriptome(infile, outfile):
 
     P.run()
 
+
 @transform(buildReferenceTranscriptome,
            suffix(".fa"),
            ".kallisto.index")
@@ -434,6 +434,7 @@ def buildKallistoIndex(infile, outfile):
     '''
 
     P.run()
+
 
 @active_if(alignment_free)
 @transform(buildReferenceTranscriptome,
@@ -450,6 +451,7 @@ def buildSalmonIndex(infile, outfile):
     '''
 
     P.run()
+
 
 @active_if(alignment_free)
 @transform(buildReferenceTranscriptome,
@@ -469,8 +471,25 @@ def buildSailfishIndex(infile, outfile):
 
     P.run()
 
+
+@originate("transcript2geneMap.tsv")
+def getTranscript2GeneMap(outfile):
+    if PARAMS['transcript2gene_map']:
+        os.symlink(PARAMS['transcript2gene_map'], outfile)
+    else:
+        dbh = sqlite3.connect(PARAMS["annotations_database"])
+
+        select_cmd = '''
+        SELECT DISTINCT transcript_id, gene_id FROM transcript_info'''
+
+        select = dbh.execute(select_cmd)
+        with IOTools.openFile(outfile, "w") as outf:
+            outf.write("transcript_id\tgene_id\n")
+            outf.write("\n".join(["\t".join(x) for x in select]) + "\n")
+
+
 @active_if(alignment_free)
-@follows(buildKallistoIndex, buildSalmonIndex, buildSailfishIndex)
+@follows(buildKallistoIndex, buildSalmonIndex, buildSailfishIndex, getTranscript2GeneMap)
 def buildIndexes():
     pass
 
@@ -616,7 +635,7 @@ else:
 @follows(mkdir("kallisto.dir"))
 @collate(SEQUENCEFILES,
          SEQUENCEFILES_REGEX,
-         add_inputs(buildKallistoIndex),
+         add_inputs(buildKallistoIndex, getTranscript2GeneMap),
          SEQUENCEFILES_KALLISTO_OUTPUT)
 def buildKallisto(infiles, outfiles):
 
@@ -652,6 +671,7 @@ def buildKallisto(infiles, outfiles):
     # TS more elegant way to parse infiles and index?
     fastqfile = [x[0] for x in infiles]
     index = infiles[0][1]
+    transcript2geneMap = infiles[0][2]
 
     transcript_outfile, gene_outfile = outfiles
     Quantifier = PipelineRnaseq.kallistoQuantifier(
@@ -661,10 +681,11 @@ def buildKallisto(infiles, outfiles):
         annotations=index,
         job_threads=PARAMS["kallisto_threads"],
         job_memory=PARAMS["kallisto_memory"],
-        options=PARAMS["kallisto_options"],        
+        options=PARAMS["kallisto_options"], 
         bootstrap=PARAMS["kallisto_bootstrap"],
         fragment_length=PARAMS["kallisto_fragment_length"],
-        fragment_sd=PARAMS["kallisto_fragment_sd"])
+        fragment_sd=PARAMS["kallisto_fragment_sd"],
+        transcript2geneMap=transcript2geneMap)
 
     Quantifier.runAll()
 

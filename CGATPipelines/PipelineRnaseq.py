@@ -42,7 +42,7 @@ import itertools
 import math
 import numpy
 import os
-import pandas
+import pandas as pd
 import re
 
 from rpy2.robjects import r as R
@@ -65,6 +65,20 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 # rpy2.robjects.numpy2ri.activate()
 
 
+def findColumnPosition(infile, column):
+    ''' find the position in the header of the specified column'''
+    with IOTools.openFile(infile, "r") as inf:
+        while True:
+            header = inf.readline()
+            if not header.startswith("#"):
+                column_ix = header.strip().split("\t").index(column)
+                break
+        if column_ix:
+            return column_ix
+        else:
+            raise ValueError("could not find %s in file header" % column)
+
+
 class quantifier(object):
     ''' base class for transcript and gene-level quantification from a
     BAM or fastq'''
@@ -72,7 +86,8 @@ class quantifier(object):
     def __init__(self, infile, transcript_outfile, gene_outfile, annotations,
                  job_threads=None, job_memory=None, strand=None,
                  options=None, bootstrap=None,
-                 fragment_length=None, fragment_sd=None):
+                 fragment_length=None, fragment_sd=None,
+                 transcript2geneMap=None):
 
         self.infile = infile
         self.transcript_outfile = transcript_outfile
@@ -85,15 +100,26 @@ class quantifier(object):
         self.job_memory = job_memory
         self.fragment_length = fragment_length
         self.fragment_sd = fragment_sd
+        self.t2gMap = transcript2geneMap
 
-        if infile.endswith(".gz"):
-            self.sample = P.snip(P.snip(os.path.basename(infile), ".gz"))
-        else:
-            self.sample = P.snip(os.path.basename(infile))
+        suffixes = (".bam",
+                    ".fastq",
+                    ".fastq.1",
+                    ".fastq.1.gz",
+                    ".fastq.gz",
+                    ".sra")
+
+        for suffix in suffixes:
+            if infile.endswith(suffix):
+                self.sample = P.snip(os.path.basename(infile), suffix)
+                break
+
+        if not self.sample:
+            raise ValueError("could not find sample name")
 
     def runTranscript(self):
         ''' generate transcript-level quantification estimates'''
-        pass        
+        pass
 
     def runGene(self):
         ''' generate gene-level quantification estimates'''
@@ -232,15 +258,9 @@ class gtf2tableQuantifier(quantifier):
 
         P.run()
 
-        with IOTools.openFile(outfile_raw, "r") as inf:
-            while True:
-                header = inf.readline()
-                if not header.startswith("#"):
-                    break
-            print header
-            column_ix = header.strip().split("\t").index("counted_all")
+        column_ix = findColumnPosition(outfile_raw, "counted_all")
 
-        statement = '''echo "id\n%(sample)s" | gzip > %(outfile)s;
+        statement = '''echo -e "id\t%(sample)s" | gzip > %(outfile)s;
         zcat %(outfile_raw)s | cut -f1,%(column_ix)s |
         grep -v '^#' | awk 'NR>1' | gzip >> %(outfile)s
         '''
@@ -269,12 +289,43 @@ class kallistoQuantifier(quantifier):
         kallisto_bootstrap = self.bootstrap
         kallisto_fragment_length = self.fragment_length
         kallisto_fragment_sd = self.fragment_sd
+        outfile = self.transcript_outfile
+        transcript2geneMap = self.t2gMap
+        sample = self.sample
 
         m = PipelineMapping.Kallisto(readable=True)
-        statement = m.build((fastqfile,),
-                            self.transcript_outfile)
+
+        outfile_raw = outfile + ".raw"
+        statement = m.build((fastqfile,), outfile_raw)
 
         P.run()
+
+        # need to use the 'readable' outfile, hence the '+.tsv'
+        outfile_raw_readable = outfile_raw + ".tsv"
+        outfile_readable = outfile + ".tsv.gz"
+        column_ix = findColumnPosition(outfile_raw_readable, "est_counts")
+        
+        statement = '''
+        echo -e "id\\t%(sample)s" | gzip > %(outfile_readable)s;
+        cut -f1,%(column_ix)s  %(outfile_raw_readable)s |
+        grep -v '^#' | awk 'NR>1' | gzip >> %(outfile_readable)s
+        '''
+
+        P.run(without_cluster=True)
+
+    def runGene(self):
+        ''' aggregate transcript counts to generate gene-level counts'''
+        transcript_df = pd.read_table(self.transcript_outfile + ".tsv.gz",
+                                      sep="\t", index_col=0)
+        transcript2gene_df = pd.read_table(self.t2gMap, sep="\t", index_col=0)
+        transcript_df = pd.merge(transcript_df, transcript2gene_df,
+                                 left_index=True, right_index=True,
+                                 how="inner")
+        gene_df = pd.DataFrame(transcript_df.groupby('gene_id')[self.sample].sum())
+        gene_df.index.name = 'id'
+        os.mkdir(os.path.dirname(self.gene_outfile))
+        gene_df.to_csv(self.gene_outfile + ".tsv.gz", compression="gzip")
+        P.touch(self.gene_outfile)
 
 
 def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
