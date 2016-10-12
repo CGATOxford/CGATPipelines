@@ -304,7 +304,7 @@ class kallistoQuantifier(quantifier):
         outfile_raw_readable = outfile_raw + ".tsv"
         outfile_readable = outfile + ".tsv.gz"
         column_ix = findColumnPosition(outfile_raw_readable, "est_counts")
-        
+
         statement = '''
         echo -e "id\\t%(sample)s" | gzip > %(outfile_readable)s;
         cut -f1,%(column_ix)s  %(outfile_raw_readable)s |
@@ -324,7 +324,7 @@ class kallistoQuantifier(quantifier):
         gene_df = pd.DataFrame(transcript_df.groupby('gene_id')[self.sample].sum())
         gene_df.index.name = 'id'
         os.mkdir(os.path.dirname(self.gene_outfile))
-        gene_df.to_csv(self.gene_outfile + ".tsv.gz", compression="gzip")
+        gene_df.to_csv(self.gene_outfile + ".tsv.gz", compression="gzip", sep="\t")
         P.touch(self.gene_outfile)
 
 
