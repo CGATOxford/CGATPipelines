@@ -338,30 +338,6 @@ def collectSingleJobFromCluster(session, job_id,
 	     raise
         retval = None
 
-############
-#        if msg.message.startswith("code 24"): 
-#	    pass
-
-#    except ValueError, msg:
-#	if "too many values to unpack" in msg:
-#	    try:
-#		joblist = []
-#		joblist += job_id		
-#	        retval = session.synchronize(
-#		    joblist, drmaa.Session.TIMEOUT_WAIT_FOREVER, False)
-
-#		for curjob in joblist:
-#		    retval = session.wait(
-#			curjob, drmaa.Session.TIMEOUT_WAIT_FOREVER)
-#	    except:
-#		raise
-#	    retval = None
-
-#    finally:
-#       retval = None
-
-############
-
     stdout, stderr = getStdoutStderr(stdout_path, stderr_path)
 
     if retval and retval.exitStatus != 0 and not ignore_errors:
