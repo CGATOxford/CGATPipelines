@@ -44,6 +44,7 @@ import numpy
 import os
 import pandas as pd
 import re
+import shutil
 
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
@@ -74,7 +75,7 @@ def findColumnPosition(infile, column):
                 column_ix = header.strip().split("\t").index(column)
                 break
         if column_ix:
-            return column_ix
+            return column_ix + 1
         else:
             raise ValueError("could not find %s in file header" % column)
 
@@ -87,7 +88,8 @@ class quantifier(object):
                  job_threads=None, job_memory=None, strand=None,
                  options=None, bootstrap=None,
                  fragment_length=None, fragment_sd=None,
-                 transcript2geneMap=None):
+                 transcript2geneMap=None, libtype=None, kmer=None,
+                 biascorrect=None):
 
         self.infile = infile
         self.transcript_outfile = transcript_outfile
@@ -101,6 +103,9 @@ class quantifier(object):
         self.fragment_length = fragment_length
         self.fragment_sd = fragment_sd
         self.t2gMap = transcript2geneMap
+        self.libtype = libtype
+        self.kmer = kmer
+        self.biascorrect = biascorrect
 
         suffixes = (".bam",
                     ".fastq",
@@ -124,6 +129,18 @@ class quantifier(object):
     def runGene(self):
         ''' generate gene-level quantification estimates'''
         pass
+
+    def parseTable(self, outfile_raw, outfile, columnname):
+        column_ix = findColumnPosition(outfile_raw, columnname)
+        sample = self.sample
+
+        statement = '''
+        echo -e "id\\t%(sample)s" | gzip > %(outfile)s;
+        grep -v '^#' %(outfile_raw)s |
+        cut -f1,%(column_ix)s | awk 'NR>1' | gzip >> %(outfile)s;
+        gzip -f %(outfile_raw)s;
+        ''' % locals()
+        P.run()
 
     def runAll(self):
         self.runTranscript()
@@ -177,7 +194,7 @@ class featureCountsQuantifier(quantifier):
             paired_options = ""
             paired_processing = ""
 
-        outfile_raw = outfile + ".raw"
+        outfile_raw = P.snip(outfile) + ".raw"
 
         statement = '''mkdir %(tmpdir)s;
                        zcat %(annotations)s > %(annotations_tmp)s;
@@ -191,17 +208,11 @@ class featureCountsQuantifier(quantifier):
                                      -o %(outfile_raw)s -g %(level)s
                                      %(bamfile)s
                         >& %(outfile)s.log;
-                        checkpoint;
-                        echo "id\n%(sample)s" | gzip > %(outfile)s;
-                        cut -f1,7 %(outfile_raw)s | grep -v '^#'|
-                        awk 'NR>1' | gzip >> %(outfile)s;
-                        checkpoint;
-                        gzip -f %(outfile_raw)s;
-                        checkpoint;
                         rm -rf %(tmpdir)s
         '''
-
         P.run()
+
+        self.parseTable(outfile_raw, outfile, "%s.bam" % self.sample)
 
     def runTranscript(self):
         ''' generate transcript-level quantification estimates'''
@@ -235,7 +246,7 @@ class gtf2tableQuantifier(quantifier):
         else:
             counter = 'read-counts'
 
-        outfile_raw = outfile + ".raw.gz"
+        outfile_raw = P.snip(outfile) + ".raw"
 
         # ignore multi-mapping reads
         statement = '''
@@ -252,20 +263,12 @@ class gtf2tableQuantifier(quantifier):
               --min-mapping-quality=%(counting_min_mapping_quality)i
               --multi-mapping-method=ignore
               --log=%(outfile_raw)s.log
-        | gzip
         > %(outfile_raw)s
         '''
 
         P.run()
 
-        column_ix = findColumnPosition(outfile_raw, "counted_all")
-
-        statement = '''echo -e "id\t%(sample)s" | gzip > %(outfile)s;
-        zcat %(outfile_raw)s | cut -f1,%(column_ix)s |
-        grep -v '^#' | awk 'NR>1' | gzip >> %(outfile)s
-        '''
-
-        P.run(without_cluster=True)
+        self.parseTable(outfile_raw, outfile, 'counted_all')
 
     def runTranscript(self):
         ''' generate transcript-level quantification estimates'''
@@ -276,7 +279,25 @@ class gtf2tableQuantifier(quantifier):
         self.runGTF2Table(level="gene_id")
 
 
-class kallistoQuantifier(quantifier):
+class AFQuantifier(quantifier):
+    def runGene(self):
+        ''' aggregate transcript counts to generate gene-level counts'''
+        transcript_df = pd.read_table(self.transcript_outfile + ".tsv.gz",
+                                      sep="\t", index_col=0)
+        transcript2gene_df = pd.read_table(self.t2gMap, sep="\t", index_col=0)
+        transcript_df = pd.merge(transcript_df, transcript2gene_df,
+                                 left_index=True, right_index=True,
+                                 how="inner")
+        gene_df = pd.DataFrame(transcript_df.groupby(
+            'gene_id')[self.sample].sum())
+        gene_df.index.name = 'id'
+        os.mkdir(os.path.dirname(self.gene_outfile))
+        gene_df.to_csv(
+            self.gene_outfile + ".tsv.gz", compression="gzip", sep="\t")
+        P.touch(self.gene_outfile)
+
+
+class kallistoQuantifier(AFQuantifier):
     ''' quantifier class to run kallisto'''
 
     def runTranscript(self):
@@ -303,29 +324,69 @@ class kallistoQuantifier(quantifier):
         # need to use the 'readable' outfile, hence the '+.tsv'
         outfile_raw_readable = outfile_raw + ".tsv"
         outfile_readable = outfile + ".tsv.gz"
-        column_ix = findColumnPosition(outfile_raw_readable, "est_counts")
 
-        statement = '''
-        echo -e "id\\t%(sample)s" | gzip > %(outfile_readable)s;
-        cut -f1,%(column_ix)s  %(outfile_raw_readable)s |
-        grep -v '^#' | awk 'NR>1' | gzip >> %(outfile_readable)s
-        '''
+        self.parseTable(outfile_raw_readable, outfile_readable, 'est_counts')
 
-        P.run(without_cluster=True)
 
-    def runGene(self):
-        ''' aggregate transcript counts to generate gene-level counts'''
-        transcript_df = pd.read_table(self.transcript_outfile + ".tsv.gz",
-                                      sep="\t", index_col=0)
-        transcript2gene_df = pd.read_table(self.t2gMap, sep="\t", index_col=0)
-        transcript_df = pd.merge(transcript_df, transcript2gene_df,
-                                 left_index=True, right_index=True,
-                                 how="inner")
-        gene_df = pd.DataFrame(transcript_df.groupby('gene_id')[self.sample].sum())
-        gene_df.index.name = 'id'
-        os.mkdir(os.path.dirname(self.gene_outfile))
-        gene_df.to_csv(self.gene_outfile + ".tsv.gz", compression="gzip", sep="\t")
-        P.touch(self.gene_outfile)
+class sailfishQuantifier(AFQuantifier):
+    ''' quantifier class to run sailfish'''
+
+    def runTranscript(self):
+        fastqfile = self.infile
+        index = self.annotations
+        job_threads = self.job_threads
+        job_memory = self.job_memory
+
+        sailfish_options = self.options
+        sailfish_bootstrap = self.bootstrap
+        sailfish_libtype = self.libtype
+        outfile = self.transcript_outfile
+        transcript2geneMap = self.t2gMap
+        sample = self.sample
+
+        m = PipelineMapping.Sailfish()
+
+        statement = m.build((fastqfile,), outfile)
+
+        P.run()
+
+        outfile_raw = outfile + ".tsv.raw"
+        shutil.copy(outfile, outfile_raw)
+
+        outfile_tsv = outfile + ".tsv.gz"
+
+        self.parseTable(outfile_raw, outfile_tsv, 'TPM')
+
+
+class salmonQuantifier(AFQuantifier):
+    '''quantifier class to run salmon'''
+    def runTranscript(self):
+        fastqfile = self.infile
+        index = self.annotations
+        job_threads = self.job_threads
+        job_memory = self.job_memory
+        biascorrect = self.biascorrect
+
+        salmon_options = self.options
+        salmon_bootstrap = self.bootstrap
+        salmon_libtype = self.libtype
+        salmon_kmer = self.kmer
+        outfile = self.transcript_outfile
+        transcript2geneMap = self.t2gMap
+        sample = self.sample
+
+        m = PipelineMapping.Salmon(bias_correct=biascorrect)
+
+        statement = m.build((fastqfile,), outfile)
+
+        P.run()
+
+        outfile_raw = outfile + ".tsv.raw"
+        shutil.copy(outfile, outfile_raw)
+
+        outfile_tsv = outfile + ".tsv.gz"
+
+        self.parseTable(outfile_raw, outfile_tsv, 'TPM')
 
 
 def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):

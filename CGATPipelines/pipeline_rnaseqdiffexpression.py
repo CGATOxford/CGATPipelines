@@ -488,10 +488,11 @@ def getTranscript2GeneMap(outfile):
             outf.write("\n".join(["\t".join(x) for x in select]) + "\n")
 
 
-@active_if(alignment_free)
-@follows(buildKallistoIndex, buildSalmonIndex, buildSailfishIndex, getTranscript2GeneMap)
-def buildIndexes():
-    pass
+# @active_if(alignment_free)
+# @follows(buildKallistoIndex, buildSalmonIndex, buildSailfishIndex,
+#          getTranscript2GeneMap)
+# def buildIndexes():
+#     pass
 
 ###################################################
 # define quantification targets
@@ -523,17 +524,17 @@ def buildFeatureCountsNew(infiles, outfiles):
     Parameters
     ----------
     infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with 
-        the aligned reads, the second containing a list of :term:`gtf` files 
+        Two lists of file names, one containing list of :term:`bam` files with
+        the aligned reads, the second containing a list of :term:`gtf` files
         containing the "features" to be counted.
     featurecounts_threads : int
-        :term:`PARAMS` - number of threads to run feature counts. This is 
+        :term:`PARAMS` - number of threads to run feature counts. This is
         specified in pipeline.ini
     featurecounts_strand : int
-        :term:`PARAMS` - see feature counts --help for details of how to set 
+        :term:`PARAMS` - see feature counts --help for details of how to set
     featurecounts_options : string
-        :term:`PARAMS` - options for running feature counts, set using 
-        pipeline.ini See feature counts --help for details of how to set 
+        :term:`PARAMS` - options for running feature counts, set using
+        pipeline.ini See feature counts --help for details of how to set
     transcript_outfile/gene_outfile : string used to denote output
         files from feature counts using transcript_ids or gene_ids.
         Three output files are produced for each input :term:`bam` -
@@ -582,8 +583,8 @@ def buildGTF2TableNew(infiles, outfiles):
     Parameters
     ----------
     infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with 
-        the aligned reads, the second containing a list of :term:`gtf` files 
+        Two lists of file names, one containing list of :term:`bam` files with
+        the aligned reads, the second containing a list of :term:`gtf` files
         containing the "features" to be counted.
     transcript_outfile/gene_outfile : string used to denote output
         files from feature counts using transcript_ids or gene_ids.
@@ -620,10 +621,18 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
         r"kallisto.dir/%s_genes/abundance.h5" % (
             PARAMS["merge_pattern_output"].strip())]
 
-    SEQUENCEFILES_SALMON_OUTPUT = r"salmon.dir/%s/quant.sf" % (
-        PARAMS["merge_pattern_output"].strip())
-    SEQUENCEFILES_SAILFISH_OUTPUT = r"sailfish.dir/%s/quant.sf" % (
-        PARAMS["merge_pattern_output"].strip())
+    SEQUENCEFILES_SALMON_OUTPUT = [
+        r"salmon.dir/%s_transcripts/quant.sf" % (
+            PARAMS["merge_pattern_output"].strip()),
+        r"salmon.dir/%s_genes/quant.sf" % (
+            PARAMS["merge_pattern_output"].strip())]
+
+    SEQUENCEFILES_SAILFISH_OUTPUT = [
+        r"sailfish.dir/%s_transcripts/quant.sf" % (
+            PARAMS["merge_pattern_output"].strip()),
+        r"sailfish.dir/%s_genes/quant.sf" % (
+            PARAMS["merge_pattern_output"].strip())]
+
 else:
     SEQUENCEFILES_REGEX = regex(
         ".*.(fastq.1.gz|fastq.gz|sra)")
@@ -653,8 +662,8 @@ def buildKallisto(infiles, outfiles):
     Parameters
     ----------
     infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with 
-        the aligned reads, the second containing a list of :term:`gtf` files 
+        Two lists of file names, one containing list of :term:`bam` files with
+        the aligned reads, the second containing a list of :term:`gtf` files
         containing the "features" to be counted.
     transcript_outfile/gene_outfile : string used to denote output
         files from feature counts using transcript_ids or gene_ids.
@@ -681,7 +690,7 @@ def buildKallisto(infiles, outfiles):
         annotations=index,
         job_threads=PARAMS["kallisto_threads"],
         job_memory=PARAMS["kallisto_memory"],
-        options=PARAMS["kallisto_options"], 
+        options=PARAMS["kallisto_options"],
         bootstrap=PARAMS["kallisto_bootstrap"],
         fragment_length=PARAMS["kallisto_fragment_length"],
         fragment_sd=PARAMS["kallisto_fragment_sd"],
@@ -689,10 +698,60 @@ def buildKallisto(infiles, outfiles):
 
     Quantifier.runAll()
 
-    kallisto_options = PARAMS["kallisto_options"]
-    bootstrap = PARAMS["kallisto_bootstrap"]
 
-    
+@follows(mkdir("sailfish.dir"))
+@collate(SEQUENCEFILES,
+         SEQUENCEFILES_REGEX,
+         add_inputs(buildSailfishIndex, getTranscript2GeneMap),
+         SEQUENCEFILES_SAILFISH_OUTPUT)
+def buildSailfish(infiles, outfiles):
+    fastqfile = [x[0] for x in infiles]
+    index = infiles[0][1]
+    transcript2geneMap = infiles[0][2]
+
+    transcript_outfile, gene_outfile = outfiles
+    Quantifier = PipelineRnaseq.sailfishQuantifier(
+        infile=fastqfile[0],
+        transcript_outfile=transcript_outfile,
+        gene_outfile=gene_outfile,
+        annotations=index,
+        job_threads=PARAMS["sailfish_threads"],
+        job_memory=PARAMS["sailfish_memory"],
+        options=PARAMS["sailfish_options"],
+        bootstrap=PARAMS["sailfish_bootstrap"],
+        libtype=PARAMS['sailfish_libtype'],
+        transcript2geneMap=transcript2geneMap)
+
+    Quantifier.runAll()
+
+
+@follows(mkdir("salmon.dir"))
+@collate(SEQUENCEFILES,
+         SEQUENCEFILES_REGEX,
+         add_inputs(buildSalmonIndex, getTranscript2GeneMap),
+         SEQUENCEFILES_SALMON_OUTPUT)
+def buildSalmon(infiles, outfiles):
+    fastqfile = [x[0] for x in infiles]
+    index = infiles[0][1]
+    transcript2geneMap = infiles[0][2]
+
+    transcript_outfile, gene_outfile = outfiles
+    Quantifier = PipelineRnaseq.salmonQuantifier(
+        infile=fastqfile[0],
+        transcript_outfile=transcript_outfile,
+        gene_outfile=gene_outfile,
+        annotations=index,
+        job_threads=PARAMS["salmon_threads"],
+        job_memory=PARAMS["salmon_memory"],
+        options=PARAMS["salmon_options"],
+        bootstrap=PARAMS["salmon_bootstrap"],
+        libtype=PARAMS['salmon_libtype'],
+        kmer=PARAMS['salmon_kmer'],
+        biascorrect=PARAMS['salmon_bias_correct'],
+        transcript2geneMap=transcript2geneMap)
+
+    Quantifier.runAll()
+
 
 ###################################################
 ###################################################
