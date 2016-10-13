@@ -302,6 +302,7 @@ df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
                                                  PARAMS['IDR_poolinputs'])
 
 
+print inputD
 # INPUTBAMS - list of control (input) bam files
 # CHIPBAMS - list of experimental bam files on which to call peaks and perform
 # IDR
@@ -361,8 +362,10 @@ def filterInputBAMs(infile, outfiles):
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
     blthresh = PARAMS['filters_blacklistthresh']
+    if blthresh != "":
+        blthresh = float(blthresh)
     PipelinePeakcalling.filterBams(infile, outfiles, filters, bedfiles,
-                                   float(blthresh),
+                                   blthresh,
                                    PARAMS['paired_end'],
                                    PARAMS['filters_strip'],
                                    PARAMS['filters_qual'],
@@ -634,8 +637,8 @@ elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
         outs = set(inputD.values())
         for out in outs:
             p = out.split("_")
-            cond = p[1]
-            tissue = p[2].split(".")[0]
+            cond = p[0]
+            tissue = p[1]
 
             # collect the appropriate bam files from their current location
             subdf = df[((df['Condition'] == cond) & (df['Tissue'] == tissue))]
@@ -644,7 +647,7 @@ elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
                 ["filtered_bams.dir/%s" % s.replace(".bam", "_filtered.bam")
                  for s in innames])
             out = "IDR_inputs.dir/%s" % out
-
+            out = out.replace(".bam", "_filtered.bam")
             PipelinePeakcalling.mergeSortIndex(innames, out)
 
 
@@ -788,12 +791,12 @@ def callMacs2peaks(infiles, outfile):
 
     peakcaller = PipelinePeakcalling.Macs2Peakcaller(
         threads=1,
-        paired_end=True,
+        paired_end=PARAMS['paired_end'],
         tool_options=PARAMS['macs2_options'],
         tagsize=None)
 
     statement = peakcaller.build(bam, outfile,
-                                 PARAMS['annotations_interface_contigs'],
+                                 PARAMS['macs2_contigsfile'],
                                  inputf, insertsizef, PARAMS['IDR_run'],
                                  PARAMS['macs2_idrkeeppeaks'],
                                  PARAMS['macs2_idrsuffix'],

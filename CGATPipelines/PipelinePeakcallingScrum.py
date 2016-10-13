@@ -321,8 +321,10 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                                          bamout)
     statement, inT = appendSamtoolsFilters(statement, inT, tabout, filters,
                                            qual, pe)
-    statement, inT = appendBlacklistFilter(statement, inT, tabout, bedfiles,
-                                           blthresh, pe)
+    if bedfiles != [""]:
+        statement, inT = appendBlacklistFilter(statement, inT, tabout,
+                                               bedfiles,
+                                               blthresh, pe)
 
     # I added isStripped to BamTools - this is commented out until it
     # is merged (Katy)
@@ -550,8 +552,6 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
         string for default options, additional options here:
         https://github.com/taoliu/MACS
     '''
-
-    print infile
     tagsize = BamTools.estimateTagSize(infile, multiple="mean")
 
     if pe is True:
@@ -559,6 +559,7 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
         mean, std, n = BamTools.estimateInsertSizeDistribution(
             infile, int(nalignments))
     else:
+        logfile = "%s.log" % P.snip(outfile)
         mode = "SE"
         statement = '''macs2 predictd
         --format BAM
@@ -566,11 +567,11 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
         --outdir %(outfile)s.dir
         --verbose 2
         %(insert_macs2opts)s
-        >& %(outfile)s.tsv
+        >& %(logfile)s
         '''
         P.run()
 
-        with IOTools.openFile(outfile + ".tsv") as inf:
+        with IOTools.openFile(logfile) as inf:
             lines = inf.readlines()
             line = [x for x in lines
                     if "# predicted fragment length is" in x]
@@ -581,7 +582,7 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
                 "# predicted fragment length is (\d+)",
                 line[0]).groups()[0]
             std = 'na'
-
+        shutil.rmtree("%s.dir" % outfile)
     outf = IOTools.openFile(outfile, "w")
     outf.write("mode\tfragmentsize_mean\tfragmentsize_std\ttagsize\n")
     outf.write("\t".join(
@@ -1111,7 +1112,7 @@ class Macs2Peakcaller(Peakcaller):
 
         # tag size is estimated using BamTools
         if self.tagsize is None:
-            self.tagsize = BamTools.estimateTagSize(infile)
+            self.tagsize = BamTools.estimateTagSize(infile, multiple="mean")
 
         options.append("--tsize %i" % self.tagsize)
         options = " ".join(options)
@@ -1198,13 +1199,11 @@ class Macs2Peakcaller(Peakcaller):
         statement = []
 
         # compress macs bed files and index with tabix
-        for suffix in ('peaks', 'summits'):
-            bedfile = outfile + "_%s.bed" % suffix
-            if os.path.exists(bedfile):
-                statement.append('''
-                     bgzip -f %(bedfile)s;
-                     tabix -f -p bed %(bedfile)s.gz
-                ''' % locals())
+        bedfile = outfile + "_summits.bed"
+        statement.append('''
+             bgzip -f %(bedfile)s;
+             tabix -f -p bed %(bedfile)s.gz
+        ''' % locals())
 
         # convert normalized bed graph to bigwig
         # saves 75% of space
@@ -1292,7 +1291,7 @@ class Macs2Peakcaller(Peakcaller):
         '''
 
         filename_bed = outfile + "_peaks.xls.gz"
-        filename_subpeaks = outfile + "_summits.bed"
+        filename_subpeaks = outfile + "_summits.bed.gz"
         filename_broadpeaks = "%s_peaks.broadPeak" % outfile
 
         outfile_subpeaks = P.snip(
@@ -1366,7 +1365,7 @@ class Macs2Peakcaller(Peakcaller):
 
             # add a peak identifier and remove header
             statement += '''
-            cat %(filename_subpeaks)s |
+            zcat %(filename_subpeaks)s |
             awk '/Chromosome/ {next; }
             {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
             $1,$2,$3,++a,$5)}'
