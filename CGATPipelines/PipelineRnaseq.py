@@ -96,8 +96,43 @@ class quantifier(object):
                  fragment_length=None, fragment_sd=None,
                  transcript2geneMap=None, libtype=None, kmer=None,
                  biascorrect=None):
+        '''
+        Attributes
+        ----------
+        infile: string
+           Input  filename
+        transcript_outfile: string
+           Outfile of transcript quantifications in :term: `gz.raw` format
+        gene_outfile: string
+           Outfile of gene quantifications in :term: `gz.raw` format
+        job_threads: string
+           Number of threads per job
+        strand: int
+           For FeatureCounts the strand is specified as either 0, 1, 2
+        options: string
+           Options specified as a string
+        annotations: string
+           Filename with gene set in :term:`gtf` format.
+        bootstrap: int
+           Number of boostrap values for alignment free quantifiers
+        job_memory: str
+           Amount of memory available for job
+        frangment_length: int
+           Must specify the expected fragment length for single-end reads
+           This is specified in pipeline_ini.
+           :term:`PARAMS` - fragment_length option.
+        frangment_sd: int
+           Must specify the expected fragment length sd for single-end reads
+           This is specified in pipeline_ini.
+           :term:`PARAMS` - fragment_sd option.
+        libtype: string
+           This is specified in pipeline_ini
+           :term:`PARAMS` - library type option.
+        kmer: int
+           This is specified in the pipeline.ini
+           :term:`PARAMS` - kmer size for aligment free quant.
+        '''
 
-        ''' '''
         self.infile = infile
         self.transcript_outfile = transcript_outfile
         self.gene_outfile = gene_outfile
@@ -138,7 +173,10 @@ class quantifier(object):
         pass
 
     def parseTable(self, outfile_raw, outfile, columnname):
-        ''' DOCUMENT! '''
+        '''
+        parse the output of featurecounts or alignment free qauntifiers
+        and extract number of reads for downstream quantification
+        '''
 
         column_ix = findColumnPosition(outfile_raw, columnname)
         sample = self.sample
