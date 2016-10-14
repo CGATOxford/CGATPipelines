@@ -424,7 +424,21 @@ def connect():
            regex("(\S+).gtf.gz"),
            r"geneset.dir/\1.fa")
 def buildReferenceTranscriptome(infile, outfile):
-    ''' build reference transcriptome from geneset'''
+    '''
+    Builds a reference transcriptome from the provided GTF geneset - generates
+    a fasta file containing the sequence of each feature labelled as
+    "exon" in the GTF.
+    --fold-at specifies the line length in the output fasta file
+
+    Parameters
+    ----------
+    infile: str
+        path to the GTF file containing transcript and gene level annotations
+    genome_dir: str
+        from the PARAMS dictionary, the location of the reference
+    outfile: str
+        path to output file
+    '''
 
     genome_file = os.path.abspath(
         os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa"))
@@ -445,7 +459,7 @@ def buildReferenceTranscriptome(infile, outfile):
            suffix(".fa"),
            ".kallisto.index")
 def buildKallistoIndex(infile, outfile):
-    ''' build a kallisto index'''
+    ''' Builds a kallisto index for the reference transcriptome'''
 
     job_memory = "12G"
 
@@ -460,7 +474,7 @@ def buildKallistoIndex(infile, outfile):
            suffix(".fa"),
            ".salmon.index")
 def buildSalmonIndex(infile, outfile):
-    ''' build a salmon index'''
+    ''' Builds a salmon index for the reference transriptome'''
 
     job_memory = "2G"
 
@@ -476,7 +490,7 @@ def buildSalmonIndex(infile, outfile):
            suffix(".fa"),
            ".sailfish.index")
 def buildSailfishIndex(infile, outfile):
-    ''' build a sailfish index'''
+    ''' Builds a sailfish index for the reference transcriptome'''
 
     # sailfish indexing is more memory intensive than Salmon/Kallisto
     job_memory = "6G"
@@ -538,43 +552,79 @@ def runHTSeq(infiles, outfiles):
            [r"featurecounts.dir/\1/transcripts.tsv.gz",
             r"featurecounts.dir/\1/genes.tsv.gz"])
 def runFeatureCounts(infiles, outfiles):
-    '''counts reads falling into "features", which by default are genes.
+    '''
+    Counts reads falling into "features" - in each transcript and
+    each gene.
 
-    A read overlaps if at least one bp overlaps.
+    A read is counted as overlapping with a feature if at least one bp
+    overlaps.
 
     Pairs and strandedness can be used to resolve reads falling into
     more than one feature. Reads that cannot be resolved to a single
     feature are ignored.
 
-    Output is sent to featurecounts.dir
+    The raw output of featureCounts is sent to
+    featurecounts.dir/SAMPLEID/transcripts.tsv.raw.gz and 
+    featurecounts.dir/SAMPLEID/genes.tsv.raw.gz
+
+    Parsed output is sent to featurecounts.dir/SAMPLEID/transcripts.tsv.gz 
+    and featurecounts.dir/SAMPLEID/genes.tsv.gz
+
+    Other default output files are stored in the featurecounts.dir/SAMPLEID
+    directory.
 
     See feature counts manual http://bioinf.wehi.edu.au/featureCounts/
-    for information about :term:`PARAMS` options
+    for information about :term:`PARAMS` options or look at
+    featureCounts --help
 
     Parameters
     ----------
     infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with
-        the aligned reads, the second containing a list of :term:`gtf` files
-        containing the "features" to be counted.
+        List with two components:
+        0 - list of file names of the bam formatted files containing the
+        aligned reads
+        1 - file name of the GTF file containing the features over which
+        to count.
+
     featurecounts_threads : int
         :term:`PARAMS` - number of threads to run feature counts. This is
         specified in pipeline.ini
+
     featurecounts_strand : int
-        :term:`PARAMS` - see feature counts --help for details of how to set
+        :term:`PARAMS`
+        0: unstranded
+        1: the first read of the pair is on sense relative to transcript
+        2: the first read of the pair is on antisense relative to the
+        transcript
+
     featurecounts_options : string
-        :term:`PARAMS` - options for running feature counts, set using
-        pipeline.ini See feature counts --help for details of how to set
+        :term:`PARAMS` - options string for running feature counts e.g.
+         -Q flag specifies minimum mapping quality. Set to 10 to be
+         -M will allow multi mapping reads
+         -O will allow reads to overlap more than one feature
+        more in featureCounts --help
+
     transcript_outfile/gene_outfile : string used to denote output
         files from feature counts using transcript_ids or gene_ids.
-        Three output files are produced for each input :term:`bam` -
-        :term:`gtf` pair. These are:`
 
-        * input_bam.input_gtf.tsv.gz: contains list of gene id's and
-        * counts input_bam.input_gtf.tsv.summary: contains summary of
-        * reads counted input_bam.input_gtf.tsv.log: log file produced
-        * by feature counts
+    Eight output files are produced for each input :term:`bam`.
+        SAMPLENAME/transcripts.tsv.raw.gz
+        SAMPLENAME/genes.tsv.raw.gz
+        These are the raw count tables produced by featureCounts
 
+        SAMPLENAME/transcripts.tsv.gz
+        SAMPLENAME/genes.tsv.gz
+        These are standardised count tables with two columns showing the
+        feature ID and the number of reads overlapping with this feature
+
+        SAMPLENAME/transcripts.tsv.raw.summary
+        SAMPLENAME/genes.tsv.raw.summary
+        Summary of the reads which have been counted specifiying the number
+        of multimapping reads, duplicates etc.
+
+        SAMPLENAME/transcripts.tsv.gz.log
+        SAMPLENAME/genes.tsv.gz.log
+        Log file for each analysis
     '''
     bamfile, annotations = infiles
     transcript_outfile, gene_outfile = outfiles
@@ -598,32 +648,53 @@ def runFeatureCounts(infiles, outfiles):
             r"gtf2table.dir/\1/genes.tsv.gz"])
 def runGTF2Table(infiles, outfiles):
 
-    '''compute read counts and coverage of exons with reads.
+    '''
+    Compute read counts and coverage of transcripts and genes using the
+    CGAT gtf2table tools.
 
-    Takes a list of :term:`bam` files defined in "TRACKS" paired with
-    :term:`gtf` files specified in "GENESETS" and produces `.tsv.gz`
-    file using gtf2table.py detailing coverage of exonic reads for
-    each bam.  The :term:`gtf` file is used to define exonic regions
-    and a ".log" file is also produced for each input file.
+    Takes a list of :term:`bam` files defined in "BAM_TRACKS" and a
+    :term:`gtf` file containing transcript and gene level annotations
+    and produces `.tsv.gz`
+    file using gtf2table.py detailing coverage of genes and transcripts by
+    reads for each bam.
+
+    Appropriate lines in the GTF are labelled as "exon".
+
+    The following gtf2table "counters" provide columns in the output
+    read-coverage - outputs the number of reads overlapping with the
+    transcript / gene model, the number of bases in the overlap and summary
+    statistics of the coverage per base
+    length - outputs the number of exons in each transcript / gene and exon
+    length summary statistics
+    read-counts or readpair-counts - outputs the number of reads overlapping
+    with a gene or transcript.
 
     .. note::
-        This ignores multimapping reads
+        This tool ignores multimapping reads
 
     Parameters
     ----------
     infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with
-        the aligned reads, the second containing a list of :term:`gtf` files
-        containing the "features" to be counted.
-    transcript_outfile/gene_outfile : string used to denote output
-        files from feature counts using transcript_ids or gene_ids.
-        Three output files are produced for each input :term:`bam` -
-        :term:`gtf` pair. These are:`
+        List with two components:
+        0: list of bam file names
+        1: path to gtf file over which to count
 
-        * input_bam.input_gtf.tsv.gz: contains list of gene id's and
-        * counts input_bam.input_gtf.tsv.summary: contains summary of
-        * reads counted input_bam.input_gtf.tsv.log: log file produced
-        * by feature counts
+    transcript_outfile/gene_outfile : string used to denote output
+        from feature counts using transcript_ids or gene_ids.
+
+    Six output files are produced for each input :term:`bam`:
+        SAMPLENAME/transcripts.tsv.raw.gz
+        SAMPLENAME/genes.tsv.raw.gz
+        These are the raw count tables produced by gtf2table
+
+        SAMPLENAME/transcripts.tsv.gz
+        SAMPLENAME/genes.tsv.gz
+        These are standardised count tables with two columns showing the
+        feature ID and the number of reads overlapping with this feature
+
+        SAMPLENAME/transcripts.tsv.gz.log
+        SAMPLENAME/genes.tsv.gz.log
+        Log file for each analysis
 
     '''
     bamfile, annotations = infiles
@@ -783,11 +854,6 @@ for x in P.asList(PARAMS["quantifiers"]):
     QUANTTARGETS.extend(mapToQuantTargets[x])
 
 
-@follows(*QUANTTARGETS)
-def count():
-    ''' dummy task to define upstream quantification tasks'''
-    pass
-
 ###################################################
 
 
@@ -819,6 +885,19 @@ def mergeCounts(infiles, outfiles):
     mergeinfiles(gene_infiles, gene_outfile)
 
 
+@transform(mergeCounts, regex("(\S+).dir/transcripts.tsv.gz"),
+           [r"\1.dir/\1_transcripts.load",
+            r"\1.dir/\1_genes.load"])
+def loadMergedCounts(infiles, outfiles):
+    P.load(infiles[0], outfiles[0])
+    P.load(infiles[1], outfiles[1])
+
+
+@follows(*QUANTTARGETS)
+@follows(loadMergedCounts)
+def count():
+    ''' dummy task to define upstream quantification tasks'''
+    pass
 ###################################################
 
 @P.add_doc(PipelineGeneset.loadGeneStats)
