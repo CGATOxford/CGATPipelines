@@ -67,7 +67,8 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 
 
 def findColumnPosition(infile, column):
-    ''' find the position in the header of the specified column'''
+    ''' find the position in the header of the specified column
+    The returned value is one-based (e.g for bash cut)'''
     with IOTools.openFile(infile, "r") as inf:
         while True:
             header = inf.readline()
@@ -82,7 +83,12 @@ def findColumnPosition(infile, column):
 
 class quantifier(object):
     ''' base class for transcript and gene-level quantification from a
-    BAM or fastq'''
+    BAM or fastq
+
+    Note: All quantifier classes are designed to perform both
+    transcript-level and gene-level analyses in a single run. The
+    runGene method
+    '''
 
     def __init__(self, infile, transcript_outfile, gene_outfile, annotations,
                  job_threads=None, job_memory=None, strand=None,
@@ -131,18 +137,25 @@ class quantifier(object):
         pass
 
     def parseTable(self, outfile_raw, outfile, columnname):
+        ''' DOCUMENT! '''
+
         column_ix = findColumnPosition(outfile_raw, columnname)
         sample = self.sample
 
+        if outfile_raw.endswith("gz"):
+            grep = "zgrep"
+        else:
+            grep = "grep"
+
         statement = '''
         echo -e "id\\t%(sample)s" | gzip > %(outfile)s;
-        grep -v '^#' %(outfile_raw)s |
+        %(grep)s -v '^#' %(outfile_raw)s |
         cut -f1,%(column_ix)s | awk 'NR>1' | gzip >> %(outfile)s;
-        gzip -f %(outfile_raw)s;
         ''' % locals()
         P.run()
 
     def runAll(self):
+        ''' '''
         self.runTranscript()
         self.runGene()
 
@@ -194,9 +207,11 @@ class featureCountsQuantifier(quantifier):
             paired_options = ""
             paired_processing = ""
 
-        outfile_raw = P.snip(outfile) + ".raw"
+        outfile_raw = P.snip(outfile, ".gz") + ".raw"
+        outfile_dir = os.path.dirname(outfile)
 
         statement = '''mkdir %(tmpdir)s;
+                       mkdir %(outfile_dir)s;
                        zcat %(annotations)s > %(annotations_tmp)s;
                        checkpoint;
                        %(paired_processing)s
@@ -208,11 +223,12 @@ class featureCountsQuantifier(quantifier):
                                      -o %(outfile_raw)s -g %(level)s
                                      %(bamfile)s
                         >& %(outfile)s.log;
-                        rm -rf %(tmpdir)s
+                        rm -rf %(tmpdir)s; checkpoint;
+                        gzip -f %(outfile_raw)s
         '''
         P.run()
 
-        self.parseTable(outfile_raw, outfile, "%s.bam" % self.sample)
+        self.parseTable(outfile_raw + ".gz", outfile, "%s.bam" % self.sample)
 
     def runTranscript(self):
         ''' generate transcript-level quantification estimates'''
@@ -246,10 +262,12 @@ class gtf2tableQuantifier(quantifier):
         else:
             counter = 'read-counts'
 
-        outfile_raw = P.snip(outfile) + ".raw"
+        outfile_raw = P.snip(outfile, ".gz") + ".raw"
+        outfile_dir = os.path.dirname(outfile)
 
         # ignore multi-mapping reads
         statement = '''
+        mkdir %(outfile_dir)s;
         zcat %(annotations)s
         | python %(scriptsdir)s/gtf2table.py
               --reporter=%(reporter)s
@@ -263,12 +281,13 @@ class gtf2tableQuantifier(quantifier):
               --min-mapping-quality=%(counting_min_mapping_quality)i
               --multi-mapping-method=ignore
               --log=%(outfile_raw)s.log
-        > %(outfile_raw)s
+        > %(outfile_raw)s; checkpoint;
+        gzip -f %(outfile_raw)s
         '''
 
         P.run()
 
-        self.parseTable(outfile_raw, outfile, 'counted_all')
+        self.parseTable(outfile_raw + ".gz", outfile, 'counted_all')
 
     def runTranscript(self):
         ''' generate transcript-level quantification estimates'''
@@ -280,21 +299,21 @@ class gtf2tableQuantifier(quantifier):
 
 
 class AFQuantifier(quantifier):
+    ''' '''
     def runGene(self):
         ''' aggregate transcript counts to generate gene-level counts'''
-        transcript_df = pd.read_table(self.transcript_outfile + ".tsv.gz",
+        transcript_df = pd.read_table(self.transcript_outfile,
                                       sep="\t", index_col=0)
         transcript2gene_df = pd.read_table(self.t2gMap, sep="\t", index_col=0)
         transcript_df = pd.merge(transcript_df, transcript2gene_df,
                                  left_index=True, right_index=True,
                                  how="inner")
         gene_df = pd.DataFrame(transcript_df.groupby(
-            'gene_id')[self.sample].sum())
+             'gene_id')[self.sample].sum())
         gene_df.index.name = 'id'
-        os.mkdir(os.path.dirname(self.gene_outfile))
+
         gene_df.to_csv(
-            self.gene_outfile + ".tsv.gz", compression="gzip", sep="\t")
-        P.touch(self.gene_outfile)
+            self.gene_outfile, compression="gzip", sep="\t")
 
 
 class kallistoQuantifier(AFQuantifier):
@@ -310,22 +329,21 @@ class kallistoQuantifier(AFQuantifier):
         kallisto_bootstrap = self.bootstrap
         kallisto_fragment_length = self.fragment_length
         kallisto_fragment_sd = self.fragment_sd
-        outfile = self.transcript_outfile
-        transcript2geneMap = self.t2gMap
+        outfile = os.path.join(
+            os.path.dirname(self.transcript_outfile), "abundance.h5")
         sample = self.sample
 
-        m = PipelineMapping.Kallisto(readable=True)
+        readable_suffix = ".tsv"
+        m = PipelineMapping.Kallisto(readable_suffix=readable_suffix)
 
-        outfile_raw = outfile + ".raw"
-        statement = m.build((fastqfile,), outfile_raw)
+        statement = m.build((fastqfile,), outfile)
 
         P.run()
 
         # need to use the 'readable' outfile, hence the '+.tsv'
-        outfile_raw_readable = outfile_raw + ".tsv"
-        outfile_readable = outfile + ".tsv.gz"
+        outfile_readable = outfile + readable_suffix
 
-        self.parseTable(outfile_raw_readable, outfile_readable, 'est_counts')
+        self.parseTable(outfile_readable, self.transcript_outfile, 'est_counts')
 
 
 class sailfishQuantifier(AFQuantifier):
@@ -340,8 +358,8 @@ class sailfishQuantifier(AFQuantifier):
         sailfish_options = self.options
         sailfish_bootstrap = self.bootstrap
         sailfish_libtype = self.libtype
-        outfile = self.transcript_outfile
-        transcript2geneMap = self.t2gMap
+        outfile = os.path.join(
+            os.path.dirname(self.transcript_outfile), "quant.sf")
         sample = self.sample
 
         m = PipelineMapping.Sailfish()
@@ -350,12 +368,7 @@ class sailfishQuantifier(AFQuantifier):
 
         P.run()
 
-        outfile_raw = outfile + ".tsv.raw"
-        shutil.copy(outfile, outfile_raw)
-
-        outfile_tsv = outfile + ".tsv.gz"
-
-        self.parseTable(outfile_raw, outfile_tsv, 'TPM')
+        self.parseTable(outfile, self.transcript_outfile, 'NumReads')
 
 
 class salmonQuantifier(AFQuantifier):
@@ -371,8 +384,8 @@ class salmonQuantifier(AFQuantifier):
         salmon_bootstrap = self.bootstrap
         salmon_libtype = self.libtype
         salmon_kmer = self.kmer
-        outfile = self.transcript_outfile
-        transcript2geneMap = self.t2gMap
+        outfile = os.path.join(
+            os.path.dirname(self.transcript_outfile), "quant.sf")
         sample = self.sample
 
         m = PipelineMapping.Salmon(bias_correct=biascorrect)
@@ -381,12 +394,7 @@ class salmonQuantifier(AFQuantifier):
 
         P.run()
 
-        outfile_raw = outfile + ".tsv.raw"
-        shutil.copy(outfile, outfile_raw)
-
-        outfile_tsv = outfile + ".tsv.gz"
-
-        self.parseTable(outfile_raw, outfile_tsv, 'TPM')
+        self.parseTable(outfile, self.transcript_outfile, 'NumReads')
 
 
 def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):

@@ -297,6 +297,10 @@ ChangeLog
 Requirements:
 
 
+Possible future work:
+Add Stringtie + Cufflinks2 - Need to work out how to extract counts
+
+
 Code
 ====
 
@@ -314,7 +318,7 @@ import os
 import itertools
 import glob
 import numpy
-import pandas
+import pandas as pd
 import sqlite3
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
@@ -386,13 +390,29 @@ SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
 # group by experiment (assume that last field is a replicate identifier)
 EXPERIMENTS = PipelineTracks.Aggregate(BAM_TRACKS, labels=("condition", "tissue"))
 
+# do not use
 GENESETS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.gtf.gz"), "(\S+).gtf.gz")
 
-alignment_free = False
-if len(set(P.asList(PARAMS['quantifiers'])).intersection(
-        set(("kallisto", "salmon", "sailfish")))) > 0:
-    alignment_free = True
+
+###############################################################################
+# Utility function
+###############################################################################
+
+def connect():
+    '''Connect to database (sqlite by default)
+
+    This method also attaches to helper databases.
+    '''
+
+    dbh = sqlite3.connect(PARAMS["database_name"])
+    statement = '''ATTACH DATABASE '%s' as annotations''' % (
+        PARAMS["annotations_database"])
+    cc = dbh.cursor()
+    cc.execute(statement)
+    cc.close()
+
+    return dbh
 
 
 ###############################################################################
@@ -400,7 +420,7 @@ if len(set(P.asList(PARAMS['quantifiers'])).intersection(
 ###############################################################################
 
 @mkdir('geneset.dir')
-@transform(["%s.gtf.gz" % x.asFile() for x in GENESETS],
+@transform(PARAMS['geneset'],
            regex("(\S+).gtf.gz"),
            r"geneset.dir/\1.fa")
 def buildReferenceTranscriptome(infile, outfile):
@@ -436,7 +456,6 @@ def buildKallistoIndex(infile, outfile):
     P.run()
 
 
-@active_if(alignment_free)
 @transform(buildReferenceTranscriptome,
            suffix(".fa"),
            ".salmon.index")
@@ -453,7 +472,6 @@ def buildSalmonIndex(infile, outfile):
     P.run()
 
 
-@active_if(alignment_free)
 @transform(buildReferenceTranscriptome,
            suffix(".fa"),
            ".sailfish.index")
@@ -474,40 +492,52 @@ def buildSailfishIndex(infile, outfile):
 
 @originate("transcript2geneMap.tsv")
 def getTranscript2GeneMap(outfile):
-    if PARAMS['transcript2gene_map']:
-        os.symlink(PARAMS['transcript2gene_map'], outfile)
-    else:
-        dbh = sqlite3.connect(PARAMS["annotations_database"])
+    iterator = GTF.iterator(IOTools.openFile(PARAMS['geneset']))
+    transcript2gene_dict = {}
+    for entry in iterator:
+        if entry.transcript_id in transcript2gene_dict:
+            if not entry.gene_id == transcript2gene_dict[entry.transcript_id]:
+                raise ValueError('''multipe gene_ids associated with
+                the same transcript_id %s %s''' % (
+                    entry.gene_id,
+                    transcript2gene_dict[entry.transcript_id]))
+        else:
+            transcript2gene_dict[entry.transcript_id] = entry.gene_id
 
-        select_cmd = '''
-        SELECT DISTINCT transcript_id, gene_id FROM transcript_info'''
-
-        select = dbh.execute(select_cmd)
-        with IOTools.openFile(outfile, "w") as outf:
-            outf.write("transcript_id\tgene_id\n")
-            outf.write("\n".join(["\t".join(x) for x in select]) + "\n")
-
-
-# @active_if(alignment_free)
-# @follows(buildKallistoIndex, buildSalmonIndex, buildSailfishIndex,
-#          getTranscript2GeneMap)
-# def buildIndexes():
-#     pass
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("transcript_id\tgene_id\n")
+        for key, value in transcript2gene_dict.iteritems():
+            outf.write("%s\t%s\n" % (key, value))
 
 ###################################################
-# define quantification targets
+# count-based quantifiers
 ###################################################
 
+@follows(mkdir("htseq.dir"))
+@transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
+           regex("(\S+).bam"),
+           add_inputs(PARAMS['geneset']),
+           [r"htseq.dir/\1.transcripts.tsv.gz",
+            r"htseq.dir/\1.genes.tsv.gz"])
+def runHTSeq(infiles, outfiles):
+    ''' '''
+    pass
 
 
+
+#@product(["%s.bam" % x.asFile() for x in BAM_TRACKS], formatter("(.bam)$"),
+#         ["%s.gtf.gz" % x.asFile() for x in GENESETS], formatter("(.gtf.gz)$"),
+#         ["featurecounts.dir/{basename[0][0]}."
+#          "{basename[1][0]}.transcripts.tsv.gz",
+#          "featurecounts.dir/{basename[0][0]}."
+#          "{basename[1][0]}.genes.tsv.gz"])
 @follows(mkdir("featurecounts.dir"))
-@product(["%s.bam" % x.asFile() for x in BAM_TRACKS], formatter("(.bam)$"),
-         ["%s.gtf.gz" % x.asFile() for x in GENESETS], formatter("(.gtf.gz)$"),
-         ["featurecounts.dir/{basename[0][0]}."
-          "{basename[1][0]}.transcripts.tsv.gz",
-          "featurecounts.dir/{basename[0][0]}."
-          "{basename[1][0]}.genes.tsv.gz"])
-def buildFeatureCountsNew(infiles, outfiles):
+@transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
+           regex("(\S+).bam"),
+           add_inputs(PARAMS['geneset']),
+           [r"featurecounts.dir/\1/transcripts.tsv.gz",
+            r"featurecounts.dir/\1/genes.tsv.gz"])
+def runFeatureCounts(infiles, outfiles):
     '''counts reads falling into "features", which by default are genes.
 
     A read overlaps if at least one bp overlaps.
@@ -561,13 +591,12 @@ def buildFeatureCountsNew(infiles, outfiles):
 
 
 @follows(mkdir("gtf2table.dir"))
-@product(["%s.bam" % x.asFile() for x in BAM_TRACKS], formatter("(.bam)$"),
-         ["%s.gtf.gz" % x.asFile() for x in GENESETS], formatter("(.gtf.gz)$"),
-         ["gtf2table.dir/{basename[0][0]}."
-          "{basename[1][0]}.transcripts.tsv.gz",
-          "gtf2table.dir/{basename[0][0]}."
-          "{basename[1][0]}.genes.tsv.gz"])
-def buildGTF2TableNew(infiles, outfiles):
+@transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
+           regex("(\S+).bam"),
+           add_inputs(PARAMS['geneset']),
+           [r"gtf2table.dir/\1/transcripts.tsv.gz",
+            r"gtf2table.dir/\1/genes.tsv.gz"])
+def runGTF2Table(infiles, outfiles):
 
     '''compute read counts and coverage of exons with reads.
 
@@ -608,6 +637,16 @@ def buildGTF2TableNew(infiles, outfiles):
     Quantifier.runAll()
 
 
+###################################################
+###################################################
+# alignment-free quantifiers
+###################################################
+###################################################
+
+###################################################
+# Define quantification regex and output
+###################################################
+
 # enable multiple fastqs from the same sample to be analysed together
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
     SEQUENCEFILES_REGEX = regex(
@@ -616,21 +655,21 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
 
     # the last expression counts number of groups in pattern_input
     SEQUENCEFILES_KALLISTO_OUTPUT = [
-        r"kallisto.dir/%s_transcripts/abundance.h5" % (
+        r"kallisto.dir/%s/transcripts.tsv.gz" % (
             PARAMS["merge_pattern_output"].strip()),
-        r"kallisto.dir/%s_genes/abundance.h5" % (
+        r"kallisto.dir/%s/genes.tsv.gz" % (
             PARAMS["merge_pattern_output"].strip())]
 
     SEQUENCEFILES_SALMON_OUTPUT = [
-        r"salmon.dir/%s_transcripts/quant.sf" % (
+        r"salmon.dir/%s/transcripts.tsv.gz" % (
             PARAMS["merge_pattern_output"].strip()),
-        r"salmon.dir/%s_genes/quant.sf" % (
+        r"salmon.dir/%s/genes.tsv.gz" % (
             PARAMS["merge_pattern_output"].strip())]
 
     SEQUENCEFILES_SAILFISH_OUTPUT = [
-        r"sailfish.dir/%s_transcripts/quant.sf" % (
+        r"sailfish.dir/%s/transcripts.tsv.gz" % (
             PARAMS["merge_pattern_output"].strip()),
-        r"sailfish.dir/%s_genes/quant.sf" % (
+        r"sailfish.dir/%s/genes.tsv.gz" % (
             PARAMS["merge_pattern_output"].strip())]
 
 else:
@@ -639,6 +678,7 @@ else:
     SEQUENCEFILES_KALLISTO_OUTPUT = r"quant.dir/kallisto/\1/abundance.h5"
     SEQUENCEFILES_SALMON_OUTPUT = r"quant.dir/salmon/\1/quant.sf"
     SEQUENCEFILES_SAILFISH_OUTPUT = r"quant.dir/sailfish/\1/quant.sf"
+###################################################
 
 
 @follows(mkdir("kallisto.dir"))
@@ -646,36 +686,9 @@ else:
          SEQUENCEFILES_REGEX,
          add_inputs(buildKallistoIndex, getTranscript2GeneMap),
          SEQUENCEFILES_KALLISTO_OUTPUT)
-def buildKallisto(infiles, outfiles):
+def runKallisto(infiles, outfiles):
 
-    '''compute read counts and coverage of exons with reads.
-
-    Takes a list of :term:`bam` files defined in "TRACKS" paired with
-    :term:`gtf` files specified in "GENESETS" and produces `.tsv.gz`
-    file using gtf2table.py detailing coverage of exonic reads for
-    each bam.  The :term:`gtf` file is used to define exonic regions
-    and a ".log" file is also produced for each input file.
-
-    .. note::
-        This ignores multimapping reads
-
-    Parameters
-    ----------
-    infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with
-        the aligned reads, the second containing a list of :term:`gtf` files
-        containing the "features" to be counted.
-    transcript_outfile/gene_outfile : string used to denote output
-        files from feature counts using transcript_ids or gene_ids.
-        Three output files are produced for each input :term:`bam` -
-        :term:`gtf` pair. These are:`
-
-        * input_bam.input_gtf.tsv.gz: contains list of gene id's and
-        * counts input_bam.input_gtf.tsv.summary: contains summary of
-        * reads counted input_bam.input_gtf.tsv.log: log file produced
-        * by feature counts
-
-    '''
+    ''' '''
 
     # TS more elegant way to parse infiles and index?
     fastqfile = [x[0] for x in infiles]
@@ -704,7 +717,7 @@ def buildKallisto(infiles, outfiles):
          SEQUENCEFILES_REGEX,
          add_inputs(buildSailfishIndex, getTranscript2GeneMap),
          SEQUENCEFILES_SAILFISH_OUTPUT)
-def buildSailfish(infiles, outfiles):
+def runSailfish(infiles, outfiles):
     fastqfile = [x[0] for x in infiles]
     index = infiles[0][1]
     transcript2geneMap = infiles[0][2]
@@ -730,7 +743,7 @@ def buildSailfish(infiles, outfiles):
          SEQUENCEFILES_REGEX,
          add_inputs(buildSalmonIndex, getTranscript2GeneMap),
          SEQUENCEFILES_SALMON_OUTPUT)
-def buildSalmon(infiles, outfiles):
+def runSalmon(infiles, outfiles):
     fastqfile = [x[0] for x in infiles]
     index = infiles[0][1]
     transcript2geneMap = infiles[0][2]
@@ -755,23 +768,58 @@ def buildSalmon(infiles, outfiles):
 
 ###################################################
 ###################################################
+# Create quantification targets
+###################################################
 
-def connect():
-    '''Connect to database (sqlite by default)
+QUANTTARGETS = []
+mapToQuantTargets = {'kallisto': (runKallisto,),
+                     'salmon': (runSalmon,),
+                     'sailfish': (runSailfish,),
+                     'featurecounts': (runFeatureCounts,),
+                     'gtf2table': (runGTF2Table,),
+                     'htseq': (runHTSeq,)}
 
-    This method also attaches to helper databases.
-    '''
-
-    dbh = sqlite3.connect(PARAMS["database_name"])
-    statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        PARAMS["annotations_database"])
-    cc = dbh.cursor()
-    cc.execute(statement)
-    cc.close()
-
-    return dbh
+for x in P.asList(PARAMS["quantifiers"]):
+    QUANTTARGETS.extend(mapToQuantTargets[x])
 
 
+@follows(*QUANTTARGETS)
+def count():
+    ''' dummy task to define upstream quantification tasks'''
+    pass
+
+###################################################
+
+
+@collate(QUANTTARGETS,
+         regex("(\S+).dir/(\S+).transcripts.tsv.gz"),
+         [r"\1.dir/transcripts.tsv.gz",
+          r"\1.dir/genes.tsv.gz"])
+def mergeCounts(infiles, outfiles):
+    ''' merge counts for alignment-based methods'''
+
+    transcript_infiles = [x[0] for x in infiles]
+    gene_infiles = [x[1] for x in infiles]
+
+    transcript_outfile, gene_outfile = outfiles
+
+    def mergeinfiles(infiles, outfile):
+        final_df = pd.DataFrame()
+
+        for infile in infiles:
+            tmp_df = pd.read_table(infile, sep="\t", index_col=0)
+            final_df = final_df.merge(
+                tmp_df, how="outer",  left_index=True, right_index=True)
+
+        final_df = final_df.round()
+        final_df.sort_index(inplace=True)
+        final_df.to_csv(outfile, sep="\t", compression="gzip")
+
+    mergeinfiles(transcript_infiles, transcript_outfile)
+    mergeinfiles(gene_infiles, gene_outfile)
+
+
+###################################################
 
 @P.add_doc(PipelineGeneset.loadGeneStats)
 @transform("*.gtf.gz",
@@ -1943,7 +1991,7 @@ def loadDESeq2(infile, outfile):
     rstats = importr("stats")
 
     # Read dataframe, extract pvalues, perform global padjust
-    df = pandas.read_table(infile, index_col=0, compression="gzip")
+    df = pd.read_table(infile, index_col=0, compression="gzip")
     padj = ro.FloatVector(df["pvalue"].tolist())
     padj = rstats.p_adjust(padj, method="BH")
     # padj = rpyn.ri2numpy(padj)
