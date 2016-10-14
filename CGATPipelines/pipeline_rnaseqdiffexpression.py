@@ -312,6 +312,7 @@ from ruffus.combinatorics import *
 
 import CGAT.Experiment as E
 import CGAT.Database as Database
+import CGAT.scrum_expression as SE
 
 import sys
 import os
@@ -818,8 +819,52 @@ def mergeCounts(infiles, outfiles):
     mergeinfiles(transcript_infiles, transcript_outfile)
     mergeinfiles(gene_infiles, gene_outfile)
 
-
+####################################################
 ###################################################
+########Differential Expression - NEW
+
+#To be continued ... 
+   
+
+#def builDeSeq2Script(infile,outfile):
+#    '''takes count table and design file and builds deseq2 script to 
+#    do pairwise comparisions between 2 factor levels 
+#
+ #   counts = countfile loaction 
+ #   design = design file
+#    '''
+    
+#    #set up params 
+#    list_of_contrasts = P.list(PARAMS[deseq2_contrasts])  
+
+
+    #get the design files in list
+
+    #write the file loactions to the R script
+
+    #for each design append the DE test to the statement 
+
+    
+ #   counts = infile 
+ #   design = 'XXXXXXXX'
+    
+
+
+ #   r_statement_builder = SE.buildDESeq2Rscript(counts,design, 
+ #       model,   raw_out, list_of_contrasts,relevel=relevel_dict, ihw=True)
+
+
+
+
+
+
+
+
+
+
+
+
+################## OLD CODE ###########################################
 
 @P.add_doc(PipelineGeneset.loadGeneStats)
 @transform("*.gtf.gz",
@@ -1641,20 +1686,20 @@ def counting():
     pass
 
 
-@follows(mkdir("deseq.dir"), counting)
-@product("design*.tsv",
-         formatter("(.*).tsv$"),
-         (aggregateGeneLevelReadCounts,
-          aggregateFeatureCounts),
-         formatter("(.*).tsv.gz$"),
-         "deseq.dir/{basename[0][0]}.{basename[1][0]}.gz")
-def runDESeq(infiles, outfile):
-    '''Perform differential expression analysis using Deseq.
+#@follows(mkdir("deseq.dir"), counting)
+#@product("design*.tsv",
+#         formatter("(.*).tsv$"),
+#         (aggregateGeneLevelReadCounts,
+ #         aggregateFeatureCounts),
+#         formatter("(.*).tsv.gz$"),
+ #        "deseq.dir/{basename[0][0]}.{basename[1][0]}.gz")
+#def runDESeq(infiles, outfile):
+ #   '''Perform differential expression analysis using Deseq.
 
-    Parameters
+ '''   Parameters
     ----------
     infiles: list
-        list of input filenames
+      list of input filenames
 
     infiles[0]: str
         Filename with experimental design in :term:`tsv` format
@@ -1698,28 +1743,28 @@ def runDESeq(infiles, outfile):
 
     outfile:
         filename for deseq results in :term: `tsv` format.
-    '''
-    design_file, count_file = infiles
+  # '''
+#   design_file, count_file = infiles
 
-    track = P.snip(outfile, ".tsv.gz")
+ #   track = P.snip(outfile, ".tsv.gz")
 
-    statement = '''python %(scriptsdir)s/runExpression.py
-    --method=deseq
-    --tags-tsv-file=%(count_file)s
-    --design-tsv-file=%(design_file)s
-    --output-filename-pattern=%(track)s.
-    --outfile=%(outfile)s
-    --fdr=%(deseq_fdr)f
-    --deseq-fit-type=%(deseq_fit_type)s
-    --deseq-dispersion-method=%(deseq_dispersion_method)s
-    --deseq-sharing-mode=%(deseq_sharing_mode)s
-    --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
-    --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
-    --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
-    > %(outfile)s.log '''
+   #statement = '''python %(scriptsdir)s/runExpression.py
+#    --method=deseq
+##    --tags-tsv-file=%(count_file)s
+#    --design-tsv-file=%(design_file)s
+#   --output-filename-pattern=%(track)s.
+ #   --outfile=%(outfile)s
+ #   --fdr=%(deseq_fdr)f
+ #   --deseq-fit-type=%(deseq_fit_type)s
+ #   --deseq-dispersion-method=%(deseq_dispersion_method)s
+ #   --deseq-sharing-mode=%(deseq_sharing_mode)s
+ #   --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
+ #   --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
+ #   --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
+    #> %(outfile)s.log '''
 
-    P.run()
-
+ #   P.run()
+'''
 
 @transform(runDESeq, suffix(".tsv.gz"), "_deseq.load")
 def loadDESeq(infile, outfile):
@@ -1900,7 +1945,6 @@ def loadEdgeRStats(infile, outfile):
 ###############################################################################
 # Run DESeq2
 ###############################################################################
-
 
 @follows(mkdir("deseq2.dir"), counting)
 @product("design*.tsv",
