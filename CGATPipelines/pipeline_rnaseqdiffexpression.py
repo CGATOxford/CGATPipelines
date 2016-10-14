@@ -25,7 +25,7 @@
 RNA-Seq Differential expression pipeline
 ========================================
 
-:Author: Andreas Heger
+:Author: CGAT Fellows
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -33,9 +33,10 @@ RNA-Seq Differential expression pipeline
 The RNA-Seq differential expression pipeline performs differential
 expression analysis. It requires three inputs:
 
-   1. one or more genesets in :term:`gtf` formatted files
-   2. mapped reads in :term:`bam` formatted files
-   3. design files as :term:`tsv`-separated format
+   1. A geneset in :term:`gtf` formatted file
+   2. Mapped reads in :term:`bam` formatted files and/or raw reads in
+      :term:`fastq` formatted files
+   3. Design files as :term:`tsv`-separated format
 
 This pipeline works on a single genome.
 
@@ -44,30 +45,32 @@ Overview
 
 The pipeline performs the following:
 
-   * compute tag counts on an exon, transcript and gene level for each
-     of the genesets. The following tag counting methods are implemented:
-      * featureCounts_
+   * Compute tag (counts) on a transcript and gene level
+     The following counting methods are implemented:
+      * featureCounts
       * gtf2table
 
-   * estimate FPKM using cufflinks for each of the gene sets 
+    and/or
+
+   * Gene expression estimates (TPM and counts) on a transcript and gene level:
+     The following alignment-free expression estimation methods are implemented:
+      * kallisto
+      * salmon
+      * sailfish
 
    * perform differential expression analysis. The methods currently
      implemented are:
 
-      * DESeq
+      * DESeq2
       * EdgeR
-      * Cuffdiff
+      * Sleuth (alignment-free only)
 
 Background
 ============
 
-The quality of the rnaseq data (read-length, paired-end) determines
-the quality of transcript models. For instance, if reads are short
-(35bp) and/or reads are not paired-ended, transcript models will be
-short and truncated.  In these cases it might be better to concentrate
-the analysis on only previously known transcript models.
+Quantification:
 
-Transcripts are the natural choice to measure expression of. However
+Transcripts are the natural choice to measure expression. However
 other quantities might be of interest. Some quantities are biological
 meaningful, for example differential expression from a promotor shared
 by several trancripts. Other quantities might no biologically
@@ -75,28 +78,73 @@ meaningful but are necessary as a technical comprise.  For example,
 the overlapping transcripts might be hard to resolve and thus might
 need to be aggregated per gene. Furthermore, functional annotation is
 primarily associated with genes and not individual transcripts. The
-pipeline attempts to measure transcription and differential expression
-for a variety of entities following the classification laid down by
-:term:`cuffdiff`:
+pipeline attempts to quantify transcript and gene-level expression and
+performs differential expression analysis on both levels.
 
-isoform
-   Transcript level
-gene
-   Gene level, aggregates several isoform/transcripts
-tss
-   Transcription start site. Aggregate all isoforms starting from the
-   same :term:`tss`.
-cds
-   Coding sequence expression. Ignore reads overlapping non-coding
-   parts of transcripts (UTRs, etc.). Requires annotation of the cds
-   and thus only available for :file:`reference.gtf.gz`.
+The quantification tools fall into two categories:
+   * Alignment-free
+      Quantification is performed directly from the raw reads against
+      a reference transcriptome using "pseduo-alignment". In essence,
+      the tool attempts to identify the compatible transcripts for
+      each read without identifying the exact alignment position of
+      the read on the transcript or genome. Following this the
+      expression estimates which beest explain the observed reads are
+      obtained using an Expectation Maximisation approach
 
-Methods differ in their ability to measure transcription on all
-levels.
+      The available tools are:
+      * kallisto
+      * salmon
+      * sailfish
 
-Overprediction of differential expression for low-level expressed
-transcripts with :term:`cuffdiff` is a `known problem
-<http://seqanswers.com/forums/showthread.php?t=6283&highlight=fpkm>`_.
+   * Alignment-based
+      Quantification is performed on the aligned reads using the
+      position of features described in the reference geneset
+      gtf. Reads are discretely assigned to one or another feature
+      (may be performed at the transcript or gene-level.  It should be
+      noted that transcript-level quantification with tag counting
+      methods is inherrently inaccurate since a read which aligns to
+      an exon present in multiple transcripts can not be naively
+      assigned to a single transcript.
+
+      The available tools are:
+      * featureCounts
+      * gtf2table
+
+The alignment-free methods should be preffered over featureCounts and
+gtf2table in almost all instances. However, many analyses still use
+tag counting so it may be neccessary to repeat other groups
+analyses. In addition gtf2table provides more detailed tag counting
+which may be useful when exploring problematic RNA-Seq
+data. Alignment-free methods also provide estimated counts per
+transcript which can be rounded to integer counts.
+
+
+Differential expression:
+
+Differential expression can be performed on raw counts per
+transcript/gene or on expression estimates (Transripts Per Million =
+TPM).
+
+Raw counts (alignment-free & alignment-based) are well modelled by a
+negative binomial distribution and differential expression can
+therefore be performed with a negative binomial Generalised Linear
+Model (GLM). This is the approach taken by DESeq2 and edgeR which are
+both used here. Most simply, a Wald test can be performed to identify
+genes where the log2fold change between two levels of a factor (e.g
+factor = genotype, levels = WT, KO) is significantly different from
+0. Where the factor has more than one level (e.g factor = genotype,
+levels = WT, KO1, KO2), a Likelihood Ratio Test (LRT) can be performed
+to identify genes where a full model including the (e.g genotype)
+factor is a signficantly better fit than a reduced model not including
+the factor. The pipeline performs Wald test only. Please see the
+DESeq2/edgeR vingettes for LRT.
+
+Log TPM (alignment-free only) are well modelled by a gaussian distribution and differential
+expression can therefore be performed with a linear model. This is the
+approach taken by sleuth which is used here. In addition, slueth uses
+the bootstrap estimates from kallisto/salmon/sailfish to estimate the
+proportion of the variance which is technical and therefore the
+proportion which is biological.
 
 Usage
 =====
@@ -124,13 +172,16 @@ to files in the :term:`working directory`.
 
 The default file format assumes the following convention::
 
-   <samplename>.bam
+   <samplename>.bam (aligned reads)
+   <samplename>.fastq.gz (fastq.1.gz and .sra are also accepted for raw reads)
 
-Genesets
+To compare alignment-free and alignment-based methods, the raw reads
+and aligned reads must both be supplied
+
+Geneset
 ++++++++
 
-Genesets are imported by placing :term:`gtf` formatted files in the
-:term:`working directory`.
+The Geneset is specified by the "geneset" parameter
 
 Design matrices
 +++++++++++++++
@@ -139,7 +190,8 @@ Design matrices are imported by placing :term:`tsv` formatted files
 into the :term:`working directory`. A design matrix describes the
 experimental design to test. The design files should be named
 design*.tsv.
-Each design file has four columns::
+Each design file has at leasr four columns but may contain any number
+of columns after the 'pair' column:
 
       track   include group   pair
       CW-CD14-R1      0       CD14    1
@@ -174,111 +226,71 @@ The pipeline requires the results from
 On top of the default CGAT setup, the pipeline requires the following
 software to be in the path:
 
-+-----------+----------+----------------------------+
-|*Program*  |*Version* |*Purpose*                   |
-+-----------+----------+----------------------------+
-|cufflinks_ |>=1.3.0   |transcription levels        |
-+-----------+----------+----------------------------+
-|samtools   |>=0.1.16  |bam/sam files               |
-+-----------+----------+----------------------------+
-|bedtools   |          |working with intervals      |
-+-----------+----------+----------------------------+
-|R/DESeq    |          |differential expression     |
-+-----------+----------+----------------------------+
++--------------+----------+------------------------------+
+|*Program*     |*Version* |*Purpose*                     |
++--------------+----------+------------------------------+
+|samtools      |>=0.1.16  |bam/sam files                 |
++--------------+----------+------------------------------+
+|bedtools      |          |working with intervals        |
++--------------+----------+------------------------------+
+|deseq2/edgeR  |          |count-based differential expression       |
++--------------+----------+------------------------------+
+|sleuth        |          |TPM-based differential expression       |
++--------------+----------+------------------------------+
+|samtools      |>=0.1.16  |bam/sam files                 |
++--------------+----------+------------------------------+
+|featureCounts |>=1.4.6   |alignment-based quantification|
++--------------+----------+------------------------------+
+|gtf2table     |          |alignment-based quantification|
++--------------+----------+------------------------------+
+|kallisto      |>=0.43.0  |alignment-free quantification |
++--------------+----------+------------------------------+
+|salmon        |>=0.7.2   |alignment-free quantification |
++--------------+----------+------------------------------+
+|sailfish      |>=0.9.0   |alignment-free quantification |
++--------------+----------+------------------------------+
 
 Pipeline output
 ===============
 
-FPKM values
------------
+The quantification estimates from each method are outputted to:
+[method].dir/[sample]/[level].tsv.gz,
+where [method] is the quantification method, [sample] is the sample
+name and [level] is the feature level (transcript or gene)
 
-The directory :file:`fpkm.dir` contains the output of running
-cufflinks_ against each set of reads for each geneset.
+Each tool also generates specific log files etc which are outputted,
+along with the raw quantification outfile in the directory:
+[method].dir/[sample]
 
-The syntax of the output files is ``<geneset>_<track>.cufflinks``. The
-FPKM values are uploaded into tables as ``<geneset>_<track>_fpkm`` for
-per-transcript FPKM values and ``<geneset>_<track>_genefpkm`` for
-per-gene FPKM values.
+For each method, the merged counts are outputted to:
+[method].dir/[level].tsv.gz
 
+
+###########################################################################
+# NEEDS WORK
+###########################################################################
 Differential gene expression results
 -------------------------------------
 
 Differential expression is estimated for different genesets with a
 variety of methods. Results are stored per method in subdirectories
-such as :file:`deseq.dir`, :file:`edger.dir` or :file:`cuffdiff.dir`.
+such as :file:`deseq.dir`, :file:`edger.dir` or :file:`sleuth.dir`
 
-The syntax of the output files is ``<design>_<geneset>_...``.
-
-:file:`.diff` files:
-    The .diff files are :term:`tsv` formatted tables with the result
-    of the differential expression analysis.
-
-    The column names are:
-
-    test_id
-       gene_id/transcript_id/tss_id, etc
-    treatment_name
-       name of the treatment
-    control_name
-       name of the control
-    !=_mean
-       mean expression value of treatment/control
-    !=_std
-       standard deviation of treatment/control
-    pvalue
-       pvalue of test
-    qvalue
-       qvalue of test (FDR if the threshold was set at pvalue)
-    l2fold
-       log2 of fold change
-    fold
-       fold change, treatment / control
-    significant
-       flag: 1 if called significant
-    status
-       status of test. Values are
-       OK: test ok, FAIL: test failed,
-       NOCALL: no test (insufficient data, etc.).
-
-The results are uploaded into the database as tables called
-``<design>_<geneset>_<method>_<level>_<section>``.
-
-Level denotes the biological entity that the differential analysis was
-performed on.  Level can be one of ``cds``,``isoform``,``tss`` and
-``gene``. The later should always be present.
-
-Section is ``diff`` for differential expression results
-(:file:`.diff`` files) and ``levels`` for expression levels.
-
-.. note::
-
-   For the pipeline to run, install the :doc:`pipeline_annotations` as well.
-
-Glossary
+Glossary 
 ========
 
 .. glossary::
 
-   cufflinks
-      cufflinks_ - transcriptome analysis
-
-   tophat
-      tophat_ - a read mapper to detect splice-junctions
-
    deseq
       deseq_ - differential expression analysis
 
-   cuffdiff
-      find differentially expressed transcripts. Part of cufflinks_.
 
-   cuffcompare
-      compare transcriptomes. Part of cufflinks_.
-
-.. _cufflinks: http://cufflinks.cbcb.umd.edu/index.html
-.. _tophat: http://tophat.cbcb.umd.edu/
-.. _bamstats: http://www.agf.liv.ac.uk/454/sabkea/samStats_13-01-2011
 .. _deseq: http://www-huber.embl.de/users/anders/DESeq/
 .. _featurecounts: http://bioinf.wehi.edu.au/featureCounts/
+
+###########################################################################
+# NEEDS WORK
+###########################################################################
 
 ChangeLog
 =========
@@ -294,12 +306,25 @@ ChangeLog
 15.10.2015  Charlotte George, Sebastian Luna-Valero
             SCRUM Oct 2015. Updating documentation.
 
+10.10.2016  CGAT Fellows. SCRUM Oct 2016. Complete re-write of
+            pipeline and modules to simplify workflow and add alignment-free
+            methods
+
 Requirements:
 
+###########################################################################
 
+
+###########################################################################
 Possible future work:
-Add Stringtie + Cufflinks2 - Need to work out how to extract counts
+###########################################################################
+Add Stringtie + Cufflinks2? - Need to work out how to extract counts
+A python script (prepDE.py) is available from:
+https://ccb.jhu.edu/software/stringtie/index.shtml?t=manual#deseq but
+this doesn't appear to be under version control and does not work
+directly from the stringtie/cufflinks2 output
 
+###########################################################################
 
 Code
 ====
@@ -377,22 +402,16 @@ Sample = PipelineTracks.AutoSample
 # collect sra nd fastq.gz tracks
 BAM_TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.bam"), "(\S+).bam")
-TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
-    glob.glob("*.bam"), "(\S+).bam")
 
-SEQUENCESUFFIXES = ("*.fastq.1.gz",
-                    "*.fastq.gz",
-                    "*.sra")
-SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                      for suffix_name in SEQUENCESUFFIXES])
-
-
-# group by experiment (assume that last field is a replicate identifier)
-EXPERIMENTS = PipelineTracks.Aggregate(BAM_TRACKS, labels=("condition", "tissue"))
-
-# do not use
+# do not use - legacy methods
+# here only to stop ruffus erroring. Remove once pipleine scrum is
+# complete and old code has been removed
 GENESETS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.gtf.gz"), "(\S+).gtf.gz")
+TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
+    glob.glob("*.bam"), "(\S+).bam")
+# group by experiment (assume that last field is a replicate identifier)
+EXPERIMENTS = PipelineTracks.Aggregate(BAM_TRACKS, labels=("condition", "tissue"))
 
 
 ###############################################################################
@@ -492,9 +511,14 @@ def buildSailfishIndex(infile, outfile):
 
 @originate("transcript2geneMap.tsv")
 def getTranscript2GeneMap(outfile):
+    ''' Extract a 1:1 map of transcript_id to gene_id from the geneset '''
+
     iterator = GTF.iterator(IOTools.openFile(PARAMS['geneset']))
     transcript2gene_dict = {}
+
     for entry in iterator:
+
+        # Check the same transcript_id is not mapped to multiple gene_ids!
         if entry.transcript_id in transcript2gene_dict:
             if not entry.gene_id == transcript2gene_dict[entry.transcript_id]:
                 raise ValueError('''multipe gene_ids associated with
@@ -513,24 +537,6 @@ def getTranscript2GeneMap(outfile):
 # count-based quantifiers
 ###################################################
 
-@follows(mkdir("htseq.dir"))
-@transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
-           regex("(\S+).bam"),
-           add_inputs(PARAMS['geneset']),
-           [r"htseq.dir/\1.transcripts.tsv.gz",
-            r"htseq.dir/\1.genes.tsv.gz"])
-def runHTSeq(infiles, outfiles):
-    ''' '''
-    pass
-
-
-
-#@product(["%s.bam" % x.asFile() for x in BAM_TRACKS], formatter("(.bam)$"),
-#         ["%s.gtf.gz" % x.asFile() for x in GENESETS], formatter("(.gtf.gz)$"),
-#         ["featurecounts.dir/{basename[0][0]}."
-#          "{basename[1][0]}.transcripts.tsv.gz",
-#          "featurecounts.dir/{basename[0][0]}."
-#          "{basename[1][0]}.genes.tsv.gz"])
 @follows(mkdir("featurecounts.dir"))
 @transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
            regex("(\S+).bam"),
@@ -646,6 +652,12 @@ def runGTF2Table(infiles, outfiles):
 ###################################################
 # Define quantification regex and output
 ###################################################
+
+SEQUENCESUFFIXES = ("*.fastq.1.gz",
+                    "*.fastq.gz",
+                    "*.sra")
+SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
+                      for suffix_name in SEQUENCESUFFIXES])
 
 # enable multiple fastqs from the same sample to be analysed together
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
@@ -776,8 +788,7 @@ mapToQuantTargets = {'kallisto': (runKallisto,),
                      'salmon': (runSalmon,),
                      'sailfish': (runSailfish,),
                      'featurecounts': (runFeatureCounts,),
-                     'gtf2table': (runGTF2Table,),
-                     'htseq': (runHTSeq,)}
+                     'gtf2table': (runGTF2Table,)}
 
 for x in P.asList(PARAMS["quantifiers"]):
     QUANTTARGETS.extend(mapToQuantTargets[x])
