@@ -126,8 +126,8 @@ def buildDMRStats(tables, method, outfile, dbhandle):
             WHERE l2fold < -1 AND significant
             GROUP BY treatment_name,control_name,significant""" %
             locals()).fetchall())
-        
-        groups = tested.keys()
+
+        groups = list(tested.keys())
 
         for treatment_name, control_name in groups:
             k = (treatment_name, control_name)
@@ -138,7 +138,7 @@ def buildDMRStats(tables, method, outfile, dbhandle):
                 control_name,
                 tested[k],
                 "\t".join([str(status[(treatment_name, control_name, x)])
-                          for x in keys_status]),
+                           for x in keys_status]),
                 signif[(k)],
                 up[k], down[k],
                 fold2[k],
@@ -155,7 +155,7 @@ def buildDMRStats(tables, method, outfile, dbhandle):
 
         # require at least 10 datapoints - otherwise smooth scatter fails
         if len(data) > 10:
-            data = zip(*data)
+            data = list(zip(*data))
 
             pngfile = "%(outdir)s/%(tileset)s_%(design)s_%(method)s_pvalue_vs_length.png" % locals()
             R.png(pngfile)

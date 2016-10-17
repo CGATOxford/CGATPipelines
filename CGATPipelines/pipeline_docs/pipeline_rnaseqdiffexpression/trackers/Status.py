@@ -1,6 +1,6 @@
 import numpy
 
-from RnaseqDiffExpressionReport import *
+from .RnaseqDiffExpressionReport import *
 
 
 class ExpressionStatus(Status):

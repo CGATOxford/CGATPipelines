@@ -724,7 +724,7 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     )
 
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                      for suffix_name in SEQUENCESUFFIXES])
+                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
     r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz|remote)")
@@ -1128,8 +1128,8 @@ def buildTophatStats(infiles, outfile):
 
         fn = os.path.join(indir, "prep_reads.log")
         lines = open(fn).readlines()
-        reads_removed, reads_in = map(
-            int, _select(lines, "(\d+) out of (\d+) reads have been filtered out"))
+        reads_removed, reads_in = list(map(
+            int, _select(lines, "(\d+) out of (\d+) reads have been filtered out")))
         reads_out = reads_in - reads_removed
         prep_reads_version = _select(lines, "prep_reads (.*)$")
 
@@ -1348,7 +1348,7 @@ def buildSTARStats(infiles, outfile):
             header = re.sub("%", "percent", header)
             data[header.strip()].append(value.strip())
 
-    keys = data.keys()
+    keys = list(data.keys())
     outf = IOTools.openFile(outfile, "w")
     outf.write("track\t%s\n" % "\t".join(keys))
     for x, infile in enumerate(infiles):
@@ -1656,7 +1656,6 @@ def mapReadsWithBWA(infile, outfile):
            SEQUENCEFILES_REGEX,
            r"stampy.dir/\1.stampy.bam")
 def mapReadsWithStampy(infile, outfile):
-
     '''
     Map reads with stampy
 
@@ -2685,7 +2684,7 @@ def publish():
     }
 
     if PARAMS['ucsc_exclude']:
-        for filetype, files in export_files.iteritems():
+        for filetype, files in export_files.items():
             new_files = set(files)
             for f in files:
                 for regex in P.asList(PARAMS['ucsc_exclude']):

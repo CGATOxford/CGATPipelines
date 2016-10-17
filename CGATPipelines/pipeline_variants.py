@@ -129,7 +129,7 @@ import CGAT.IOTools as IOTools
 import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGAT.FastaIterator as FastaIterator
-import PipelineEnrichment as PEnrichment
+from . import PipelineEnrichment as PEnrichment
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import scipy.stats
 import CGAT.Stats as Stats
@@ -542,7 +542,7 @@ def importMGI(infile, outfile):
             "phenotype_id_106_att": "phenotype_id",
             "ensembl_gene_id_103": "gene_id"}
 
-        keys = columns.keys()
+        keys = list(columns.keys())
 
         mgi = R.useMart(biomart="biomart", dataset="markers")
         result = R.getBM(attributes=keys, mart=mgi)
@@ -580,7 +580,7 @@ def importMGI(infile, outfile):
 
             E.info("downloading data for %s" % filename)
 
-            keys = columns.keys()
+            keys = list(columns.keys())
 
             mgi = R.useMart(biomart="biomart", dataset="markers")
             result = R.getBM(attributes=keys,
@@ -670,7 +670,7 @@ def loadGene2Omim(infile, outfile):
     }
 
     data = Biomart.biomart_iterator(
-        columns.keys(), biomart="ensembl", dataset="hsapiens_gene_ensembl")
+        list(columns.keys()), biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
     def transform_data(data):
         for result in data:
@@ -703,7 +703,7 @@ def loadHumanOrthologs(infile, outfile):
         }
 
         data = Biomart.biomart_iterator(
-            columns.keys(), biomart="ensembl", dataset="hsapiens_gene_ensembl")
+            list(columns.keys()), biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
         P.importFromIterator(
             outfile, tablename, data,
@@ -1394,7 +1394,7 @@ def combineSummaryAllelesPerGene(infiles, outfile):
             for gene in genes:
                 all_genes[gene].add(track)
 
-        for gene_id, data in all_genes.iteritems():
+        for gene_id, data in all_genes.items():
             matrix = [0] * len(tracks)
             for x, track in enumerate(tracks):
                 if track in data:
@@ -1776,7 +1776,7 @@ def exportKnockoutLists(infiles, outfiles):
     data = list(dbhandle.execute(statement))
 
     d = dict(
-        zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns, zip(*data)))
+        list(zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns, list(zip(*data)))))
 
     c = []
     for x in range(len(d["gene_id"])):
@@ -2195,7 +2195,7 @@ def analysePolyphen(infile, outfile):
         len_p = float(nsnps) / length
 
         code = "".join([str(int(x < fdr))
-                       for x in (del_qvalue, len_qvalue, com_qvalue)])
+                        for x in (del_qvalue, len_qvalue, com_qvalue)])
 
         outf.write("\t".join((gene_id,
                               code,
@@ -2393,8 +2393,8 @@ def buildSharedSNPMatrix(infiles, outfiles):
                 matrix[(t1, t2)] += 1
                 matrix[(t2, t1)] += 1
 
-    all_tracks = set([x[0] for x in matrix.keys()] + [x[1]
-                     for x in matrix.keys()])
+    all_tracks = set([x[0] for x in list(matrix.keys())] + [x[1]
+                                                            for x in list(matrix.keys())])
 
     # output matrix with shared SNPs.
     outf = open(outfiles[0], "w")
@@ -2805,7 +2805,7 @@ def buildGeneMatrix(tracks, analysis, statement, outfile):
 
     outf = open(outfile, "w")
     outf.write("gene_id\t%s\n" % "\t".join("%s_%s" %
-               (x, y[0]) for x, y in itertools.product(tracks, analysis)))
+                                           (x, y[0]) for x, y in itertools.product(tracks, analysis)))
     for gene_id in all_genes:
         outf.write("%s\t%s\n" %
                    (gene_id, "\t".join(map(str, matrix[gene2row[gene_id]]))))

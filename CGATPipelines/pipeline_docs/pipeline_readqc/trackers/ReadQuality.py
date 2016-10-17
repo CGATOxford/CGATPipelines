@@ -1,5 +1,5 @@
 import pandas as pd
-from ReadqcReport import ReadqcTracker
+from .ReadqcReport import ReadqcTracker
 
 
 class PerExperimentSequenceQuality(ReadqcTracker):

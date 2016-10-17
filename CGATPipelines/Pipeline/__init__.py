@@ -234,12 +234,12 @@ from CGAT.IOTools import touchFile as touch
 from CGAT.IOTools import snip as snip
 
 # import submodules
-import Local as Local
-import Execution as Execution
-import Control as Control
-import Database as Database
-import Files as Files
-import Parameters as Parameters
+from . import Local as Local
+from . import Execution as Execution
+from . import Control as Control
+from . import Database as Database
+from . import Files as Files
+from . import Parameters as Parameters
 
 # broadcast parameters and config object, take from
 # Parameters.py

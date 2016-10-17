@@ -5,7 +5,7 @@ import types
 import itertools
 import math
 
-from IntervalReport import *
+from .IntervalReport import *
 
 
 class GatTracker(IntervalTracker):
@@ -83,7 +83,7 @@ _gat_sets = {"Annotations": GatTableAnnotations,
              "Functions": GatTableFunctions,
              }
 
-for a, aa in _gat_analysis.items():
-    for b, bb in _gat_sets.items():
+for a, aa in list(_gat_analysis.items()):
+    for b, bb in list(_gat_sets.items()):
         n = "Gat%s%s" % (a, b)
         globals()[n] = type(n, (bb, aa), {})

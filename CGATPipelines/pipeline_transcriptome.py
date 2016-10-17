@@ -164,7 +164,7 @@ TRACKS_OVERLAP = TRACKS_META + TRACKS_GENESETS
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -235,7 +235,7 @@ def buildRepeatTrack(infile, outfile):
     for gff in GTF.iterator(gzip.open(infile, "r")):
         nrepeats += 1
     sample = set(
-        random.sample(xrange(nrepeats), PARAMS["ancestral_repeats_samplesize"]))
+        random.sample(range(nrepeats), PARAMS["ancestral_repeats_samplesize"]))
 
     outf = gzip.open(outfile, "w")
     gtf = GTF.Entry()
@@ -690,7 +690,7 @@ def makeDifference(infiles, outfile):
     <(gunzip < %(last)s.gtf.gz)
     > %(outfile)s.log'''
     P.run()
-    
+
     statement = '''cgat diff_gtf 
     --log=%(outfile)s.log 
     -p --output-equivalent --ignore-strand --output-filename-pattern="%(outfile)s_genes.%%s" 
@@ -1304,7 +1304,7 @@ def loadSummary(infile, outfile):
         ON r.gene_id = a.gene_id AND 
         a.aligned >= %(rates_min_aligned)i AND 
         a.distance <= %(rates_max_rate)f''')
-        
+
     if os.path.exists("%s_coverage.load" % track):
         stmt_select.append("cov.nmatches AS nreads, cov.mean AS meancoverage")
         stmt_from.append(

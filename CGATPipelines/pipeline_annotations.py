@@ -653,7 +653,7 @@ def buildContigSizes(infile, outfile):
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs = IOTools.openFile(outfile, "w")
 
-    for contig, size in fasta.getContigSizes(with_synonyms=False).iteritems():
+    for contig, size in fasta.getContigSizes(with_synonyms=False).items():
         outs.write("%s\t%i\n" % (contig, size))
 
     outs.close()
@@ -684,7 +684,7 @@ def buildContigBed(infile, outfile):
     fasta = IndexedFasta.IndexedFasta(prefix)
     outs = IOTools.openFile(outfile, "w")
 
-    for contig, size in fasta.getContigSizes(with_synonyms=False).iteritems():
+    for contig, size in fasta.getContigSizes(with_synonyms=False).items():
         outs.write("%s\t%i\t%i\n" % (contig, 0, size))
 
     outs.close()
@@ -724,7 +724,7 @@ def buildUngappedContigBed(infile, outfiles):
     outs_gap = IOTools.openFile(outfiles[1], "w")
     min_gap_size = PARAMS["assembly_gaps_min_size"]
 
-    for contig, size in fasta.getContigSizes(with_synonyms=False).iteritems():
+    for contig, size in fasta.getContigSizes(with_synonyms=False).items():
 
         seq = fasta.getSequence(contig)
 
@@ -1193,7 +1193,7 @@ def downloadTranscriptInformation(infile, outfile):
     }
 
     data = Biomart.biomart_iterator(
-        columns.keys(),
+        list(columns.keys()),
         biomart=PARAMS[
             "ensembl_biomart_mart"],
         dataset=PARAMS[
@@ -1206,7 +1206,7 @@ def downloadTranscriptInformation(infile, outfile):
     # a fixed sequence, independent of the genome, specifically
     # created for the diagnostic community to record DNA sequence
     # variation on a fixed framework""" These are removed below:
-    data = filter(lambda x: not x['ensembl_gene_id'].startswith("LRG"), data)
+    data = [x for x in data if not x['ensembl_gene_id'].startswith("LRG")]
 
     # 2. Some genes are present on artificial chromosomes such as
     # ENSG00000265928 on HG271_PATCH.
@@ -1217,7 +1217,7 @@ def downloadTranscriptInformation(infile, outfile):
         for gtf in GTF.iterator(inf):
             gene_ids.add(gtf.gene_id)
 
-    data = filter(lambda x: x['ensembl_gene_id'] in gene_ids, data)
+    data = [x for x in data if x['ensembl_gene_id'] in gene_ids]
 
     P.importFromIterator(
         outfile, tablename,
@@ -1293,7 +1293,7 @@ def downloadEntrezToEnsembl(infile, outfile):
         "entrezgene": "entrez_id"}
 
     data = Biomart.biomart_iterator(
-        columns.keys(),
+        list(columns.keys()),
         biomart=PARAMS["ensembl_biomart_mart"],
         dataset=PARAMS["ensembl_biomart_dataset"],
         host=PARAMS["ensembl_biomart_host"])
@@ -1352,7 +1352,7 @@ def downloadTranscriptSynonyms(infile, outfile):
     }
 
     data = Biomart.biomart_iterator(
-        columns.keys(),
+        list(columns.keys()),
         biomart=PARAMS[
             "ensembl_biomart_mart"],
         dataset=PARAMS[
@@ -1904,7 +1904,7 @@ def buildMapableRegions(infiles, outfile):
         window_size = 10000000
         last_start, start = None, None
 
-        for window_start in xrange(0, size, window_size):
+        for window_start in range(0, size, window_size):
             values = bw.get(contig, window_start, window_start + window_size)
             if values is None:
                 continue
@@ -1923,7 +1923,7 @@ def buildMapableRegions(infiles, outfile):
 
     outf = IOTools.openFile(outfile, "w")
 
-    for contig, size in contigs.iteritems():
+    for contig, size in contigs.items():
 
         last_start, last_end = None, None
         for start, end in _iter_mapable_regions(bw, contig, size):
@@ -2067,7 +2067,7 @@ if PARAMS["genome"].startswith("hg"):
             try:
                 tracks[disease][contig].append(int(pos))
             except ValueError:
-                print row
+                print(row)
             c.output += 1
 
         E.info(c)
@@ -2076,9 +2076,9 @@ if PARAMS["genome"].startswith("hg"):
 
         c = E.Counter()
         outf = IOTools.openFile(outfile, "w")
-        for disease, pp in tracks.iteritems():
+        for disease, pp in tracks.items():
 
-            for contig, positions in pp.iteritems():
+            for contig, positions in pp.items():
                 contigsize = contigsizes[contig]
                 regions = [(max(0, x - extension),
                             min(contigsize, x + extension))

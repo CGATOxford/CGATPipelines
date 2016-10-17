@@ -133,7 +133,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 # Pipeline configuration
 import CGATPipelines.Pipeline as P
 P.getParameters(["%s/pipeline.ini" %
-                os.path.splitext(__file__)[0], "../pipeline.ini",
+                 os.path.splitext(__file__)[0], "../pipeline.ini",
                  "pipeline.ini"])
 
 PARAMS = P.PARAMS
@@ -550,7 +550,7 @@ def buildPolyphenInput(infiles, outfile):
 
         table = P.toTable(infile)
         track = table[:-len("_effects")]
-        print statement % locals()
+        print(statement % locals())
         cc.execute(statement % locals())
 
         counts = E.Counter()
@@ -863,7 +863,7 @@ def analysePolyphen(infile, outfile):
         len_p = float(nsnps) / length
 
         code = "".join([str(int(x < fdr))
-                       for x in (del_qvalue, len_qvalue, com_qvalue)])
+                        for x in (del_qvalue, len_qvalue, com_qvalue)])
 
         outf.write("\t".join((gene_id,
                               code,
@@ -948,8 +948,8 @@ def buildSharedSNPMatrix(infiles, outfiles):
                 matrix[(t1, t2)] += 1
                 matrix[(t2, t1)] += 1
 
-    all_tracks = set([x[0] for x in matrix.keys()] + [x[1]
-                     for x in matrix.keys()])
+    all_tracks = set([x[0] for x in list(matrix.keys())] + [x[1]
+                                                            for x in list(matrix.keys())])
 
     # output matrix with shared SNPs.
     outf = open(outfiles[0], "w")

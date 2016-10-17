@@ -99,7 +99,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     # write summary table
     outf = IOTools.openFile(outfile + ".removed.tsv.gz", "w")
     outf.write("gene_id\tnoverlap\tsection\n")
-    for gene_id, r in remove_genes.iteritems():
+    for gene_id, r in remove_genes.items():
         for s in r:
             counter[s] += 1
         outf.write("%s\t%i\t%s\n" % (gene_id,
@@ -125,7 +125,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
 
     outf = IOTools.openFile(outfile + ".summary.tsv.gz", "w")
     outf.write("category\ttranscripts\n")
-    for x, y in counter.iteritems():
+    for x, y in counter.items():
         outf.write("%s\t%i\n" % (x, y))
     outf.write("input\t%i\n" % len(genes_input))
     outf.write("output\t%i\n" % len(genes_output))
@@ -186,33 +186,33 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
         Filename of reads in :term:`bam` format.
 
     genome_dir : string
-	:term:`PARAMS` - genome directory containing fasta file. This is 
-	specified in pipeline_ini    
+        :term:`PARAMS` - genome directory containing fasta file. This is 
+        specified in pipeline_ini    
 
     cufflinks_library_type : string
-	:term:`PARAMS` - cufflinks library type option. This is 
-	specified in pipeline_ini  
+        :term:`PARAMS` - cufflinks library type option. This is 
+        specified in pipeline_ini  
 
     cufflinks_options : string
-	:term:`PARAMS` - cufflinks options (see manual). These are
-	specified in pipeline_ini  
+        :term:`PARAMS` - cufflinks options (see manual). These are
+        specified in pipeline_ini  
 
     outfile : string
-	defines naming of 3 output files for each input file 
+        defines naming of 3 output files for each input file 
 
-	1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format 
-	produced by cufflinks (see manual). Contains the assembled gene 
-	isoforms. 
-	This is the file used for the downstream file analysis
+        1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format 
+        produced by cufflinks (see manual). Contains the assembled gene 
+        isoforms. 
+        This is the file used for the downstream file analysis
 
-	2.outfile.fpkm_tracking.gz: renamed outfile.isoforms.fpkm_tracking file 
-	from cufflinks - contains estimated isoform-level
-	expression values in "FPKM Tracking Format". 
+        2.outfile.fpkm_tracking.gz: renamed outfile.isoforms.fpkm_tracking file 
+        from cufflinks - contains estimated isoform-level
+        expression values in "FPKM Tracking Format". 
 
-	3.outfile.genes_tracking.gz: renamed outfile.genes.fpkm_tracking.gz from 
-	cufflinks - contains estimated gene-level 
-	expression values in "FPKM Tracking Format". 
-    
+        3.outfile.genes_tracking.gz: renamed outfile.genes.fpkm_tracking.gz from 
+        cufflinks - contains estimated gene-level 
+        expression values in "FPKM Tracking Format". 
+
     job_threads : int
         Number of threads to use
     '''
@@ -258,21 +258,21 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
 def loadCufflinks(infile, outfile):
     '''load cufflinks expression levels into database
 
-	Takes cufflinks output and loads into database for later report building
-	For each input file it generates two tables in a sqlite database:
-	
-	1. outfile_fpkm: contains information from infile.fpkm_tracking.gz
-	2. outfile_genefpkm : contains information from infile.genes_tracking.gz
-    
+        Takes cufflinks output and loads into database for later report building
+        For each input file it generates two tables in a sqlite database:
+
+        1. outfile_fpkm: contains information from infile.fpkm_tracking.gz
+        2. outfile_genefpkm : contains information from infile.genes_tracking.gz
+
     Arguments
     ---------
     infile : string
         Cufflinks output. This is used to find
         auxiliary files: specifically infile.genes_tracking.gz and
-	infile.fpkm_tracking.gz
+        infile.fpkm_tracking.gz
     outfile : string
         Output filename used to create logging information in `.load` files.
-	Also used to create "_fpkm" and "_genefpkm" tables in database. 
+        Also used to create "_fpkm" and "_genefpkm" tables in database. 
     '''
 
     track = P.snip(outfile, ".load")
@@ -481,7 +481,7 @@ def buildExpressionStats(
             "SELECT treatment_name, control_name, "
             "COUNT(*) FROM %(tablename)s "
             "GROUP BY treatment_name,control_name" % locals()
-            ).fetchall())
+        ).fetchall())
         status = toDict(Database.executewait(
             dbhandle,
             "SELECT treatment_name, control_name, status, "
@@ -494,7 +494,7 @@ def buildExpressionStats(
             "COUNT(*) FROM %(tablename)s "
             "WHERE significant "
             "GROUP BY treatment_name,control_name" % locals()
-            ).fetchall())
+        ).fetchall())
 
         fold2 = toDict(Database.executewait(
             dbhandle,
@@ -504,7 +504,7 @@ def buildExpressionStats(
             "GROUP BY treatment_name,control_name,significant"
             % locals()).fetchall())
 
-        for treatment_name, control_name in tested.keys():
+        for treatment_name, control_name in list(tested.keys()):
             outf.write("\t".join(map(str, (
                 design,
                 geneset,
@@ -530,7 +530,7 @@ def buildExpressionStats(
 
         # require at least 10 datapoints - otherwise smooth scatter fails
         if len(data) > 10:
-            data = zip(*data)
+            data = list(zip(*data))
 
             pngfile = ("%(outdir)s/%(design)s_%(geneset)s_%(level)s"
                        "_pvalue_vs_length.png") % locals()
@@ -705,7 +705,7 @@ def loadCuffdiff(dbhandle, infile, outfile, min_fpkm=1.0):
         headers = "gene_id\t" + "\t".join([sample_lookup[x] for x in samples])
         outf.write(headers + "\n")
 
-        for gene in genes.iterkeys():
+        for gene in genes.keys():
             outf.write(gene + "\t")
             s = 0
             while x < len(samples) - 1:
@@ -1049,7 +1049,7 @@ def buildUTRExtension(infile, outfile):
         # number of transitions between utrs
         transitions = numpy.zeros((3, 3), numpy.int)
 
-        for x in xrange(len(utrs)):
+        for x in range(len(utrs)):
             utr, exon = utrs[x], exons[x]
 
             # only consider genes with expression coverage
@@ -1168,7 +1168,7 @@ def buildUTRExtension(infile, outfile):
 
         counter = E.Counter()
 
-        for idx in xrange(len(utrs)):
+        for idx in range(len(utrs)):
 
             gene_id = genes[idx]
 
@@ -1204,7 +1204,7 @@ def buildUTRExtension(infile, outfile):
             states = None
             try:
                 states = list(R('''states = Viterbi( hmm )'''))
-            except ri.RRuntimeError, msg:
+            except ri.RRuntimeError as msg:
                 counter.skipped_error += 1
                 new_utrs[gene_id] = Utr._make((old_utr, None, None, "fail"))
                 continue
@@ -1397,4 +1397,3 @@ def plotGeneLevelReadExtension(infile, outfile):
         R['dev.off']()
 
     P.touch(outfile)
-

@@ -40,7 +40,7 @@ import glob
 import os
 import shutil
 import collections
-import ConfigParser
+import configparser
 
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -56,7 +56,7 @@ import CGAT.MAST as MAST
 import CGAT.GTF as GTF
 import CGAT.Bed as Bed
 import CGAT.Stats as Stats
-import cStringIO
+import io
 import pysam
 import numpy
 import gzip
@@ -67,7 +67,7 @@ import rpy2
 from rpy2.robjects import r as R
 
 if os.path.exists("conf.py"):
-    execfile("conf.py")
+    exec(compile(open("conf.py").read(), "conf.py", 'exec'))
 
 TARGET_ANNOTATION = 'ensembl_regions.gff'
 TARGET_GENESET = 'ensembl.gtf'
@@ -119,7 +119,7 @@ def importFromSeries(infiles, outfile):
         line = re.sub('"', "", line)
         if line.startswith("ID_REF"):
             line = "\t".join([map_header[x]
-                             for x in line[:-1].split("\t")]) + "\n"
+                              for x in line[:-1].split("\t")]) + "\n"
 
         tmpf.write(line)
 
@@ -146,7 +146,7 @@ def importCEL(infile, outfiles):
 
     indir = PARAMS["datadir"]
 
-    for old, new in map_cel.iteritems():
+    for old, new in map_cel.items():
         oldname = os.path.join(indir, old + ".CEL")
         newname = os.path.join(".", new + ".CEL")
 
@@ -175,12 +175,12 @@ def estimateExpression(infiles, outfile):
     R.boxplot(raw_data)
     R.boxplot(eset)
 
-    print R.as_list(R.assayData(eset))
+    print(R.as_list(R.assayData(eset)))
 
 
 def getTreatmentsAndControls(infile):
 
-    layout = ConfigParser.RawConfigParser()
+    layout = configparser.RawConfigParser()
 
     layout.read(infile)
 
@@ -205,7 +205,7 @@ def getTreatmentsAndControls(infile):
 
     cc.execute(statement)
 
-    r = zip(*cc.fetchall())
+    r = list(zip(*cc.fetchall()))
 
     probesets = r[0]
     treatments = r[1:len(treatments) + 1]

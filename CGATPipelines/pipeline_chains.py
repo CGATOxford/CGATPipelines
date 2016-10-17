@@ -107,7 +107,7 @@ PARAMS = P.PARAMS
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 PARAMS = P.getParameters()
 
@@ -132,7 +132,7 @@ def writeContigSizes(genome, outfile):
     outf = IOTools.openFile(outfile, "w")
     fasta = IndexedFasta.IndexedFasta(
         os.path.join(PARAMS["genome_dir"], genome))
-    for contig, size in fasta.getContigSizes(with_synonyms=False).iteritems():
+    for contig, size in fasta.getContigSizes(with_synonyms=False).items():
         outf.write("%s\t%i\n" % (contig, size))
     outf.close()
 

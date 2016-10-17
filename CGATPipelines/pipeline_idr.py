@@ -209,8 +209,8 @@ TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 def printTracks(infile, outfile):
     P.warn("\n\n\n\nprinting tracks:")
     for track in EXPERIMENTS:
-        print "\t"
-        print track
+        print("\t")
+        print(track)
 
 
 def get_peak_caller_parameters(peak_caller_id):
@@ -220,7 +220,7 @@ def get_peak_caller_parameters(peak_caller_id):
     """
     caller_parameters = {}
     caller_prefix = peak_caller_id + "_options"
-    for key, value in PARAMS.iteritems():
+    for key, value in PARAMS.items():
         if re.match(caller_prefix, key):
             caller_parameters[key] = value
 

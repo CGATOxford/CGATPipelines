@@ -555,7 +555,7 @@ REFERENCE = "refcoding"
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 USECLUSTER = True
 
@@ -1151,7 +1151,8 @@ def buildMaskGtf(infile, outfile):
     outf = open(outfile, "wb")
     for entry in GTF.iterator(geneset):
         if re.findall("rRNA", entry.source) or re.findall("chrM", entry.contig):
-            outf.write("\t".join((map(str, [entry.contig, entry.source, entry.feature, entry.start, entry.end, ".", entry.strand, ".", "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+            outf.write("\t".join((list(map(str, [entry.contig, entry.source, entry.feature, entry.start, entry.end, ".", entry.strand, ".",
+                                                 "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"'])))) + "\n")
 
     outf.close()
 
@@ -1597,8 +1598,8 @@ def buildTophatStats(infiles, outfile):
         try:
             fn = os.path.join(indir, "prep_reads.log")
             lines = IOTools.openFile(fn).readlines()
-            reads_removed, reads_in = map(
-                int, _select(lines, "(\d+) out of (\d+) reads have been filtered out"))
+            reads_removed, reads_in = list(map(
+                int, _select(lines, "(\d+) out of (\d+) reads have been filtered out")))
             reads_out = reads_in - reads_removed
             prep_reads_version = _select(lines, "prep_reads (.*)$")
         except IOError:
@@ -2178,9 +2179,9 @@ def loadTranscriptComparison(infile, outfile):
     outf.write("track\tcontig\t%s\n" %
                "\t".join(Tophat.CuffCompareResult.getHeaders()))
 
-    for track, vv in result.iteritems():
+    for track, vv in result.items():
         track = P.snip(os.path.basename(track), ".gtf.gz")
-        for contig, v in vv.iteritems():
+        for contig, v in vv.items():
             if v.is_empty:
                 continue
             outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
@@ -2224,7 +2225,8 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" %
+                "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -2555,7 +2557,7 @@ def buildLincRNAGeneSet(infiles, outfile):
 
     E.info("added index for numts")
 
-    sections = indices.keys()
+    sections = list(indices.keys())
 
     total_genes, remove_genes = set(), collections.defaultdict(set)
     inf = GTF.iterator(IOTools.openFile(infile_abinitio))
@@ -2936,7 +2938,7 @@ def buildReproducibility(infile, outfile):
             null2 = len([x for x in data if x[1] == 0])
             not_null = [x for x in data if x[0] != 0 and x[1] != 0]
             if len(not_null) > 1:
-                x, y = zip(*not_null)
+                x, y = list(zip(*not_null))
                 result = Stats.doCorrelationTest(x, y)
             else:
                 result = Stats.CorrelationTest()
@@ -3137,7 +3139,7 @@ def runCuffdiff(infiles, outfile):
 
     # replicates are separated by ","
     reps, labels = [], []
-    for group, replicates in EXPERIMENTS.iteritems():
+    for group, replicates in EXPERIMENTS.items():
         reps.append(
             ",".join(["%s.accepted.bam" % r.asFile() for r in replicates]))
         labels.append(group.asFile())
@@ -3253,7 +3255,7 @@ def buildExpressionStats(tables, method, outfile):
                     control_name,
                     tested[(treatment_name, control_name)],
                     "\t".join([str(status[(treatment_name, control_name, x)])
-                              for x in keys_status]),
+                               for x in keys_status]),
                     signif[(treatment_name, control_name)],
                     fold2[(treatment_name, control_name)]))) + "\n")
 
@@ -3269,7 +3271,7 @@ def buildExpressionStats(tables, method, outfile):
 
             # require at least 10 datapoints - otherwise smooth scatter fails
             if len(data) > 10:
-                data = zip(*data)
+                data = list(zip(*data))
 
                 pngfile = "%(outdir)s/%(geneset)s_%(method)s_%(level)s_pvalue_vs_length.png" % locals()
                 R.png(pngfile)
@@ -3335,7 +3337,7 @@ def buildCuffdiffPlots(infile, outfile):
                               control_mean > 0
                         """ % locals()
 
-            data = zip(*Database.executewait(dbhandle, statement))
+            data = list(zip(*Database.executewait(dbhandle, statement)))
 
             pngfile = "%(outdir)s/%(geneset)s_%(method)s_%(level)s_%(track1)s_vs_%(track2)s_significance.png" % locals()
             # ian: Bug fix: moved R.png to after data check so that no plot is started if there is no data
@@ -3446,7 +3448,7 @@ def buildFPKMGeneLevelTagCounts(infiles, outfile):
     outf = IOTools.openFile(outfile, "w")
     gene_ids = set()
     for x in results:
-        gene_ids.update(x.keys())
+        gene_ids.update(list(x.keys()))
 
     outf.write("gene_id\t%s\n" % "\t".join(tracks))
     for gene_id in gene_ids:
@@ -4178,7 +4180,7 @@ def runDESeq(infile, outfile):
     sample2condition = [None] * len(tracks)
     conditions = []
     no_replicates = False
-    for group, replicates in EXPERIMENTS.iteritems():
+    for group, replicates in EXPERIMENTS.items():
         if len(replicates) == 1:
             E.warn(
                 "only one replicate in %s - replicates will be ignored in ALL data sets for variance estimation" % group)
@@ -4564,7 +4566,7 @@ def publish():
 
     bams = []
 
-    for targetdir, filenames in exportfiles.iteritems():
+    for targetdir, filenames in exportfiles.items():
         for src in filenames:
             dest = "%s/%s/%s" % (web_dir, targetdir, src)
             if dest.endswith(".bam"):
@@ -4577,7 +4579,7 @@ def publish():
     for bam in bams:
         filename = os.path.basename(bam)
         track = P.snip(filename, ".bam")
-        print """track type=bam name="%(track)s" bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/bamfiles/%(filename)s""" % locals()
+        print("""track type=bam name="%(track)s" bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/bamfiles/%(filename)s""" % locals())
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

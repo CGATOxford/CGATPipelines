@@ -253,7 +253,7 @@ def mapReads(infile, outfile):
         raise ValueError("bwa algorithm '%s' not known" % algorithm)
 
     statement = m.build((infile,), outfile)
-    print statement
+    print(statement)
     P.run()
 
 
@@ -282,7 +282,8 @@ def buildCoverageStats(infile, outfile):
     '''Generate coverage statistics for regions of interest from a
        bed file using Picard'''
 
-    # TS check whether this is always required or specific to current baits file
+    # TS check whether this is always required or specific to current baits
+    # file
 
     # baits file requires modification to make picard accept it
     # this is performed before CalculateHsMetrics
@@ -432,7 +433,8 @@ def realignMatchedSample(infile, outfile):
 
 
 @transform(realignMatchedSample,
-           regex("bam/(\S+)-%s-(\d+).realigned.bqsr.bam" % PARAMS["sample_control"]),
+           regex("bam/(\S+)-%s-(\d+).realigned.bqsr.bam" %
+                 PARAMS["sample_control"]),
            r"bam/\1-%s-\2.realigned.split.bqsr.bam" % PARAMS["sample_control"])
 def splitMergedRealigned(infile, outfile):
     ''' split realignment file and truncate intermediate bams'''
@@ -454,7 +456,8 @@ def splitMergedRealigned(infile, outfile):
 
 
 @transform(splitMergedRealigned,
-           regex("bam/(\S+)-%s-(\S+).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
+           regex("bam/(\S+)-%s-(\S+).realigned.split.bqsr.bam" %
+                 PARAMS["sample_control"]),
            r"bam/\1-%s-\2.realigned.picard_stats" % PARAMS["sample_control"])
 def runPicardOnRealigned(infile, outfile):
     to_cluster = USECLUSTER
@@ -494,7 +497,8 @@ def loadPicardRealigenedAlignStats(infiles, outfile):
 
 @follows(mkdir("normal_panel_variants"))
 @transform(splitMergedRealigned,
-           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
+           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" %
+                 PARAMS["sample_control"]),
            r"normal_panel_variants/\1_normal_mutect.vcf")
 def callControlVariants(infile, outfile):
     '''run mutect to call snps in control sample'''
@@ -510,7 +514,8 @@ def callControlVariants(infile, outfile):
                            PARAMS["genome"])
 
     PipelineExome.mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
-                                  dbsnp, call_stats_out, PARAMS['mutect_memory'],
+                                  dbsnp, call_stats_out, PARAMS[
+                                      'mutect_memory'],
                                   PARAMS['mutect_threads'], artifact=True)
 
 
@@ -545,7 +550,8 @@ def mergeControlVariants(infiles, outfile):
 
 @follows(mkdir("variants"), callControlVariants)
 @transform(splitMergedRealigned,
-           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
+           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" %
+                 PARAMS["sample_control"]),
            add_inputs(mergeControlVariants),
            r"variants/\1.mutect.snp.vcf")
 def runMutect(infiles, outfile):
@@ -590,10 +596,10 @@ def loadMutectExtendedOutput(infile, outfile):
 
 
 @transform(splitMergedRealigned,
-           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
+           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" %
+                 PARAMS["sample_control"]),
            r"variants/\1/results/all.somatic.indels.vcf")
 def indelCaller(infile, outfile):
-
     '''Call somatic indels using Strelka'''
 
     infile_tumour = infile.replace(
@@ -618,7 +624,8 @@ def indelCaller(infile, outfile):
 
 @follows(mergeControlVariants)
 @transform(splitMergedRealigned,
-           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" % PARAMS["sample_control"]),
+           regex(r"bam/(\S+)-%s-(\S).realigned.split.bqsr.bam" %
+                 PARAMS["sample_control"]),
            add_inputs(mergeControlVariants),
            r"variants/\1.mutect.reverse.snp.vcf")
 def runMutectReverse(infiles, outfile):
@@ -698,7 +705,8 @@ def indexSubsets(infile, outfile):
 
 @follows(indexSubsets)
 @transform(subsetControlBam,
-           regex(r"bam/(\S+)-%s-1.realigned.(\S+).bqsr.bam" % PARAMS["sample_control"]),
+           regex(r"bam/(\S+)-%s-1.realigned.(\S+).bqsr.bam" %
+                 PARAMS["sample_control"]),
            add_inputs(mergeControlVariants),
            r"variants/\1-downsampled-\2.mutect.snp.vcf")
 def runMutectOnDownsampled(infiles, outfile):
@@ -723,7 +731,8 @@ def runMutectOnDownsampled(infiles, outfile):
 
     PipelineExome.mutectSNPCaller(infile_tumour, outfile, mutect_log, genome,
                                   cosmic, dbsnp, call_stats_out,
-                                  PARAMS['mutect_memory'], PARAMS['mutect_threads'],
+                                  PARAMS['mutect_memory'], PARAMS[
+                                      'mutect_threads'],
                                   quality, max_alt_qual,
                                   max_alt, max_fraction, tumor_LOD,
                                   normal_panel, infile)
@@ -939,7 +948,6 @@ def intersectHeatmap(infiles, outfile):
            regex("variants/(\S+).annotated.filtered.vcf"),
            r"variants/\1.annotated.filtered.tsv")
 def snpvcfToTable(infile, outfile):
-
     '''Converts vcf to tab-delimited file'''
     to_cluster = USECLUSTER
     statement = '''GenomeAnalysisTK

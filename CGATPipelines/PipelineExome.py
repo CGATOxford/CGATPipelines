@@ -18,7 +18,9 @@ import CGAT.CSV as csv
 import CGAT.VCF as VCF
 import collections
 import re
-import urllib
+import urllib.request
+import urllib.parse
+import urllib.error
 import itertools
 from bs4 import BeautifulSoup
 from bs4 import NavigableString
@@ -35,7 +37,7 @@ def getGATKOptions():
 
 
 def makeSoup(address):
-    sock = urllib.urlopen(address)
+    sock = urllib.request.urlopen(address)
     htmlSource = sock.read()
     soup = BeautifulSoup(htmlSource)
     return soup
@@ -475,10 +477,12 @@ def filterMutect(infile, outfile, logfile,
 
                     if values[6] == "PASS":
                         t_values = values[tumor_col].split(":")
-                        t_ref, t_alt = map(float, (t_values[2].split(",")))
+                        t_ref, t_alt = list(
+                            map(float, (t_values[2].split(","))))
                         t_depth = t_alt + t_ref
                         n_values = values[control_col].split(":")
-                        n_ref, n_alt = map(float, (n_values[2].split(",")))
+                        n_ref, n_alt = list(
+                            map(float, (n_values[2].split(","))))
                         n_depth = n_alt + n_ref
                         np.seterr(divide='ignore')
 
@@ -641,17 +645,17 @@ def defineEBioStudies(cancer_types, outfile):
         if isinstance(lines, NavigableString):
             for line in lines.split("\n"):
                 if "cancer_study_id" not in line:
-                    values = unicode(line).strip().split("\t")
+                    values = str(line).strip().split("\t")
                     if len(values) > 1:
                         cancer_type = values[1].split(" (")[0]
                         if cancer_type in cancer_types:
                             study = re.sub(".\n", "", values[0])
                             type2study_dict[cancer_type].append(study)
 
-    for study_list in type2study_dict.values():
+    for study_list in list(type2study_dict.values()):
         for study in study_list:
             soup = makeSoup(genetic_profiles_url + "&cancer_study_id=" + study)
-            lines = unicode(soup.body).split('\n')
+            lines = str(soup.body).split('\n')
             for line in lines:
                 values = line.strip().split("\t")
                 if len(values) > 1:
@@ -661,7 +665,7 @@ def defineEBioStudies(cancer_types, outfile):
 
     outf = IOTools.openFile(outfile, "w")
 
-    for cancer_type, study_id in type2study_dict.iteritems():
+    for cancer_type, study_id in type2study_dict.items():
         for study in study_id:
             table_id = study2table_dict[study]
             outf.write("%s\t%s\t%s\n" % (cancer_type, study, table_id))
@@ -694,8 +698,8 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
 
     def chunks(l, n):
         ''' Yield successive n-sized chunks from l '''
-        for i in xrange(0, len(l), n):
-            yield l[i:i+n]
+        for i in range(0, len(l), n):
+            yield l[i:i + n]
 
     # delete me
     E.info("number of genes: %i" % len(list(genes)))
@@ -705,9 +709,9 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
 
         n = 0
 
-        for i in xrange(0, len(list(genes)), 250):
+        for i in range(0, len(list(genes)), 250):
 
-            genes_chunk = list(genes)[i:i+250]
+            genes_chunk = list(genes)[i:i + 250]
 
             # TS sporadic error when querying with a single gene at a time
             # "urllib2.URLError: <urlopen error [Errno 110] Connection timed out>"
@@ -724,7 +728,8 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
                    "case_set_id=%(study)s_all&genetic_profile_id=%(table)s&"
                    "gene_list=%(gene_list)s" % locals())
 
-            df = pd.io.parsers.read_csv(url, comment="#", sep="\t", index_col=0)
+            df = pd.io.parsers.read_csv(
+                url, comment="#", sep="\t", index_col=0)
 
             for gene in genes_chunk:
 
@@ -738,12 +743,13 @@ def extractEBioinfo(eBio_ids, vcfs, outfile):
                     if tmp_df.shape[0] > 1:
                         tmp_df = pd.DataFrame(tmp_df.iloc[0]).T
 
-                    tissue_counts[tissue][gene]["total"] += tmp_df.shape[1]-2
-                    tissue_counts[tissue][gene]["mutations"] += int(tmp_df.count(1))-1
+                    tissue_counts[tissue][gene]["total"] += tmp_df.shape[1] - 2
+                    tissue_counts[tissue][gene][
+                        "mutations"] += int(tmp_df.count(1)) - 1
 
     out = IOTools.openFile(outfile, "w")
 
-    tissues = tissue_counts.keys()
+    tissues = list(tissue_counts.keys())
 
     out.write("gene\t%s\n" % "\t".join([
         "%s_frequency" % x.replace(" ", "_") for x in tissues]))
@@ -797,17 +803,19 @@ def intersectionHeatmap(infiles, outfile):
         df.loc[ix] = [name, name, len(genes), 1.0]
         ix += 1
 
-    for pair in itertools.permutations(name2genes.keys(), 2):
+    for pair in itertools.permutations(list(name2genes.keys()), 2):
         id_1, id_2 = pair
         intersection = len(name2genes[id_1].intersection(name2genes[id_2]))
-        not_intersecting = len(name2genes[id_1].symmetric_difference(name2genes[id_2]))
+        not_intersecting = len(
+            name2genes[id_1].symmetric_difference(name2genes[id_2]))
         intersection_perc = float(intersection) / (intersection +
                                                    not_intersecting)
 
         df.loc[ix] = [id_1, id_2, intersection, intersection_perc]
         ix += 1
 
-    variant = os.path.basename(outfile).replace("overlap_", "").replace("_heatmap.png", "")
+    variant = os.path.basename(outfile).replace(
+        "overlap_", "").replace("_heatmap.png", "")
 
     plotIntersectionHeatmap = R('''
     function(df){
@@ -888,9 +896,9 @@ def filterQuality(infile, qualstr, qualfilter, outfiles):
                 i += 1
         qualdict[col] = iset
     if qualfilter == "all":
-        allqual = set.intersection(*qualdict.values())
+        allqual = set.intersection(*list(qualdict.values()))
     elif qualfilter == "any":
-        allqual = set.union(*qualdict.values())
+        allqual = set.union(*list(qualdict.values()))
     i = 0
     out = IOTools.openFile(outfiles[0], "w")
     out2 = IOTools.openFile(outfiles[1], "w")
@@ -994,7 +1002,7 @@ def FilterExacCols(infile, exac_suffs, exac_thresh):
         afdict[e] = AFS
         nD[e] = nlist
 
-    ns = set.union(*nD.values())
+    ns = set.union(*list(nD.values()))
     return afdict, ns
 
 
@@ -1056,7 +1064,7 @@ def FilterFreqCols(infile, thresh, fcols):
         AFdict[col] = AFS
         nD[col] = nlist
 
-    ns = set.union(*nD.values())
+    ns = set.union(*list(nD.values()))
     return AFdict, ns
 
 
@@ -1071,8 +1079,8 @@ def WriteFreqFiltered(infile, exacdict, exacinds, otherdict, otherinds,
     out = IOTools.openFile(outfiles[0], "w")
     out2 = IOTools.openFile(outfiles[1], "w")
 
-    exaccols = exacdict.keys()
-    othercols = otherdict.keys()
+    exaccols = list(exacdict.keys())
+    othercols = list(otherdict.keys())
 
     # column names for the new columns
     exacnewcols = ["%s_calc" % c for c in exaccols]
@@ -1221,7 +1229,7 @@ def CleanVariantTables(genes, variants, cols, outfile):
     vp1 = copy.copy(variants[['CHROM',
                               'POS', 'QUAL', 'ID', 'REF1', 'ALT', 'GT']])
     alleles = vp1['REF1'].str.cat(
-                vp1['ALT'].str.strip(), sep=",").str.split(",")
+        vp1['ALT'].str.strip(), sep=",").str.split(",")
 
     vp1['GT'] = vp1['GT'].str.replace(".", "0")
     inds1 = vp1['GT'].str.get(0).astype(int).values

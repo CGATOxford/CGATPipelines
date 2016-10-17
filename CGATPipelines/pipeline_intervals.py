@@ -183,9 +183,9 @@ import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.MatrixTools as MatrixTools
-import PipelinePeakcalling as PipelinePeakcalling
-import PipelineMotifs as PipelineMotifs
-import PipelineWindows as PipelineWindows
+from . import PipelinePeakcalling as PipelinePeakcalling
+from . import PipelineMotifs as PipelineMotifs
+from . import PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 
@@ -295,13 +295,13 @@ def getAssociatedBAMFiles(track):
 
     offsets = []
     if "offsets_%s" % fn.lower() in PARAMS:
-        offsets = map(int, P.asList(PARAMS["offsets_%s" % fn.lower()]))
+        offsets = list(map(int, P.asList(PARAMS["offsets_%s" % fn.lower()])))
     else:
         for pattern, value in P.CONFIG.items("offsets"):
             if "%" in pattern:
                 p = re.sub("%", "\S+", pattern)
                 if re.search(p, fn):
-                    offsets.extend(map(int, value.split(",")))
+                    offsets.extend(list(map(int, value.split(","))))
 
     if offsets == []:
         offsets = [0] * len(bamfiles)

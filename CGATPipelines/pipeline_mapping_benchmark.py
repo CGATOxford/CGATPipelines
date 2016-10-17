@@ -59,7 +59,7 @@ USECLUSTER = True
 # Pipeline configuration
 ###################################################
 P.getParameters(["%s/pipeline.ini" %
-                os.path.splitext(__file__)[0],  "../pipeline.ini", "pipeline.ini"])
+                 os.path.splitext(__file__)[0],  "../pipeline.ini", "pipeline.ini"])
 PARAMS = P.PARAMS
 
 bowtie_options = {'n0m1': "-n 0 -a --best --strata -m 1 -3 1", 'n1m1': "-n 1 -a --best --strata -m 1 -3 1", 'n2m1': "-n 2 -a --best --strata -m 1 -3 1", 'n3m1': "-n 3 -a --best --strata -m 1 -3 1",
@@ -79,7 +79,7 @@ bowtie_options = {'n0m1': "-n 0 -a --best --strata -m 1 -3 1", 'n1m1': "-n 1 -a 
 # MAP READS
 
 
-@files([(PARAMS["test_file"], "%s.bam" % x, bowtie_options.get(x)) for x in bowtie_options.keys()])
+@files([(PARAMS["test_file"], "%s.bam" % x, bowtie_options.get(x)) for x in list(bowtie_options.keys())])
 def buildBAM(infile, outfile, options):
     '''map reads with bowtie'''
     job_threads = PARAMS["bowtie_threads"]
@@ -213,7 +213,7 @@ def loadBAMStats(infiles, outfile):
 
     scriptsdir = PARAMS["general_scriptsdir"]
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
     E.info("loading bam stats - summary")

@@ -16,7 +16,7 @@ from CGATReport.Tracker import *
 if not os.path.exists("conf.py"):
     raise IOError("could not find conf.py")
 
-execfile("conf.py")
+exec(compile(open("conf.py").read(), "conf.py", 'exec'))
 
 
 def splitExpressionTrack(track):
@@ -73,7 +73,7 @@ def selectTracks(all_tracks, subset):
     elif "all" in subset:
         return sorted(all_tracks)
 
-    for key, tracks in MAP_TRACKS.iteritems():
+    for key, tracks in MAP_TRACKS.items():
         if key in subset:
             return tracks
 
@@ -272,7 +272,7 @@ class ExpressionCounts(DefaultTracker):
                     ''' % locals()
 
         data = self.getFirstRow(statement)
-        result = odict(zip(headers, data))
+        result = odict(list(zip(headers, data)))
 
         statement = '''SELECT 
                               COUNT(distinct cluster_id),
@@ -310,7 +310,7 @@ class ExpressionCountsPerGroup(DefaultTracker):
                     WHERE m.cluster_id = t.cluster_id''' % locals()
 
         data = self.getFirstRow(statement)
-        result = odict(zip(headers, data))
+        result = odict(list(zip(headers, data)))
 
         statement = '''SELECT 
                               COUNT(distinct cluster_id), 
@@ -384,7 +384,7 @@ class ExpressionReplicateCorrelation(DefaultTracker):
 
         result = odict()
         for x, y in enumerate(data):
-            result[str(x)] = odict(zip(headers, y))
+            result[str(x)] = odict(list(zip(headers, y)))
         return result
 
 ######################################################################
@@ -480,7 +480,7 @@ class ExpressionDifferencesCalibrationTTest1(ExpressionTracker):
         result = odict()
 
         exponents = []
-        for exponent in xrange(0, 10):
+        for exponent in range(0, 10):
             pvalue = math.pow(10, -exponent)
             total = self.getValue(
                 '''SELECT COUNT(*) FROM %(track)s AS a WHERE a.pvalue < %(pvalue)s''' % locals() )
@@ -531,7 +531,7 @@ class ExpressionDifferencesCalibrationTTest2(ExpressionTracker):
 
         counts = []
 
-        for exponent in xrange(0, 10):
+        for exponent in range(0, 10):
             pvalue = math.pow(10, -exponent)
             total = self.getValue(
                 '''SELECT COUNT(*) FROM %(tablename_ref)s AS a WHERE a.pvalue < %(pvalue)s''' % locals() )
@@ -551,7 +551,7 @@ class ExpressionDifferencesCalibrationTTest2(ExpressionTracker):
                 f = 100.0 * (ref - fg) / ref
                 data.append((exponent, f, b))
 
-        return odict(zip(("-10log(P)", "fg", "bg"), zip(*data)))
+        return odict(list(zip(("-10log(P)", "fg", "bg"), list(zip(*data)))))
 
 ######################################################################
 ######################################################################
@@ -877,7 +877,7 @@ class GeneList(ExpressionTracker):
             pos = "`%(contig)s:%(start)i..%(end)i <http://genome.ucsc.edu/cgi-bin/hgTracks?db=hg18&position=%(contig)s:%(start)i..%(end)i>`_" \
                 % locals()
             n[gene_id] = odict(
-                zip(self.mColumnsFixed + self.mColumnsVariable, (gene_name, pos,) + d[5:]))
+                list(zip(self.mColumnsFixed + self.mColumnsVariable, (gene_name, pos,) + d[5:])))
 
         return n
 
@@ -1223,10 +1223,10 @@ class ExpressionNumMotifs(ExpressionIntervalCounts):
 
         def _getData(statement):
             data = self.get(statement)
-            return odict(zip(("nintervals",
+            return odict(list(zip(("nintervals",
                               "nmotifs",
                               "nmatches"),
-                             zip(*data)))
+                             list(zip(*data)))))
 
         return odict((("responsive",
                        _getData(responsive_statement)),
@@ -1453,7 +1453,7 @@ class GOTable(ExpressionTracker):
         statement = self.select % (locals())
 
         data = self.get(statement)
-        return odict(zip(self.columns, zip(*data)))
+        return odict(list(zip(self.columns, list(zip(*data)))))
 
 
 class GOSummary(GOTable):
@@ -1476,7 +1476,7 @@ class GOSummary(GOTable):
         statement = self.select % (locals())
 
         data = self.getFirstRow(statement)
-        return odict(zip(self.columns, data))
+        return odict(list(zip(self.columns, data)))
 
 
 class GOEnrichment(GO):
@@ -1612,7 +1612,7 @@ _go_territories = {"GO": GO,
 
 # the order of the base classes is important
 # also: make sure that these are new-style classes
-for a, aa in _go_analysis.items():
-    for b, bb in _go_territories.items():
+for a, aa in list(_go_analysis.items()):
+    for b, bb in list(_go_territories.items()):
         n = "GO%s%s" % (a, b)
         globals()[n] = type(n, (bb, aa), {})

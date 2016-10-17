@@ -193,7 +193,7 @@ def imputeGO(infile_go, infile_paths, outfile):
             goid2type[goid] = go_type
 
     outf = IOTools.openFile(outfile, "w ")
-    for gene_id, in_goids in gene2goids.iteritems():
+    for gene_id, in_goids in gene2goids.items():
         c.genes += 1
         out_goids = set(in_goids)
         for goid in in_goids:
@@ -433,7 +433,7 @@ def runGOFromDatabase(outfile,
 
     Gene lists are extracted from a database.
     This method is a wrapper for `runGO.py`.
-    
+
     Arguments
     ---------
     outfile : string

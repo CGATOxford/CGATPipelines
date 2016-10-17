@@ -213,9 +213,9 @@ def getRefSeqFromUCSC(dbhandle, outfile, remove_duplicates=False):
         if r.transcript_id in duplicates:
             continue
 
-        starts = map(int, r.starts.split(",")[:-1])
-        ends = map(int, r.ends.split(",")[:-1])
-        frames = map(int, r.frames.split(",")[:-1])
+        starts = list(map(int, r.starts.split(",")[:-1]))
+        ends = list(map(int, r.ends.split(",")[:-1]))
+        frames = list(map(int, r.frames.split(",")[:-1]))
 
         gtf = GTF.Entry()
         gtf.contig = r.contig

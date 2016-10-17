@@ -58,29 +58,29 @@ class DefaultSlicer:
 
     def getSlices(self, subset="default"):
 
-        if type(subset) in (types.ListType, types.TupleType):
+        if type(subset) in (list, tuple):
             if len(subset) > 1:
                 return subset
             else:
                 subset = subset[0]
 
-        all_slices = trackers_default_slices + trackers_derived_slices.keys()
+        all_slices = trackers_default_slices + list(trackers_derived_slices.keys())
         if subset is None or subset == "default":
             return trackers_default_slices
         elif subset == "complete":
             return all_slices
         elif subset == "derived":
-            return trackers_derived_slices.keys()
+            return list(trackers_derived_slices.keys())
         elif subset == "mixture":
             slices = []
             for x in trackers_default_slices:
-                for y in trackers_derived_slices.keys():
+                for y in list(trackers_derived_slices.keys()):
                     slices.append("%s.%s" % (x, y))
             return slices
         elif "." in subset:
             slices = []
             set1, track = subset.split(".")
-            for y in [x[0] for x in trackers_derived_slices.items() if x[1] == track]:
+            for y in [x[0] for x in list(trackers_derived_slices.items()) if x[1] == track]:
                 slices.append("%s.%s" % (set1, y))
             return slices
         elif subset in all_slices:
@@ -88,7 +88,7 @@ class DefaultSlicer:
             return [subset, ]
         else:
             # slices by track
-            return [x[0] for x in trackers_derived_slices.items() if x[1] == subset]
+            return [x[0] for x in list(trackers_derived_slices.items()) if x[1] == subset]
 
 
 class AnnotationsAssociated(DefaultSlicer, TrackerSQL):
@@ -202,7 +202,7 @@ class Annotations(DefaultSlicer, TrackerSQL):
             data = self.getFirstRow(
                 "%(select)s FROM %(track)s_annotation WHERE %(where)s AND is_%(slice)s" % locals())
 
-        return odict(zip(self.mColumns, data))
+        return odict(list(zip(self.mColumns, data)))
 
 
 class AllAnnotations(Annotations):
@@ -508,7 +508,7 @@ class RatesKsVsKa(DefaultSlicer, TrackerSQL):
             data = list( self.execute( """SELECT %s,%s FROM %s_evol AS e, %s_annotation AS a WHERE a.gene_id = e.gene_id AND is_%s AND %s IS NOT NULL AND %s IS NOT NULL AND %s""" %
                                        (self.mRate1, self.mRate2, track, track, slice, self.mRate1, self.mRate2, self.mWhere)))
 
-        return odict(zip((self.mRate1, self.mRate2), zip(*data)))
+        return odict(list(zip((self.mRate1, self.mRate2), list(zip(*data)))))
 
 
 class RatesKsVsGC(RatesKsVsKa):
@@ -577,7 +577,7 @@ class RatesAll(DefaultSlicer, TrackerSQL):
             data = list( self.execute( """SELECT e.%s FROM %s_evol AS e, %s_annotation AS a WHERE a.gene_id = e.gene_id AND is_%s """ %
                                        (",e.".join(columns), track, track, slice)))
 
-        return odict(zip(columns, zip(*data)))
+        return odict(list(zip(columns, list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -681,9 +681,9 @@ class TranscriptionDensity(DefaultSlicer, TrackerSQL):
             l = seg_end - seg_start
             counts[d:min(d + l, m)] += 1
 
-        return odict(zip(("distance", "counts"),
-                         (numpy.array(xrange(0, self.mMaxSize))[counts > 0],
-                          counts[counts > 0])))
+        return odict(list(zip(("distance", "counts"),
+                         (numpy.array(list(range(0, self.mMaxSize)))[counts > 0],
+                          counts[counts > 0]))))
 
 ##########################################################################
 ##########################################################################
@@ -728,14 +728,14 @@ class TranscriptionDirectionIntergenic(TrackerSQL):
                    "same-3": 0, "different-3": 0,
                    "unknown": 0}
 
-        for key, val in counts.iteritems():
+        for key, val in counts.items():
             if "." in key:
                 k = "unknown"
             elif key[0] == key[1]:
                 k = "same-%s" % key[2]
             else:
                 k = "different-%s" % key[2]
-            print key, val
+            print(key, val)
             counts2[k] += val
 
         return odict(list(sorted(counts2.items())))
@@ -796,7 +796,7 @@ class TranscriptionDirectionIntronic(TrackerSQL):
                    "different": 0,
                    "unknown": 0}
 
-        for key, val in counts.iteritems():
+        for key, val in counts.items():
             if "." in key:
                 k = "unknown"
             elif key[0] == key[1]:
@@ -934,7 +934,7 @@ class CodingPotential(AnnotationsAssociated):
         statement = self.getStatement(track, slice)
         if not statement:
             return []
-        return odict(zip(("coding", "non-coding"), self.getFirstRow(statement)))
+        return odict(list(zip(("coding", "non-coding"), self.getFirstRow(statement))))
 
 ##########################################################################
 ##########################################################################
@@ -954,7 +954,7 @@ class RepeatOverlap(AnnotationsAssociated):
         statement = self.getStatement(track, slice)
         if not statement:
             return []
-        return odict(zip(("with", "without"), self.getFirstRow(statement)))
+        return odict(list(zip(("with", "without"), self.getFirstRow(statement))))
 
 ##########################################################################
 ##########################################################################
@@ -1368,7 +1368,7 @@ class GO(TrackerSQL):
             data = self.getAll( """%(select)s AND track = '%(track)s' AND slice = '%(slice)s' 
                         AND subset='%(subset)s' AND background = '%(background)s' ORDER BY %(order)s""" % locals())
 
-        return odict(zip(self.mColumns, zip(*data)))
+        return odict(list(zip(self.mColumns, list(zip(*data)))))
 
 
 class GOSummary(GO):
@@ -1391,7 +1391,7 @@ class GOSummary(GO):
                         AND subset='%(subset)s' AND background = '%(background)s'""" % locals())
 
         data.append(data[0] - data[1])
-        return odict(zip(self.mColumns, data))
+        return odict(list(zip(self.mColumns, data)))
 
 
 class GOEnrichment(GO):
@@ -1567,8 +1567,8 @@ _go_territories = {"GOGenes": GOGenes,
 
 # the order of the base classes is important
 # also: make sure that these are new-style classes
-for a, aa in _go_analysis.items():
-    for b, bb in _go_territories.items():
+for a, aa in list(_go_analysis.items()):
+    for b, bb in list(_go_territories.items()):
         n = "GO%s%s" % (a, b)
         globals()[n] = type(n, (bb, aa), {})
 

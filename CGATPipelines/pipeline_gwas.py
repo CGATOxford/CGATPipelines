@@ -1286,8 +1286,10 @@ if PARAMS['candidate_region']:
     @transform(convertToPlink,
                regex("plink.dir/%s(.+).bed" % PARAMS['candidate_chromosome']),
                add_inputs([r"plink.dir/%s\1.fam" % PARAMS['candidate_chromosome'],
-                           r"plink.dir/%s\1.bim" % PARAMS['candidate_chromosome'],
-                           r"plink.dir/%s\1.exclude" % PARAMS['candidate_chromosome'],
+                           r"plink.dir/%s\1.bim" % PARAMS[
+                               'candidate_chromosome'],
+                           r"plink.dir/%s\1.exclude" % PARAMS[
+                               'candidate_chromosome'],
                            r"exclusions.dir/WholeGenome.gwas_exclude"]),
                r"candidate.dir/%s\1-candidate_region.bed" % PARAMS['candidate_chromosome'])
     def getCandidateRegion(infiles, outfile):
@@ -2033,7 +2035,8 @@ def excludeLdVariants(infile, outfile):
     contig = PARAMS['candidate_chromosome'].lstrip("chr")
     ld_dir = os.path.join(os.getcwd(), "ld.dir")
     ld_files = [lf for lf in os.listdir(ld_dir) if re.search(contig, lf)]
-    ld_fle = [os.path.join(ld_dir, bg) for bg in ld_files if re.search("bgz$", bg)][0]
+    ld_fle = [os.path.join(ld_dir, bg)
+              for bg in ld_files if re.search("bgz$", bg)][0]
 
     snp = infile.split("/")[-1].split(".")[0]
     job_memory = "2G"
@@ -2363,7 +2366,8 @@ def plotAdjustedEpistasis(infile, outfile):
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
-# Requires SNPs in raw genotype (human readable) format, phenotypes and covariates
+# Requires SNPs in raw genotype (human readable) format, phenotypes and
+# covariates
 
 @follows(convertToRawFormat,
          mkdir("pleiotropy.dir"))
@@ -2693,7 +2697,8 @@ def plotMixedModelQQ(infiles, outfile):
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
 # ----------------------------------------------------------------------------------------#
-# these next tasks aren't strictly GWA, but they do use genome-wide genotying nonetheless
+# these next tasks aren't strictly GWA, but they do use genome-wide
+# genotying nonetheless
 
 
 @follows(mergePlinkFiles,

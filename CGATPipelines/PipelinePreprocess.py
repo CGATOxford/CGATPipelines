@@ -241,7 +241,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
             else:
                 suffixes = [track + ".fastq.gz"]
 
-            if idx == len(self.processors)-1:
+            if idx == len(self.processors) - 1:
                 # last iteration, write to output files
                 next_files = [output_prefix + s
                               for s in suffixes]
@@ -682,7 +682,7 @@ class Pandaseq(ProcessTool):
     prefix = "pandaseq"
 
     def get_num_files(self, infiles):
-        print "infiles=", infiles
+        print("infiles=", infiles)
         assert len(infiles) == 2
         return 1
 

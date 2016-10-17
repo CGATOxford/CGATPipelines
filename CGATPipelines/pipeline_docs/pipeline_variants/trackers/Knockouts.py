@@ -111,8 +111,8 @@ class GeneListTruncatedStopsMin(TrackerEffects):
         HAVING m >= %(min_truncated)i 
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                         list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -177,8 +177,8 @@ class TranscriptListTruncatedStopsMin(TrackerEffects):
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                         list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -210,8 +210,8 @@ class TranscriptListTruncatedStopsMax(TrackerEffects):
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                         list(zip(*self.get(statement))))))
 
 
 #####################################################
@@ -296,8 +296,8 @@ class TranscriptListNMDMin(TrackerEffects):
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                         list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -332,5 +332,5 @@ class TranscriptListNMDMax(TrackerEffects):
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                         list(zip(*self.get(statement))))))

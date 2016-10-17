@@ -193,8 +193,8 @@ import CGAT.Bed as Bed
 import pysam
 import numpy
 
-import PipelineChipseq as PipelineChipseq
-import PipelineMotifs as PipelineMotifs
+from . import PipelineChipseq as PipelineChipseq
+from . import PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
 
@@ -281,7 +281,7 @@ def getUnsubtracted(track):
 # if conf.py exists: execute to change the above assignmentsn
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -296,7 +296,7 @@ CONDITIONS = PipelineTracks.Aggregate(TRACKS, labels=("condition",))
 TISSUES = PipelineTracks.Aggregate(TRACKS, labels=("tissue",))
 
 # compound targets : all experiments
-TRACKS_MASTER = EXPERIMENTS.keys() + CONDITIONS.keys()
+TRACKS_MASTER = list(EXPERIMENTS.keys()) + list(CONDITIONS.keys())
 
 # tracks for subtraction of unstim condition
 if "tracks_subtract" in PARAMS and PARAMS["tracks_subtract"]:
@@ -616,7 +616,7 @@ def makeReadCorrelationTable(infiles, outfile):
         correlation_cutoff = 5
         for line in infile:
             try:
-                data = map(int, line[:-1].split("\t")[2:])
+                data = list(map(int, line[:-1].split("\t")[2:]))
             except ValueError:
                 continue
 
@@ -1265,12 +1265,12 @@ def buildReadCoverageTable(infiles, outfile):
         for j in range(len(beds)):
             table[i][j] = data[bams[i], beds[j]]
 
-    table = zip(bams, table)
+    table = list(zip(bams, table))
 
     out.write("track" + "\t" + "\t".join(beds) + "\n")
     for i in range(len(bams)):
         out.write(
-            table[i][0] + "\t" + "\t".join((map(str, table[i][1]))) + "\n")
+            table[i][0] + "\t" + "\t".join((list(map(str, table[i][1])))) + "\n")
 
 
 @transform(buildReadCoverageTable, suffix(".tsv"), ".load")
@@ -1335,7 +1335,7 @@ def buildBigwigInfo(infiles, outfile):
 
     p = " ".join([pattern % infile for infile in infiles])
     headers = ",".join([P.snip(os.path.basename(x), ".bigwig")
-                       for x in infiles])
+                        for x in infiles])
 
     statement = '''cgat combine_tables
                    --header-names=%(headers)s
@@ -2439,7 +2439,7 @@ def publish():
 
     bams = []
 
-    for targetdir, filenames in exportfiles.iteritems():
+    for targetdir, filenames in exportfiles.items():
         for src in filenames:
             dest = "%s/%s/%s" % (web_dir, targetdir, src)
             if dest.endswith(".bam"):
@@ -2452,7 +2452,7 @@ def publish():
     for bam in bams:
         filename = os.path.basename(bam)
         track = P.snip(filename, ".bam")
-        print """track type=bam name="%(track)s" bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/bamfiles/%(filename)s""" % locals()
+        print("""track type=bam name="%(track)s" bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/bamfiles/%(filename)s""" % locals())
 
 if __name__ == "__main__":
 

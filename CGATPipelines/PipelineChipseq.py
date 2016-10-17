@@ -431,7 +431,7 @@ def buildBAMStats(infile, outfile):
     outs.close()
     outs_dupl.close()
 
-    keys = counts.keys()
+    keys = list(counts.keys())
     # count per position (not the same as nduplicates, which is # of reads)
     c = 0
     total = sum(counts.values())
@@ -770,7 +770,7 @@ def summarizeMACS(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -835,7 +835,7 @@ def summarizeMACSsolo(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -1488,7 +1488,7 @@ def loadIntervalsFromBed(bedfile, track, outfile,
 
         c.output += 1
         tmpfile.write("\t".join(map(
-            str, 
+            str,
             (avgval, disttostart, genelist, length,
              peakcenter, peakval, position, bed.name,
              ncpgs, ngenes, npeaks, nprobes, npromoters,

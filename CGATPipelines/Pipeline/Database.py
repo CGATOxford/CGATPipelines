@@ -545,7 +545,7 @@ def createView(dbhandle, tables, tablename, outfile,
              if x != track])
 
     E.info("creating %s from the following tables: %s" %
-           (tablename, str(zip(tablenames, tracks))))
+           (tablename, str(list(zip(tablenames, tracks)))))
     if min(tracks) != max(tracks):
         raise ValueError(
             "number of rows not identical - will not create view")
@@ -654,12 +654,12 @@ def importFromIterator(
     tmpfile = getTempFile(".")
 
     if columns:
-        keys, values = zip(*columns.items())
+        keys, values = list(zip(*list(columns.items())))
         tmpfile.write("\t".join(values) + "\n")
 
     for row in iterator:
         if not columns:
-            keys = row[0].keys()
+            keys = list(row[0].keys())
             values = keys
             columns = keys
             tmpfile.write("\t".join(values) + "\n")

@@ -712,14 +712,14 @@ def collateEnrichmentOfTFBS(infiles, outfile):
                 # qvalue not contained in df
                 pass
             # adding column for geneset_id
-            geneset_id = [geneset_id, ]*len(df.index)
+            geneset_id = [geneset_id, ] * len(df.index)
             df["geneset_id"] = geneset_id
             continue
 
         # append successive dataframes
         df_n = _fetch(table_name)
         df_n.drop("qvalue", axis=1, inplace=True)
-        geneset_id = [geneset_id, ]*len(df_n.index)
+        geneset_id = [geneset_id, ] * len(df_n.index)
         df_n["geneset_id"] = geneset_id
         df = df.append(df_n)
 

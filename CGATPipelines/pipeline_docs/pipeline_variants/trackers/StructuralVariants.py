@@ -16,7 +16,7 @@ class StructuralVariantsSummary(VariantsTracker):
         cols = ",".join(columns)
         data = self.get( '''SELECT %(cols)s
                                FROM %(track)s_sv_stats''' % locals() )
-        return odict(zip(columns, zip(*data)))
+        return odict(list(zip(columns, list(zip(*data)))))
 
 
 class StructuralVariantsSummaryGenes(VariantsTracker):
@@ -38,7 +38,7 @@ class StructuralVariantsSummaryGenes(VariantsTracker):
         cols = ",".join(["SUM(%s) AS %s" % (x, x) for x in columns])
         data = self.get( '''SELECT %(cols)s
                                FROM %(track)s_sv_genes''' % locals() )
-        return odict(zip(columns, zip(*data)))
+        return odict(list(zip(columns, list(zip(*data)))))
 
 
 class StructuralVariantsDeletedGenesExons(VariantsTracker):
@@ -86,10 +86,10 @@ class StructuralVariantsDeletedGenes(VariantsTracker):
 
         data = self.get(statement)
 
-        return odict(zip(("gene_id",
+        return odict(list(zip(("gene_id",
                           "gene_name",
                           "description"),
-                         zip(*data)))
+                         list(zip(*data)))))
 
 
 class StructuralVariantsTracker(VariantsTracker):
@@ -132,5 +132,5 @@ class StructuralVariantsTranscripts(StrainTracker, StructuralVariantsTracker):
 
         data = self.get(statement)
 
-        return odict(zip(("transcript_id", "nover", "nover1", "nover2", "pover1", "pover2"),
-                         zip(*data)))
+        return odict(list(zip(("transcript_id", "nover", "nover1", "nover2", "pover1", "pover2"),
+                         list(zip(*data)))))

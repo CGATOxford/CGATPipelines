@@ -277,7 +277,7 @@ import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineTracks as PipelineTracks
 
-import PipelineTranscriptDiffExpression as TranscriptDiffExpression
+from . import PipelineTranscriptDiffExpression as TranscriptDiffExpression
 
 # load options from the config file
 PARAMS = P.getParameters(
@@ -347,7 +347,7 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     "*.fastq.gz",
                     "*.sra")
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                      for suffix_name in SEQUENCESUFFIXES])
+                       for suffix_name in SEQUENCESUFFIXES])
 
 Sample = PipelineTracks.AutoSample
 DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
@@ -471,7 +471,8 @@ if PARAMS["geneset_auto_generate"]:
                         # some transcripts do not have a tsl
                         try:
 
-                            tsls.append(int(tsl.strip().split()[0].replace("tsl", "")))
+                            tsls.append(
+                                int(tsl.strip().split()[0].replace("tsl", "")))
                         except:
                             if tsl is None:
                                 tsl_NULL += 1
@@ -493,17 +494,20 @@ if PARAMS["geneset_auto_generate"]:
 
                             transcript_ids = np.random.choice(
                                 transcript_ids,
-                                size=len(transcript_ids) - count_below_threshold,
+                                size=len(transcript_ids) -
+                                count_below_threshold,
                                 replace=False)
 
                         # for some gene_ids, all transcripts may be removed!
                         if len(transcript_ids) > 0:
-                            outf.write("\n".join((x for x in transcript_ids)) + "\n")
+                            outf.write(
+                                "\n".join((x for x in transcript_ids)) + "\n")
 
                         previous_gene = gene_id
                         transcript_ids = [transcript_id]
                         try:
-                            tsls = [int(tsl.strip().split()[0].replace("tsl", ""))]
+                            tsls = [
+                                int(tsl.strip().split()[0].replace("tsl", ""))]
                         except:
                             tsls = []
                             if tsl is None:
@@ -529,17 +533,17 @@ if PARAMS["geneset_auto_generate"]:
 
                     transcript_ids = np.random.choice(
                         transcript_ids,
-                        size=len(transcript_ids)-count_below_threshold,
+                        size=len(transcript_ids) - count_below_threshold,
                         replace=False)
 
                 if len(transcript_ids) > 0:
                     outf.write("\n".join((x for x in transcript_ids)))
 
-            print ("# entries %i, # transcripts %i, # genes %i,"
+            print(("# entries %i, # transcripts %i, # genes %i,"
                    "# low support %i, # high support %i,"
                    " # NA tsl %i, # NULL tsl %i" % (
                        n_entries, n_transcripts, n_genes, n_low_support,
-                       n_high_support, tsl_NA, tsl_NULL))
+                       n_high_support, tsl_NA, tsl_NULL)))
 
         else:
             # select all distinct transcript_ids passing filters
@@ -797,7 +801,7 @@ if PARAMS['simulation_run']:
     @follows(buildReferenceTranscriptome,
              buildReferencePreTranscriptome)
     @files([(["index.dir/transcripts.fa",
-             "index.dir/transcripts.pre_mRNA.fa"],
+              "index.dir/transcripts.pre_mRNA.fa"],
              ("simulation.dir/simulated_reads_%i.fastq.1.gz" % x,
               "simulation.dir/simulated_read_counts_%i.tsv" % x))
             for x in range(0, PARAMS["simulation_iterations"])])
@@ -1027,7 +1031,8 @@ if PARAMS['simulation_run']:
         pass
 
     @transform(SIMTARGETS,
-               regex("simulation.dir/quant.dir/(\S+)/simulated_reads_(\d+)/abundance.tsv"),
+               regex(
+                   "simulation.dir/quant.dir/(\S+)/simulated_reads_(\d+)/abundance.tsv"),
                r"simulation.dir/quant.dir/\1/simulated_reads_\2/results.tsv",
                r"simulation.dir/simulated_read_counts_\2.tsv")
     def mergeAbundanceCounts(infile, outfile, counts):
@@ -1477,7 +1482,8 @@ def aggregateCounts(infiles, outfile):
 
 
 @product(aggregateCounts,
-         formatter("DEresults.dir/all_gene_expression_counts_(?P<QUANTIFIER>\S+).tsv"),
+         formatter(
+             "DEresults.dir/all_gene_expression_counts_(?P<QUANTIFIER>\S+).tsv"),
          ["%s.design.tsv" % x.asFile() for x in DESIGNS],
          formatter(".*/(?P<DESIGN>\S+).design.tsv$"),
          "DEresults.dir/{DESIGN[1][0]}_{QUANTIFIER[0][0]}_deseq2_DE_results.tsv")

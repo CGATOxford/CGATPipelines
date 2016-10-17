@@ -157,6 +157,7 @@ import CGAT.IOTools as IOTools
 
 # load options from the config file
 import CGATPipelines.Pipeline as P
+from functools import reduce
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
@@ -236,8 +237,8 @@ def options_generator(cufflinks_options):
     returns a generator for dealing with the cufflinks parameters
     for directory names and .ini file creation
     '''
-    for option_values in itertools.product(*cufflinks_options.values()):
-        yield " ".join(map(str, reduce(operator.add, zip(cufflinks_options.keys(), list(option_values)))))
+    for option_values in itertools.product(*list(cufflinks_options.values())):
+        yield " ".join(map(str, reduce(operator.add, list(zip(list(cufflinks_options.keys()), list(option_values))))))
 
 
 def getDirectoryNames(options_generator):

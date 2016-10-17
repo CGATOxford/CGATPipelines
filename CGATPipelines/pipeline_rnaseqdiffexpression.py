@@ -447,13 +447,13 @@ def buildMaskGtf(infile, outfile):
     outf = IOTools.openFile(outfile, "wb")
     for entry in GTF.iterator(geneset):
         if entry.gene_id in rrna_list or entry.gene_id in chrM_list:
-            outf.write("\t".join((map(
+            outf.write("\t".join((list(map(
                 str,
                 [entry.contig, entry.source, entry.feature,
                  entry.start, entry.end, ".", entry.strand,
                  ".", "transcript_id" + " " + '"' +
                  entry.transcript_id + '"' + ";" + " " +
-                 "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+                 "gene_id" + " " + '"' + entry.gene_id + '"'])))) + "\n")
 
     outf.close()
 
@@ -1138,8 +1138,8 @@ def loadFeatureCountsSummary(infiles, outfile):
     aggregateTranscriptLevelReadCounts,
     aggregateGeneLevelReadCounts,
     aggregateFeatureCounts),
-           suffix(".tsv.gz"),
-           ".stats.tsv.gz")
+    suffix(".tsv.gz"),
+    ".stats.tsv.gz")
 def summarizeCounts(infile, outfile):
     '''perform summarization of read counts
 
@@ -1781,7 +1781,7 @@ def buildCuffdiffPlots(infile, outfile):
             control_mean > 0
             """ % locals()
 
-            data = zip(*Database.executewait(dbhandle, statement))
+            data = list(zip(*Database.executewait(dbhandle, statement)))
 
             pngfile = ("%(outdir)s/%(geneset)s_%(method)s_"
                        "%(level)s_%(track1)s_vs_%(track2)s_"

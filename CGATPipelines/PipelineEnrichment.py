@@ -36,7 +36,7 @@ def outputSegments(outfile,
         raise ValueError("invalid section `%s`" % section)
 
     ninput, ncontigs, nsegments, ndiscarded = 0, 0, 0, 0
-    for contig, gffs in intervals.items():
+    for contig, gffs in list(intervals.items()):
         ninput += 1
         if remove_regex and remove_regex.search(contig):
             continue
@@ -54,7 +54,7 @@ def outputSegments(outfile,
             for x in segments:
                 synonyms[x[2].source].append((x[0], x[1]))
 
-            for key, segs in synonyms.iteritems():
+            for key, segs in synonyms.items():
                 outfile.write("%s\t%s\t%s\n" % (prefix, key, "\t".join(
                     ["(%i,%i)" % x for x in segs])))
                 outfile_synonyms.write("##Synonym\t%s\t%s\n" % (key, contig))
@@ -473,7 +473,7 @@ def genericImportAnnotator(infiles, outfile, table, workspace, slice, subset, fd
     --table=%(table)s
     < %(tmpfilename2)s > %(outfile)s'''
 
-    P.run(**dict(locals().items() + PARAMS.items()))
+    P.run(**dict(list(locals().items()) + list(PARAMS.items())))
     os.unlink(tmpfilename)
     os.unlink(tmpfilename2)
 
@@ -606,7 +606,7 @@ def makeAnnotatorROIGO(roi_class, outfile, gofile, workspace, overlap=None):
                                          overlap=overlap)
 
     if segments is None:
-        E.info("no segments for roi_class `%s` and overlap `%s` - no computation." % 
+        E.info("no segments for roi_class `%s` and overlap `%s` - no computation." %
                (roi_class, overlap))
         return
     annotations = buildAnnotatorAnnotations(tmpdir,
@@ -667,7 +667,7 @@ def makeAnnotatorArchitecture(infile, outfile,
 ############################################################
 
 
-def makeAnnotator(infile, 
+def makeAnnotator(infile,
                   outfile,
                   segments,
                   annotations,

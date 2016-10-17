@@ -1523,7 +1523,7 @@ def countAlignments(infiles, outfile):
     outf.write("total_reads\taligned_reads\tpaligned_reads\n")
     outf.write("\t".join(
         map(str,
-            [nreads, alignments, (float(alignments)/nreads)*100])) + "\n")
+            [nreads, alignments, (float(alignments) / nreads) * 100])) + "\n")
     outf.close()
 
 
@@ -1547,7 +1547,7 @@ def aggregateAlignmentStats(infiles, outfile):
     outf.write("sample\tlevel\ttool\tnreads\tnassigned\tpassigned\n")
     for s, l, t in zip(samples, levels, tools):
         inf = IOTools.openFile(
-            "alignment_stats.dir/"+s+"."+l+"."+t+"."+"stats")
+            "alignment_stats.dir/" + s + "." + l + "." + t + "." + "stats")
         inf.readline()
         result = inf.readline()
         outf.write("\t".join([s, l, t]) + "\t" + result)
@@ -1740,7 +1740,7 @@ def splitResultsByKingdom(infiles, outfiles):
     # table and the normalised matrix file
     for inf in [result, matrix]:
         header = IOTools.openFile(inf).readline()
-        for kingdom, taxa in hierarchy.iteritems():
+        for kingdom, taxa in hierarchy.items():
             if kingdom == "NA":
                 kingdom = "other"
             else:
@@ -1824,7 +1824,7 @@ def buildForegroundGeneset(infile, outfile):
         groups.add(group)
 
     for group in groups:
-        result[group[0]+"_vs_"+group[1]] = {}
+        result[group[0] + "_vs_" + group[1]] = {}
 
     p_type = PARAMS.get("metagenomeseq_taxa_threshold_option")
     logfc = PARAMS.get("metagenomeseq_taxa_fc_threshold")
@@ -1844,9 +1844,9 @@ def buildForegroundGeneset(infile, outfile):
                group2 == '%(group2)s'""" % locals()).fetchall():
             gene_id, pval, logFC = data
             if pval < p and abs(logFC) > logfc:
-                result[group[0]+"_vs_"+group[1]][gene_id] = 1
+                result[group[0] + "_vs_" + group[1]][gene_id] = 1
             else:
-                result[group[0]+"_vs_"+group[1]][gene_id] = 0
+                result[group[0] + "_vs_" + group[1]][gene_id] = 0
 
     df = pandas.DataFrame(result)
     df.to_csv(outfile, sep="\t", index_label="gene_id")

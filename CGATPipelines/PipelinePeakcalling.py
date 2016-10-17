@@ -322,7 +322,7 @@ def countPeaks(contig, start, end, samfiles, offsets=None):
     peakval = max(counts)
 
     # set other peak parameters
-    peaks = numpy.array(range(0, length))[counts >= peakval]
+    peaks = numpy.array(list(range(0, length)))[counts >= peakval]
     npeaks = len(peaks)
     # peakcenter is median coordinate between peaks
     # such that it is a valid peak in the middle
@@ -663,7 +663,7 @@ def summarizeMACS(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -740,7 +740,7 @@ def summarizeMACSsolo(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -935,7 +935,7 @@ def summarizeMACS2(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -1021,7 +1021,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile,
         raise OSError("contig size file %s does not exist" % contigsfile)
 
     if sort_bedGraph:
-            statement = '''sorted_bdg=`mktemp -p %(local_tmpdir)s`;
+        statement = '''sorted_bdg=`mktemp -p %(local_tmpdir)s`;
                            checkpoint;
                            sort -k1,1 -k2,2n %(infile)s > $sorted_bdg;
                            checkpoint;
@@ -1032,7 +1032,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile,
                         '''
 
     else:
-            statement = '''
+        statement = '''
                           bedGraphToBigWig %(infile)s %(contigsfile)s %(outfile)s
                         '''
 
@@ -1160,7 +1160,6 @@ def runZinba(infile,
              action="full",
              fragment_size=None,
              tag_size=None):
-
     '''run Zinba for peak detection.
 
     Arguments
@@ -1947,7 +1946,7 @@ def summarizeSICER(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -2118,7 +2117,7 @@ def summarizePeakRanger(infiles, outfile):
             for line in f:
                 if "#region_chr" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])

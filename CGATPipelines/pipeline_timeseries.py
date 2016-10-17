@@ -405,13 +405,13 @@ def DESeqNormalize(infile, outfile):
     sharingMode.
     '''
 
-    time_agg = TIME.__dict__['track2groups'].keys()
+    time_agg = list(TIME.__dict__['track2groups'].keys())
     time_points = [int(str(x).split("-")[1]) for x in time_agg]
     time_points = set(time_points)
     time_points = list(time_points)
     time_points.sort()
     time_points = [str(x) for x in time_points]
-    rep_agg = REPLICATE.__dict__['track2groups'].keys()
+    rep_agg = list(REPLICATE.__dict__['track2groups'].keys())
     replicates = [str(x).split("-")[2] for x in rep_agg]
 
     time_points = ",".join(time_points)
@@ -693,13 +693,13 @@ def sumCovarFilter(infile, outfile):
     for the given quantile.
     '''
 
-    time_agg = TIME.__dict__['track2groups'].keys()
+    time_agg = list(TIME.__dict__['track2groups'].keys())
     time_points = [int(str(x).split("-")[1]) for x in time_agg]
     time_points = set(time_points)
     time_points = list(time_points)
     time_points.sort()
     time_points = [str(x) for x in time_points]
-    rep_agg = REPLICATE.__dict__['track2groups'].keys()
+    rep_agg = list(REPLICATE.__dict__['track2groups'].keys())
     replicates = [str(x).split("-")[2] for x in rep_agg]
 
     time_points = ",".join(time_points)
@@ -982,11 +982,11 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
         Files are generally small though.
         '''
 
-        time_agg = TIME.__dict__['track2groups'].keys()
+        time_agg = list(TIME.__dict__['track2groups'].keys())
         time_points = [int(str(x).split("-")[1]) for x in time_agg]
         time_points.sort()
         time_points = list(set(time_points))
-        rep_agg = REPLICATE.__dict__['track2groups'].keys()
+        rep_agg = list(REPLICATE.__dict__['track2groups'].keys())
         replicates = [str(x).split("-")[2] for x in rep_agg]
         time_rep_comb = [x for x in itertools.product(time_points, replicates)]
         time_cond = ro.StrVector([x[0] for x in time_rep_comb])

@@ -1,6 +1,6 @@
 import os
 import collections
-from ReadqcReport import DATABASE
+from .ReadqcReport import DATABASE
 from CGATReport.Tracker import Status
 
 
@@ -14,10 +14,10 @@ class FastqcStatus(Status):
         
         data = self.getAll("SELECT * FROM status_summary")
         # reorganize into dictionary with keys [track][quality]
-        keys = data.keys()
+        keys = list(data.keys())
         vv = collections.defaultdict(dict)
         for row in zip(*[data[x] for x in keys]):
-            d = dict(zip(keys, row))
+            d = dict(list(zip(keys, row)))
             for s in keys:
                 vv[os.path.basename(d['filename'])][s.lower()] = d[s]
         self.data = vv

@@ -139,7 +139,7 @@ import xml.etree.ElementTree
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 
-import PipelineMotifs as PipelineMotifs
+from . import PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################
@@ -224,13 +224,13 @@ def getAssociatedBAMFiles(track):
 
     offsets = []
     if "offsets_%s" % fn.lower() in PARAMS:
-        offsets = map(int, P.asList(PARAMS["offsets_%s" % fn.lower()]))
+        offsets = list(map(int, P.asList(PARAMS["offsets_%s" % fn.lower()])))
     else:
         for pattern, value in P.CONFIG.items("offsets"):
             if "%" in pattern:
                 p = re.sub("%", "\S+", pattern)
                 if re.search(p, fn, re.IGNORECASE):
-                    offsets.extend(map(int, value.split(",")))
+                    offsets.extend(list(map(int, value.split(","))))
 
     if offsets == []:
         offsets = [0] * len(bamfiles)
@@ -883,7 +883,7 @@ def publish():
 
     bams = []
 
-    for targetdir, filenames in exportfiles.iteritems():
+    for targetdir, filenames in exportfiles.items():
         if len(filenames) == 0:
             E.warn("no files for target '%s'" % targetdir)
         for src in filenames:

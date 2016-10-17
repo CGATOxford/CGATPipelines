@@ -5,7 +5,7 @@ import types
 import itertools
 
 from CGATReport.Tracker import *
-from BenchmarkReport import *
+from .BenchmarkReport import *
 
 
 class MappingSummary(BenchmarkTracker, SingleTableTrackerRows):

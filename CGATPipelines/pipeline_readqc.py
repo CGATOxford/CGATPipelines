@@ -168,7 +168,8 @@ PARAMS = P.PARAMS
 
 # define input files and preprocessing steps
 # list of acceptable input formats
-INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz", "*.remote"]
+INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz",
+                 "*.sra", "*.csfasta.gz", "*.remote"]
 
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
@@ -424,7 +425,7 @@ def runFastqScreen(infiles, outfile):
     # using parameters from Pipeline.ini
     with IOTools.openFile(os.path.join(tempdir, "fastq_screen.conf"),
                           "w") as f:
-        for i, k in PARAMS.items():
+        for i, k in list(PARAMS.items()):
             if i.startswith("fastq_screen_database"):
                 f.write("DATABASE\t%s\t%s\n" % (i[22:], k))
 

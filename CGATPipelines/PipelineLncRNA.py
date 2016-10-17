@@ -180,7 +180,7 @@ def buildLncRNAGeneSet(abinitio_lincrna,
             remove_transcripts[gtf[0].transcript_id].add("length")
         # remove transcripts where one or more exon intersects one or more
         # sections
-        for section in indices.iterkeys():
+        for section in indices.keys():
             for exon in gtf:
                 transcript_id = exon.transcript_id
                 total_transcripts.add(transcript_id)
@@ -210,7 +210,7 @@ def buildLncRNAGeneSet(abinitio_lincrna,
     rej_gtf = IOTools.openFile(rej_gtf, "w")
     for gtf in GTF.transcript_iterator(GTF.iterator(
             IOTools.openFile(infile_abinitio))):
-        if gtf[0].transcript_id in remove_transcripts.keys():
+        if gtf[0].transcript_id in list(remove_transcripts.keys()):
             for exon in gtf:
                 if noncoding.contains(exon.contig, exon.start, exon.end):
                     if exon.strand in [x[2].strand for x in
@@ -224,7 +224,7 @@ def buildLncRNAGeneSet(abinitio_lincrna,
 
     outf = open("lncrna_removed.tsv", "w")
     outf.write("transcript_id" + "\t" + "removed" + "\n")
-    for x, y in remove_transcripts.iteritems():
+    for x, y in remove_transcripts.items():
         outf.write("%s\t%s\n" % (x, ",".join(y)))
     outf.close()
 
@@ -610,7 +610,7 @@ def flagExonStatus(gtf_file, outfile):
                 trans_dict[exon.transcript_id].append(exon)
 
         # set exon status for transcripts
-        for transcript in trans_dict.iterkeys():
+        for transcript in trans_dict.keys():
             if len(trans_dict[transcript]) == 1:
                 exon_status = "s"
             else:
@@ -621,7 +621,7 @@ def flagExonStatus(gtf_file, outfile):
 
         # collate transcript exon status for a gene
         transcript_status = set()
-        for exons in trans_dict.itervalues():
+        for exons in trans_dict.values():
             transcript_status.update([exon.exon_status for exon in exons])
         # set gene_exon_status
         if "m" in transcript_status:
@@ -630,7 +630,7 @@ def flagExonStatus(gtf_file, outfile):
             gene_exon_status = "s"
 
         # write gene model to outfile
-        for transcript in trans_dict.itervalues():
+        for transcript in trans_dict.values():
             for exon in transcript:
                 exon.setAttribute("exon_status_locus", gene_exon_status)
                 outf.write(str(exon) + "\n")
@@ -718,7 +718,7 @@ def classifyLncRNA(lincRNA_gtf, reference, outfile, dist=2):
                            transcript[0].start,
                            transcript[0].strand)
         else:
-            print "WARNING: no strand"
+            print("WARNING: no strand")
             " specified for %s" % transcript[0].transcript_id
 
     # iterate over lincRNA transcripts
@@ -876,8 +876,8 @@ def classifyLncRNAGenes(lincRNA_gtf, reference, outfile, dist=2):
                            transcript[0].start,
                            transcript[0].strand)
         else:
-            print("WARNING: no strand"
-                  " specified for %s" % transcript[0].transcript_id)
+            print(("WARNING: no strand"
+                   " specified for %s" % transcript[0].transcript_id))
 
     # iterate over lincRNA genes
     outf_introns = os.path.join(os.path.dirname(outfile),
@@ -1117,7 +1117,7 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
         plus_up_list = []
         minus_up_list = []
         for exon in transcript:
-            if exon.contig in ref_index.mIndex.keys():
+            if exon.contig in list(ref_index.mIndex.keys()):
                 overlap_list.extend([x for x in list(ref_index.get(exon.contig,
                                                                    exon.start,
                                                                    exon.end))])
@@ -1125,7 +1125,7 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
                 E.warn("Contig %s not in reference exon index "
                        "failed to retrieve intervals for %s" % (exon.contig,
                                                                 exon.gene_id))
-            if exon.contig in intron.mIndex.keys():
+            if exon.contig in list(intron.mIndex.keys()):
                 intron_list.extend([x for x in list(intron.get(exon.contig,
                                                                exon.start,
                                                                exon.end))])
@@ -1133,7 +1133,7 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
                 E.warn("Contig %s not in reference intron index, "
                        "failed to retrieve intervals for %s" % (exon.contig,
                                                                 exon.gene_id))
-            if exon.contig in plus_down.mIndex.keys():
+            if exon.contig in list(plus_down.mIndex.keys()):
                 plus_down_list.extend([x for x in list(plus_down.get(
                     exon.contig,
                     exon.start,
@@ -1142,7 +1142,7 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
                 E.warn("Contig %s not in plus downstream index, "
                        "failed to retrieve intervals for %s" % (exon.contig,
                                                                 exon.gene_id))
-            if exon.contig in minus_down.mIndex.keys():
+            if exon.contig in list(minus_down.mIndex.keys()):
                 minus_down_list.extend([x for x in list(minus_down.get(
                     exon.contig,
                     exon.start,
@@ -1151,7 +1151,7 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
                 E.warn("Contig %s not in minus downstream index, "
                        "failed to retrieve intervals for %s" % (exon.contig,
                                                                 exon.gene_id))
-            if exon.contig in plus_up.mIndex.keys():
+            if exon.contig in list(plus_up.mIndex.keys()):
                 plus_up_list.extend([x for x in list(plus_up.get(exon.contig,
                                                                  exon.start,
                                                                  exon.end))])
@@ -1159,7 +1159,7 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
                 E.warn("Contig %s not in plus upstream index, "
                        "failed to retrieve intervals for %s" % (exon.contig,
                                                                 exon.gene_id))
-            if exon.contig in minus_up.mIndex.keys():
+            if exon.contig in list(minus_up.mIndex.keys()):
                 minus_up_list.extend([x for x in list(minus_up.get(exon.contig,
                                                                    exon.start,
                                                                    exon.end))])
@@ -1464,8 +1464,8 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
 
     # check that all the numbers add up
     E.info("Number of lncRNA loci falling into each category are as follows:")
-    for key, value in temp_count.iteritems():
-        print(key + "\t" + str(value))
+    for key, value in temp_count.items():
+        print((key + "\t" + str(value)))
     total_classified = sum(temp_count.values())
     E.info("Total number of lncRNA loci classified: %i" % total_classified)
     E.info("Total number of lncRNA loci in input gtf: %i" % input_transcripts)
@@ -1541,7 +1541,7 @@ def src_split(src):
 class RegionAlignment(object):
 
     DNA_COMPLEMENT = string.maketrans("ACGTacgt", "TGCAtgca")
-    MAX_SEQUENCE_SIZE = sys.maxint  # Maximum length of sequence allowed
+    MAX_SEQUENCE_SIZE = sys.maxsize  # Maximum length of sequence allowed
 
     def __init__(self, size, species=[]):
         assert size <= self.MAX_SEQUENCE_SIZE, ("Maximum length allowed for an"
@@ -1567,7 +1567,7 @@ class RegionAlignment(object):
     def get_species_names(self, skip=[]):
         if not isinstance(skip, list):
             skip = [skip]
-        names = self.sequences.keys()
+        names = list(self.sequences.keys())
         for name in skip:
             try:
                 names.remove(name)
@@ -1602,7 +1602,7 @@ class RegionAlignment(object):
         if len(bases) == 0:
             raise Exception(
                 "A set of genomic positions can only have a positive length.")
-        if species not in self.sequences.keys():
+        if species not in list(self.sequences.keys()):
             self.add_species(species)
         self.sequences[species].seek(index)
         self.sequences[species].write(bases)
@@ -1610,7 +1610,7 @@ class RegionAlignment(object):
     # Flush temp file of specified species, or all species
     def flush(self, species=None):
         if species is None:
-            species = self.sequences.keys()
+            species = list(self.sequences.keys())
         elif not isinstance(species, list):
             species = [species]
         for spec in species:
@@ -1690,7 +1690,7 @@ def build_maf_index_species_chromosomes(filename, index_species=None):
         maf_reader = bx.align.maf.Reader(open(filename))
         while True:
             pos = maf_reader.file.tell()
-            block = maf_reader.next()
+            block = next(maf_reader)
             if block is None:
                 break
             blocks += 1
@@ -1724,7 +1724,7 @@ def build_maf_index_species_chromosomes(filename, index_species=None):
                                     forward_strand_end,
                                     pos,
                                     max=c.src_size)
-    except Exception, e:
+    except Exception as e:
         # most likely a bad MAF
         log.debug('Building MAF index on %s failed: %s' % (filename, e))
         return (None, [], {}, 0)
@@ -1862,7 +1862,7 @@ def iter_blocks_split_by_species(block, species=None):
         block.attributes))  # should we copy attributes?
     empty_block.text_size = block.text_size
     # call recursive function to split into each combo of spec/blocks
-    for value in __split_components_by_species(spec_dict.values(),
+    for value in __split_components_by_species(list(spec_dict.values()),
                                                empty_block):
         # restore original component order
         sort_block_components_by_block(value, block)
@@ -1885,9 +1885,9 @@ def reduce_block_by_primary_genome(block, species, chromosome, region_start):
     # the downstream end
     for i in range(len(species_texts[species]) - 1, -1, -1):
         if species_texts[species][i] == '-':
-            for text in species_texts.values():
+            for text in list(species_texts.values()):
                 text.pop(i)
-    for spec, text in species_texts.items():
+    for spec, text in list(species_texts.items()):
         species_texts[spec] = ''.join(text)
     return (start_offset, species_texts)
 
@@ -1936,7 +1936,7 @@ def fill_region_alignment(alignment,
                     block, primary_src, region)  # orient block
                 start_offset, species_texts = reduce_block_by_primary_genome(
                     block, primary_species, chrom, start)
-                for spec, text in species_texts.items():
+                for spec, text in list(species_texts.items()):
                     # we should trim gaps from both sides, since these are not
                     # positions in this species genome (sequence)
                     text = text.rstrip(gap_chars_str)
@@ -2018,10 +2018,10 @@ def get_starts_ends_fields_from_gene_bed(line):
 
     # Calculate and store starts and ends of coding exons
     region_start, region_end = cds_start, cds_end
-    exon_starts = map(int, fields[11].rstrip(',\n').split(','))
-    exon_starts = map((lambda x: x + tx_start), exon_starts)
-    exon_ends = map(int, fields[10].rstrip(',').split(','))
-    exon_ends = map((lambda x, y: x + y), exon_starts, exon_ends)
+    exon_starts = list(map(int, fields[11].rstrip(',\n').split(',')))
+    exon_starts = list(map((lambda x: x + tx_start), exon_starts))
+    exon_ends = list(map(int, fields[10].rstrip(',').split(',')))
+    exon_ends = list(map((lambda x, y: x + y), exon_starts, exon_ends))
     for start, end in zip(exon_starts, exon_ends):
         start = max(start, region_start)
         end = min(end, region_end)
@@ -2176,9 +2176,9 @@ def extractGeneBlocks(bedfile,
                                                      overwrite_with_gaps=False)
             primary_name = secondary_name = fields[3]
             alignment_strand = fields[5]
-        except Exception, e:
-            print "Error loading exon positions from input line %i: %s" %\
-                (line_count, e)
+        except Exception as e:
+            print("Error loading exon positions from input line %i: %s" %
+                  (line_count, e))
             break
 
         # write the stiched sequence to outfile in the correct orientation
@@ -2261,9 +2261,9 @@ def extractMAFGeneBlocks(bedfile,
                                                      overwrite_with_gaps=False)
             primary_name = secondary_name = fields[3]
             alignment_strand = fields[5]
-        except Exception, e:
-            print "Error loading exon positions from input line %i: %s" % \
-                (line_count, e)
+        except Exception as e:
+            print("Error loading exon positions from input line %i: %s" %
+                  (line_count, e))
             break
 
         if keep_gaps:
@@ -2376,9 +2376,9 @@ def removeGapsFromAlignedFasta(in_dir, out_dir, min_length=0):
         X += 1
         if X > 5:
             break
-        print fasta
-        print os.path.abspath(fasta)
-        print os.path.join(in_dir, fasta)
+        print(fasta)
+        print(os.path.abspath(fasta))
+        print(os.path.join(in_dir, fasta))
         file_name = P.snip(os.path.basename(fasta),  ".fasta")
         lines = [line.strip() for line in open(fasta).readlines()]
         # reference sequence name

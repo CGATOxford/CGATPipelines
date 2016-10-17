@@ -181,7 +181,7 @@ import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelineExome as PipelineExome
-import PipelineExomeAncestry as PipelineExomeAncestry
+from . import PipelineExomeAncestry as PipelineExomeAncestry
 import decimal
 import pandas as pd
 import numpy as np
@@ -1148,7 +1148,7 @@ def mergeAncestry(infiles, outfile):
             score = decimal.Decimal(line[1])
             ancs.append(anc)
             scores.append(score)
-        z = zip(ancs, scores)
+        z = list(zip(ancs, scores))
         s = sorted(z, key=lambda x: x[1])[::-1]
         out.write("%s\t%s\t%s\t%s\t%s\n" % (f[0],
                                             s[0][0], s[0][1],
@@ -1889,7 +1889,8 @@ def readbackedphasing(infiles, outfile):
 @follows(readbackedphasing)
 @transform("*.ped",
            regex(r"(\S*Multiplex\S+|\S*Trio\S+).ped"),
-           add_inputs(r"no_multiallelic_all_samples.rbp.vcf", r"all_samples.ped"),
+           add_inputs(r"no_multiallelic_all_samples.rbp.vcf",
+                      r"all_samples.ped"),
            r"variants/\1.compound_hets.table")
 def compoundHets(infiles, outfile):
     '''Identify potentially pathogenic compound heterozygous variants

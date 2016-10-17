@@ -149,7 +149,7 @@ class Counter(object):
     def getDuration(self):
         if self._durations:
             x = None
-            for source, durations in self._durations.iteritems():
+            for source, durations in self._durations.items():
                 if x is None:
                     x = durations[0]
                 for y in durations[1:]:
@@ -163,7 +163,7 @@ class Counter(object):
 
     def getRunning(self):
         '''get numbers of tasks unfinished or still running.'''
-        return len([x for x, y in self._started.iteritems() if y != 0])
+        return len([x for x, y in self._started.items() if y != 0])
 
     duration = property(getDuration)
     calls = property(getCalls)
@@ -283,7 +283,7 @@ def main(argv=sys.argv):
                 counts["job"][completed_job].add(False, dt, completed_job)
             else:
                 raise ValueError("unknown action")
-        except ValueError, msg:
+        except ValueError as msg:
             if not options.ignore_errors:
                 raise ValueError(str(msg) + "\nat line %s" % line)
 
@@ -298,7 +298,7 @@ def main(argv=sys.argv):
              "duration", "percall", "running")) + "\n")
 
         running = []
-        for objct, c in counts[section].iteritems():
+        for objct, c in counts[section].items():
 
             # apply filters
             if options.filter in ("unfinished", "running") and c.running == 0:
@@ -311,15 +311,15 @@ def main(argv=sys.argv):
                 percall = "na"
 
             options.stdout.write("\t".join(
-                (map(str,
+                (list(map(str,
                      (section, objct,
                       c.calls,
                       d,
                       percall,
                       c.running,
-                      )))) + "\n")
+                      ))))) + "\n")
 
-            running.extend([x for x, y in c._started.iteritems() if y != 0])
+            running.extend([x for x, y in c._started.items() if y != 0])
 
         options.stdout.write("#//\n\n")
 

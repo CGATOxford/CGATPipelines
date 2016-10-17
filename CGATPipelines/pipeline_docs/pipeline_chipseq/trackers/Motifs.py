@@ -156,7 +156,7 @@ class MastFDR(Mast):
         if bin_edges is None:
             return odict()
         bin_edges = [-x for x in bin_edges]
-        print len(bin_edges), len(fdrs)
+        print(len(bin_edges), len(fdrs))
 
         return odict((("score", bin_edges),
                       ("fdr", fdrs)))
@@ -198,7 +198,7 @@ class MastSummary(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict((("msg", msg),))
 
         if len(explained) == 0:
@@ -313,8 +313,8 @@ class MastAllCorrelations(Mast):
         WHERE i.interval_id = m.id AND motif = '%(slice)s'
         ORDER BY i.%(field)s DESC"""
                         % locals())
-        return odict(zip(("evalue", "nmatches", "length", "peakval", "avgval"),
-                         zip(*data)))
+        return odict(list(zip(("evalue", "nmatches", "length", "peakval", "avgval"),
+                         list(zip(*data)))))
 
 
 class MastPairwiseCorrelation(Mast):
@@ -330,7 +330,7 @@ class MastPairwiseCorrelation(Mast):
         WHERE i.interval_id = m.id AND motif = '%(slice)s'"""
                         % locals())
 
-        return odict(zip((field1, field2), zip(*data)))
+        return odict(list(zip((field1, field2), list(zip(*data)))))
 
 
 class MastEvalueVersusLength(MastPairwiseCorrelation):
@@ -457,7 +457,7 @@ class MastCurve(Mast):
             return odict()
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict()
 
         data = odict()
@@ -494,7 +494,7 @@ class MastROC(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict()
 
         # determine the e-value cutoff as the maximum of "explained"
@@ -514,11 +514,11 @@ class MastROC(Mast):
             try:
                 roc = Stats.computeROC(
                     [(x[0], x[1] <= cutoff) for x in values])
-            except ValueError, msg:
+            except ValueError as msg:
                 # ignore results where there are no positives among values.
                 continue
 
-            result[field] = odict(zip(("FPR", "TPR"), zip(*roc)))
+            result[field] = odict(list(zip(("FPR", "TPR"), list(zip(*roc)))))
         return result
 
 
@@ -551,11 +551,11 @@ class MastROCNMatches(Mast):
 
             try:
                 roc = Stats.computeROC([(x[0], x[1] > 0) for x in values])
-            except ValueError, msg:
+            except ValueError as msg:
                 # ignore results where there are no positives among values.
                 continue
 
-            result[field] = odict(zip(("FPR", "TPR"), zip(*roc)))
+            result[field] = odict(list(zip(("FPR", "TPR"), list(zip(*roc)))))
 
         return result
 
@@ -575,7 +575,7 @@ class MastAUC(MastROC):
     def __call__(self, track, slice=None):
 
         data = MastROC.__call__(self, track, slice)
-        for k, d in data.iteritems():
+        for k, d in data.items():
             data[k] = Stats.getAreaUnderCurve(d['FPR'], d['TPR'])
         return data
 
@@ -613,7 +613,7 @@ class MastPeakValWithMotif(Mast):
         result = Stats.getSensitivityRecall(
             [(int(x[0]), x[1] > 0) for x in data])
 
-        return odict(zip(("peakval", "proportion with motif", "recall"), zip(*result)))
+        return odict(list(zip(("peakval", "proportion with motif", "recall"), list(zip(*result)))))
 
 
 class MastPeakValWithMotifEvalue(Mast):
@@ -635,7 +635,7 @@ class MastPeakValWithMotifEvalue(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict()
 
         # determine the e-value cutoff as the maximum of "explained"
@@ -651,7 +651,7 @@ class MastPeakValWithMotifEvalue(Mast):
         result = Stats.getSensitivityRecall(
             [(int(x[0]), x[1] < cutoff) for x in data])
 
-        return odict(zip(("peakval", "proportion with motif", "recall"), zip(*result)))
+        return odict(list(zip(("peakval", "proportion with motif", "recall"), list(zip(*result)))))
 
 
 class MemeInputSequenceComposition(DefaultTracker):
@@ -748,7 +748,7 @@ class TomTomResults(DefaultTracker):
 
         result = odict()
         for x, y in enumerate(data):
-            result[str(x)] = odict(zip(headers, y))
+            result[str(x)] = odict(list(zip(headers, y)))
         return result
 
 

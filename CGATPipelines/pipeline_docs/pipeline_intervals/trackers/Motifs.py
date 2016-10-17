@@ -4,7 +4,7 @@ import math
 import numpy
 import numpy.ma
 import xml.etree.ElementTree
-from IntervalReport import *
+from .IntervalReport import *
 
 ##########################################################################
 ##########################################################################
@@ -152,7 +152,7 @@ class MastFDR(Mast):
         if bin_edges is None:
             return odict()
         bin_edges = [-x for x in bin_edges]
-        print len(bin_edges), len(fdrs)
+        print(len(bin_edges), len(fdrs))
 
         return odict((("score", bin_edges),
                       ("fdr", fdrs)))
@@ -194,7 +194,7 @@ class MastSummary(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict((("msg", msg),))
 
         if len(explained) == 0:
@@ -315,7 +315,7 @@ class MastQuickSummary(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict((("msg", msg),))
 
         if len(explained) == 0:
@@ -497,7 +497,7 @@ class MastCurve(Mast):
             return odict()
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict()
 
         data = odict()
@@ -641,8 +641,8 @@ class MastPeakValWithMotif(Mast):
         result = Stats.getSensitivityRecall(
             [(int(x[0]), x[1] > 0) for x in data])
 
-        return odict(zip(("peakval", "proportion with motif", "recall"),
-                         zip(*result)))
+        return odict(list(zip(("peakval", "proportion with motif", "recall"),
+                         list(zip(*result)))))
 
 # class MastPeakValWithMotifEvalue( Mast ):
 #     '''return for each peakval the proportion of intervals

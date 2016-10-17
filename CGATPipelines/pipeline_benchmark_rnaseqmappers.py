@@ -716,7 +716,8 @@ def loadTranscriptomeValidation(infiles, outfile):
 
     to_cluster = USECLUSTER
 
-    headers = ",".join([P.tablequote(P.snip(x, ".accepted.bam")) for x in infiles])
+    headers = ",".join([P.tablequote(P.snip(x, ".accepted.bam"))
+                        for x in infiles])
     infiles = " ".join(["%s.log" % x for x in infiles])
 
     tablename = P.toTable(outfile)
@@ -1164,7 +1165,7 @@ def buildReadCorrespondence(infiles, outfile):
 
     headers = ",".join([P.snip(x, ".bam") for x in infiles])
     sorters = " ".join(["<( samtools view -h %s | %s/hsort 0 )" %
-                       (x, PARAMS["scriptsdir"]) for x in infiles])
+                        (x, PARAMS["scriptsdir"]) for x in infiles])
 
     statement = '''
     cgat diff_bam

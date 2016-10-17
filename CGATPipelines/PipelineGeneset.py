@@ -41,7 +41,7 @@ MAP_UCSC2ENSEMBL = {
     'rn': ENSEMBL_INFO._make(('Rattus_norvegicus',
                               'ENSRNOG',
                               'ENSRNOT')),
-    }
+}
 
 
 def mapUCSCToEnsembl(genome):
@@ -1340,7 +1340,7 @@ def buildGenomicFunctionalAnnotation(gtffile, dbh, outfiles):
 
     outf = IOTools.openFile(outfile_tsv, "w")
     outf.write("term\tdescription\n")
-    for term, description in term2description.iteritems():
+    for term, description in term2description.items():
         outf.write("%s\t%s\n" % (term, description))
     outf.close()
 

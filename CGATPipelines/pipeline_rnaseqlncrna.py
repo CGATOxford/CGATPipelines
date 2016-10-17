@@ -620,20 +620,20 @@ def buildLncRNAGeneSetStats(infile, outfile):
                           "no_multi_exon_genes"]) + "\n")
 
     # For pep8 purposes
-    x = map(str, [PipelineLncRNA.CounterTranscripts(infile).count(),
-                  PipelineLncRNA.CounterGenes(infile).count(),
-                  PipelineLncRNA.CounterExonsPerTranscript(
-                      infile).count(),
-                  PipelineLncRNA.CounterExonsPerGene(
-                      infile).count(),
-                  PipelineLncRNA.CounterSingleExonTranscripts(
-                      infile).count(),
-                  PipelineLncRNA.CounterMultiExonTranscripts(
-                      infile).count(),
-                  PipelineLncRNA.CounterSingleExonGenes(
-                      infile).count(),
-                  PipelineLncRNA.CounterMultiExonGenes(
-                      infile).count()])
+    x = list(map(str, [PipelineLncRNA.CounterTranscripts(infile).count(),
+                       PipelineLncRNA.CounterGenes(infile).count(),
+                       PipelineLncRNA.CounterExonsPerTranscript(
+        infile).count(),
+        PipelineLncRNA.CounterExonsPerGene(
+        infile).count(),
+        PipelineLncRNA.CounterSingleExonTranscripts(
+        infile).count(),
+        PipelineLncRNA.CounterMultiExonTranscripts(
+        infile).count(),
+        PipelineLncRNA.CounterSingleExonGenes(
+        infile).count(),
+        PipelineLncRNA.CounterMultiExonGenes(
+        infile).count()]))
     outf.write("\t".join(x))
 
 
@@ -1124,7 +1124,8 @@ def buildControlFasta(infile, outfile):
            r"\1/cpc/control_cpc.result")
 def runControlCPC(infile, outfile):
     # farm.py is called from within cpc.sh
-    assert IOTools.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
+    assert IOTools.which(
+        "farm.py"), "farm.py needs to be in $PATH for cpc to run"
     # Default cpc parameters don't work with later versions of blast
     E.info("Running cpc with blast version:%s" % IOTools.which("blastx"))
 

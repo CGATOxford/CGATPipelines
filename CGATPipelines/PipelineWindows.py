@@ -435,10 +435,10 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
         if is_first:
             is_first = False
             header1, header2 = set(), set()
-            for r in results.values():
-                header1.update(r.keys())
-            for s in status.values():
-                header2.update(s.keys())
+            for r in list(results.values()):
+                header1.update(list(r.keys()))
+            for s in list(status.values()):
+                header2.update(list(s.keys()))
 
             header = ["method", "treatment", "control"]
             header1 = list(sorted(header1))
@@ -446,7 +446,7 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
 
             outf.write("\t".join(header + header1 + header2) + "\n")
 
-        for treatment, control in results.keys():
+        for treatment, control in list(results.keys()):
             key = (treatment, control)
             r = results[key]
             s = status[key]
@@ -486,11 +486,11 @@ def buildFDRStats(infile, outfile, method):
     fdrs = (0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
 
     for fdr in fdrs:
-        print "fdr"
+        print("fdr")
         take = data['qvalue'] <= fdr
 
         significant = sum(take)
-        print significant
+        print(significant)
 
 
 def outputAllWindows(infile, outfile):
@@ -540,16 +540,16 @@ def outputRegionsOfInterest(design_file, counts_file, outfile,
     design = Expression.readDesignFile(design_file)
 
     # remove tracks not included in the design
-    design = dict([(x, y) for x, y in design.items() if y.include])
+    design = dict([(x, y) for x, y in list(design.items()) if y.include])
     # define the two groups
-    groups = sorted(set([x.group for x in design.values()]))
+    groups = sorted(set([x.group for x in list(design.values())]))
 
     # build a filtering statement
     groupA, groupB = groups
 
     def _buildMax(g, threshold):
 
-        selected = [x for x, y in design.items() if y.group == g]
+        selected = [x for x, y in list(design.items()) if y.group == g]
         if len(selected) > 1:
             return "max((%s)) < %f" % (
                 ",".join(
@@ -562,7 +562,7 @@ def outputRegionsOfInterest(design_file, counts_file, outfile,
 
     def _buildSum(g, threshold):
 
-        selected = [x for x, y in design.items() if y.group == g]
+        selected = [x for x, y in list(design.items()) if y.group == g]
         if len(selected) > 1:
             return "sum((%s)) > %f" % (
                 ",".join(
@@ -717,11 +717,11 @@ def normalizeBed(countsfile, outfile):
     bed_frame = bed_frame.fillna(0.0)
     val_array = numpy.array(bed_frame.values, dtype=numpy.int64)
     geom_mean = geoMean(val_array)
-    ratio_frame = bed_frame.apply(lambda x: x/geom_mean,
+    ratio_frame = bed_frame.apply(lambda x: x / geom_mean,
                                   axis=0)
     size_factors = ratio_frame.apply(numpy.median,
                                      axis=0)
-    normalize_frame = bed_frame/size_factors
+    normalize_frame = bed_frame / size_factors
     # replace infs and -infs with Nas, then 0s
     normalize_frame.replace([numpy.inf, -numpy.inf], numpy.nan, inplace=True)
     normalize_frame = normalize_frame.fillna(0.0)
@@ -843,7 +843,7 @@ def runMEDIPSDMR(design_file, outfile):
     design = Expression.readDesignFile(design_file)
 
     # remove data tracks not needed
-    design = [(x, y) for x, y in design.items() if y.include]
+    design = [(x, y) for x, y in list(design.items()) if y.include]
 
     # build groups
     groups = set([y.group for x, y in design])
@@ -1107,8 +1107,8 @@ def buildSpikeResults(infile, outfile):
         spiked_d2hist_fdr_normed[spiked_d2hist_counts == 0] = -1.0
 
         # output to table for database upload
-        for x, y in itertools.product(range(len(xedges) - 1),
-                                      range(len(yedges) - 1)):
+        for x, y in itertools.product(list(range(len(xedges) - 1)),
+                                      list(range(len(yedges) - 1))):
             tmpfile.write("\t".join(map(
                 str, (xedges[x], yedges[y],
                       fdr,
@@ -1200,7 +1200,7 @@ def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
     """
 
     header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(infiles)
 
     if not samples_in_columns:
@@ -1242,7 +1242,7 @@ def loadSummarizedContextStats(infiles,
     """
 
     header = ",".join([P.snip(os.path.basename(x), suffix)
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(infiles)
 
     load_statement = P.build_load_statement(

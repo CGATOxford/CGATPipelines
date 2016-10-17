@@ -32,7 +32,7 @@ class AllRegionsOfInterest(TrackerROI):
             pos = "`%(contig)s:%(start)i..%(end)i <http://genome.ucsc.edu/cgi-bin/hgTracks?db=hg18&position=%(contig)s:%(start)i..%(end)i>`_" \
                 % locals()
             n[roi_id] = odict(
-                zip(("pos",) + tuple(extra_columns), (pos,) + d[3:]))
+                list(zip(("pos",) + tuple(extra_columns), (pos,) + d[3:])))
 
         return n
 
@@ -86,8 +86,8 @@ class ROIOverlapCounts(ChipseqReport.DefaultTracker):
 
         data = self.get(statement % locals())
 
-        return odict(zip(columns,
-                         zip(*data)))
+        return odict(list(zip(columns,
+                         list(zip(*data)))))
 
 
 ##########################################################################
@@ -118,8 +118,8 @@ class ROIOverlap(ChipseqReport.DefaultTracker):
 
         data = self.get(statement % locals())
 
-        return odict(zip(columns,
-                         zip(*data)))
+        return odict(list(zip(columns,
+                         list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -164,8 +164,8 @@ class ROIOverlapWithGenes(ChipseqReport.DefaultTracker):
 
         data = self.get(statement % locals())
 
-        return odict(zip(columns,
-                         zip(*data)))
+        return odict(list(zip(columns,
+                         list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -212,8 +212,8 @@ class GWASOverlapWithGenes(ChipseqReport.DefaultTracker):
 
         data = self.get(statement % self.members(locals()))
 
-        return odict(zip(columns,
-                         zip(*data)))
+        return odict(list(zip(columns,
+                         list(zip(*data)))))
 
 
 ##########################################################################
@@ -234,8 +234,8 @@ class GWASIntervalList(ChipseqReport.DefaultTracker):
         ''' % (locals())
 
         data = self.get(statement % self.members(locals()))
-        return odict(zip(("class", "contig", "start", "end", "snps"),
-                         zip(*data)))
+        return odict(list(zip(("class", "contig", "start", "end", "snps"),
+                         list(zip(*data)))))
 
 
 ##########################################################################
@@ -275,5 +275,5 @@ class SelectionOverlapWithGenes(ChipseqReport.DefaultTracker):
 
         data = self.get(statement % self.members(locals()))
 
-        return odict(zip(columns,
-                         zip(*data)))
+        return odict(list(zip(columns,
+                         list(zip(*data)))))

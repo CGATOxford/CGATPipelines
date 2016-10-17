@@ -377,7 +377,7 @@ def getControl(track, suffix='.genome.bam'):
     if control is not None:
         if not os.path.exists(control + suffix):
             raise ValueError("control file %s does not exist for %s" %
-                             (fn+suffix,
+                             (fn + suffix,
                               track))
         controls = [Sample(filename=control)]
         return controls
@@ -484,7 +484,7 @@ def connect():
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ############################################################
 ############################################################
@@ -962,9 +962,9 @@ def callPeaksWithMACS2(infile, outfile):
     contigsfile = os.path.join(PARAMS["annotations_dir"],
                                PARAMS["annotations_interface_contigs"])
 
-    print "annoatations.dir", PARAMS["annotations_dir"]
-    print "interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"]
-    print "contigsfile: ", contigsfile
+    print("annoatations.dir", PARAMS["annotations_dir"])
+    print("interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"])
+    print("contigsfile: ", contigsfile)
 
     PipelinePeakcalling.runMACS2(
         infile,

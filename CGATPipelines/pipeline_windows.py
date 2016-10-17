@@ -1072,8 +1072,8 @@ def mapTrack2Input(tracks):
 
         try:
             t = Sample(tablename=track)
-        except ValueError, msg:
-            print msg
+        except ValueError as msg:
+            print(msg)
             continue
 
         input_files = getInput(t)
@@ -1114,13 +1114,13 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     data = cc.fetchall()
 
     # transpose, remove interval_id column
-    data = zip(*data)
+    data = list(zip(*data))
     columns = [x[0] for x in cc.description]
 
     map_track2input = mapTrack2Input(columns)
     take_tracks = [x for x, y in enumerate(columns) if y in map_track2input]
     take_input = [x for x, y in enumerate(
-        columns) if y in map_track2input.values() and y is not None]
+        columns) if y in list(map_track2input.values()) and y is not None]
 
     # build data frame
     dataframe = pandas.DataFrame(
@@ -1186,7 +1186,7 @@ def buildWindowsFoldChangesPerMedian(infile, outfile):
     data = cc.fetchall()
 
     # transpose, remove interval_id column
-    data = zip(*data)
+    data = list(zip(*data))
     columns = [x[0] for x in cc.description]
 
     take_tracks = [x for x, y in enumerate(columns) if y != "interval_id"]
@@ -2655,8 +2655,8 @@ def buildTranscriptProfiles(infiles, outfile):
     track = P.snip(os.path.basename(outfile), '.transcriptprofile.tsv.gz')
     try:
         t = Sample(filename=track)
-    except ValueError, msg:
-        print msg
+    except ValueError as msg:
+        print(msg)
         return
 
     job_memory = "8G"

@@ -384,7 +384,7 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
         return
 
     header = ",".join([P.snip(os.path.basename(x), pipeline_suffix)
-                      for x in xfiles])
+                       for x in xfiles])
     filenames = " ".join(["%s.%s" % (x, suffix) for x in xfiles])
 
     # there might be a variable number of columns in the tables
@@ -581,7 +581,7 @@ def loadBAMStats(infiles, outfile):
     '''
 
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
 
@@ -648,7 +648,7 @@ def loadBAMStats(infiles, outfile):
 def buildPicardRnaSeqMetrics(infiles, strand, outfile):
     '''run picard:RNASeqMetrics
 
-    
+
 
     Arguments
     ---------

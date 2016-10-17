@@ -146,13 +146,13 @@ import CGAT.IOTools as IOTools
 import CGAT.MAST as MAST
 import CGAT.GTF as GTF
 import CGAT.Bed as Bed
-import cStringIO
+import io
 import numpy
 import CGAT.Masker as Masker
 import fileinput
 import CGAT.Experiment as E
 import logging as L
-import PipelineChipseq as PIntervals
+from . import PipelineChipseq as PIntervals
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
 from ruffus import *
@@ -196,7 +196,7 @@ TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
             "*.csfasta.gz") if PARAMS["track_control"] not in x],
         "(\S+).csfasta.gz")
 for X in TRACKS:
-    print "TRACK=", X, "\n"
+    print("TRACK=", X, "\n")
 
 TRACKS_CONTROL = PipelineTracks.Tracks(Sample).loadFromDirectory(
     [x for x in glob.glob("*.export.txt.gz") if PARAMS["tracks_control"] in x],
@@ -215,7 +215,7 @@ TRACKS_CONTROL = PipelineTracks.Tracks(Sample).loadFromDirectory(
         [x for x in glob.glob("*.csfasta.gz") if PARAMS["track_control"] in x],
         "(\S+).csfasta.gz")
 for X in TRACKS_CONTROL:
-    print "TRACK_CONTROL=", X, "\n"
+    print("TRACK_CONTROL=", X, "\n")
 
 
 def getControl(track):
@@ -236,7 +236,7 @@ SAMPLES = PipelineTracks.Aggregate(TRACKS, labels=("tissue", "replicate"))
 # aggregate per tissue
 TISSUES = PipelineTracks.Aggregate(TRACKS, labels=("tissue",))
 # compound targets : all experiments
-TRACKS_MASTER = EXPERIMENTS.keys() + CONDITIONS.keys()
+TRACKS_MASTER = list(EXPERIMENTS.keys()) + list(CONDITIONS.keys())
 # compound targets : correlation between tracks
 TRACKS_CORRELATION = TRACKS_MASTER + list(TRACKS)
 
@@ -370,7 +370,7 @@ def loadBAMStats(infiles, outfile):
 
     scriptsdir = PARAMS["general_scriptsdir"]
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
     E.info("loading bam stats - summary")
@@ -492,7 +492,7 @@ def normaliseBAMs(infiles, outfiles):
         countfile[infile] = infile.replace(".bam", ".count")
         statement = ''' samtools idxstats %s | awk '{s+=$3} END {print s}' > %s ''' % (
             infile, countfile[infile])
-        print statement
+        print(statement)
         P.run()
         fh = open(countfile[infile], "r")
         reads[infile] = int(fh.read())
@@ -1107,7 +1107,7 @@ def loadReplicatedIntervals(infile, outfile):
 
         c.output += 1
         tmpfile.write("\t".join(map(str, (contig, start, end, interval_id,
-                      npeaks, peakcenter, length, avgval, peakval, nprobes, fc))) + "\n")
+                                          npeaks, peakcenter, length, avgval, peakval, nprobes, fc))) + "\n")
 
     tmpfile.close()
     tmpfilename = tmpfile.name

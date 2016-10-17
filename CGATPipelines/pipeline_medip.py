@@ -184,7 +184,7 @@ TRACKS = sum(itertools.chain([PipelineTracks.Tracks(Sample).loadFromDirectory(
 # if conf.py exists: execute to change the above assignmentsn
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -1279,7 +1279,7 @@ def publish():
     for ucsctype, dirname, filename in ucsc_files:
         filename = os.path.basename(filename)
         track = P.snip(filename, ucsctype)
-        print ucsc_urls[ucsctype] % locals()
+        print(ucsc_urls[ucsctype] % locals())
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
