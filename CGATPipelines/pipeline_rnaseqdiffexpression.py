@@ -34,7 +34,7 @@ The RNA-Seq differential expression pipeline performs differential
 expression analysis. It requires three inputs:
 
    1. A geneset in :term:`gtf` formatted file
-   2. Mapped reads in :term:`bam` formatted files and/or raw reads in
+   2. Mapped reads in :term:`bam` formatted files and/or unaligned reads in
       :term:`fastq` formatted files
    3. Design files as :term:`tsv`-separated format
 
@@ -45,25 +45,26 @@ Overview
 
 The pipeline performs the following:
 
-   * Compute tag (counts) on a transcript and gene level
+   * Compute tag (counts) at the transcript and gene level
      The following counting methods are implemented:
-      * featureCounts
+      * featureCounts_
       * gtf2table
 
     and/or
 
-   * Gene expression estimates (TPM and counts) on a transcript and gene level:
-     The following alignment-free expression estimation methods are implemented:
-      * kallisto
-      * salmon
-      * sailfish
+   * Gene expression estimates (TPM and counts) at the transcript and
+     gene level. The following alignment-free expression estimation
+     methods are implemented:
+      * kallisto_
+      * salmon_
+      * sailfish_
 
-   * perform differential expression analysis. The methods currently
+   * Perform differential expression analysis. The methods currently
      implemented are:
 
-      * DESeq2
-      * EdgeR
-      * Sleuth (alignment-free only)
+      * deseq2_
+      * edger_
+      * sleuth_
 
 Background
 ============
@@ -77,8 +78,9 @@ by several trancripts. Other quantities might no biologically
 meaningful but are necessary as a technical comprise.  For example,
 the overlapping transcripts might be hard to resolve and thus might
 need to be aggregated per gene. Furthermore, functional annotation is
-primarily associated with genes and not individual transcripts. The
-pipeline attempts to quantify transcript and gene-level expression and
+primarily associated with genes and not individual transcripts.
+
+This pipeline estimates transcript and gene-level expression and
 performs differential expression analysis on both levels.
 
 The quantification tools fall into two categories:
@@ -87,28 +89,28 @@ The quantification tools fall into two categories:
       a reference transcriptome using "pseduo-alignment". In essence,
       the tool attempts to identify the compatible transcripts for
       each read without identifying the exact alignment position of
-      the read on the transcript or genome. Following this the
-      expression estimates which beest explain the observed reads are
+      the read on the transcript or genome. Following this the set of
+      expression estimates which best explain the observed reads are
       obtained using an Expectation Maximisation approach
 
       The available tools are:
-      * kallisto
-      * salmon
-      * sailfish
+      * kallisto_
+      * salmon_
+      * sailfish_
 
    * Alignment-based
       Quantification is performed on the aligned reads using the
       position of features described in the reference geneset
-      gtf. Reads are discretely assigned to one or another feature
-      (may be performed at the transcript or gene-level.  It should be
-      noted that transcript-level quantification with tag counting
-      methods is inherrently inaccurate since a read which aligns to
-      an exon present in multiple transcripts can not be naively
+      gtf. Reads are discretely assigned to one feature (may be
+      performed at the transcript or gene-level).  It should be noted
+      that transcript-level quantification with tag counting methods
+      is inherrently inaccurate since a read which aligns to an exon
+      present in multiple isoforms of the same gene can not be naively
       assigned to a single transcript.
 
       The available tools are:
-      * featureCounts
-      * gtf2table
+      * featurecounts_
+      * gtf2table (in-house script)
 
 The alignment-free methods should be preffered over featureCounts and
 gtf2table in almost all instances. However, many analyses still use
@@ -121,30 +123,30 @@ transcript which can be rounded to integer counts.
 
 Differential expression:
 
-Differential expression can be performed on raw counts per
+Differential expression can be performed on (non normalised) counts per
 transcript/gene or on expression estimates (Transripts Per Million =
-TPM).
+TPM) per transcript/gene.
 
-Raw counts (alignment-free & alignment-based) are well modelled by a
-negative binomial distribution and differential expression can
-therefore be performed with a negative binomial Generalised Linear
-Model (GLM). This is the approach taken by DESeq2 and edgeR which are
-both used here. Most simply, a Wald test can be performed to identify
-genes where the log2fold change between two levels of a factor (e.g
-factor = genotype, levels = WT, KO) is significantly different from
-0. Where the factor has more than one level (e.g factor = genotype,
-levels = WT, KO1, KO2), a Likelihood Ratio Test (LRT) can be performed
-to identify genes where a full model including the (e.g genotype)
-factor is a signficantly better fit than a reduced model not including
-the factor. The pipeline performs Wald test only. Please see the
-DESeq2/edgeR vingettes for LRT.
+Count-based expression estimates (alignment-free & alignment-based)
+are well modelled by a negative binomial distribution and differential
+expression can therefore be performed with a negative binomial
+Generalised Linear Model (GLM). This is the approach taken by DESeq2
+and edgeR which are both used here. Most simply, a Wald test can be
+performed to identify genes where the log2fold change between two
+levels of a factor (e.g factor = genotype, levels = WT, KO) is
+significantly different from 0. Where the factor has more than one
+level (e.g factor = genotype, levels = WT, KO1, KO2), a Likelihood
+Ratio Test (LRT) can be performed to identify genes where a full model
+including the (e.g genotype) factor is a signficantly better fit than
+a reduced model not including the said factor. This pipeline performs Wald
+test only. Please see the deseq2_/edger_ vingettes for LRT.
 
-Log TPM (alignment-free only) are well modelled by a gaussian distribution and differential
-expression can therefore be performed with a linear model. This is the
-approach taken by sleuth which is used here. In addition, slueth uses
-the bootstrap estimates from kallisto/salmon/sailfish to estimate the
-proportion of the variance which is technical and therefore the
-proportion which is biological.
+Log TPM (alignment-free only) are well modelled by a gaussian
+distribution and differential expression can therefore be performed
+with a linear model. This is the approach taken by sleuth which is
+used here. In addition, slueth_ uses the bootstrap estimates from
+kallisto_/salmon_/sailfish_ to estimate the proportion of the variance
+which is technical and therefore the proportion which is biological.
 
 Usage
 =====
@@ -190,6 +192,7 @@ Design matrices are imported by placing :term:`tsv` formatted files
 into the :term:`working directory`. A design matrix describes the
 experimental design to test. The design files should be named
 design*.tsv.
+
 Each design file has at leasr four columns but may contain any number
 of columns after the 'pair' column:
 
@@ -213,8 +216,6 @@ pair
      pair that sample belongs to (for paired tests) - set to 0 if the
      design is not paired.
 
-Optional inputs
-+++++++++++++++
 
 Requirements
 ------------
@@ -226,32 +227,36 @@ The pipeline requires the results from
 On top of the default CGAT setup, the pipeline requires the following
 software to be in the path:
 
-+--------------+----------+------------------------------+
-|*Program*     |*Version* |*Purpose*                     |
-+--------------+----------+------------------------------+
-|samtools      |>=0.1.16  |bam/sam files                 |
-+--------------+----------+------------------------------+
-|bedtools      |          |working with intervals        |
-+--------------+----------+------------------------------+
-|deseq2/edgeR  |          |count-based differential expression       |
-+--------------+----------+------------------------------+
-|sleuth        |          |TPM-based differential expression       |
-+--------------+----------+------------------------------+
-|samtools      |>=0.1.16  |bam/sam files                 |
-+--------------+----------+------------------------------+
-|featureCounts |>=1.4.6   |alignment-based quantification|
-+--------------+----------+------------------------------+
-|gtf2table     |          |alignment-based quantification|
-+--------------+----------+------------------------------+
-|kallisto      |>=0.43.0  |alignment-free quantification |
-+--------------+----------+------------------------------+
-|salmon        |>=0.7.2   |alignment-free quantification |
-+--------------+----------+------------------------------+
-|sailfish      |>=0.9.0   |alignment-free quantification |
-+--------------+----------+------------------------------+
++--------------+----------+------------------------------------+
+|*Program*     |*Version* |*Purpose*                           |
++--------------+----------+------------------------------------+
+|samtools      |>=0.1.16  |bam/sam files                       |
++--------------+----------+------------------------------------+
+|bedtools      |          |working with intervals              |
++--------------+----------+------------------------------------+
+|deseq2_/edgeR_|          |count-based differential expression |
++--------------+----------+------------------------------------+
+|sleuth_       |          |TPM-based differential expression   |
++--------------+----------+------------------------------------+
+|samtools      |>=0.1.16  |bam/sam files                       |
++--------------+----------+------------------------------------+
+|featureCounts_|>=1.4.6   |alignment-based quantification      |
++--------------+----------+------------------------------------+
+|gtf2table     |          |alignment-based quantification      |
++--------------+----------+------------------------------------+
+|kallisto_     |>=0.43.0  |alignment-free quantification       |
++--------------+----------+------------------------------------+
+|salmon_       |>=0.7.2   |alignment-free quantification       |
++--------------+----------+------------------------------------+
+|sailfish_     |>=0.9.0   |alignment-free quantification       |
++--------------+----------+------------------------------------+
+
 
 Pipeline output
 ===============
+
+Quantification
+--------------
 
 The quantification estimates from each method are outputted to:
 [method].dir/[sample]/[level].tsv.gz,
@@ -266,31 +271,44 @@ For each method, the merged counts are outputted to:
 [method].dir/[level].tsv.gz
 
 
-###########################################################################
-# NEEDS WORK
-###########################################################################
 Differential gene expression results
 -------------------------------------
 
-Differential expression is estimated for different genesets with a
-variety of methods. Results are stored per method in subdirectories
+Results are stored per method in subdirectories
 such as :file:`deseq.dir`, :file:`edger.dir` or :file:`sleuth.dir`
 
-Glossary 
+Plots from the differential expression analyses are also contained
+within the directories.
+
+
+Glossary
 ========
 
 .. glossary::
 
+   kallisto
+      kallisto_ - alignment-free quantification
+   salmon
+      kallisto_ - alignment-free quantification
+   sailfish
+      kallisto_ - alignment-free quantification
+   featureCounts
+      featurecounts_ - alignment-free quantification
    deseq
       deseq_ - differential expression analysis
+   edger
+      edger_ - differential expression analysis
+   sleuth
+      sleuth_ - differential expression analysis
 
-
-.. _deseq: http://www-huber.embl.de/users/anders/DESeq/
 .. _featurecounts: http://bioinf.wehi.edu.au/featureCounts/
+.. _kallisto: https://pachterlab.github.io/kallisto/
+.. _salmon: https://combine-lab.github.io/salmon/
+.. _sailfish: http://www.cs.cmu.edu/~ckingsf/software/sailfish/
+.. _deseq: http://www-huber.embl.de/users/anders/DESeq/
+.. _edger: http://bioconductor.org/packages/release/bioc/html/edgeR.html
+.. _sleuth: https://github.com/pachterlab/sleuth
 
-###########################################################################
-# NEEDS WORK
-###########################################################################
 
 ChangeLog
 =========
@@ -310,14 +328,11 @@ ChangeLog
             pipeline and modules to simplify workflow and add alignment-free
             methods
 
-Requirements:
 
 ###########################################################################
-
-
+Possible improvements:
 ###########################################################################
-Possible future work:
-###########################################################################
+Tom Smith 17 OCT 16:
 Add Stringtie + Cufflinks2? - Need to work out how to extract counts
 A python script (prepDE.py) is available from:
 https://ccb.jhu.edu/software/stringtie/index.shtml?t=manual#deseq but
@@ -412,7 +427,8 @@ GENESETS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.bam"), "(\S+).bam")
 # group by experiment (assume that last field is a replicate identifier)
-EXPERIMENTS = PipelineTracks.Aggregate(BAM_TRACKS, labels=("condition", "tissue"))
+EXPERIMENTS = PipelineTracks.Aggregate(
+    BAM_TRACKS, labels=("condition", "tissue"))
 
 
 ###############################################################################
@@ -920,7 +936,7 @@ def loadCufflinks(infile, outfile):
 def mergeCufflinksGeneFPKM(infiles, outfile):
     '''build aggregate table with cufflinks FPKM values.
 
-        Takes cufflinks results from sample.genes_tracking.gz and 
+        Takes cufflinks results from sample.genes_tracking.gz and
         builds summary "_fpkm_genes.tsv.gz" in "fpkm.dir"'''
     PipelineRnaseq.mergeCufflinksFPKM(
         infiles,
@@ -937,7 +953,7 @@ def mergeCufflinksGeneFPKM(infiles, outfile):
 def mergeCufflinksIsoformFPKM(infiles, outfile):
     '''build aggregate table with cufflinks FPKM values.
 
-        Takes cufflinks results from sample.fpkm_tracking.gz and 
+        Takes cufflinks results from sample.fpkm_tracking.gz and
         builds summary "_fpkm_isoforms.tsv.gz" in "fpkm.dir"'''
     PipelineRnaseq.mergeCufflinksFPKM(
         infiles,
@@ -958,20 +974,20 @@ def mergeCufflinksIsoformFPKM(infiles, outfile):
 def loadCufflinksFPKM(infile, outfile):
     '''Loads merged fkpm data into table in database.
 
-    Takes merged cufflinks fpkm :term:`tsv` files (e.g. 
-    "refcoding_fpkm_genes.tsv.gz" or "refcoding_fpkm_isoforms.tsv.gz") and 
-    loads fpkm data across samples for genes or isoforms into 
-    "refcoding_fpkm_genes" or "refcoding_fpkm_isoforms" database tables. 
+    Takes merged cufflinks fpkm :term:`tsv` files (e.g.
+    "refcoding_fpkm_genes.tsv.gz" or "refcoding_fpkm_isoforms.tsv.gz") and
+    loads fpkm data across samples for genes or isoforms into
+    "refcoding_fpkm_genes" or "refcoding_fpkm_isoforms" database tables.
 
     Parameters
     ----------
-    infile : string 
+    infile : string
         refers to :term:`tsv`.gz file generated from cufflinks fpkm
-        output files (e.g "refcoding_fpkm_genes.tsv.gz" or 
+        output files (e.g "refcoding_fpkm_genes.tsv.gz" or
         "refcoding_fpkm_isoforms.tsv.gz")
 
     outfile : string
-        creates infile.load to detail information loaded into database 
+        creates infile.load to detail information loaded into database
         tables'''
 
     P.load(infile, outfile,
@@ -1151,7 +1167,7 @@ def loadGeneLevelReadCounts(infile, outfile):
     ----------
 
     infile : string
-        takes infile, a :term:`tsv` file containing gene level read count 
+        takes infile, a :term:`tsv` file containing gene level read count
         information e.g. exon coverage statisitics from buildGeneLevelReadCounts
     outfile: string
         creates `.load` file for each input file detailing loading of information
@@ -1164,29 +1180,29 @@ def loadGeneLevelReadCounts(infile, outfile):
          regex("genecounts.dir/([^.]+)\.([^.]+).tsv.gz"),
          r"genecounts.dir/\2.genecounts.tsv.gz")
 def aggregateGeneLevelReadCounts(infiles, outfile):
-    ''' build a matrix of counts with genes and tracks dimensions 
+    ''' build a matrix of counts with genes and tracks dimensions
 
-    Takes a list of :term:`tsv` detailing coverage statisitics from 
-    buildGeneLevelReadCounts for each sample and builds a matrix of counts 
-    with genes and tracks dimenisions summarising all samples (i.e. tracks) 
+    Takes a list of :term:`tsv` detailing coverage statisitics from
+    buildGeneLevelReadCounts for each sample and builds a matrix of counts
+    with genes and tracks dimenisions summarising all samples (i.e. tracks)
     in outfile (e.g. "refcoding.genecounts.tsv.gz") using combine_tables.py.
     Outfile also has accompanying ".log" file.
 
     .. note::
-        THIS USES ANYSENSE UNIQUE COUNTS - THIS NEEDS TO BE PARAMTERISED 
+        THIS USES ANYSENSE UNIQUE COUNTS - THIS NEEDS TO BE PARAMTERISED
         FOR STRANDED/UNSTRANDED RNASEQ DATA
 
 
     Parameters
     ----------
 
-    infiles : list        
-        list of :term:`tsv` files detailing coverage statisitics from 
-        buildGeneLevelReadCounts 
+    infiles : list
+        list of :term:`tsv` files detailing coverage statisitics from
+        buildGeneLevelReadCounts
     outfile : string
-        names the output files "genecounts.tsv.gz" output files are:        
+        names the output files "genecounts.tsv.gz" output files are:
 
-        1. ".genecounts.tsv.gz" :term:`tsv` file containing matrix 
+        1. ".genecounts.tsv.gz" :term:`tsv` file containing matrix
         of genes (rows) and counts per sample/track (columns).
 
         2. ".genecounts.tsv.gz.log"'''
@@ -1221,34 +1237,34 @@ def buildGeneLevelReadExtension(infile, outfile):
 
     Counters used in gtf2table.py:
 
-    * read-extension: This counter outputs the read density in bins upstream, 
-      within and downstream of transcript models. The counter can be used to 
+    * read-extension: This counter outputs the read density in bins upstream,
+      within and downstream of transcript models. The counter can be used to
       predict the length of the 3' and 5' UTR.
 
-    * position: output genomic coordinates of transcript/gene 
+    * position: output genomic coordinates of transcript/gene
     (chromosome, start, end)
 
     Parameters
     ----------
 
     infile : string
-        A :term:`bam` file containing aligned reads to enable calculation of 
+        A :term:`bam` file containing aligned reads to enable calculation of
         coverage over the cds
 
     annotations_interface_geneset_cds_gtf : string
-        :term:`PARAMS` _geneset_cds.gtf.gz. 
+        :term:`PARAMS` _geneset_cds.gtf.gz.
         This is set in pipeline.ini in annotations directory
 
     annotations_interface_territories_gff : string
-        :term:`PARAMS` refering to territories.gff.gz. 
+        :term:`PARAMS` refering to territories.gff.gz.
         This is set in pipeline.ini in annotations directory
 
     annotations_interface_annotation_gff : string
-        :term:`PARAMS` refering to annotation.gff.gz. 
+        :term:`PARAMS` refering to annotation.gff.gz.
         This is set in pipeline.ini in annotations directory
 
-    outfile : string 
-        A "extension_counts.tsv.gz" file. A :term:`tsv` file detailing coverage 
+    outfile : string
+        A "extension_counts.tsv.gz" file. A :term:`tsv` file detailing coverage
         of reads over the extension of the cds
 
     '''
@@ -1316,11 +1332,11 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     Parameters
     ----------
     infiles : list
-        A list of :term:`bam` - :term:`gtf` pairs. :term:`bam` files contain 
-            aligned reads, :term:`gtf` files files contain the gene models 
+        A list of :term:`bam` - :term:`gtf` pairs. :term:`bam` files contain
+            aligned reads, :term:`gtf` files files contain the gene models
 
     outfile : string
-        Name of a :term:`tsv` file containing counts of reads falling within 
+        Name of a :term:`tsv` file containing counts of reads falling within
         gene models. Also names accompanying ".log" file
 
     '''
@@ -1404,7 +1420,7 @@ def aggregateTranscriptLevelReadCounts(infiles, outfile):
         list of :term:`tsv` files detailing coverage statisitics from
         buildTranscriptLevelReadCounts
     outfile : string
-        names the output files "transcriptcounts.tsv.gz" output files are:        
+        names the output files "transcriptcounts.tsv.gz" output files are:      
 
         1. ".transcriptcounts.tsv.gz" :term:`tsv` file containing matrix
         of transcripts (rows) and counts per sample/track (columns).
@@ -1450,22 +1466,22 @@ def buildFeatureCounts(infiles, outfile):
     Parameters
     ----------
     infiles : list
-        Two lists of file names, one containing list of :term:`bam` files with 
-        the aligned reads, the second containing a list of :term:`gtf` files 
+        Two lists of file names, one containing list of :term:`bam` files with
+        the aligned reads, the second containing a list of :term:`gtf` files
         containing the "features" to be counted.
     featurecounts_threads : int
-        :term:`PARAMS` - number of threads to run feature counts. This is 
+        :term:`PARAMS` - number of threads to run feature counts. This is
         specified in pipeline.ini
     featurecounts_strand : int
-        :term:`PARAMS` - see feature counts --help for details of how to set 
+        :term:`PARAMS` - see feature counts --help for details of how to set
     featurecounts_options : string
-        :term:`PARAMS` - options for running feature counts, set using 
-        pipeline.ini See feature counts --help for details of how to set 
+        :term:`PARAMS` - options for running feature counts, set using
+        pipeline.ini See feature counts --help for details of how to set
     outfile : string
-        used to denote output files from feature counts. Three output files are 
+        used to denote output files from feature counts. Three output files are
         produced for each input :term:`bam` - :term:`gtf` pair. These are:
 
-        * input_bam.input_gtf.tsv.gz: contains list of gene id's and counts 
+        * input_bam.input_gtf.tsv.gz: contains list of gene id's and counts
         * input_bam.input_gtf.tsv.summary: contains summary of reads counted
         * input_bam.input_gtf.tsv.log: log file produced by feature counts
 
@@ -1486,9 +1502,9 @@ def buildFeatureCounts(infiles, outfile):
 def aggregateFeatureCounts(infiles, outfile):
     ''' Build a matrix of counts with genes and tracks dimensions.
 
-    Uses `combine_tables.py` to combine all the `tsv.gz` files output from 
+    Uses `combine_tables.py` to combine all the `tsv.gz` files output from
     buildFeatureCounts into a single :term:`tsv` file named
-    "featurecounts.tsv.gz". A `.log` file is also produced. 
+    "featurecounts.tsv.gz". A `.log` file is also produced.
 
     .. note::
         This uses column 7 as counts This is a possible source of bugs, the
@@ -1497,7 +1513,7 @@ def aggregateFeatureCounts(infiles, outfile):
     Parameters
     ---------
     infiles : list
-        a list of `tsv.gz` files from the feature_counts.dir that were the 
+        a list of `tsv.gz` files from the feature_counts.dir that were the
         output from feature counts
     outfile : string
         a filename denoting the file containing a matrix of counts with genes as
@@ -1616,22 +1632,22 @@ def summarizeCounts(infile, outfile):
 def summarizeCountsPerDesign(infiles, outfile):
     '''perform summarization of read counts within experiments.
 
-    takes `tsv.gz` files summarizing "feature counts" output and "gtf2table" 
-    genecounts output across all tracks, grouped as specified by `design*.tsv` 
-    design file and generates several different summary statistics and plots 
-    for each design on the read count data using `runExpression.py`. 
+    takes `tsv.gz` files summarizing "feature counts" output and "gtf2table"
+    genecounts output across all tracks, grouped as specified by `design*.tsv`
+    design file and generates several different summary statistics and plots
+    for each design on the read count data using `runExpression.py`.
 
 
     Parameters
     ----------
     infiles : list
-        list of filenames of `tsv.gz` files from "feature counts" counts 
-        (e.g. `featurecounts.tsv.gz`) or "gtf2table.py" counts files to be 
-        aggregated into experiments as specified by design file. Outputs are 
-        stored in designs.dir 
+        list of filenames of `tsv.gz` files from "feature counts" counts
+        (e.g. `featurecounts.tsv.gz`) or "gtf2table.py" counts files to be
+        aggregated into experiments as specified by design file. Outputs are
+        stored in designs.dir
 
     outfile : string
-        filenames of output files detailing summary statistics 
+        filenames of output files detailing summary statistics
 
             * `output_file.stats_max_counts.tsv.gz`: details max counts and frequency
             * `output_file.stats_correlation.tsv`: summary of correlations between samples
@@ -1639,7 +1655,7 @@ def summarizeCountsPerDesign(infiles, outfile):
             * `output_file.stats_heatmap.svg`: heatmap of sample clustering
             * `output_file.stats_pca.svg`: principal component plot
            * `output_file.stats_mds.svg`: multidimensional scaling plot
-            * `output_file.stats.tsv.gz.log`: log file 
+            * `output_file.stats.tsv.gz.log`: log file
             * `output_file.stats.tsv.gz`: summarises row statitics for matrix in `tsv.gz` input file   '''
 
     design_file, counts_file = infiles
@@ -1659,16 +1675,16 @@ def summarizeCountsPerDesign(infiles, outfile):
            suffix(".stats.tsv"),
            "_stats.load")
 def loadTagCountSummary(infile, outfile):
-    '''loads summary of summarizeCounts and summarizeCountsPerDesign into 
+    '''loads summary of summarizeCounts and summarizeCountsPerDesign into
     database.
 
     takes filename of ".stats.tsv" files in designs.dir and loads `_correlation`
-    and `_stats` tables into database 
+    and `_stats` tables into database
 
     Parameters
     ----------
     infile : string
-        takes filename of ".stats.tsv" files in designs.dir 
+        takes filename of ".stats.tsv" files in designs.dir
     outfile : string
         filename specifying following created files and tables in database
 
