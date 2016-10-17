@@ -81,7 +81,7 @@ def findColumnPosition(infile, column):
             raise ValueError("could not find %s in file header" % column)
 
 
-class quantifier(object):
+class Quantifier(object):
     ''' base class for transcript and gene-level quantification from a
     BAM or fastq
 
@@ -164,15 +164,15 @@ class quantifier(object):
         if not self.sample:
             raise ValueError("could not find sample name")
 
-    def runTranscript(self):
+    def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
         pass
 
-    def runGene(self):
+    def run_gene(self):
         ''' generate gene-level quantification estimates'''
         pass
 
-    def parseTable(self, outfile_raw, outfile, columnname):
+    def parse_table(self, outfile_raw, outfile, columnname):
         '''
         parse the output of featurecounts or alignment free qauntifiers
         and extract number of reads for downstream quantification
@@ -193,16 +193,16 @@ class quantifier(object):
         ''' % locals()
         P.run()
 
-    def runAll(self):
+    def run_all(self):
         ''' '''
-        self.runTranscript()
-        self.runGene()
+        self.run_transcript()
+        self.run_gene()
 
 
-class featureCountsQuantifier(quantifier):
+class FeatureCountsQuantifier(Quantifier):
     ''' quantifier class to run featureCounts '''
 
-    def runFeatureCounts(self, level="gene_id"):
+    def run_featurecounts(self, level="gene_id"):
         ''' function to run featureCounts at the transcript-level or gene-level
 
         If `bamfile` is paired, paired-end counting is enabled and the bam
@@ -271,21 +271,21 @@ class featureCountsQuantifier(quantifier):
         P.run()
 
         # parse output to extract counts
-        self.parseTable(outfile_raw + ".gz", outfile, "%s.bam" % self.sample)
+        self.parse_table(outfile_raw + ".gz", outfile, "%s.bam" % self.sample)
 
-    def runTranscript(self):
+    def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
-        self.runFeatureCounts(level="transcript_id")
+        self.run_featurecounts(level="transcript_id")
 
-    def runGene(self):
+    def run_gene(self):
         ''' generate gene-level quantification estimates'''
-        self.runFeatureCounts(level="gene_id")
+        self.run_featurecounts(level="gene_id")
 
 
-class gtf2tableQuantifier(quantifier):
+class Gtf2tableQuantifier(Quantifier):
     ''' quantifier class to run gtf2table'''
 
-    def runGTF2Table(self, level="gene_id"):
+    def run_gtf2table(self, level="gene_id"):
         ''' function to run gtf2table script at the transcript-level
         or gene-level'''
 
@@ -333,21 +333,21 @@ class gtf2tableQuantifier(quantifier):
 
         P.run()
         # parse output to extract counts
-        self.parseTable(outfile_raw + ".gz", outfile, 'counted_all')
+        self.parse_table(outfile_raw + ".gz", outfile, 'counted_all')
 
-    def runTranscript(self):
+    def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
-        self.runGTF2Table(level="transcript_id")
+        self.run_gtf2table(level="transcript_id")
 
-    def runGene(self):
+    def run_gene(self):
         ''' generate gene-level quantification estimates'''
-        self.runGTF2Table(level="gene_id")
+        self.run_gtf2table(level="gene_id")
 
 
-class AFQuantifier(quantifier):
+class AF_Quantifier(Quantifier):
     ''' Parent class for all alignment-free quantification methods'''
 
-    def runGene(self):
+    def run_gene(self):
         ''' Aggregate transcript counts to generate gene-level counts
         using a map of transript_id to gene_id '''
 
@@ -365,10 +365,10 @@ class AFQuantifier(quantifier):
             self.gene_outfile, compression="gzip", sep="\t")
 
 
-class kallistoQuantifier(AFQuantifier):
+class KallistoQuantifier(AF_Quantifier):
     ''' quantifier class to run kallisto'''
 
-    def runTranscript(self):
+    def run_transcript(self):
         ''' '''
         fastqfile = self.infile
         index = self.annotations
@@ -395,13 +395,14 @@ class kallistoQuantifier(AFQuantifier):
         outfile_readable = outfile + readable_suffix
 
         # parse the output to extract the counts
-        self.parseTable(outfile_readable, self.transcript_outfile, 'est_counts')
+        self.parse_table(outfile_readable, self.transcript_outfile,
+                         'est_counts')
 
 
-class sailfishQuantifier(AFQuantifier):
+class SailfishQuantifier(AF_Quantifier):
     ''' quantifier class to run sailfish'''
 
-    def runTranscript(self):
+    def run_transcript(self):
         fastqfile = self.infile
         index = self.annotations
         job_threads = self.job_threads
@@ -421,12 +422,12 @@ class sailfishQuantifier(AFQuantifier):
         P.run()
 
         # parse the output to extract the counts
-        self.parseTable(outfile, self.transcript_outfile, 'NumReads')
+        self.parse_table(outfile, self.transcript_outfile, 'NumReads')
 
 
-class salmonQuantifier(AFQuantifier):
+class SalmonQuantifier(AF_Quantifier):
     '''quantifier class to run salmon'''
-    def runTranscript(self):
+    def run_transcript(self):
         fastqfile = self.infile
         index = self.annotations
         job_threads = self.job_threads
@@ -448,9 +449,13 @@ class salmonQuantifier(AFQuantifier):
         P.run()
 
         # parse the output to extract the counts
-        self.parseTable(outfile, self.transcript_outfile, 'NumReads')
+        self.parse_table(outfile, self.transcript_outfile, 'NumReads')
 
-########### old code ################
+'''
+# ########## old code ################
+'''
+
+
 def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     '''remove genes from GTF file.
 
@@ -562,7 +567,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
 def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
     '''run cufflinks to estimate expression levels.
 
-    See cufflinks manuals for full explanation of infiles/outfiles/options 
+    See cufflinks manuals for full explanation of infiles/outfiles/options
     http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html
 
     Arguments
@@ -574,33 +579,34 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
         Filename of reads in :term:`bam` format.
 
     genome_dir : string
-	:term:`PARAMS` - genome directory containing fasta file. This is 
-	specified in pipeline_ini    
+        :term:`PARAMS` - genome directory containing fasta file. This is
+        specified in pipeline_ini
 
     cufflinks_library_type : string
-	:term:`PARAMS` - cufflinks library type option. This is 
-	specified in pipeline_ini  
+        :term:`PARAMS` - cufflinks library type option. This is
+        specified in pipeline_ini
 
     cufflinks_options : string
-	:term:`PARAMS` - cufflinks options (see manual). These are
-	specified in pipeline_ini  
+        :term:`PARAMS` - cufflinks options (see manual). These are
+        specified in pipeline_ini
 
     outfile : string
-	defines naming of 3 output files for each input file 
+        defines naming of 3 output files for each input file
 
-	1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format 
-	produced by cufflinks (see manual). Contains the assembled gene 
-	isoforms. 
-	This is the file used for the downstream file analysis
+        1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format
+        produced by cufflinks (see manual). Contains the assembled gene
+        isoforms.
+        This is the file used for the downstream file analysis
 
-	2.outfile.fpkm_tracking.gz: renamed outfile.isoforms.fpkm_tracking file 
-	from cufflinks - contains estimated isoform-level
-	expression values in "FPKM Tracking Format". 
+        2.outfile.fpkm_tracking.gz: renamed outfile.isoforms.fpkm_tracking file
+        from cufflinks - contains estimated isoform-level
+        expression values in "FPKM Tracking Format".
 
-	3.outfile.genes_tracking.gz: renamed outfile.genes.fpkm_tracking.gz from 
-	cufflinks - contains estimated gene-level 
-	expression values in "FPKM Tracking Format". 
-    
+        3.outfile.genes_tracking.gz: renamed outfile.genes.fpkm_tracking.gz
+        from
+        cufflinks - contains estimated gene-level
+        expression values in "FPKM Tracking Format".
+
     job_threads : int
         Number of threads to use
     '''
@@ -646,21 +652,23 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
 def loadCufflinks(infile, outfile):
     '''load cufflinks expression levels into database
 
-	Takes cufflinks output and loads into database for later report building
-	For each input file it generates two tables in a sqlite database:
-	
-	1. outfile_fpkm: contains information from infile.fpkm_tracking.gz
-	2. outfile_genefpkm : contains information from infile.genes_tracking.gz
-    
+        Takes cufflinks output and loads into database for later report
+        building
+        For each input file it generates two tables in a sqlite database:
+
+        1. outfile_fpkm: contains information from infile.fpkm_tracking.gz
+        2. outfile_genefpkm : contains information from
+        infile.genes_tracking.gz
+
     Arguments
     ---------
     infile : string
         Cufflinks output. This is used to find
         auxiliary files: specifically infile.genes_tracking.gz and
-	infile.fpkm_tracking.gz
+        infile.fpkm_tracking.gz
     outfile : string
         Output filename used to create logging information in `.load` files.
-	Also used to create "_fpkm" and "_genefpkm" tables in database. 
+        Also used to create "_fpkm" and "_genefpkm" tables in database.
     '''
 
     track = P.snip(outfile, ".load")
@@ -1785,4 +1793,3 @@ def plotGeneLevelReadExtension(infile, outfile):
         R['dev.off']()
 
     P.touch(outfile)
-

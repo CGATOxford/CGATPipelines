@@ -471,7 +471,9 @@ def buildReferenceTranscriptome(infile, outfile):
     infile: str
         path to the GTF file containing transcript and gene level annotations
     genome_dir: str
-        from the PARAMS dictionary, the location of the reference
+        :term: `PARAMS` the directory of the reference genome
+    genome: str
+        :term: `PARAMS` the filename of the reference genome (without .fa)
     outfile: str
         path to output file
     '''
@@ -495,7 +497,21 @@ def buildReferenceTranscriptome(infile, outfile):
            suffix(".fa"),
            ".kallisto.index")
 def buildKallistoIndex(infile, outfile):
-    ''' Builds a kallisto index for the reference transcriptome'''
+    '''
+    Builds a kallisto index for the reference transcriptome
+
+    Parameters
+    ----------
+    infile: str
+       path to reference transcriptome - fasta file containing transcript
+       sequences
+    kallisto_kmer: int
+       :term: `PARAMS` kmer size for Kallisto.  Default is 31.
+       Kallisto will ignores transcripts shorter than this.
+    outfile: str
+       path to output file
+
+    '''
 
     job_memory = "12G"
 
@@ -510,7 +526,22 @@ def buildKallistoIndex(infile, outfile):
            suffix(".fa"),
            ".salmon.index")
 def buildSalmonIndex(infile, outfile):
-    ''' Builds a salmon index for the reference transriptome'''
+    '''
+    Builds a salmon index for the reference transriptome
+    Parameters
+    ----------
+    infile: str
+       path to reference transcriptome - fasta file containing transcript
+       sequences
+    salmon_kmer: int
+       :term: `PARAMS` kmer size for sailfish.  Default is 31.
+       Salmon will ignores transcripts shorter than this.
+    salmon_index_options: str
+       :term: `PARAMS` string to append to the salmon index command to
+       provide specific options e.g. --force --threads N
+    outfile: str
+       path to output file
+    '''
 
     job_memory = "2G"
 
@@ -526,8 +557,22 @@ def buildSalmonIndex(infile, outfile):
            suffix(".fa"),
            ".sailfish.index")
 def buildSailfishIndex(infile, outfile):
-    ''' Builds a sailfish index for the reference transcriptome'''
-
+    '''
+    Builds a sailfish index for the reference transcriptome
+    Parameters
+    ----------
+    infile: str
+       path to reference transcriptome - fasta file containing transcript
+       sequences
+    sailfish_kmer: int
+       :term: `PARAMS` kmer size for sailfish.  Default is 31.
+       Sailfish will ignores transcripts shorter than this.
+    sailfish_index_options: str
+       :term: `PARAMS` string to append to the sailfish index command to
+       provide specific options e.g. --force --threads N
+    outfile: str
+       path to output file
+    '''
     # sailfish indexing is more memory intensive than Salmon/Kallisto
     job_memory = "6G"
 
@@ -564,6 +609,7 @@ def getTranscript2GeneMap(outfile):
         for key, value in transcript2gene_dict.iteritems():
             outf.write("%s\t%s\n" % (key, value))
 
+
 ###################################################
 # count-based quantifiers
 ###################################################
@@ -587,10 +633,10 @@ def runFeatureCounts(infiles, outfiles):
     feature are ignored.
 
     The raw output of featureCounts is sent to
-    featurecounts.dir/SAMPLEID/transcripts.tsv.raw.gz and 
+    featurecounts.dir/SAMPLEID/transcripts.tsv.raw.gz and
     featurecounts.dir/SAMPLEID/genes.tsv.raw.gz
 
-    Parsed output is sent to featurecounts.dir/SAMPLEID/transcripts.tsv.gz 
+    Parsed output is sent to featurecounts.dir/SAMPLEID/transcripts.tsv.gz
     and featurecounts.dir/SAMPLEID/genes.tsv.gz
 
     Other default output files are stored in the featurecounts.dir/SAMPLEID
@@ -651,7 +697,7 @@ def runFeatureCounts(infiles, outfiles):
     '''
     bamfile, annotations = infiles
     transcript_outfile, gene_outfile = outfiles
-    Quantifier = PipelineRnaseq.featureCountsQuantifier(
+    Quantifier = PipelineRnaseq.FeatureCountsQuantifier(
         infile=bamfile,
         transcript_outfile=transcript_outfile,
         gene_outfile=gene_outfile,
@@ -660,7 +706,7 @@ def runFeatureCounts(infiles, outfiles):
         options=PARAMS['featurecounts_options'],
         annotations=annotations)
 
-    Quantifier.runAll()
+    Quantifier.run_all()
 
 
 @follows(mkdir("gtf2table.dir"))
@@ -722,13 +768,13 @@ def runGTF2Table(infiles, outfiles):
     '''
     bamfile, annotations = infiles
     transcript_outfile, gene_outfile = outfiles
-    Quantifier = PipelineRnaseq.gtf2tableQuantifier(
+    Quantifier = PipelineRnaseq.Gtf2tableQuantifier(
         infile=bamfile,
         transcript_outfile=transcript_outfile,
         gene_outfile=gene_outfile,
         annotations=annotations)
 
-    Quantifier.runAll()
+    Quantifier.run_all()
 
 
 ###################################################
@@ -788,7 +834,45 @@ else:
          SEQUENCEFILES_KALLISTO_OUTPUT)
 def runKallisto(infiles, outfiles):
 
-    ''' '''
+    '''
+    Computes read counts across transcripts and genes based on a fastq
+    file and an indexed transcriptome using Kallisto.
+
+    Runs the kallisto "quant" function across transcripts with the specified
+    options.  Read counts across genes are counted as the total in all
+    transcripts of that gene (based on the getTranscript2GeneMap table)
+
+    Parameters
+    ----------
+    infiles: list
+        list with three components
+        0 - list of strings - paths to fastq files to merge then quantify
+        across using Kallisto
+        1 - string - path to Kallisto index file
+        2 - string - path totable mapping transcripts to genes
+
+    kallisto_threads: int
+       :term: `PARAMS` the number of threads for Kallisto
+    kallisto_memory: str
+       :term: `PARAMS` the job memory for Kallisto
+    kallisto_options: str
+       :term: `PARAMS` string to append to the Kallisto quant command to
+       provide specific
+       options, see https://pachterlab.github.io/kallisto/manual
+    kallisto_bootstrap: int
+       :term: `PARAMS` number of bootstrap samples to run.
+       Note, you need to bootstrap for differential expression with sleuth
+       if there are no technical replicates. If you only need point estimates,
+       set to 1.  Note that bootstrap must be set to at least 1
+    kallisto_fragment_length: int
+       :term: `PARAMS` Fragment length for Kallisto, required for single end
+       reads only
+    kallisto_fragment_sd: int
+       :term: `PARAMS` Fragment length standard deviation for Kallisto,
+       required for single end reads only.
+    outfiles: list
+       paths to output files for transcripts and genes
+    '''
 
     # TS more elegant way to parse infiles and index?
     fastqfile = [x[0] for x in infiles]
@@ -796,7 +880,7 @@ def runKallisto(infiles, outfiles):
     transcript2geneMap = infiles[0][2]
 
     transcript_outfile, gene_outfile = outfiles
-    Quantifier = PipelineRnaseq.kallistoQuantifier(
+    Quantifier = PipelineRnaseq.KallistoQuantifier(
         infile=fastqfile[0],
         transcript_outfile=transcript_outfile,
         gene_outfile=gene_outfile,
@@ -809,7 +893,7 @@ def runKallisto(infiles, outfiles):
         fragment_sd=PARAMS["kallisto_fragment_sd"],
         transcript2geneMap=transcript2geneMap)
 
-    Quantifier.runAll()
+    Quantifier.run_all()
 
 
 @follows(mkdir("sailfish.dir"))
@@ -818,12 +902,49 @@ def runKallisto(infiles, outfiles):
          add_inputs(buildSailfishIndex, getTranscript2GeneMap),
          SEQUENCEFILES_SAILFISH_OUTPUT)
 def runSailfish(infiles, outfiles):
+    '''
+    Computes read counts across transcripts and genes based on a fastq
+    file and an indexed transcriptome using Sailfish.
+
+    Runs the sailfish "quant" function across transcripts with the specified
+    options.  Read counts across genes are counted as the total in all
+    transcripts of that gene (based on the getTranscript2GeneMap table)
+
+    Parameters
+    ----------
+    infiles: list
+        list with three components
+        0 - list of strings - paths to fastq files to merge then quantify
+        across using sailfish
+        1 - string - path to sailfish index file
+        2 - string - path to table mapping transcripts to genes
+
+    sailfish_threads: int
+       :term: `PARAMS` the number of threads for sailfish
+    sailfish_memory: str
+       :term: `PARAMS` the job memory for sailfish
+    sailfish_options: str
+       :term: `PARAMS` string to append to the sailfish quant command to
+       provide specific
+       options, see http://sailfish.readthedocs.io/en/master/index.html
+    sailfish_bootstrap: int
+       :term: `PARAMS` number of bootstrap samples to run.
+       Note, you need to bootstrap for differential expression with sleuth
+       if there are no technical replicates. If you only need point estimates,
+       set to 1.
+    sailfish_libtype: str
+       :term: `PARAMS` sailfish library type
+       http://sailfish.readthedocs.io/en/master/library_type.html#fraglibtype
+    outfiles: list
+       paths to output files for transcripts and genes
+    '''
+
     fastqfile = [x[0] for x in infiles]
     index = infiles[0][1]
     transcript2geneMap = infiles[0][2]
 
     transcript_outfile, gene_outfile = outfiles
-    Quantifier = PipelineRnaseq.sailfishQuantifier(
+    Quantifier = PipelineRnaseq.SailfishQuantifier(
         infile=fastqfile[0],
         transcript_outfile=transcript_outfile,
         gene_outfile=gene_outfile,
@@ -835,7 +956,7 @@ def runSailfish(infiles, outfiles):
         libtype=PARAMS['sailfish_libtype'],
         transcript2geneMap=transcript2geneMap)
 
-    Quantifier.runAll()
+    Quantifier.run_all()
 
 
 @follows(mkdir("salmon.dir"))
@@ -844,12 +965,51 @@ def runSailfish(infiles, outfiles):
          add_inputs(buildSalmonIndex, getTranscript2GeneMap),
          SEQUENCEFILES_SALMON_OUTPUT)
 def runSalmon(infiles, outfiles):
+    '''
+    Computes read counts across transcripts and genes based on a fastq
+    file and an indexed transcriptome using Salmon.
+
+    Runs the salmon "quant" function across transcripts with the specified
+    options.  Read counts across genes are counted as the total in all
+    transcripts of that gene (based on the getTranscript2GeneMap table)
+
+    Parameters
+    ----------
+    infiles: list
+        list with three components
+        0 - list of strings - paths to fastq files to merge then quantify
+        across using sailfish
+        1 - string - path to sailfish index file
+        2 - string - path to table mapping transcripts to genes
+
+    salmon_threads: int
+       :term: `PARAMS` the number of threads for salmon
+    salmon_memory: str
+       :term: `PARAMS` the job memory for salmon
+    salmon_options: str
+       :term: `PARAMS` string to append to the salmon quant command to
+       provide specific
+       options, see http://sailfish.readthedocs.io/en/master/salmon.html
+    salmon_bootstrap: int
+       :term: `PARAMS` number of bootstrap samples to run.
+       Note, you need to bootstrap for differential expression with sleuth
+       if there are no technical replicates. If you only need point estimates,
+       set to 1.
+    salmon_libtype: str
+       :term: `PARAMS` salmon library type
+       as for sailfish - use
+       http://sailfish.readthedocs.io/en/master/library_type.html#fraglibtype
+    salmon_biascorrect: bool
+       :term: `PARAMS` use salmon bias correct option?
+    outfiles: list
+       paths to output files for transcripts and genes
+    '''
     fastqfile = [x[0] for x in infiles]
     index = infiles[0][1]
     transcript2geneMap = infiles[0][2]
 
     transcript_outfile, gene_outfile = outfiles
-    Quantifier = PipelineRnaseq.salmonQuantifier(
+    Quantifier = PipelineRnaseq.SalmonQuantifier(
         infile=fastqfile[0],
         transcript_outfile=transcript_outfile,
         gene_outfile=gene_outfile,
@@ -863,7 +1023,7 @@ def runSalmon(infiles, outfiles):
         biascorrect=PARAMS['salmon_bias_correct'],
         transcript2geneMap=transcript2geneMap)
 
-    Quantifier.runAll()
+    Quantifier.run_all()
 
 
 ###################################################
@@ -912,7 +1072,6 @@ def mergeCounts(infiles, outfiles):
     mergeinfiles(transcript_infiles, transcript_outfile)
     mergeinfiles(gene_infiles, gene_outfile)
 
-<<<<<<< HEAD
 
 @transform(mergeCounts, regex("(\S+).dir/transcripts.tsv.gz"),
            [r"\1.dir/\1_transcripts.load",
@@ -929,41 +1088,40 @@ def count():
     pass
 
 
+"""
 ###################################################
-########Differential Expression - NEW
+# #######Differential Expression - NEW
 
-#To be continued ... 
-   
-
-#def builDeSeq2Script(infile,outfile):
-#    '''takes count table and design file and builds deseq2 script to 
-#    do pairwise comparisions between 2 factor levels 
-#
- #   counts = countfile loaction 
- #   design = design file
-#    '''
-    
-#    #set up params 
-#    list_of_contrasts = P.list(PARAMS[deseq2_contrasts])  
+ To be continued ...
 
 
-    #get the design files in list
+def builDeSeq2Script(infile,outfile):
+    '''
+    takes count table and design file and builds deseq2 script to
+    do pairwise comparisions between 2 factor levels
+    '''
+    counts = countfile loaction
+    design = design file
 
-    #write the file loactions to the R script
-
-    #for each design append the DE test to the statement 
-
-    
- #   counts = infile 
- #   design = 'XXXXXXXX'
-    
+    # set up params
+    list_of_contrasts = P.list(PARAMS[deseq2_contrasts])
 
 
- #   r_statement_builder = SE.buildDESeq2Rscript(counts,design, 
- #       model,   raw_out, list_of_contrasts,relevel=relevel_dict, ihw=True)
+    # get the design files in list
+
+    # write the file loactions to the R script
+
+    # for each design append the DE test to the statement
+
+    counts = infile
+    design = 'XXXXXXXX'
+
+    r_statement_builder = SE.buildDESeq2Rscript(counts,design,
+        model,   raw_out, list_of_contrasts,relevel=relevel_dict, ihw=True)
 
 
 ################## OLD CODE ###########################################
+
 
 @P.add_doc(PipelineGeneset.loadGeneStats)
 @transform("*.gtf.gz",
@@ -1240,10 +1398,11 @@ def loadGeneLevelReadCounts(infile, outfile):
 
     infile : string
         takes infile, a :term:`tsv` file containing gene level read count
-        information e.g. exon coverage statisitics from buildGeneLevelReadCounts
+        information e.g. exon coverage statisitics from
+        buildGeneLevelReadCounts
     outfile: string
-        creates `.load` file for each input file detailing loading of information
-        into "_genecounts" table in database'''
+        creates `.load` file for each input file detailing loading of
+        information into "_genecounts" table in database'''
 
     P.load(infile, outfile, options="--add-index=gene_id")
 
@@ -1492,7 +1651,7 @@ def aggregateTranscriptLevelReadCounts(infiles, outfile):
         list of :term:`tsv` files detailing coverage statisitics from
         buildTranscriptLevelReadCounts
     outfile : string
-        names the output files "transcriptcounts.tsv.gz" output files are:      
+        names the output files "transcriptcounts.tsv.gz" output files are:
 
         1. ".transcriptcounts.tsv.gz" :term:`tsv` file containing matrix
         of transcripts (rows) and counts per sample/track (columns).
@@ -1588,7 +1747,8 @@ def aggregateFeatureCounts(infiles, outfile):
         a list of `tsv.gz` files from the feature_counts.dir that were the
         output from feature counts
     outfile : string
-        a filename denoting the file containing a matrix of counts with genes as
+        a filename denoting the file containing a matrix of counts with genes
+        as
         rows and tracks as the columns - this is a `tsv.gz` file        '''
 
     infiles = " ".join(infiles)
@@ -1632,13 +1792,14 @@ def loadFeatureCounts(infile, outfile):
 def loadFeatureCountsSummary(infiles, outfile):
     '''Load feature counts summary data into table.
 
-    Merge and load the summary files produced by "feature counts" into a 
+    Merge and load the summary files produced by "feature counts" into a
     "featurecounts_summary" database table.
 
     Parameters
     ----------
     infile : list
-        list of filenames used to detect summary file from feature counts output
+        list of filenames used to detect summary file from feature counts
+        output
     outfile : string
         filename of `featurecounts_summary.load` file summarising information
          loaded into database table
@@ -1672,13 +1833,15 @@ def summarizeCounts(infile, outfile):
         filenames of output files detailing summary statistics
 
     * `output_file.stats_max_counts.tsv.gz`: details max counts and frequency
-    * `output_file.stats_correlation.tsv`: summary of correlations between samples
+    * `output_file.stats_correlation.tsv`: summary of correlations between
+       samples
     * `output_file.stats_scatter.png`: scatterplots and correlations
     * `output_file.stats_heatmap.svg`: heatmap of sample clustering
     * `output_file.stats_pca.svg`: principal component plot
     * `output_file.stats_mds.svg`: multidimensional scaling plot
     * `output_file.stats.tsv.gz.log`: log file
-    * `output_file.stats.tsv.gz`: summarises row statitics for matrix in `tsv.gz` input file
+    * `output_file.stats.tsv.gz`: summarises row statitics for matrix in
+      `tsv.gz` input file
 
     '''
 
@@ -1721,14 +1884,17 @@ def summarizeCountsPerDesign(infiles, outfile):
     outfile : string
         filenames of output files detailing summary statistics
 
-            * `output_file.stats_max_counts.tsv.gz`: details max counts and frequency
-            * `output_file.stats_correlation.tsv`: summary of correlations between samples
+            * `output_file.stats_max_counts.tsv.gz`: details max counts and
+              frequency
+            * `output_file.stats_correlation.tsv`: summary of correlations
+               between samples
             * `output_file.stats_scatter.png`: scatterplots and correlations
             * `output_file.stats_heatmap.svg`: heatmap of sample clustering
             * `output_file.stats_pca.svg`: principal component plot
            * `output_file.stats_mds.svg`: multidimensional scaling plot
             * `output_file.stats.tsv.gz.log`: log file
-            * `output_file.stats.tsv.gz`: summarises row statitics for matrix in `tsv.gz` input file   '''
+            * `output_file.stats.tsv.gz`: summarises row statitics for matrix
+              in `tsv.gz` input file   '''
 
     design_file, counts_file = infiles
     prefix = P.snip(outfile, ".tsv")
@@ -1750,7 +1916,7 @@ def loadTagCountSummary(infile, outfile):
     '''loads summary of summarizeCounts and summarizeCountsPerDesign into
     database.
 
-    takes filename of ".stats.tsv" files in designs.dir and loads `_correlation`
+    takes filename of ".stats.tsv" files in designs.dir & loads `_correlation`
     and `_stats` tables into database
 
     Parameters
@@ -1784,18 +1950,17 @@ def counting():
     ''' collects output from  "feature counts" and "gtf2table.py" '''
     pass
 
-
-#@follows(mkdir("deseq.dir"), counting)
-#@product("design*.tsv",
-#         formatter("(.*).tsv$"),
-#         (aggregateGeneLevelReadCounts,
- #         aggregateFeatureCounts),
-#         formatter("(.*).tsv.gz$"),
- #        "deseq.dir/{basename[0][0]}.{basename[1][0]}.gz")
-#def runDESeq(infiles, outfile):
- #   '''Perform differential expression analysis using Deseq.
-
- '''   Parameters
+@follows(mkdir("deseq.dir"), counting)
+@product("design*.tsv",
+         formatter("(.*).tsv$"),
+         (aggregateGeneLevelReadCounts,
+          aggregateFeatureCounts),
+         formatter("(.*).tsv.gz$"),
+        "deseq.dir/{basename[0][0]}.{basename[1][0]}.gz")
+def runDESeq(infiles, outfile):
+    '''
+    Perform differential expression analysis using Deseq.
+    Parameters
     ----------
     infiles: list
       list of input filenames
@@ -1843,27 +2008,27 @@ def counting():
     outfile:
         filename for deseq results in :term: `tsv` format.
   # '''
-#   design_file, count_file = infiles
+   design_file, count_file = infiles
 
- #   track = P.snip(outfile, ".tsv.gz")
+    track = P.snip(outfile, ".tsv.gz")
 
-   #statement = '''python %(scriptsdir)s/runExpression.py
-#    --method=deseq
-##    --tags-tsv-file=%(count_file)s
-#    --design-tsv-file=%(design_file)s
-#   --output-filename-pattern=%(track)s.
- #   --outfile=%(outfile)s
- #   --fdr=%(deseq_fdr)f
- #   --deseq-fit-type=%(deseq_fit_type)s
- #   --deseq-dispersion-method=%(deseq_dispersion_method)s
- #   --deseq-sharing-mode=%(deseq_sharing_mode)s
- #   --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
- #   --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
- #   --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
-    #> %(outfile)s.log '''
+   statement = '''python %(scriptsdir)s/runExpression.py
+    --method=deseq
+    --tags-tsv-file=%(count_file)s
+    --design-tsv-file=%(design_file)s
+   --output-filename-pattern=%(track)s.
+    --outfile=%(outfile)s
+    --fdr=%(deseq_fdr)f
+    --deseq-fit-type=%(deseq_fit_type)s
+    --deseq-dispersion-method=%(deseq_dispersion_method)s
+    --deseq-sharing-mode=%(deseq_sharing_mode)s
+    --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
+    --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
+    --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
+    > %(outfile)s.log '''
 
- #   P.run()
-'''
+    P.run()
+
 
 @transform(runDESeq, suffix(".tsv.gz"), "_deseq.load")
 def loadDESeq(infile, outfile):
@@ -2113,7 +2278,7 @@ def runDESeq2(infiles, outfile):
 
 @transform(runDESeq2, suffix(".tsv.gz"), "_deseq2.load")
 def loadDESeq2(infile, outfile):
-    """
+    '''
     Generate globally adjusted pvalue for all contrasts in a design.
     To avoid confusion, drop the DESeq2 generated padj, which is for
     single contrast.  Load table NB. Empty pvalues are due to DESeq2's
@@ -2129,7 +2294,7 @@ def loadDESeq2(infile, outfile):
         output file in :term:`tsv` format from deseq2 analysis
     outfile: str
         .load database load logfile
-    """
+    '''
     # get R p.adjust
     rstats = importr("stats")
 
@@ -2155,7 +2320,7 @@ def loadDESeq2(infile, outfile):
     os.unlink(tmpf)
 
 
-#@follows(mkdir("cuffdiff.dir"), buildMaskGtf)
+@follows(mkdir("cuffdiff.dir"), buildMaskGtf)
 @product("design*.tsv",
          formatter(".+/(?P<design>.*).tsv$"),
          "*.gtf.gz",
@@ -2280,7 +2445,7 @@ def buildCuffdiffPlots(infile, outfile):
         # (where treatment_mean or control_mean = 0) do not plot lfold
         # values where the confidence bounds contain 0.
         for track1, track2 in itertools.combinations(EXPERIMENTS, 2):
-            statement = """
+            statement = '''
             SELECT CASE WHEN d.treatment_mean < d.control_mean
             THEN d.treatment_mean
             ELSE d.control_mean END,
@@ -2291,7 +2456,7 @@ def buildCuffdiffPlots(infile, outfile):
             status = 'OK' AND
             treatment_mean > 0 AND
             control_mean > 0
-            """ % locals()
+            ''' % locals()
 
             data = zip(*Database.executewait(dbhandle, statement))
 
@@ -2378,7 +2543,7 @@ TARGETS_DIFFEXPRESSION = [mapToTargets[x] for x in
 
 @follows(*TARGETS_DIFFEXPRESSION)
 def diff_expression():
-    '''collect outputs from "feature counts", "gtf2table.py", "cuffdiff", 
+    '''collect outputs from "feature counts", "gtf2table.py", "cuffdiff",
     "DESeq" and "EdgeR"'''
     pass
 
@@ -2386,7 +2551,7 @@ def diff_expression():
 @follows(diff_expression)
 @merge("*_stats.tsv", "de_stats.load")
 def loadDEStats(infiles, outfile):
-    '''load DE stats into table. 
+    '''load DE stats into table.
 
     concatenates and loads `<track>_stats.tsv` files into database table named
     `de_stats` to show overall summary of DE results.
@@ -2415,20 +2580,22 @@ def plotTagStats(infiles, outfile):
 
     plot stats from "feature counts" and "gtf2table.py" :term:`tsv` files
 
-    plots generated in `tagplots.dir` 
+    plots generated in `tagplots.dir`
 
     Parameters
     ----------
 
-    infiles : list 
-        list of filenames of design files and list of filenames of :term:`tsv.gz'
-        files from aggregateGeneLevelReadCounts or aggregateFeatureCounts 
+    infiles : list
+        list of filenames of design files and list of filenames of
+        :term:`tsv.gz'
+        files from aggregateGeneLevelReadCounts or aggregateFeatureCounts
     outfile : string
         filename for naming of several output files in format
         <design>.<geneset>.<countmethod>.log These include:
         * `outfile.tsv.log` - log file
         * `outfile.log.boxplots.png` - boxplot of value vs samples
-        * `outfile.log.densities.png - desity plot of density vs value for each sample
+        * `outfile.log.densities.png - desity plot of density vs value for each
+           sample
 '''
     design_file, counts_file = infiles
 
@@ -2499,7 +2666,11 @@ def qc():
     pass
 
 
-@follows(expression, diff_expression, counting, qc)
+"""
+# @follows(expression, diff_expression, counting, qc)
+
+
+@follows(count)
 def full():
     ''' collects DE tasks and cufflinks transcript build'''
     pass
