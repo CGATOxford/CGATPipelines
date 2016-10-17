@@ -352,7 +352,7 @@ from ruffus.combinatorics import *
 
 import CGAT.Experiment as E
 import CGAT.Database as Database
-import CGAT.scrum_expression as SE
+# import CGAT.scrum_expression as SE
 
 import sys
 import os
