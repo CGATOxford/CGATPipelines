@@ -72,7 +72,7 @@ To generate a geneset multi-fasta from a gtf, use the following:
 
        zcat geneset.gtf |
         awk '$3=="exon"'|
-        python %(scriptsdir)s/gff2fasta.py
+        cgat gff2fasta
         --is-gtf --genome-file=genome.fa --fold-at=60 -v 0
         --log=geneset.fa.log > geneset.fa;
         samtools faidx geneset.fa
@@ -82,7 +82,7 @@ To generate a geneset multi-fasta of pre-mRNAs from a gtf, use the following:
 
         zcat geneset.gtf |
         awk '$3 == "transcript"'|
-        python %(scriptsdir)s/gff2fasta.py
+        cgat gff2fasta
         --is-gtf --genome-file=genome.fa --fold-at 60 -v 0
         --log=geneset_pre_mrna.fa.log > geneset_pre_mrna.fa;
         samtools faidx geneset_pre_mrna.fa
@@ -562,12 +562,12 @@ if PARAMS["geneset_auto_generate"]:
 
         statement = '''
         zcat %(geneset)s
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
         --method=filter
         --filter-method=transcript
         --map-tsv-file=%(mapfile)s
         --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
         --method=sort
         --sort-order=gene+transcript
         --log=%(outfile)s.log
@@ -588,7 +588,7 @@ if PARAMS["geneset_auto_generate"]:
         statement = '''
         zcat %(infile)s |
         awk '$3=="exon"'|
-        python %(scriptsdir)s/gff2fasta.py
+        cgat gff2fasta
         --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
         --log=%(outfile)s.log > %(outfile)s;
         samtools faidx %(outfile)s
@@ -608,7 +608,7 @@ if PARAMS["geneset_auto_generate"]:
             statement = '''
             zcat %(infile)s |
             awk '$3 == "transcript"'|
-            python %(scriptsdir)s/gff2fasta.py
+            cgat gff2fasta
             --is-gtf --genome-file=%(genome_file)s --fold-at 60 -v 0
             --log=%(outfile)s.log > %(outfile)s;
             samtools faidx %(outfile)s
@@ -725,7 +725,7 @@ if PARAMS['simulation_run']:
         job_memory = PARAMS["simulation_kmer_memory"]
 
         statement = '''
-        python %(scriptsdir)s/fasta2unique_kmers.py
+        cgat fasta2unique_kmers
         --input-fasta=%(infile)s
         --method=transcript
         --kmer-size=%(kallisto_kmer)s
@@ -772,7 +772,7 @@ if PARAMS['simulation_run']:
             genemap = "transcript2gene.tsv"
 
         statement = '''
-        python %(scriptsdir)s/fasta2unique_kmers.py
+        cgat fasta2unique_kmers
         --input-fasta=%(infile)s
         --method=gene
         --genemap=%(genemap)s
@@ -859,7 +859,7 @@ if PARAMS['simulation_run']:
 
         statement = '''
         cat %(infile)s |
-        python %(scriptsdir)s/fasta2fastq.py
+        cgat fasta2fastq
         --premrna-fraction=%(simulation_pre_mrna_fraction)s
         --infile-premrna-fasta=%(premrna_fasta)s
         --output-read-length=%(simulation_read_length)s
@@ -1349,7 +1349,7 @@ def runSleuth(design, outfiles, quantifier, transcripts):
     outfile_pattern = P.snip(outfile, ".tsv")
 
     statement = '''
-    python %(scriptsdir)s/counts2table.py
+    cgat counts2table
     --design-tsv-file=%(design)s
     --output-filename-pattern=%(outfile_pattern)s
     --log=%(outfile_pattern)s.log
@@ -1379,7 +1379,7 @@ def runSleuth(design, outfiles, quantifier, transcripts):
         outfile_pattern_genes = P.snip(outfile_genes, ".tsv")
 
         statement = '''
-        python %(scriptsdir)s/counts2table.py
+        cgat counts2table
         --design-tsv-file=%(design)s
         --output-filename-pattern=%(outfile_pattern_genes)s
         --log=%(outfile_pattern_genes)s.log
@@ -1510,7 +1510,7 @@ def diffExpressionDESeq2(infiles, outfile):
         ihw = ""
 
     statement = '''
-    python %(scriptsdir)s/counts2table.py
+    cgat counts2table
     --tags-tsv-file=%(tmp_counts)s
     --design-tsv-file=%(design_inf)s
     --output-filename-pattern=%(outfile_pattern)s

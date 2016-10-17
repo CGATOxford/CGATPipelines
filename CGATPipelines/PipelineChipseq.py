@@ -1016,7 +1016,7 @@ def loadMACS(infile, outfile, bamfile, tablename=None):
     # load data into table
     if tablename is None:
         tablename = "%s_macs_intervals" % track
-    statement = '''python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    statement = '''cgat csv2db %(csv2db_options)s 
                        --allow-empty-file
                        --add-index=interval_id 
                        --add-index=contig,start
@@ -1032,7 +1032,7 @@ def loadMACS(infile, outfile, bamfile, tablename=None):
         statement = '''
         cat %(filename_diag)s 
         | sed "s/FC range.*/fc\\tnpeaks\\tp90\\tp80\\tp70\\tp60\\tp50\\tp40\\tp30\\tp20/" 
-        | python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+        | cgat csv2db %(csv2db_options)s 
                   --map=fc:str 
                   --table=%(tablename)s 
         >> %(outfile)s
@@ -1120,9 +1120,9 @@ def runZinba(infile, outfile, controlfile, action="full"):
 
     options = " ".join(options)
 
-    # python %(scriptsdir)s/WrapperZinba.py
+    # cgat WrapperZinba
     statement = '''
-    python %(scriptsdir)s/runZinba.py
+    cgat runZinba
            --input-format=bam
            --fdr-threshold=%(zinba_fdr_threshold)f
            --fragment-size=%(zinba_fragment_size)s
@@ -1284,7 +1284,7 @@ def loadZinba(infile, outfile, bamfile,
         tablename = "%s_intervals" % track
 
     statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    cgat csv2db %(csv2db_options)s 
               --allow-empty-file
               --add-index=interval_id 
               --add-index=contig,start
@@ -1376,8 +1376,8 @@ def buildIntervalCounts(infile, outfile, track, fg_replicates, bg_replicates):
 
     statement = """
     zcat < %(infile)s 
-    | python %(scriptsdir)s/bed2gff.py --as-gtf 
-    | python %(scriptsdir)s/gtf2table.py 
+    | cgat bed2gff --as-gtf 
+    | cgat gtf2table 
                 --counter=read-coverage 
                 --log=%(outfile)s.log 
                 --bam-file=%(samfiles_fg)s 
@@ -1387,8 +1387,8 @@ def buildIntervalCounts(infile, outfile, track, fg_replicates, bg_replicates):
     if samfiles_bg:
         statement = """
         zcat < %(infile)s 
-        | python %(scriptsdir)s/bed2gff.py --as-gtf 
-        | python %(scriptsdir)s/gtf2table.py 
+        | cgat bed2gff --as-gtf 
+        | cgat gtf2table 
                     --counter=read-coverage 
                     --log=%(outfile)s.log 
                     --bam-file=%(samfiles_bg)s 
@@ -1503,7 +1503,7 @@ def loadIntervalsFromBed(bedfile, track, outfile,
     tablename = "%s_intervals" % track.asTable()
 
     statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    cgat csv2db %(csv2db_options)s
     --allow-empty-file
     --add-index=interval_id
     --table=%(tablename)s

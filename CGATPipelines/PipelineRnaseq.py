@@ -139,21 +139,21 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     if merge:
         statement = '''
         %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=unset-genes --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=merge-genes
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=merge-exons
             --merge-exons-distance=5
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=renumber-genes
             --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=renumber-transcripts
             --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
@@ -327,7 +327,7 @@ def mergeCufflinksFPKM(infiles, outfile, genesets,
          for x in infiles])
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
         --log=%(outfile)s.log
         --columns=1
         --skip-titles

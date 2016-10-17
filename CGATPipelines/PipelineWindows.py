@@ -87,7 +87,7 @@ def convertReadsToIntervals(bamfile,
 
         next_file = "%(tmpdir)s/bam_%(nfiles)i.bam" % locals()
         statement.append('''cat %(current_file)s
-        | python %%(scriptsdir)s/bam2bam.py
+        | cgat bam2bam
         --method=filter
         --filter-method=unique,mapped
         --log=%%(bedfile)s.log
@@ -118,13 +118,13 @@ def convertReadsToIntervals(bamfile,
 
     if is_paired:
         statement.append('''cat %(current_file)s
-            | python %(scriptsdir)s/bam2bed.py
+            | cgat bam2bed
               --merge-pairs
               --min-insert-size=%(filtering_min_insert_size)i
               --max-insert-size=%(filtering_max_insert_size)i
               --log=%(bedfile)s.log
               -
-            | python %(scriptsdir)s/bed2bed.py
+            | cgat bed2bed
               --method=sanitize-genome
               --genome-file=%(genome_dir)s/%(genome)s
               --log=%(bedfile)s.log
@@ -133,10 +133,10 @@ def convertReadsToIntervals(bamfile,
             | bgzip > %(bedfile)s''')
     else:
         statement.append('''cat %(current_file)s
-            | python %(scriptsdir)s/bam2bed.py
+            | cgat bam2bed
               --log=%(bedfile)s.log
               -
-            | python %(scriptsdir)s/bed2bed.py
+            | cgat bed2bed
               --method=sanitize-genome
               --genome-file=%(genome_dir)s/%(genome)s
               --log=%(bedfile)s.log
@@ -166,7 +166,7 @@ def countTags(infile, outfile):
     '''
 
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/bed2stats.py
+    | cgat bed2stats
     --per-contig
     --log=%(outfile)s.log
     >& %(outfile)s'''
@@ -325,7 +325,7 @@ def normalizeTagCounts(infile, outfile, method):
     '''
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/counts2counts.py
+    | cgat counts2counts
     --method=normalize
     --normalization-method=%(method)s
     --log=%(outfile)s.log
@@ -580,11 +580,11 @@ def outputRegionsOfInterest(design_file, counts_file, outfile,
 
     statement = '''
     zcat %(counts_file)s
-    | python %(scriptsdir)s/csv_select.py
+    | cgat csv_select
             --log=%(outfile)s.log
             "(%(upper_levelA)s and %(sum_levelB)s) or
              (%(upper_levelB)s and %(sum_levelA)s)"
-    | python %(scriptsdir)s/runExpression.py
+    | cgat runExpression
             --log=%(outfile)s.log
             --design-tsv-file=%(design_file)s
             --tags-tsv-file=-
@@ -630,12 +630,12 @@ def runDE(design_file,
     if spike_file is None:
         statement = "zcat %(counts_file)s"
     else:
-        statement = '''python %(scriptsdir)s/combine_tables.py
+        statement = '''cgat combine_tables
         --missing-value=0
         --cat=filename
         --log=%(outfile)s.log
         %(counts_file)s %(spike_file)s
-        | python %(scriptsdir)s/csv_cut.py
+        | cgat csv_cut
         --remove filename
         --log=%(outfile)s.log
         '''
@@ -658,7 +658,7 @@ def runDE(design_file,
     --output-filename-pattern=%(outdir)s/%%s
     --subdirs
     --output-regex-header="^test_id"
-    "python %(scriptsdir)s/runExpression.py
+    "cgat runExpression
               --method=%(method)s
               --tags-tsv-file=-
               --design-tsv-file=%(design_file)s
@@ -676,7 +676,7 @@ def runDE(design_file,
               --fdr=%(edger_fdr)f
               --deseq2-plot=0"
     | perl -p -e "s/qvalue/old_qvalue/"
-    | python %(scriptsdir)s/table2table.py
+    | cgat table2table
     --log=%(outfile)s.log
     --method=fdr
     --column=pvalue
@@ -811,7 +811,7 @@ def runMEDIPSQC(infile, outfile):
     # to the output filenames.
     job_memory = "10G"
 
-    statement = """python %(scriptsdir)s/runMEDIPS.py
+    statement = """cgat runMEDIPS
             --ucsc-genome=%(medips_genome)s
             --treatment=%(infile)s
             --toolset=saturation
@@ -857,7 +857,7 @@ def runMEDIPSDMR(design_file, outfile):
         control = ",".join(control)
         # outfile contains directory prefix
         statements.append(
-            """python %(scriptsdir)s/runMEDIPS.py
+            """cgat runMEDIPS
             --ucsc-genome=%(medips_genome)s
             --treatment=%(treatment)s
             --control=%(control)s
@@ -871,7 +871,7 @@ def runMEDIPSDMR(design_file, outfile):
             > %(outfile)s.log2;
             checkpoint;
             zcat %(outfile)s_%(pair1)s_vs_%(pair2)s_data.tsv.gz
-            | python %(scriptsdir)s/runMEDIPS.py
+            | cgat runMEDIPS
             --treatment=%(pair1)s
             --control=%(pair2)s
             --toolset=convert
@@ -1174,7 +1174,7 @@ def summarizeTagsWithinContext(tagfile,
     '''
 
     statement = '''
-    python %(scriptsdir)s/bam_vs_bed.py
+    cgat bam_vs_bed
     --min-overlap=%(min_overlap)f
     --log=%(outfile)s.log
     %(tagfile)s %(contextfile)s
@@ -1205,12 +1205,12 @@ def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
 
     if not samples_in_columns:
         transpose_cmd = \
-            """| python %(scriptsdir)s/table2table.py
+            """| cgat table2table
             --transpose""" % P.getParams()
     else:
         transpose_cmd = ""
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --header-names=%(header)s
     --missing-value=0
     --skip-titles
@@ -1249,13 +1249,13 @@ def loadSummarizedContextStats(infiles,
         P.toTable(outfile),
         options="--add-index=track")
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --header-names=%(header)s
     --missing-value=0
     --skip-titles
     %(filenames)s
     | perl -p -e "s/bin/track/; s/\?/Q/g"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s
     """

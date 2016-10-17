@@ -359,7 +359,7 @@ def exportIntervalsAsBedsolo(infile, outfile):
 @transform(dedup, regex(r"(\S+).dedup.bam"), r"\1.bw")
 def bamToWig(infile, outfile):
     ''' convert bam to bigwig '''
-    statement = '''python %%(scriptsdir)s/bam2wiggle.py --output-format=bigwig %(infile)s %(outfile)s ''' % locals()
+    statement = '''cgat bam2wiggle --output-format=bigwig %(infile)s %(outfile)s ''' % locals()
     P.run()
 
 ###################################################################

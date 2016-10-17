@@ -302,7 +302,7 @@ def loadReadCounts(infiles, outfile):
     inname = outf.name
 
     tablename = P.toTable(outfile)
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s --log=%(outfile)s.log
+    statement = '''cgat csv2db -t %(tablename)s --log=%(outfile)s.log
                   < %(inname)s > %(outfile)s'''
     P.run()
     os.unlink(outf.name)
@@ -341,7 +341,7 @@ def preprocessReads(infile, outfile):
         assert os.path.exists(read2), "file does not exist %s" % read2
 
         log = infile.replace("fastq.", "")
-        statement = '''python %(scriptsdir)s/fastqs2fasta.py
+        statement = '''cgat fastqs2fasta
                    -a %(infile)s
                    -b %(read2)s
                    --log=%(log)s.log
@@ -404,7 +404,7 @@ def buildMetaphlanReadmap(infile, outfile):
     '''
     statement = '''metaphlan.py -t reads_map
                    --input_type bowtie2out %(infile)s
-                   | python %(scriptsdir)s/metaphlan2table.py
+                   | cgat metaphlan2table
                      -t read_map
                     --log=%(outfile)s.log
                     > %(outfile)s; checkpoint
@@ -465,7 +465,7 @@ def buildMetaphlanRelativeAbundance(infile, outfile):
     blastn searching
     '''
     statement = '''metaphlan.py -t rel_ab --input_type bowtie2out %(infile)s
-                   | python %(scriptsdir)s/metaphlan2table.py -t rel_ab
+                   | cgat metaphlan2table -t rel_ab
                     --log=%(outfile)s.log
                     > %(outfile)s; checkpoint
                     ; sed -i 's/order/_order/g' %(outfile)s'''
@@ -574,7 +574,7 @@ def buildKrakenCounts(infile, outfile):
                    <(zcat %(infile)s)
                    > %(temp)s;
                    cat %(temp)s
-                  | python %(scriptsdir)s/metaphlan2table.py
+                  | cgat metaphlan2table
                   -t rel_ab
                   --log=%(outfile)s.log
                   | sed 's/rel_abundance/count/g'
@@ -675,7 +675,7 @@ def mergeKrakenCountsAcrossSamples(infiles, outfiles):
         outname = os.path.join(
             "counts.dir", level + ".kraken.aggregated.counts.tsv.gz")
 
-        statement = '''python %(scriptsdir)s/combine_tables.py
+        statement = '''cgat combine_tables
                        --missing=0
                        --columns=1
                        --take=count
@@ -795,7 +795,7 @@ def buildTaxaMap(infile, outfile):
     analysis
     '''
     statement = '''zcat %(infile)s
-                   | python %(scriptsdir)s/lca2table.py
+                   | cgat lca2table
                    --output-map
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -837,7 +837,7 @@ def buildLCA(infile, outfile):
     tabulate LCA output into nice format. Per read assignment
     '''
     statement = '''zcat %(infile)s
-                   | python %(scriptsdir)s/lca2table.py
+                   | cgat lca2table
                      --summarise=individual
                      --log=%(outfile)s.log
                    | sed -e 's/order/_order/g'
@@ -856,7 +856,7 @@ def countLcaPerLevelTaxa(infile, outfile):
     '''
     job_memory = "20G"
     statement = '''zcat %(infile)s |
-                   python %(scriptsdir)s/lca2table.py
+                   cgat lca2table
                    --summarise=level-counts
                    --log=%(outfile)s.log
                    > %(outfile)s'''
@@ -886,7 +886,7 @@ def buildLcaCounts(infile, outfile):
     '''
     job_memory = "20G"
     statement = '''zcat %(infile)s |
-                   python %(scriptsdir)s/lca2table.py
+                   cgat lca2table
                    --summarise=taxa-counts
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -985,7 +985,7 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
         outname = os.path.join(
             "counts.dir", level + ".diamond.aggregated.counts.tsv.gz")
 
-        statement = '''python %(scriptsdir)s/combine_tables.py
+        statement = '''cgat combine_tables
                        --missing=0
                        --columns=1
                        --take=count
@@ -1311,7 +1311,7 @@ def buildDiamondGeneCounts(infile, outfile):
     job_memory = PARAMS.get("genes_memory")
     options = PARAMS.get("genes_count_options")
     statement = '''zcat %(infile)s |
-                   python %(scriptsdir)s/diamond2counts.py
+                   cgat diamond2counts
                    %(options)s
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -1349,7 +1349,7 @@ def mergeDiamondGeneCounts(infiles, outfile):
         for x in glob.glob("genes.dir/*.genes.counts.tsv.gz")]
     prefixes = ",".join(prefixes)
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
                    --missing=0
                    --columns=1
                    --take=count
@@ -1693,7 +1693,7 @@ def runDESeq2(infile, outfile):
     min_rowcounts = PARAMS.get("deseq2_filter_min_counts_per_row")
     min_samplecounts = PARAMS.get("deseq2_filter_min_counts_per_sample")
     percentile_rowsums = PARAMS.get("deseq2_filter_percentile_rowsums")
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
                    --method=deseq2
                    --outfile=%(outfile)s
                    --output-filename-pattern=%(outpattern)s
@@ -1890,7 +1890,7 @@ def runPathwaysAnalysis(infiles, outfiles):
     run pathways analysis
     '''
     genes, background, gene2pathway = infiles
-    statement = '''python %(scriptsdir)s/runGO.py \
+    statement = '''cgat runGO \
                    --background=%(background)s
                    --genes=%(genes)s \
                    --filename-input=%(gene2pathway)s \
@@ -2209,7 +2209,7 @@ def Differential_abundance():
 #     based on the file that was downloaded with mtools (D.Huson)
 #     '''
 #     keggtre, keggmap = infiles
-#     statement = '''python %(scriptsdir)s/keggtre2table.py
+#     statement = '''cgat keggtre2table
 #                    --kegg-tre=%(keggtre)s
 #                    --map=%(keggmap)s
 #                    --log=%(outfile)s.log
@@ -2243,7 +2243,7 @@ def Differential_abundance():
 #     kegg_table = infiles[1]
 #     level = PARAMS.get("kegg_level")
 #     statement = '''zcat %(infile)s |
-#                    python %(scriptsdir)s/lcakegg2counts.py
+#                    cgat lcakegg2counts
 #                    --kegg-table=%(kegg_table)s
 #                    --level=%(level)s
 #                    --method=proportion
@@ -2278,7 +2278,7 @@ def Differential_abundance():
 #     kegg_table = infiles[1]
 #     level = PARAMS.get("kegg_level")
 #     statement = '''zcat %(infile)s |
-#                    python %(scriptsdir)s/lcakegg2counts.py
+#                    cgat lcakegg2counts
 #                    --kegg-table=%(kegg_table)s
 #                    --level=D
 #                    --method=proportion

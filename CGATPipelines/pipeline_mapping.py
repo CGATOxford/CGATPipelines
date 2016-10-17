@@ -436,7 +436,7 @@ def buildCodingGeneSet(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=gene
     --map-tsv-file=%(genes_tsv)s
@@ -488,23 +488,23 @@ def buildIntronGeneModels(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --map-tsv-file=%(genes_tsv)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort
     --sort-order=gene
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=exons2introns
     --intron-min-length=100
     --intron-border=10
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=crop
     --crop-gff-file=%(filename_exons)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=set-transcript-to-gene
     --log=%(outfile)s.log
     | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
@@ -545,12 +545,12 @@ def buildCodingExons(infile, outfile):
     statement = '''
     zcat %(infile)s
     | awk '$3 == "CDS"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
     | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --log=%(outfile)s.log
     | gzip
@@ -2066,7 +2066,7 @@ def buildBAMStats(infiles, outfile):
         fastq_option = ""
 
     statement = '''python
-    %(scriptsdir)s/bam2stats.py
+    cgat bam2stats
          %(fastq_option)s
          --force-output
          --mask-bed-file=%(rna_file)s
@@ -2140,7 +2140,7 @@ def buildExonValidation(infiles, outfile):
 
     infile, exons = infiles
     statement = '''cat %(infile)s
-    | python %(scriptsdir)s/bam_vs_gtf.py
+    | cgat bam_vs_gtf
          --exons-file=%(exons)s
          --force-output
          --log=%(outfile)s.log
@@ -2218,7 +2218,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(geneset)s
-    | python %%(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
     --reporter=transcripts
     --bam-file=%(infile)s
     --counter=length
@@ -2288,7 +2288,7 @@ def buildIntronLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(exons)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=genes
           --bam-file=%(infile)s
           --counter=length
@@ -2385,7 +2385,7 @@ def buildTranscriptProfiles(infiles, outfile):
 
     job_memory = "8G"
 
-    statement = '''python %(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
     --output-filename-pattern="%(outfile)s.%%s"
     --force-output
     --reporter=transcript
@@ -2478,7 +2478,7 @@ def buildBigWig(infile, outfile):
     else:
         # wigToBigWig observed to use 16G
         job_memory = "16G"
-        statement = '''python %(scriptsdir)s/bam2wiggle.py
+        statement = '''cgat bam2wiggle
         --output-format=bigwig
         %(bigwig_options)s
         %(infile)s
@@ -2513,14 +2513,14 @@ def loadBigWigStats(infiles, outfile):
         P.toTable(outfile),
         options="--add-index=track")
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --header-names=%(headers)s
     --skip-titles
     --missing-value=0
     --ignore-empty
     %(data)s
     | perl -p -e "s/bin/track/"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s
     '''
@@ -2544,7 +2544,7 @@ def buildBed(infile, outfile):
 
     statement = '''
     cat %(infile)s
-    | python %(scriptsdir)s/bam2bed.py
+    | cgat bam2bed
           %(bed_options)s
           --log=%(outfile)s.log
           -

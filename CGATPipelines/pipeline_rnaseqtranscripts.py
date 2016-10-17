@@ -381,7 +381,7 @@ def writePrunedGTF(infile, outfile):
     # remove \0 bytes within gtf file
     statement = '''%(uncompress)s %(infile)s
     | %(cmds)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort
+    | cgat gtf2gtf --method=sort
     --sort-order=contig+gene --log=%(outfile)s.log
     | %(compress)s > %(outfile)s'''
 
@@ -753,7 +753,7 @@ def buildCodingGeneSet(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=gene
     --map-tsv-file=%(gene_tsv)s
@@ -1719,7 +1719,7 @@ def buildLincRNAGeneSet(infiles, outfile):
     mv %(outfile)s %(outfile)s.tmp;
     checkpoint;
     zcat %(outfile)s.tmp
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort
+    | cgat gtf2gtf --method=sort
     --sort-order=contig+gene --log=%(outfile)s.log
     | gzip > %(outfile)s;
     checkpoint;
@@ -1893,7 +1893,7 @@ def buildGeneSetStats(infiles, outfile):
     allfiles = " ".join(other + cuffcompare)
 
     statement = '''
-    python %(scriptsdir)s/gff2stats.py --is-gtf
+    cgat gff2stats --is-gtf
     %(allfiles)s --log=%(outfile)s.log
     | perl -p -e "s/.gtf.gz//"
     | perl -p -e "s/^agg.*cuffcompare.combined/unfiltered/"
@@ -1978,7 +1978,7 @@ def classifyTranscripts(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
            --counter=%(counter)s
            --reporter=transcripts
            --gff-file=%(reference)s
@@ -2006,7 +2006,7 @@ def classifyTranscriptsCuffcompare(infiles, outfile):
     # IMS: change to allow different classifiers
     statement = '''
     zcat %(infile)s.combined.gtf.gz
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
            --counter=%(gtf2table_classifier)s
            --reporter=transcripts
            --gff-file=%(reference)s
@@ -2055,7 +2055,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(geneset)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=transcripts
           --bam-file=%(infile)s
           --counter=length

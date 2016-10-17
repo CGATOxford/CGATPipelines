@@ -633,7 +633,7 @@ def buildBAMStats(infile, outfile):
     job_memory = "4G"
 
     statement = '''python
-    %(scriptsdir)s/bam2stats.py
+    cgat bam2stats
          --force-output
          --output-filename-pattern=%(outfile)s.%%s
     < %(infile)s
@@ -663,7 +663,7 @@ def buildBackgroundWindows(infile, outfile):
     job_options = "-l mem_free=16G"
 
     statement = '''
-    python %(scriptsdir)s/wig2bed.py
+    cgat wig2bed
              --bigwig-file=%(infile)s
              --genome-file=%(genome_dir)s/%(genome)s
              --threshold=%(calling_background_density)f
@@ -805,7 +805,7 @@ def predictFragmentSize(infile, outfile):
 def buildFragmentSizeTable(infiles, outfile):
     '''build a table with fragment sizes.'''
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --cat=track
     --regex-filename=".*/(\\S+).fragment_size"
     fragment_size.dir/*.fragment_size
@@ -904,7 +904,7 @@ def cleanMACS(infiles, outfiles):
             statement = '''
         zcat %(indir)s/*.wig.gz
         | awk '/track/ { if (skip) {next} skip=1; } { print }'
-        | python %(scriptsdir)s/wig2wig.py
+        | cgat wig2wig
                 --method=sanitize-genome
                 --log=%(outfile)s.log
                 --genome=%(genome_dir)s/%(genome)s
@@ -1469,7 +1469,7 @@ def applyIDR(infiles, outfile):
         control2 = getControl(Sample(track2)).asFile()
 
         statement = '''
-          python %(scriptsdir)s/WrapperIDR.py
+          cgat WrapperIDR
                  --action=run
                  --output-prefix=%(track1)s_vs_%(track2)s.idr
                  --chromosome-table=%(chromosome_table)s
@@ -1493,7 +1493,7 @@ def plotIDR(infile, outfile):
     output_prefix = os.path.join(
         PARAMS["exportdir"], "idr", os.path.basename(track))
     statement = '''
-    python %(scriptsdir)s/WrapperIDR.py
+    cgat WrapperIDR
                --action=plot
                --output-prefix=%(output_prefix)s
                %(files)s
@@ -1721,7 +1721,7 @@ def buildPeakShapeTable(infile, outfile):
         options.append("--control-bam-file=%s" % controlfile)
     options = " ".join(options)
 
-    statement = '''python %(scriptsdir)s/bam2peakshape.py
+    statement = '''cgat bam2peakshape
                       --window-size=%(peakshape_window_size)i
                       --bin-size=%(peakshape_bin_size)i
                       --output-filename-pattern="%(outfile)s.%%s"

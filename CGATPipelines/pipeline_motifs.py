@@ -300,7 +300,7 @@ def loadIntervals(infile, outfile):
 
     statement = '''zcat %(bedfile)s
                 | awk '{printf("%%s\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a)}'
-                | python %(scriptsdir)s/bed2table.py
+                | cgat bed2table
                            --counter=peaks
                            --bam-file=%(bamfile)s
                            --offset=%(offset)i
@@ -308,7 +308,7 @@ def loadIntervals(infile, outfile):
                            %(control)s
                            --output-all-fields
                            --log=%(outfile)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+                | cgat csv2db %(csv2db_options)s
                        --add-index=contig,start
                        --add-index=interval_id
                        --table=%(tablename)s
@@ -582,7 +582,7 @@ def filterTransfac(infile, outfile):
     '''filter the transfac matrices, here for vertebrate'''
 
     statement = '''cat %(infile)s
-    | python %(scriptsdir)s/transfac2transfac.py
+    | cgat transfac2transfac
     --method=filter --filter-method=V
     --log=%(outfile)s.log
     >  %(outfile)s
@@ -686,11 +686,11 @@ def loadMotifSequenceComposition(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-    python %(scriptsdir)s/fasta2table.py
+    cgat fasta2table
         --section=na
         --log=%(outfile)s
     < %(infile)s
-    | python %(scriptsdir)s/csv2db.py
+    | cgat csv2db
         %(csv2db_options)s
         --table=%(tablename)s
     > %(outfile)s'''

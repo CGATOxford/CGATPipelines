@@ -287,7 +287,7 @@ def combineReadStartSummaries(infiles, outfile):
     statement = '''echo -e
             "file\\treads\\tsequence\\tsample\\tcondition\\trep"
             > %(outfile)s;
-            python %%(scriptsdir)s/combine_tables.py -v0  -a CAT -t
+            cgat combine_tables -v0  -a CAT -t
             %(infile_list)s|
             sed -e 's/sequence_characteristics.dir\///g'
             -e 's/.fastq.*start.tsv//g'|
@@ -307,7 +307,7 @@ def loadStartSummary(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -438,7 +438,7 @@ def buildBigWig(infile, outfile):
 
     # wigToBigWig observed to use 16G
     job_memory = "16G"
-    statement = '''python %(scriptsdir)s/bam2wiggle.py
+    statement = '''cgat bam2wiggle
     --output-format=bigwig
     %(bigwig_options)s
     %(infile)s
@@ -473,14 +473,14 @@ def loadBigWigStats(infiles, outfile):
         P.toTable(outfile),
         options="--add-index=track")
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --header-names=%(headers)s
     --skip-titles
     --missing-value=0
     --ignore-empty
     %(data)s
     | perl -p -e "s/bin/track/"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s
     '''
@@ -653,7 +653,7 @@ def loadMergeCoverage(infile, outfile):
     job_threads = 2
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -691,7 +691,7 @@ def concatenateCoverage(infiles, outfile):
 
     statement = '''echo -e "file\\tfreq\\tcov\\tsample\\tcondition\\trep"
                 > %(outfile)s;
-                python %%(scriptsdir)s/combine_tables.py -v0
+                cgat combine_tables -v0
                 --glob="methylation.dir/*.coverage.tsv" -a CAT -t|
                 sed -e 's/methylation.dir\///g'
                 -e 's/_bismark.*.coverage.tsv//g'|
@@ -710,7 +710,7 @@ def loadCoverage(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -749,7 +749,7 @@ def loadCpGOverlap(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -780,7 +780,7 @@ def concatenateRemainingReads(infiles, outfile):
     statement = '''echo -e
                 "file\\tthreshold\\treads\\tpercentage\\tsample\\tcondition\\trep"
                 > %(outfile)s;
-                python %%(scriptsdir)s/combine_tables.py -v0
+                cgat combine_tables -v0
                 --glob="methylation.dir/*.reads_by_threshold.tsv" -a CAT -t|
                 sed -e 's/methylation.dir\///g'
                 -e 's/_bismark.*.reads_by_threshold.tsv//g'|
@@ -799,7 +799,7 @@ def loadRemainingReads(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -824,7 +824,7 @@ def makeGeneProfiles(infiles, outfile):
     # ensures only large RAM nodes used
     job_options = "-l mem_free=24G"
 
-    statement = '''python %%(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
                   --bamfile=%(infile)s --gtffile=%(genes_gtf)s
                   --method=tssprofile --reporter=gene
                   -P %(outname)s
@@ -938,7 +938,7 @@ def loadCoveredCpGs(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -1056,7 +1056,7 @@ def generateClusterSpikeIns(infile, outfile):
     job_options = "-l mem_free=4G"
 
     statement = '''cat %(infile)s |
-    python %%(scriptsdir)s/data2spike.py --method=spike
+    cgat data2spike --method=spike
     --design-tsv-file=design.tsv --difference-method=relative
     --spike-shuffle-column-suffix=-perc
     --spike-keep-column-suffix=-meth,-unmeth
@@ -1223,7 +1223,7 @@ def loadM3DClusters(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -1249,10 +1249,10 @@ def combineM3Dsummaries(infiles, outfiles):
 
     tablename = P.toTable(outfile2)
 
-    statement = ''' python %%(scriptsdir)s/combine_tables.py -v0  -a file
+    statement = ''' cgat combine_tables -v0  -a file
                     --glob=M3D_plots.dir/*between_summary.tsv > %(outfile1)s;
                     cat %(outfile1)s |
-                    python %%(scriptsdir)s/csv2db.py
+                    cgat csv2db
                     --table %(tablename)s --retry --ignore-empty
                     > %(outfile2)s''' % locals()
     print statement

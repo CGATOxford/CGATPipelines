@@ -177,7 +177,7 @@ def formatPhenotypeData(infiles, outfile):
     pheno_file = infiles
 
     statement = '''
-    python %(scriptsdir)s/pheno2pheno.py
+    cgat pheno2pheno
     --task=plink_format
     --id-variable=%(data_id_var)s
     --log=%(outfile)s.log
@@ -211,7 +211,7 @@ def selectBritish(infile, outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/pheno2pheno.py
+    cgat pheno2pheno
     --task=select_ethnicity
     --ethnicity-id=%(format_ethnicity_var)s
     --ethnicity-label=%(format_ethnicity)s
@@ -252,7 +252,7 @@ def dichotimisePhenotype(infile, outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/pheno2pheno.py
+    cgat pheno2pheno
     --task=dichotimise_phenotype
     --pheno-id=%(data_dichot_var)s
     --reference-variable=%(data_reference_value)s
@@ -293,7 +293,7 @@ def plotPhenotypeMap(infile, outfile):
     job_memory = "4G"
 
     statement = '''
-    python %(scriptsdir)s/pheno2plot.py
+    cgat pheno2plot
     --plot-type=map
     -x %(phenotype_map_overlay)s
     --coordinate-file=%(phenotype_coord_file)s
@@ -340,7 +340,7 @@ def convertToPlink(infiles, outfiles):
     out_pattern = ".".join(outfiles.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=%(data_format)s
     --phenotypes-file=%(data_phenotypes)s
@@ -400,7 +400,7 @@ def nameVariants(infiles, outfile):
     # create files to remove triallelic variants, overlapping variants
     # and duplicates
     state1 = '''
-    python %(scriptsdir)s/geno2geno.py
+    cgat geno2geno
     --task=detect_duplicates
     --outfile-pattern=%(temp_file)s
     --log=%(outfile)s.log
@@ -476,7 +476,7 @@ def ldPruneSNPsRound1(infiles, outfile):
     job_threads = 10
 
     statement = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plinkdev
     --input-file-format=plink_binary
     --exclude-snps=%(exclude_file)s
@@ -544,7 +544,7 @@ def ldPruneSNPsRound2(infiles, outfile):
     prune_threshold = PARAMS['ld_prune_threshold'] - 0.10
 
     statement = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plinkdev
     --input-file-format=plink_binary
     --exclude-snps=%(exclude_file)s
@@ -613,7 +613,7 @@ def ldPruneSNPsRound3(infiles, outfile):
     prune_threshold = PARAMS['ld_prune_threshold'] - 0.18
 
     statement = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plinkdev
     --input-file-format=plink_binary
     --exclude-snps=%(exclude_file)s
@@ -668,7 +668,7 @@ def makeTrimmedData(infiles, outfile):
 
     # find duplicates
     state1 = '''
-    python %(scriptsdir)s/geno2geno.py
+    cgat geno2geno
     --log=%(outfile)s.exclude.log
     --task=detect_duplicates
     --outfile-pattern=%(tmpfile)s
@@ -683,7 +683,7 @@ def makeTrimmedData(infiles, outfile):
     '''
 
     state3 = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=format
@@ -768,7 +768,7 @@ def calcInbreeding(infiles, outfile):
 
     job_memory = "4G"
     statement = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plink2
     --input-file-format=plink_binary
     --method=summary
@@ -806,7 +806,7 @@ def findExcessHomozygotes(infiles, outfile):
 
     job_memory = "4G"
     statement = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plink2
     --input-file-format=plink_binary
     --method=summary
@@ -853,7 +853,7 @@ def genderChecker(infiles, outfile):
     tmp_file = P.getTempFilename(shared=True)
 
     state1 = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plink2
     --input-file-format=plink_binary
     --method=check_gender
@@ -906,7 +906,7 @@ def makeGRM(infiles, outfiles):
 
     # why does GCTA keep throwing memory errors??
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --parallel=%(job_threads)s
     --input-file-format=plink_binary
@@ -948,7 +948,7 @@ def calculateIdentityByDescent(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plink2
     --input-file-format=plink_binary
     --keep-individuals=%(gwas_keep)s
@@ -1023,7 +1023,7 @@ def runFilteredPCA(infiles, outfile):
     temp_out = P.getTempFilename(shared=True)
 
     statement1 = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plinkdev
     --input-file-format=plink_binary
     --method=format
@@ -1075,7 +1075,7 @@ def plotPcaResults(infiles, outfile):
     fam_file = infiles[1][1]
 
     statement = '''
-    python %(scriptsdir)s/pheno2plot.py
+    cgat pheno2plot
     --plot-type=pca
     --plot-n-pc=2
     --metadata-file=%(phenotypes)s
@@ -1108,7 +1108,7 @@ def excludeDiscordantGender(infile, outfile):
 
     job_memory = "2G"
     statement = '''
-    python %(scriptsdir)s/qcs2qc.py
+    cgat qcs2qc
     --task=discordant_gender
     --gender-check-file=%(infile)s
     --plotting-path=%(plots_dir)s
@@ -1138,7 +1138,7 @@ def excludeInbred(infile, outfile):
 
     job_memory = "2G"
     statement = '''
-    python %(scriptsdir)s/qcs2qc.py
+    cgat qcs2qc
     --task=find_inbreds
     --inbreeding-coef-file=%(infile)s
     --inbreeding-coefficient=Fhat3
@@ -1169,7 +1169,7 @@ def findExcessHeterozygotes(infile, outfile):
 
     job_memory = "2G"
     statement = '''
-    python %(scriptsdir)s/qcs2qc.py
+    cgat qcs2qc
     --task=flag_hets
     --heterozygotes-file=%(infile)s
     --plotting-path=%(plots_dir)s
@@ -1211,7 +1211,7 @@ def excludeRelated(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-2])
 
     statement = '''
-    python %(scriptsdir)s/geno2qc.py
+    cgat geno2qc
     --program=plink2
     --input-file-format=plink_binary
     --method=remove_relations
@@ -1264,7 +1264,7 @@ def plotIbdHistogram(infile, outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/qcs2qc.py
+    cgat qcs2qc
     --task=flag_relations
     --relationship-file=%(infile)s
     --ibs-cutoff=%(relationship_cutoff)s
@@ -1307,7 +1307,7 @@ if PARAMS['candidate_region']:
         out_pattern = ".".join(outfile.split(".")[:-1])
 
         statement = '''
-        python %(scriptsdir)s/geno2assoc.py
+        cgat geno2assoc
         --program=plink2
         --input-file-format=plink_binary
         --method=format
@@ -1354,7 +1354,7 @@ if PARAMS['candidate_region']:
         out_pattern = ".".join(outfiles.split(".")[:-3])
 
         statement = '''
-        python %(scriptsdir)s/geno2assoc.py
+        cgat geno2assoc
         --program=gcta
         --threads=%(job_threads)s
         --input-file-format=plink_binary
@@ -1394,7 +1394,7 @@ if PARAMS['candidate_region']:
         job_memory = PARAMS['candidate_memory']
 
         statement = '''
-        python %(scriptsdir)s/geno2assoc.py
+        cgat geno2assoc
         --program=plink2
         --input-file-format=plink_binary
         --method=association
@@ -1433,7 +1433,7 @@ if PARAMS['candidate_region']:
         out_pattern = ".".join(outfile.split(".")[:-1])
 
         statement = '''
-        python %(scriptsdir)s/geno2assoc.py
+        cgat geno2assoc
         --program=plink2
         --input-file-format=plink_binary
         --method=association
@@ -1479,7 +1479,7 @@ def mergeExclusions(infiles, outfile):
     gender = infiles[1][2]
 
     statement = '''
-    python %(scriptsdir)s/qcs2qc.py
+    cgat qcs2qc
     --task=merge_exclusions
     --gender-check-file=%(gender)s
     --relationship-file=%(related)s
@@ -1521,7 +1521,7 @@ if PARAMS['gwas_model'] == "linear":
         out_pattern = ".".join(outfile.split(".")[:-1])
 
         statement = '''
-        python %(scriptsdir)s/geno2assoc.py
+        cgat geno2assoc
         --program=plink2
         --input-file-format=plink_binary
         --phenotypes-file=%(data_phenotypes)s
@@ -1571,7 +1571,7 @@ else:
         out_pattern = ".".join(outfile.split(".")[:-1])
 
         statement = '''
-        python %(scriptsdir)s/geno2assoc.py
+        cgat geno2assoc
         --program=plink2
         --input-file-format=plink_binary
         --phenotypes-file=%(data_phenotypes)s
@@ -1611,7 +1611,7 @@ def mergeCovariates(infiles, outfile):
     job_memory = "4G"
 
     statement = '''
-    python %(scriptsdir)s/pheno2pheno.py
+    cgat pheno2pheno
     --task=merge_covariates
     --covariate-file=%(covars)s
     --log=%(outfile)s.log
@@ -1652,7 +1652,7 @@ def pcAdjustedAssociation(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-2])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=association
@@ -1694,7 +1694,7 @@ def plotUnadjustedManhattan(infiles, outfile):
     out_file = "gwas.dir/" + out_file + ".results"
 
     statement = '''
-    python %(scriptsdir)s/assoc2plot.py
+    cgat assoc2plot
     --plot-type=manhattan
     --resolution=genome_wide
     --save-path=%(outfile)s
@@ -1726,7 +1726,7 @@ def plotGenomeManhattan(infiles, outfile):
     out_file = out_file.split("-")[0]
     out_file = "gwas.dir/" + out_file + ".results"
     statement = '''
-    python %(scriptsdir)s/assoc2plot.py
+    cgat assoc2plot
     --plot-type=manhattan
     --resolution=genome_wide
     --save-path=%(outfile)s
@@ -1756,7 +1756,7 @@ def plotGenomeQQ(infiles, outfile):
 
     res_files = ",".join(infiles)
     statement = '''
-    python %(scriptsdir)s/assoc2plot.py
+    cgat assoc2plot
     --plot-type=qqplot
     --resolution=genome_wide
     --save-path=%(outfile)s
@@ -1823,7 +1823,7 @@ def getConditionalRegions(infiles, outfile):
 
     job_memory = "40G"
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=format
@@ -1871,7 +1871,7 @@ def conditionalAssociation(infiles, outfile):
     job_memory = "40G"
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=association
@@ -1966,7 +1966,7 @@ def testEpistasisVsRegion(infiles, outfile):
     job_threads = 11
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --phenotypes-file=%(data_phenotypes)s
@@ -2071,7 +2071,7 @@ def convertToRawFormat(infiles, outfile):
     job_memory = "30G"
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=format
@@ -2105,7 +2105,7 @@ def mergeGenotypeAndCovariates(infiles, outfile):
     job_memory = "4G"
 
     statement = '''
-    python %(scriptsdir)s/pheno2pheno.py
+    cgat pheno2pheno
     --task=merge_covariates
     --adjustment=snp
     --covariate-file=%(covars)s
@@ -2150,7 +2150,7 @@ def ldExcludedEpistasisVsGwasLead(infiles, outfile):
         tfile.write("VAR\n{}\nEND".format(snp))
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --phenotypes-file=%(data_phenotypes)s
@@ -2214,7 +2214,7 @@ def ldExcludedEpistasis(infiles, outfile):
         tfile.write("VAR\n{}\nEND".format(snp))
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --phenotypes-file=%(data_phenotypes)s
@@ -2257,7 +2257,7 @@ def plotLdExcludedEpistasis(infile, outfile):
     plot_path = "_".join(outfile.split("_")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/assoc2plot.py
+    cgat assoc2plot
     --plot-type=epistasis
     --resolution=chromosome
     --log=%(outfile)s.log
@@ -2306,7 +2306,7 @@ def adjustedEpistasis(infiles, outfile):
 
     statement = '''
     R CMD Rserve --vanilla; checkpoint;
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plinkdev
     --input-file-format=plink_binary
     --phenotypes-file=%(data_phenotypes)s
@@ -2343,7 +2343,7 @@ def plotAdjustedEpistasis(infile, outfile):
     plot_path = "_".join(outfile.split("_")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/assoc2plot.py
+    cgat assoc2plot
     --plot-type=epistasis
     --resolution=chromosome
     --log=%(outfile)s.log
@@ -2385,7 +2385,7 @@ def mergeForPleiotropy(infiles, outfile):
     job_memory = "4G"
 
     statement = '''
-    python %(scriptsdir)s/pheno2pheno.py
+    cgat pheno2pheno
     --task=merge_covariates
     --adjustment=snp
     --covariate-file=%(covars)s
@@ -2410,7 +2410,7 @@ def calcPleiotropyTest(infile, outfile):
     job_threads = 1
 
     statement = '''
-    python %(scriptsdir)s/testPleiotropy.py
+    cgat testPleiotropy
     --R-scripts=%(r_scripts)s
     --trait1=%(pleiotropy_trait1)s
     --trait2=%(pleiotropy_trait2)s
@@ -2463,7 +2463,7 @@ def getGrmRegion(infiles, outfile):
     job_memory = "30G"
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=format
@@ -2542,7 +2542,7 @@ def calcRegionGrm(infiles, outfiles):
     out_pattern = ".".join(outfiles.split(".")[:-3])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=gcta
     --threads=%(job_threads)s
     --input-file-format=plink_binary
@@ -2613,7 +2613,7 @@ def runMixedModel(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=gcta
     --threads=%(job_threads)s
     --input-file-format=plink_binary
@@ -2653,7 +2653,7 @@ def plotMixedModelManhattan(infiles, outfile):
     out_file = out_file.split("-")[0]
     out_file = "gwas.dir/" + out_file + ".results"
     statement = '''
-    python %(scriptsdir)s/assoc2plot.py
+    cgat assoc2plot
     --plot-type=manhattan
     --resolution=genome_wide
     --save-path=%(outfile)s
@@ -2679,7 +2679,7 @@ def plotMixedModelQQ(infiles, outfile):
 
     res_files = ",".join(infiles)
     statement = '''
-    python %(scriptsdir)s/assoc2plot.py
+    cgat assoc2plot
     --plot-type=qqplot
     --resolution=genome_wide
     --save-path=%(outfile)s
@@ -2721,7 +2721,7 @@ def getGenomeWideFst(infiles, outfile):
     job_memory = "20G"
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=summary
@@ -2765,7 +2765,7 @@ def getFstByChromosome(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=summary
@@ -2835,7 +2835,7 @@ def defineHaplotypeBlocks(infiles, outfile):
     job_memory = "40G"
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=estimate_haplotypes
@@ -2880,7 +2880,7 @@ def convertRefVcf(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=vcf
     --method=format
@@ -2923,7 +2923,7 @@ def calcLd(infiles, outfile):
     job_threads = 12
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=ld
@@ -3048,7 +3048,7 @@ def splitGwasRegions(infile, outfile):
     out_dir = "/".join(outfile.split("/")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/assoc2assoc.py
+    cgat assoc2assoc
     --task=get_hits
     --p-threshold=0.00000005
     --output-directory=%(out_dir)s
@@ -3076,7 +3076,7 @@ def splitConditionalRegions(infile, outfile):
     out_dir = "/".join(outfile.split("/")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/assoc2assoc.py
+    cgat assoc2assoc
     --task=get_hits
     --p-threshold=0.000001
     --output-directory=%(out_dir)s
@@ -3194,7 +3194,7 @@ def getSnpFunctionalScores(infiles, outfile):
 
     job_memory = "2G"
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=get_eigen
     --eigen-score-directory=%(functional_score_dir)s
     --snp-set=%(snp_set)s
@@ -3226,7 +3226,7 @@ def calcPicsScores(infiles, outfile):
     chrome = chrome.lstrip("chr")
 
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=PICS
     --chromosome=%(chrome)s
     --distribution=normal
@@ -3255,7 +3255,7 @@ def makePicsCredibleSet(infile, outfile):
     job_memory = "1G"
 
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=credible_set
     --credible-interval=0.95
     --lead-snp-id=2
@@ -3283,7 +3283,7 @@ def summarisePicsResults(infiles, outfile):
     infiles = ",".join(infiles)
 
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=summarise
     --log=%(outfile)s.log
     %(infiles)s
@@ -3343,7 +3343,7 @@ def calcTop1pcLdRanks(infile, outfile):
     chrome = table.strip("chr")
 
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=R2_rank
     --ld-dir=%(ld_dir)s
     --chromosome=%(chrome)s
@@ -3374,7 +3374,7 @@ def calcApproxBayesFactorScore(infile, outfile):
     chrome = table.strip("chr")
 
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=ABF
     --chromosome=%(chrome)s
     --flat-prior
@@ -3402,7 +3402,7 @@ def makeAbfCredibleSet(infile, outfile):
     job_memory = "1G"
 
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=credible_set
     --credible-interval=0.95
     --lead-snp-id=2
@@ -3431,7 +3431,7 @@ def summariseAbfResults(infiles, outfile):
     infiles = ",".join(infiles)
 
     statement = '''
-    python %(scriptsdir)s/snpPriority.py
+    cgat snpPriority
     --score-method=summarise
     --log=%(outfile)s.log
     %(infiles)s
@@ -3545,7 +3545,7 @@ def colocTesteQTL(infiles, outfile):
     job_memory = "8G"
 
     statement = '''
-    python %(scriptsdir)s/assoc2coloc.py
+    cgat assoc2coloc
     --trait1-results=%(trait1_results)s
     --trait2-results=%(trait2_results)s
     --trait2-p-column=%(eqtl_pcol)s
@@ -3654,7 +3654,7 @@ def subsetCohortForReml(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=plink2
     --input-file-format=plink_binary
     --method=format
@@ -3698,7 +3698,7 @@ def makeRemlGrm(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-3])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=gcta
     --threads=%(job_threads)s
     --input-file-format=plink_binary
@@ -3761,7 +3761,7 @@ def calcHeritabilityReml(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --input-file-format=GRM_binary
     --program=gcta
     --phenotypes-file=%(pheno_file)s
@@ -3805,7 +3805,7 @@ def snpBlup(infiles, outfile):
     job_memory = "20G"
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --program=gcta
     --input-file-format=plink_binary
     --method=reml
@@ -3837,7 +3837,7 @@ def subsetAllPhenotypes(infile, outfile):
     pheno_file = infiles[1]
 
     statement = '''
-    python %(scriptsdir)s/pheno2pheno.py
+    cgat pheno2pheno
     --task=subset_phenotypes
     --fam-file=%(fam_file)s
     --log=%(outfile)s.log
@@ -3875,7 +3875,7 @@ def calcBivariateReml(infiles, outfile):
     out_pattern = ".".join(outfile.split(".")[:-1])
 
     statement = '''
-    python %(scriptsdir)s/geno2assoc.py
+    cgat geno2assoc
     --input-file-format=GRM_binary
     --program=gcta
     --phenotypes-file=%(pheno_file)s
@@ -3917,7 +3917,7 @@ def transformGwasToCojo(infile, outfile):
     job_threads = 1
 
     statement = '''
-    python %(scriptsdir)s/assoc2assoc.py
+    cgat assoc2assoc
     --task=merge_freq
     --frequency-directory=%(joint_freq_dir)s
     --log=%(outfile)s.log

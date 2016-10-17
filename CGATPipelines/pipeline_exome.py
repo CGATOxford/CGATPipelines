@@ -219,7 +219,7 @@ def loadROI(infile, outfile):
     header = "chr,start,stop,feature"
     tablename = P.toTable(outfile)
     statement = '''cat %(infile)s
-            | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+            | cgat csv2db %(csv2db_options)s
               --ignore-empty
               --retry
               --header-names=%(header)s
@@ -237,7 +237,7 @@ def loadROI2Gene(infile, outfile):
     scriptsdir = PARAMS["general_scriptsdir"]
     tablename = P.toTable(outfile)
     statement = '''cat %(infile)s
-            | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+            | cgat csv2db %(csv2db_options)s
               --ignore-empty
               --retry
               --table=%(tablename)s
@@ -254,7 +254,7 @@ def loadSamples(infile, outfile):
     scriptsdir = PARAMS["general_scriptsdir"]
     tablename = P.toTable(outfile)
     statement = '''cat %(infile)s
-            | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+            | cgat csv2db %(csv2db_options)s
               --ignore-empty
               --retry
               --table=%(tablename)s
@@ -522,7 +522,7 @@ def calcXYratio(infile, outfile):
 def mergeXYRatio(infiles, outfile):
     '''merge XY ratios from all samples and load into database'''
     inlist = " ".join(infiles)
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
                    --add-file-prefix --regex-filename="xy_ratio/(\S+).sex"
                    --no-titles --missing-value=0 --ignore-empty
                    -L %(outfile)s.log -v 6
@@ -1982,18 +1982,18 @@ def loadVCFstats(infiles, outfile):
     filenames = " ".join(infiles)
     tablename = P.toTable(outfile)
     E.info("Loading vcf stats...")
-    statement = '''python %(scriptsdir)s/vcfstats2db.py %(filenames)s >>
+    statement = '''cgat vcfstats2db %(filenames)s >>
                    %(outfile)s; '''
-    statement += '''cat vcfstats.txt | python %(scriptsdir)s/csv2db.py
+    statement += '''cat vcfstats.txt | cgat csv2db
                     %(csv2db_options)s --allow-empty-file --add-index=track
                     --table=vcf_stats >> %(outfile)s; '''
-    statement += '''cat sharedstats.txt | python %(scriptsdir)s/csv2db.py
+    statement += '''cat sharedstats.txt | cgat csv2db
                     %(csv2db_options)s --allow-empty-file --add-index=track
                     --table=vcf_shared_stats >> %(outfile)s; '''
-    statement += '''cat indelstats.txt | python %(scriptsdir)s/csv2db.py
+    statement += '''cat indelstats.txt | cgat csv2db
                     %(csv2db_options)s --allow-empty-file --add-index=track
                     --table=indel_stats >> %(outfile)s; '''
-    statement += '''cat snpstats.txt | python %(scriptsdir)s/csv2db.py
+    statement += '''cat snpstats.txt | cgat csv2db
                     %(csv2db_options)s --allow-empty-file --add-index=track
                     --table=snp_stats >> %(outfile)s; '''
     P.run()

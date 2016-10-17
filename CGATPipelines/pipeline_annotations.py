@@ -784,7 +784,7 @@ def buildGenomeInformation(infile, outfile):
 
     statement = '''
     cat %(infile)s
-    | python %(scriptsdir)s/fasta2table.py
+    | cgat fasta2table
         --section=length
         --section=cpg
     | gzip
@@ -842,12 +842,12 @@ def buildGenomeGCSegmentation(infile, outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/fasta2bed.py
+    cgat fasta2bed
         --method=fixed-width-windows-gc
         --window-size=%(segmentation_window_size)i
         --log=%(outfile)s.log
     < %(infile)s
-    | python %(scriptsdir)s/bed2bed.py
+    | cgat bed2bed
         --method=bins
         --num-bins=%(segmentation_num_bins)s
         --binning-method=%(segmentation_method)s
@@ -893,7 +893,7 @@ def runGenomeGCProfile(infile, outfile):
 
     statement = '''
     cat %(infile)s
-    | python %(scriptsdir)s/fasta2bed.py
+    | cgat fasta2bed
         --verbose=2
         --method=GCProfile
         --gcprofile-min-length=%(segmentation_min_length)i
@@ -932,7 +932,7 @@ def buildGenomeGCProfile(infile, outfile):
     '''
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/bed2bed.py
+    | cgat bed2bed
         --method=bins
         --num-bins=%(segmentation_num_bins)s
         --binning-method=%(segmentation_method)s
@@ -965,7 +965,7 @@ def buildCpGBed(infile, outfile):
 
     job_memory = "5G"
     statement = '''
-    python %(scriptsdir)s/fasta2bed.py
+    cgat fasta2bed
         --method=cpg
         --log=%(outfile)s.log
     < %(infile)s
@@ -1007,7 +1007,7 @@ def buildGeneSet(infile, outfile):
 
     statement = ['''zcat %(infile)s
     | grep 'transcript_id'
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
@@ -1023,7 +1023,7 @@ def buildGeneSet(infile, outfile):
 
     statement.append(
         '''
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
         --method=set-gene_biotype-to-source
         --log=%(outfile)s.log
         | gzip > %(outfile)s ''')
@@ -1467,9 +1467,9 @@ def buildTranscriptRegions(infile, outfile):
 
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
+    | cgat gtf2gtf --method=join-exons
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf
+    | cgat gff2bed --is-gtf
     --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
@@ -1500,10 +1500,10 @@ def buildGeneRegions(infile, outfile):
     """
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-transcripts
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=gene_id
+    | cgat gff2bed --is-gtf --set-name=gene_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """
@@ -1536,12 +1536,12 @@ def buildTranscriptTSS(infile, outfile):
 
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
+    | cgat gtf2gtf --method=join-exons
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py --method=promotors
+    | cgat gtf2gff --method=promotors
     --promotor-size=1
     --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=transcript_id
+    | cgat gff2bed --is-gtf --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """
@@ -1574,12 +1574,12 @@ def buildTranscriptTTS(infile, outfile):
 
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=join-exons
+    | cgat gtf2gtf --method=join-exons
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py --method=tts
+    | cgat gtf2gff --method=tts
     --promotor-size=1
     --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=transcript_id
+    | cgat gff2bed --is-gtf --set-name=transcript_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s """
@@ -1611,12 +1611,12 @@ def buildGeneTSS(infile, outfile):
     """
 
     statement = """gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-transcripts
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py --method=promotors --promotor-size=1
+    | cgat gtf2gff --method=promotors --promotor-size=1
     --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=gene_id
+    | cgat gff2bed --is-gtf --set-name=gene_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s"""
@@ -1647,12 +1647,12 @@ def buildGeneTTS(infile, outfile):
 
     """
     statement = """gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-transcripts
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py --method=tts --promotor-size=1
+    | cgat gtf2gff --method=tts --promotor-size=1
     --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --set-name=gene_id
+    | cgat gff2bed --is-gtf --set-name=gene_id
     --log=%(outfile)s.log
     | gzip
     > %(outfile)s"""
@@ -1685,20 +1685,20 @@ def buildGeneTSSInterval(infile, outfile):
 
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=join-exons
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py
+    | cgat gtf2gff
     --method=promotors
     --promotor-size=1
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
     | sed s/transcript/exon/g
     | sed s/exon_id/transcript_id/g
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-transcripts
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py
+    | cgat gff2bed
     --is-gtf
     --set-name=transcript_id
     --log=%(outfile)s.log
@@ -1796,7 +1796,7 @@ def loadRepeats(infile, outfile):
         "--header-names=contig,start,stop,class")
 
     statement = """zcat %(infile)s
-    | python %(scriptsdir)s/gff2bed.py --set-name=class
+    | cgat gff2bed --set-name=class
     | grep -v "#"
     | cut -f1,2,3,4
     | %(load_statement)s
@@ -2364,22 +2364,22 @@ def buildGeneTerritories(infile, outfile):
     """
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-transcripts
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=position
-    | python %(scriptsdir)s/gtf2gff.py
+    | cgat gtf2gff
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
     --territory-extension=%(enrichment_territories_radius)s
     --method=territories
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=longest-gene
     --log=%(outfile)s.log
@@ -2409,23 +2409,23 @@ def buildTSSTerritories(infile, outfile):
     """
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=representative-transcript
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=position
-    | python %(scriptsdir)s/gtf2gff.py
+    | cgat gtf2gtf --method=sort --sort-order=position
+    | cgat gtf2gff
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
     --territory-extension=%(enrichment_territories_radius)s
     --method=tss-territories
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene+transcript --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=longest-gene --log=%(outfile)s.log
     | gzip
     > %(outfile)s '''
@@ -2464,14 +2464,14 @@ def buildGREATRegulatoryDomains(infile, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=representative-transcript
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py
+    | cgat gtf2gff
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
     --method=great-domains
@@ -2517,7 +2517,7 @@ def buildGenomicContextStats(infile, outfile):
     tmpdir = P.getTempDir(".")
 
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/split_file.py
+    | cgat split_file
         --pattern-output=%(tmpdir)s/%%s.bed
         --column=4
     > %(outfile)s.log
@@ -2526,7 +2526,7 @@ def buildGenomicContextStats(infile, outfile):
     P.run()
 
     statement = '''
-    python %(scriptsdir)s/diff_bed.py
+    cgat diff_bed
        %(tmpdir)s/*.bed
     > %(outfile)s
     '''
@@ -2665,7 +2665,7 @@ def buildGFFSummary(infile, outfile):
 
     """
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/gff2coverage.py
+    | cgat gff2coverage
     --genome-file=%(genome_dir)s/%(genome)s
     | gzip > %(outfile)s
     '''
@@ -2689,7 +2689,7 @@ def buildBedSummary(infile, outfile):
 
     """
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/bed2stats.py
+    | cgat bed2stats
     --aggregate-by=contig
     --genome-file=%(genome_dir)s/%(genome)s
     | gzip > %(outfile)s
@@ -2715,7 +2715,7 @@ def buildBedNameSummary(infile, outfile):
 
     """
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/bed2stats.py
+    | cgat bed2stats
     --aggregate-by=name
     --genome-file=%(genome_dir)s/%(genome)s
     | gzip > %(outfile)s
@@ -2738,7 +2738,7 @@ def buildGTFSummary(infile, outfile):
     """
 
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/gff2coverage.py
+    | cgat gff2coverage
     --genome-file=%(genome_dir)s/%(genome)s
     | gzip > %(outfile)s
     '''
@@ -2761,7 +2761,7 @@ def buildGTFStats(infile, outfile):
         Output filename in :term:`tsv` format.
     """
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/gff2stats.py
+    | cgat gff2stats
     --is-gtf
     | gzip > %(outfile)s
     '''
@@ -2785,7 +2785,7 @@ def buildGFFStats(infile, outfile):
         Output filename in :term:`tsv` format.
     """
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/gff2stats.py
+    | cgat gff2stats
     | gzip > %(outfile)s
     '''
     P.run()

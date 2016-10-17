@@ -214,7 +214,7 @@ def buildAnnotations(infile, outfile, sample):
     to_cluster = True
     bases = "annotations_bases"
 
-    statement = """python %(scriptsdir)s/snp2table.py 
+    statement = """cgat snp2table 
                        --input-format=vcf
                        --vcf-file=%(infile)s
                        --vcf-sample=%(sample)s
@@ -274,7 +274,7 @@ def summarizeAnnotations(infile, outfile):
     # count substitutions for each category
     statement = '''gunzip 
     < %(infile)s
-    | python %(scriptsdir)s/csv_cut.py code reference_base genotype variant_type 
+    | cgat csv_cut code reference_base genotype variant_type 
     | awk '$4 == "variant_type" { printf("%%s-%%s-%%s\\tcounts\\n", $1,$2,$3); } 
            $4 == "E" || $4 == "O" {printf("%%s-%%s-%%s\\t1\\n", $1,$2,$3)}'
     | sort 
@@ -309,7 +309,7 @@ def buildEffects(infile, outfile, sample):
     transcripts = os.path.join(
         PARAMS["annotations_dir"], PARAMS_ANNOTATIONS["interface_geneset_cds_gtf"])
 
-    statement = """python %(scriptsdir)s/snp2counts.py 
+    statement = """cgat snp2counts 
                        --genome-file=%(genome_dir)s/%(genome)s
                        --vcf-file=%(infile)s
                        --input-format=vcf
@@ -1011,10 +1011,10 @@ def buildSharedSNPMatrix(infiles, outfiles):
     outfile_distance, outfile_tree = outfiles[3], outfiles[4]
 
     # build tree
-    statement = '''python %(scriptsdir)s/matrix2matrix.py
+    statement = '''cgat matrix2matrix
        --output-format=phylip
     < %(outfile_distance)s
-    | python %(scriptsdir)s/matrix2tree.py
+    | cgat matrix2tree
        --method=nj
     > %(outfile_tree)s
     '''

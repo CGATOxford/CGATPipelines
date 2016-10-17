@@ -408,12 +408,12 @@ def executePipelineRnaseqTranscripts(infile, outfile):
 
     directory = os.path.dirname(infile)
     statement = '''cd ./%(directory)s;
-                   python %(scriptsdir)s/pipeline_rnaseqtranscripts.py -v5
+                   cgat pipeline_rnaseqtranscripts -v5
                    -p10 make full'''
     P.run()
 
     statement = '''cd ./%(directory)s;
-                   python %(scriptsdir)s/pipeline_rnaseqtranscripts.py
+                   cgat pipeline_rnaseqtranscripts
                    -v5 -p10 make build_report'''
     P.run()
 
@@ -517,7 +517,7 @@ def summariseReadsContributingToTranscripts(infile, outfile):
     of reads that contribute to the resulting transcript models
     '''
     gtf = P.snip(infile, ".bam") + ".gtf.gz"
-    statement = '''python %(scriptsdir)s/bam2transcriptContribution.py -b %(infile)s -g %(gtf)s -o %(outfile)s --log=%(outfile)s.log'''
+    statement = '''cgat bam2transcriptContribution -b %(infile)s -g %(gtf)s -o %(outfile)s --log=%(outfile)s.log'''
     P.run()
 
 ###################################################################
@@ -553,7 +553,7 @@ def loadCountSingleAndMultiExonLincRNA(infile, outfile):
     load the counts for the multi and single exon lincRNA
     '''
     tablename = P.toTable(outfile.replace("/", "_")) + ".count"
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s --log=%(outfile)s.log < %(infile)s > %(outfile)s'''
+    statement = '''cgat csv2db -t %(tablename)s --log=%(outfile)s.log < %(infile)s > %(outfile)s'''
     P.run()
 
 ###################################################################
@@ -567,7 +567,7 @@ def loadSummariseReadsContributingToTranscripts(infile, outfile):
     loads the summary of reads contributing to transcripts
     '''
     tablename = P.toTable(outfile.replace("/", "_"))
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s --log=%(outfile)s.log < %(infile)s > %(outfile)s'''
+    statement = '''cgat csv2db -t %(tablename)s --log=%(outfile)s.log < %(infile)s > %(outfile)s'''
     P.run()
 
 
@@ -577,7 +577,7 @@ def loadNumberExonsLengthSummaryStats(infile, outfile):
     load the table of exon counts and transcript lengths
     '''
     tablename = P.toTable(outfile.replace("/", "_")) + "_stats"
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s --log=%(outfile)s.log < %(infile)s > %(outfile)s'''
+    statement = '''cgat csv2db -t %(tablename)s --log=%(outfile)s.log < %(infile)s > %(outfile)s'''
     P.run()
 
 ###################################################################
@@ -591,7 +591,7 @@ def loadNumberExonsLengthSummaryStats(infile, outfile):
 #     load the transcript class info for each assembly
 #     '''
 #     tablename = P.toTable(outfile.replace("/", "_"))
-#     statement = '''zcat %(infile)s | python %(scriptsdir)s/csv2db.py -t %(tablename)s --log=%(outfile)s.log > %(outfile)s'''
+#     statement = '''zcat %(infile)s | cgat csv2db -t %(tablename)s --log=%(outfile)s.log > %(outfile)s'''
 #     P.run()
 
 

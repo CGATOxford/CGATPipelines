@@ -1042,10 +1042,10 @@ def loadVCFstats(infiles, outfile):
     tablename = P.toTable(outfile)
     csv2db_options = PARAMS["csv2db_options"]
     E.info("Loading vcf stats...")
-    statement = '''python %(scriptsdir)s/vcfstats2db.py
+    statement = '''cgat vcfstats2db
                    %(filenames)s >> %(outfile)s; '''
     statement += '''cat vcfstats.txt |
-                    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+                    cgat csv2db %(csv2db_options)s
                     --allow-empty-file --add-index=track --table=vcf_stats
                     >> %(outfile)s; '''
     P.run()
@@ -1071,7 +1071,7 @@ def loadMutectFilteringSummary(infile, outfile):
     dbh = connect()
     tablename = P.toTable(outfile)
     statement = '''cat %(infile)s |
-                   python %(scriptsdir)s/csv2db.py
+                   cgat csv2db
                    --table %(tablename)s --retry --ignore-empty
                    > %(outfile)s'''
     P.run()

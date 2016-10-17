@@ -341,7 +341,7 @@ def aggregateFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=7
     --use-file-prefix
@@ -374,7 +374,7 @@ def buildCombinedExpression(infiles, outfile):
     '''
     infiles = " ".join(infiles)
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --columns=1
     --log=%(outfile)s.log
     %(infiles)s
@@ -418,7 +418,7 @@ def DESeqNormalize(infile, outfile):
     replicates = ",".join(replicates)
 
     statement = '''
-    python %(scriptsdir)s/expression2expression.py
+    cgat expression2expression
     --task=deseq
     --log=%(outfile)s.log
     --replicates=%(replicates)s
@@ -552,7 +552,7 @@ def conditionDiffExpression(infile, outfile):
 
     statement = '''
     zcat %(infile)s |
-    python %(scriptsdir)s/timeseries2diffgenes.py
+    cgat timeseries2diffgenes
     --log=%(outfile)s.log
     --method=condition
     --alpha=%(deseq_alpha)s
@@ -584,7 +584,7 @@ def timePointDiffExpression(infile, outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/timeseries2diffgenes.py
+    cgat timeseries2diffgenes
     --log=%(outfile)s.log
     --method=timepoint
     --alpha=%(deseq_alpha)s
@@ -632,7 +632,7 @@ def drawConditionVennDiagram(infiles, outfile):
     select = ",".join(select)
 
     statement = '''
-    python %(scriptsdir)s/diffgene2venn.py
+    cgat diffgene2venn
     --alpha=%(deseq_alpha)s
     --log=condition-venn.log
     --file-list=%(select)s
@@ -668,7 +668,7 @@ def drawTimeVennDiagram(infiles, outfile):
     select = ",".join(select)
 
     statement = '''
-    python %(scriptsdir)s/diffgene2venn.py
+    cgat diffgene2venn
     --alpha=%(deseq_alpha)s
     --log=condition-venn.log
     --file-list=%(select)s
@@ -706,7 +706,7 @@ def sumCovarFilter(infile, outfile):
     replicates = ",".join(replicates)
 
     statement = '''
-    python %(scriptsdir)s/expression2expression.py
+    cgat expression2expression
     --log=%(outfile)s.log
     --task=sumcovar
     --time=%(time_points)s
@@ -792,7 +792,7 @@ if ANALYSIS == 'replicates':
             infile = infiles[0]
             expression_file = infiles[1]
             statement = '''
-            python %(scriptsdir)s/expression2distance.py
+            cgat expression2distance
             --log=%(outfile)s.log
             --parallel
             --distance-metric=%(clustering_metric)s
@@ -855,7 +855,7 @@ if ANALYSIS == 'replicates':
                 clustering_options = " "
 
             statement = '''
-            python %(scriptsdir)/expression2distance.py
+            cgat expression2distance
             --distance-metric=%(clustering_metric)s
             --log=%(outfile)s.log
             %(clustering_options)s
@@ -895,7 +895,7 @@ if ANALYSIS == 'replicates':
             options = " "
 
         statement = '''
-        python %(scriptsdir)s/distance2clusters.py
+        cgat distance2clusters
         --log=%(outfile)s.log
         --task=cluster
         --cluster-algorithm=%(clustering_algorithm)s
@@ -924,7 +924,7 @@ if ANALYSIS == 'replicates':
         infiles = ",".join(infiles)
 
         statement = '''
-        python %(scriptsdir)s/distance2clusters.py
+        cgat distance2clusters
         --task=clustagree
         --method=replicate
         --log=%(outfile)s.log
@@ -953,7 +953,7 @@ if ANALYSIS == 'replicates':
             options = " "
 
         statement = '''
-        python %(scriptsdir)s/distance2clusters.py
+        cgat distance2clusters
         --log=%(outfile)s.log
         --task=consensus-cluster
         --cut-height=%(clustering_cut)s
@@ -998,7 +998,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
         replicates = ",".join(replicates)
 
         statement = '''
-        python %(scriptsdir)s/data2resamples.py
+        cgat data2resamples
         --log=%(outfile)s.log
         --time=%(time_points)s
         --replicates=%(replicates)s
@@ -1062,7 +1062,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
             infile = infiles[0]
             expression_file = infiles[1]
             statement = '''
-            python %(scriptsdir)s/expression2distance.py
+            cgat expression2distance
             --log=%(outfile)s.log
             --parallel
             --distance-metric=%(clustering_metric)s
@@ -1090,7 +1090,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
             infiles = ",".join(infiles)
 
             statement = '''
-            python %(scriptsdir)s/distance2merge.py
+            cgat distance2merge
             --log=%(outfile)s.log
             --outfile=%(outfile)s
             %(infiles)s
@@ -1121,7 +1121,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
 
             job_options = "-l mem_free=7.5G"
             statement = '''
-            python %(scriptsdir)s/distance2clusters.py
+            cgat distance2clusters
             --log=%(outfile)s.log
             --task=cluster
             --cluster-algorithm=%(clustering_algorithm)s
@@ -1157,7 +1157,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
             job_options = "-l mem_free=4G"
 
             statement = '''
-            python %(scriptsdir)s/expression2distance.py
+            cgat expression2distance
             --distance-metric=%(clustering_metric)s
             %(clustering_options)s
             --log=%(outfile)s.log
@@ -1196,7 +1196,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
                 options = " "
 
             statement = '''
-            python %(scriptsdir)s/distance2clusters.py
+            cgat distance2clusters
             --log=%(outfile)s.log
             --task=cluster
             --cluster-algorithm=%(clustering_algorithm)s
@@ -1238,7 +1238,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
 
         infiles = " ".join(infiles)
         statement = '''
-        python %(scriptsdir)s/combine_tables.py
+        cgat combine_tables
         --columns=1
         --log=%(outfile)s.log
         %(infiles)s
@@ -1280,7 +1280,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
 
         all_files = " ".join(infiles)
 
-        statement = '''python %(scriptsdir)s/combine_tables.py
+        statement = '''cgat combine_tables
         --columns=1
         --log=%(outfile)s.log
         < %(all_files)s
@@ -1316,7 +1316,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
         job_options = "-l mem_free=6G"
 
         statement = '''
-        python %(scriptsdir)s/distance2clusters.py
+        cgat distance2clusters
         --log=%(outfile)s.log
         --task=clustagree
         --method=resample
@@ -1345,7 +1345,7 @@ elif PARAMS["resampling_analysis_type"] == 'resample':
             options = " "
 
         statement = '''
-        python %(scriptsdir)s/distance2clusters.py
+        cgat distance2clusters
         --log=%(outfile)s.log
         --task=consensus-cluster
         --cut-height=%(clustering_cut)s
@@ -1382,7 +1382,7 @@ def clusterEigengenePCA(infile, outfile):
                              "images.dir")
 
     statement = '''
-    python %(scriptsdir)s/distance2clusters.py
+    cgat distance2clusters
     --log=%(outfile)s.log
     --task=pca
     --image-dir=%(image_dir)s
@@ -1434,7 +1434,7 @@ def consensusMetrics(infile, outfile):
     job_options = "-l mem_free=14G"
 
     statement = '''
-    python %(scriptsdir)s/clusters2metrics.py
+    cgat clusters2metrics
     --method=metrics
     --log=%(outfile)s.log
     %(infile)s
@@ -1455,7 +1455,7 @@ def clusterSummary(infiles, outfile):
     infile_list = ",".join(infiles)
 
     statement = '''
-    python %(scriptsdir)s/clusters2metrics.py
+    cgat clusters2metrics
     --method=summary
     --log=%(outfile)s.log
     %(infile_list)s
@@ -1476,7 +1476,7 @@ def moduleSummary(infiles, outfile):
     infile_list = ",".join(infiles)
 
     statement = '''
-    python %(scriptsdir)s/clusters2metrics.py
+    cgat clusters2metrics
     --method=module_summary
     --log=%(outfile)s.log
     --ref-gtf-files=%(refs)s

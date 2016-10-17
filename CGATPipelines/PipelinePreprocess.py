@@ -266,7 +266,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
                 for fn in current_files:
                     cmd_processors.append(
                         """zcat %(fn)s
-                        | python %%(scriptsdir)s/fastq2summary.py
+                        | cgat fastq2summary
                         --guess-format=illumina-1.8
                         > %(fn)s.summary""")
 
@@ -582,7 +582,7 @@ class Reconcile(ProcessTool):
         assert len(infiles) == 2
         infile1, infile2 = infiles
 
-        cmd = """python %%(scriptsdir)s/fastqs2fastqs.py
+        cmd = """cgat fastqs2fastqs
         --method=reconcile
         --output-filename-pattern=%(output_prefix)s.fastq.%%%%s.gz
         %(infile1)s %(infile2)s;
@@ -641,11 +641,11 @@ class Flash(ProcessTool):
             infile_base2 = re.sub(".1.fastq.gz", ".2.fastq.gz", infile_base1)
             infile = re.sub(".fastq.1.gz", ".fastq.gz", infile1)
             postprocess_cmd = '''zcat %(infile)s |
-            python %%(scriptsdir)s/fastq2summary.py
+            cgat fastq2summary
             --guess-format=illumina-1.8 -v0
             > summary.dir/%(infile_base1)s.summary;
             zcat %(infile)s |
-            python %%(scriptsdir)s/fastq2summary.py
+            cgat fastq2summary
             --guess-format=illumina-1.8 -v0
             > summary.dir/%(infile_base2)s.summary
             ;''' % locals()
@@ -667,7 +667,7 @@ class ReverseComplement(ProcessTool):
         cmds = []
         for infile, outfile in zip(infiles, outfiles):
             cmds.append('''zcat %(infile)s
-            | python %%(scriptsdir)s/fastq2fastq.py
+            | cgat fastq2fastq
             --method=reverse-complement
             --log=%(output_prefix)s.log
             | gzip > %(outfile)s;

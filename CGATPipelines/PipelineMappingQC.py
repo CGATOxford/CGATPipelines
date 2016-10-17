@@ -88,7 +88,7 @@ def buildPicardAlignmentStats(infile, outfile, genome_file):
     # or there is no sequence/quality information within the bam file.
     # Thus, add it explicitly.
     statement = '''cat %(infile)s
-    | python %(scriptsdir)s/bam2bam.py -v 0
+    | cgat bam2bam -v 0
     --method=set-sequence --output-sam
     | CollectMultipleMetrics
     INPUT=/dev/stdin
@@ -397,7 +397,7 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
         " --allow-empty-file"
         " --replace-header" % (column, header))
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --regex-start="## HISTOGRAM"
     --missing-value=0
     --take=2
@@ -561,7 +561,7 @@ def buildBAMStats(infile, outfile):
 
     '''
 
-    statement = '''python %(scriptsdir)s/bam2stats.py
+    statement = '''cgat bam2stats
     --force-output
     --output-filename-pattern=%(outfile)s.%%s
     < %(infile)s
@@ -591,13 +591,13 @@ def loadBAMStats(infiles, outfile):
         " --allow-empty-file")
 
     E.info("loading bam stats - summary")
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --header-names=%(header)s
     --missing-value=0
     --ignore-empty
     %(filenames)s
     | perl -p -e "s/bin/track/"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s"""
     P.run()
@@ -610,7 +610,7 @@ def loadBAMStats(infiles, outfile):
             "%s_%s" % (tablename, suffix),
             options="--allow-empty-file")
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
         --header-names=%(header)s
         --skip-titles
         --missing-value=0
@@ -632,7 +632,7 @@ def loadBAMStats(infiles, outfile):
             "%s_%s" % (tablename, suffix),
             options=" --allow-empty-file")
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
         --header-names=%(header)s
         --skip-titles
         --missing-value=0

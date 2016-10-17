@@ -237,7 +237,7 @@ def buildLncRNAGeneSet(abinitio_lincrna,
     temp.close()
 
     filename = temp.name
-    statement = '''cat %(filename)s | python %(scriptsdir)s/gtf2gtf.py
+    statement = '''cat %(filename)s | cgat gtf2gtf
                    --method=sort --sort-order=gene
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -375,7 +375,7 @@ def buildFilteredLncRNAGeneSet(flagged_gtf,
     temp.close()
 
     filename = temp.name
-    statement = '''cat %(filename)s | python %(scriptsdir)s/gtf2gtf.py
+    statement = '''cat %(filename)s | cgat gtf2gtf
                    --method=sort --sort-order=transcript
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -441,18 +441,18 @@ def buildFinalLncRNAGeneSet(filteredLncRNAGeneSet,
     if rename_lncRNA:
         filename3 = P.getTempFilename(".")
         statement = ("cat %(filename)s |"
-                     " python %(scriptsdir)s/gtf2gtf.py"
+                     " cgat gtf2gtf"
                      "  --method=sort --sort-order=gene"
                      "  --log=%(outfile)s.log |"
-                     " python %(scriptsdir)s/gtf2gtf.py"
+                     " cgat gtf2gtf"
                      "  --method=renumber-genes --pattern-identifier=NONCO%%i"
                      "  --log=%(outfile)s.log |"
-                     " python %(scriptsdir)s/gtf2gtf.py"
+                     " cgat gtf2gtf"
                      "  --method=sort --sort-order=gene"
                      "  --log=%(outfile)s.log"
                      " > %(filename3)s;"
                      " cat %(filename2)s %(filename3)s |"
-                     " python %(scriptsdir)s/gtf2gtf.py"
+                     " cgat gtf2gtf"
                      "  --method=sort --sort-order=contig+gene"
                      "  --log=%(outfile)s.log |"
                      " gzip > %(outfile)s")
@@ -460,7 +460,7 @@ def buildFinalLncRNAGeneSet(filteredLncRNAGeneSet,
         os.unlink(filename3)
     else:
         statement = ("cat %(filename)s %(filename2)s |"
-                     " python %(scriptsdir)s/gtf2gtf.py"
+                     " cgat gtf2gtf"
                      "  --method=sort --sort-order=contig+gene"
                      "  --log=%(outfile)s.log |"
                      " gzip > %(outfile)s")
@@ -594,7 +594,7 @@ def flagExonStatus(gtf_file, outfile):
 
     # sort infile
     statement = ("zcat %(gtf_file)s |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=sort --sort-order=gene"
                  "  --log=%(outfile)s.log"
                  " > %(tmpf1)s")
@@ -638,7 +638,7 @@ def flagExonStatus(gtf_file, outfile):
     outf.close()
 
     statement = ("cat %(tmpf2)s |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=sort --sort-order=transcript"
                  "  --log=%(outfile)s.log |"
                  " gzip > %(outfile)s")
@@ -1065,10 +1065,10 @@ def reClassifyLncRNAGenes(lncRNA_gtf,
     merged_lncRNA_gtf = P.getTempFilename(wdir)
     to_cluster = False
     statement = ("zcat %(lncRNA_gtf)s |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=sort --sort-order=gene"
                  "  --log=%(outfile)s.log |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=merge-exons"
                  "  --log=%(outfile)s.log"
                  " > %(merged_lncRNA_gtf)s")
@@ -2417,7 +2417,7 @@ def runPhyloCSF(in_fasta, tmp_dir, outfile):
     not actually used... plus removing gaps is not a good idea
     """
     statement = ("zcat %(in_fasta)s |"
-                 " %(scriptsdir)s/farm.py"
+                 " cgat farm"
                  "  --split-at-regex='\n(\s*)\n'"
                  "  --chunk-size=1"
                  "  --output-header"

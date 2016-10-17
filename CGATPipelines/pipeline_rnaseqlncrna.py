@@ -403,7 +403,7 @@ def renameTranscriptsInPreviousSets(infile, outfile):
     for gtf in GTF.iterator(inf):
         if gtf.gene_id.find("ENSG") != -1:
             statement = '''zcat %(infile)s | grep -v "#"
-                        | python %(scriptsdir)s/gtf2gtf.py
+                        | cgat gtf2gtf
                         --method=sort --sort-order=gene
                         --log=%(outfile)s.log
                         | gzip > %(outfile)s'''
@@ -412,13 +412,13 @@ def renameTranscriptsInPreviousSets(infile, outfile):
             transcript_pattern = gene_pattern.replace("GEN",
                                                       "TRAN")
             statement = '''
-            zcat %(infile)s | python %(scriptsdir)s/gtf2gtf.py
+            zcat %(infile)s | cgat gtf2gtf
             --method=renumber-genes
             --pattern-identifier=%(gene_pattern)s%%i
-            | python %(scriptsdir)s/gtf2gtf.py
+            | cgat gtf2gtf
             --method=renumber-transcripts
             --pattern-identifier=%(transcript_pattern)s%%i
-            | python %(scriptsdir)s/gtf2gtf.py
+            | cgat gtf2gtf
             --method=sort --sort-order=gene
             --log=%(outfile)s.log
             | gzip > %(outfile)s'''
@@ -521,7 +521,7 @@ def buildLncRNAFasta(infile, outfile):
     genome = os.path.join(
         PARAMS["general_genomedir"], PARAMS["genome"] + ".fasta")
     statement = ("zcat %(infile)s |"
-                 " python %(scriptsdir)s/gff2fasta.py"
+                 " cgat gff2fasta"
                  "  --genome-file=%(genome)s"
                  "  --log=%(outfile)s.log"
                  "  --is-gtf"
@@ -769,7 +769,7 @@ def buildFullGeneSet(infiles, outfile):
     infs = " ".join(infiles)
     statement = ("zcat %(infs)s |"
                  " sed 's/Cufflinks/protein_coding/g' |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=sort --sort-order=gene"
                  "  --log=%(outfile)s.log |"
                  " gzip  > %(outfile)s")
@@ -932,7 +932,7 @@ def runLncRNAPhyloCSF(infile, outfile):
 def mergeLncRNAPhyloCSF(infiles, outfile):
     file_name = " ".join([x for x in infiles])
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --no-titles
     --cat=CAT
     --missing-value=0
@@ -972,7 +972,7 @@ def extractEnsemblLincRNA(infile, outfile):
     tmpf = tmpf.name
 
     statement = ("cat %(tmpf)s |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=sort --sort-order=gene"
                  "  --log=%(outfile)s.log |"
                  " gzip > %(outfile)s")
@@ -1073,7 +1073,7 @@ def runControlLncRNAPhyloCSF(infile, outfile):
 def mergeControlLncRNAPhyloCSF(infiles, outfile):
     file_names = " ".join([x for x in infiles])
     statement = '''
-                python %(scriptsdir)s/combine_tables.py
+                cgat combine_tables
                  --no-titles
                  --cat=CAT
                  --missing-value=0
@@ -1111,7 +1111,7 @@ def buildControlFasta(infile, outfile):
     genome = os.path.join(PARAMS["general_genomedir"],
                           PARAMS["genome"] + ".fasta")
     statement = ("zcat %(infile)s |"
-                 " python %(scriptsdir)s/gff2fasta.py"
+                 " cgat gff2fasta"
                  "  --genome-file=%(genome)s"
                  "  --log=%(outfile)s.log"
                  "  --is-gtf"

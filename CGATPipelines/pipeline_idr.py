@@ -270,7 +270,7 @@ def filterBamfiles(infile, sentinel):
     statement = ["samtools sort @IN@ @OUT@", ]
 
     # remove unmapped reads
-    statement.append("python %(scriptsdir)s/bam2bam.py"
+    statement.append("cgat bam2bam"
                      " --method=filter --filter-method=mapped"
                      " --log=%(outfile)s.log"
                      " < @IN@.bam"
@@ -278,7 +278,7 @@ def filterBamfiles(infile, sentinel):
 
     # remove non-uniquely mapping reads, if requested
     if PARAMS["filter_remove_non_unique"]:
-        statement.append("python %(scriptsdir)s/bam2bam.py"
+        statement.append("cgat bam2bam"
                          " --method=filter --filter-method=unique"
                          " --log=%(outfile)s.log"
                          " < @IN@"
@@ -697,7 +697,7 @@ def combineIDROnIndividualReplicates(infiles, outfile):
     tables = " ".join(tables)
 
     to_cluster = False
-    statement = ("python %(scriptsdir)s/combine_tables.py"
+    statement = ("cgat combine_tables"
                  " --columns=1"
                  " --skip-titles"
                  " --header-names=%(headers)s"
@@ -724,7 +724,7 @@ def combineIDROnPseudoreplicates(infiles, outfile):
     tables = " ".join(infiles)
 
     to_cluster = False
-    statement = ("python %(scriptsdir)s/combine_tables.py"
+    statement = ("cgat combine_tables"
                  " --columns=1"
                  " --skip-titles"
                  " --header-names=%(headers)s"
@@ -751,7 +751,7 @@ def combineIDROnPooledPseudoreplicates(infiles, outfile):
     tables = " ".join(infiles)
 
     to_cluster = False
-    statement = ("python %(scriptsdir)s/combine_tables.py"
+    statement = ("cgat combine_tables"
                  " --columns=1"
                  " --skip-titles"
                  " --header-names=%(headers)s"

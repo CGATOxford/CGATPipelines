@@ -297,7 +297,7 @@ def loadPicardAlignStats(infiles, outfile):
     # Load into database
     tablename = P.toTable(outfile)
     statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s'''
@@ -342,7 +342,7 @@ def loadPicardGCStats(infiles, outfile):
     # Load into database
     tablename = P.toTable(outfile)
     statement = '''cat %(tmpfilename)s
-                   | python %(scriptsdir)s/csv2db.py
+                   | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                    > %(outfile)s '''
@@ -357,7 +357,7 @@ def buildBAMStats(infile, outfile):
     '''Count number of reads mapped, duplicates, etc. using bam2stats.py'''
     to_cluster = USECLUSTER
     scriptsdir = PARAMS["general_scriptsdir"]
-    statement = '''python %(scriptsdir)s/bam2stats.py --force-output 
+    statement = '''cgat bam2stats --force-output 
                    --output-filename-pattern=%(outfile)s.%%s < %(infile)s > %(outfile)s'''
     P.run()
 
@@ -374,15 +374,15 @@ def loadBAMStats(infiles, outfile):
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
     E.info("loading bam stats - summary")
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
                       --header-names=%(header)s
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/track/"
                 | perl -p -e "s/unique/unique_alignments/"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
+                | cgat table2table --transpose
+                | cgat csv2db
                       --allow-empty-file
                       --add-index=track
                       --table=%(tablename)s 
@@ -394,14 +394,14 @@ def loadBAMStats(infiles, outfile):
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
         tname = "%s_%s" % (tablename, suffix)
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
                       --header-names=%(header)s
                       --skip-titles
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --table=%(tname)s 
                       --allow-empty-file
                 >> %(outfile)s """
@@ -452,7 +452,7 @@ def loadPicardDuplicateStats(infiles, outfile):
     # Load into database
     tablename = P.toTable(outfile)
     statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s '''
@@ -536,7 +536,7 @@ def getMergedBigWig(infile, outfile):
 
     to_cluster = True
     job_options = " -l mem_free=2G"
-    statement = '''python %(scriptsdir)s/bam2wiggle.py --output-format=bigwig %(infile)s %(outfile)s '''
+    statement = '''cgat bam2wiggle --output-format=bigwig %(infile)s %(outfile)s '''
     P.run()
 
 ############################################################
@@ -558,7 +558,7 @@ def getMergedBigWigPeakShift(infiles, outfile):
             offsets.append(str(PIntervals.getPeakShiftFromMacs(fn)))
 
     shifts = " --shift-size=".join(offsets)
-    statement = '''python %(scriptsdir)s/bam2wiggle.py 
+    statement = '''cgat bam2wiggle 
                       --output-format=bigwig
                       %(in_list)s
                       %(shifts)s > %(outfile)s'''
@@ -785,7 +785,7 @@ def mergeIntervals(infile, outfile):
 @transform(mergeIntervals, suffix(".merged.bed"), ".merged.cleaned.bed")
 def sanitiseIntervals(infile, outfile):
     '''sanatise so that intervals do not exceed contig length'''
-    statement = '''cat %(infile)s | python %(scriptsdir)s/bed2bed.py --method=filter-genome --genome-file=%(genome_dir)s/%(genome)s -L %(outfile)s.log > %(outfile)s;'''
+    statement = '''cat %(infile)s | cgat bed2bed --method=filter-genome --genome-file=%(genome_dir)s/%(genome)s -L %(outfile)s.log > %(outfile)s;'''
     P.run()
 
 ############################################################
@@ -860,7 +860,7 @@ def loadMergedIntervals(infile, outfile):
     tmpfilename = tmpfile.name
     tablename = "%s_macs_merged_intervals" % track
 
-    statement = '''python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    statement = '''cgat csv2db %(csv2db_options)s
                        --add-index=interval_id
                        --add-index=contig,start 
                        --table=%(tablename)s
@@ -896,7 +896,7 @@ def loadBackground(infile, outfile):
     '''load background into database'''
     track = P.snip(os.path.basename(infile), ".bg")
     header = "out_peaks,in_peaks"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                         --table=%(track)s_background
                         --header-names=%(header)s
                    > %(outfile)s '''
@@ -956,7 +956,7 @@ def loadFoldChangeThreshold(infile, outfile):
     track = P.snip(os.path.basename(infile), ".foldchange").replace(
         ".", "_").replace("-", "_")
     header = "threshold,intervals"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=%(track)s_foldchange
                       --header-names=%(header)s
                    > %(outfile)s '''
@@ -1014,7 +1014,7 @@ def loadSharedIntervalsFoldChangeThreshold(infile, outfile):
     track = P.snip(os.path.basename(infile), ".shared.foldchange").replace(
         ".", "_").replace("-", "_")
     header = "track,threshold,intervals"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=%(track)s_foldchange_shared
                       --header-names=%(header)s
                    > %(outfile)s '''
@@ -1114,7 +1114,7 @@ def loadReplicatedIntervals(infile, outfile):
 
     # Load into database
     tablename = "%s_replicated_intervals" % track
-    statement = '''python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    statement = '''cgat csv2db %(csv2db_options)s
                        --add-index=interval_id
                        --add-index=contig,start 
                        --table=%(tablename)s
@@ -1214,7 +1214,7 @@ def loadPairwiseIntervals(infile, outfile):
     track = P.snip(os.path.basename(infile), ".overlap").replace(
         ".", "_").replace("-", "_")
     header = "track,overlap"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=%(track)s_overlap
                    > %(outfile)s '''
     P.run()
@@ -1245,7 +1245,7 @@ def loadUniqueIntervals(infile, outfile):
     track = P.snip(os.path.basename(infile), ".unique.bed").replace(
         ".", "_").replace("-", "_")
     header = "contig,start,stop,interval_id,fold"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=%(track)s_unique_intervals
                       --header-names=%(header)s
                       --add-index=contig,start
@@ -1279,7 +1279,7 @@ def loadSharedIntervals(infile, outfile):
     track = P.snip(os.path.basename(infile), ".shared.bed").replace(
         ".", "_").replace("-", "_")
     header = "contig,start,stop,interval_id,fold"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=%(track)s_shared_intervals
                       --header-names=%(header)s
                       --add-index=contig,start
@@ -1313,7 +1313,7 @@ def loadUniqueReplicatedIntervals(infile, outfile):
     track = P.snip(os.path.basename(infile), ".unique.bed").replace(
         ".", "_").replace("-", "_")
     header = "contig,start,stop,interval_id,fold"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=%(track)s_unique_intervals
                       --header-names=%(header)s
                       --add-index=contig,start
@@ -1348,7 +1348,7 @@ def loadSharedReplicatedIntervals(infile, outfile):
     track = P.snip(os.path.basename(infile), ".shared.bed").replace(
         ".", "_").replace("-", "_")
     header = "contig,start,stop,interval_id"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=%(track)s_shared_intervals
                       --header-names=%(header)s
                       --add-index=contig,start
