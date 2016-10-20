@@ -40,30 +40,100 @@ import collections
 import glob
 import itertools
 import math
-import numpy
+import numpy as np
 import os
 import pandas as pd
 import re
 import shutil
+
 
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
 import rpy2.rinterface as ri
 
 import CGAT.BamTools as BamTools
+import CGAT.Counts as Counts
 import CGAT.Database as Database
 import CGAT.Expression as Expression
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
-
 import CGATPipelines.PipelineMapping as PipelineMapping
+
+from CGATPipelines.Pipeline import cluster_runnable
 
 # AH: commented as I thought we wanted to avoid to
 # enable this automatically due to unwanted side
 # effects in other modules.
 # import rpy2.robjects.numpy2ri
 # rpy2.robjects.numpy2ri.activate()
+
+
+def normaliseCounts(counts_inf, outfile, method):
+    ''' normalise a counts table'''
+
+    counts = Counts.Counts(counts_inf)
+    counts.normalise(method=method)
+    counts.table.index.name = "id"
+
+    if outfile.endswith(".gz"):
+        counts.table.to_csv(outfile, sep="\t", compression="gzip")
+    else:
+        counts.table.to_csv(outfile, sep="\t")
+
+
+def convertFromFishToBear(infile):
+    ''' convert sailfish/salmon output to kallisto(bear)-like, Sleuth
+    compatible h5 file'''
+
+    infile = os.path.dirname(infile)
+
+    convert = R('''library(wasabi)
+    prepare_fish_for_sleuth("%(infile)s", force=TRUE)
+    ''' % locals())
+
+    convert
+
+
+def parse_table(sample, outfile_raw, outfile, columnname):
+    '''
+    parse the output of featurecounts or alignment free qauntifiers
+    and extract number of reads for downstream quantification
+    '''
+
+    column_ix = findColumnPosition(outfile_raw, columnname)
+    sample = sample
+
+    if outfile_raw.endswith("gz"):
+        grep = "zgrep"
+    else:
+        grep = "grep"
+
+    statement = '''
+    echo -e "id\\t%(sample)s" | gzip > %(outfile)s;
+    %(grep)s -v '^#' %(outfile_raw)s |
+    cut -f1,%(column_ix)s | awk 'NR>1' | gzip >> %(outfile)s;
+    ''' % locals()
+    P.run()
+
+
+def estimateSleuthMemory(bootstraps, samples, transcripts):
+    ''' The memory usage of Sleuth is dependent upon the number of
+    samples, transcripts and bootsraps.
+
+    A rough estimate is:
+    24 bytes * bootstraps * samples * transcripts
+    (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
+
+    TS: I've found this to be a serious underestimate so we use a
+    more conservative estimate here (48 bytes * ... ) with a default of 2G
+    '''
+
+    estimate = (48 * bootstraps * samples * transcripts)
+
+    job_memory = "%fG" % (max(2.0, (estimate / 1073741824.0)))
+
+    return job_memory
 
 
 def findColumnPosition(infile, column):
@@ -172,27 +242,6 @@ class Quantifier(object):
         ''' generate gene-level quantification estimates'''
         pass
 
-    def parse_table(self, outfile_raw, outfile, columnname):
-        '''
-        parse the output of featurecounts or alignment free qauntifiers
-        and extract number of reads for downstream quantification
-        '''
-
-        column_ix = findColumnPosition(outfile_raw, columnname)
-        sample = self.sample
-
-        if outfile_raw.endswith("gz"):
-            grep = "zgrep"
-        else:
-            grep = "grep"
-
-        statement = '''
-        echo -e "id\\t%(sample)s" | gzip > %(outfile)s;
-        %(grep)s -v '^#' %(outfile_raw)s |
-        cut -f1,%(column_ix)s | awk 'NR>1' | gzip >> %(outfile)s;
-        ''' % locals()
-        P.run()
-
     def run_all(self):
         ''' '''
         self.run_transcript()
@@ -271,7 +320,8 @@ class FeatureCountsQuantifier(Quantifier):
         P.run()
 
         # parse output to extract counts
-        self.parse_table(outfile_raw + ".gz", outfile, "%s.bam" % self.sample)
+        parse_table(self.sample, outfile_raw + ".gz",
+                    outfile, "%s.bam" % self.sample)
 
     def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
@@ -333,7 +383,7 @@ class Gtf2tableQuantifier(Quantifier):
 
         P.run()
         # parse output to extract counts
-        self.parse_table(outfile_raw + ".gz", outfile, 'counted_all')
+        parse_table(self.sample, outfile_raw + ".gz", outfile, 'counted_all')
 
     def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
@@ -395,8 +445,8 @@ class KallistoQuantifier(AF_Quantifier):
         outfile_readable = outfile + readable_suffix
 
         # parse the output to extract the counts
-        self.parse_table(outfile_readable, self.transcript_outfile,
-                         'est_counts')
+        parse_table(self.sample, outfile_readable,
+                    self.transcript_outfile, 'est_counts')
 
 
 class SailfishQuantifier(AF_Quantifier):
@@ -422,7 +472,10 @@ class SailfishQuantifier(AF_Quantifier):
         P.run()
 
         # parse the output to extract the counts
-        self.parse_table(outfile, self.transcript_outfile, 'NumReads')
+        parse_table(self.sample, outfile,
+                    self.transcript_outfile, 'NumReads')
+
+        convertFromFishToBear(outfile)
 
 
 class SalmonQuantifier(AF_Quantifier):
@@ -449,7 +502,102 @@ class SalmonQuantifier(AF_Quantifier):
         P.run()
 
         # parse the output to extract the counts
-        self.parse_table(outfile, self.transcript_outfile, 'NumReads')
+        parse_table(self.sample, outfile,
+                    self.transcript_outfile, 'NumReads')
+
+        convertFromFishToBear(outfile)
+
+
+@cluster_runnable
+def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
+    ''' use the plotting methods for Counts object to make summary plots'''
+
+    with IOTools.openFile(logfile, "w") as log:
+
+        plot_prefix = P.snip(logfile, ".log")
+
+        # need to manually read in data as index column is not the first column
+        counts = Counts.Counts(pd.read_table(counts_inf, sep="\t", index_col=0))
+        counts.table.columns = [x.replace(".", "-") for x in counts.table.columns]
+
+        design = Expression.ExperimentalDesign(design_inf)
+
+        # make certain counts table only include samples in design
+        counts.restrict(design)
+
+        cor_scatter_outfile = plot_prefix + "_pairwise_correlations_scatter.png"
+        cor_heatmap_outfile = plot_prefix + "_pairwise_correlations_heatmap.png"
+        pca_var_outfile = plot_prefix + "_pca_variance.png"
+        pca1_outfile = plot_prefix + "_pc1_pc2.png"
+        pca2_outfile = plot_prefix + "_pc3_pc4.png"
+        heatmap_outfile = plot_prefix + "_heatmap.png"
+
+        # use log expression so that the PCA is not overly biased
+        # towards the variance in the most highly expressed genes
+        counts_log10 = counts.log(base=10, pseudocount=0.1, inplace=False)
+
+        log.write("plot correlations scatter: %s\n" % cor_scatter_outfile)
+        log.write("plot correlations heatmap: %s\n" % cor_heatmap_outfile)
+        counts_log10.plotPairwise(
+            cor_scatter_outfile, cor_heatmap_outfile, subset=2000)
+
+        # for the heatmap, and pca we want the top expressed genes (top 25%).
+        counts_log10.removeObservationsPerc(percentile_rowsums=75)
+
+        log.write("plot pc3,pc4: %s\n" % pca1_outfile)
+        counts_log10.plotPCA(design,
+                             pca_var_outfile, pca1_outfile,
+                             x_axis="PC1", y_axis="PC2",
+                             colour="group", shape="group")
+
+        log.write("plot pc3,pc4: %s\n" % pca2_outfile)
+        counts_log10.plotPCA(design,
+                             pca_var_outfile, pca2_outfile,
+                             x_axis="PC3", y_axis="PC4",
+                             colour="group", shape="group")
+
+        # Z-score normalise the expression for the heatmap visualisation
+        counts_log10.zNormalise(inplace=True)
+
+        log.write("plot heatmap: %s\n" % heatmap_outfile)
+        counts_log10.heatmap(heatmap_outfile, zscore=True)
+
+
+def getAlignmentFreeNormExp(transcript_infiles, basename, column,
+                            transcripts_outf, genes_outf, t2gMap):
+    ''' Extract the normalised expression from the transcript-level
+    quantification, merge across multiple samples and output
+    transcript-level and gene-level tables'''
+
+    for n, infile in enumerate(transcript_infiles):
+        # replace filename to use the full results table
+        dirname = os.path.dirname(infile)
+        sample = os.path.basename(dirname)
+        infile = os.path.join(dirname, basename)
+
+        tmp_df = pd.read_table(infile, sep="\t", index_col=0)
+        tmp_df.drop([x for x in tmp_df.columns if x != column],
+                    axis=1, inplace=True)
+        tmp_df.columns = [sample]
+        tmp_df.index.name = "id"
+
+        if n == 0:
+            transcript_df = tmp_df
+        else:
+            transcript_df = transcript_df.merge(
+                tmp_df, how="outer", left_index=True, right_index=True)
+
+    transcript_df.to_csv(transcripts_outf, sep="\t", compression="gzip")
+
+    transcript2gene_df = pd.read_table(t2gMap, sep="\t", index_col=0)
+    transcript_df = pd.merge(transcript_df, transcript2gene_df,
+                             left_index=True, right_index=True,
+                             how="inner")
+    gene_df = pd.DataFrame(transcript_df.groupby('gene_id').sum())
+    gene_df.index.name = 'id'
+
+    gene_df.to_csv(
+        genes_outf, compression="gzip", sep="\t")
 
 '''
 # ########## old code ################
@@ -1443,7 +1591,7 @@ def buildUTRExtension(infile, outfile):
         # counts within and outside UTRs
         within_utr, outside_utr, otherTranscript = [], [], []
         # number of transitions between utrs
-        transitions = numpy.zeros((3, 3), numpy.int)
+        transitions = np.zeros((3, 3), np.int)
 
         for x in xrange(len(utrs)):
             utr, exon = utrs[x], exons[x]
@@ -1481,9 +1629,9 @@ def buildUTRExtension(infile, outfile):
 
         E.info("counting: (n,mean): within utr=%i,%f, "
                "outside utr=%i,%f, otherTranscript=%i,%f" %
-               (len(within_utr), numpy.mean(within_utr),
-                len(outside_utr), numpy.mean(outside_utr),
-                len(otherTranscript), numpy.mean(otherTranscript)))
+               (len(within_utr), np.mean(within_utr),
+                len(outside_utr), np.mean(outside_utr),
+                len(otherTranscript), np.mean(otherTranscript)))
 
         ro.globalenv['transitions'] = R.matrix(transitions, nrow=3, ncol=3)
         R('''transitions = transitions / rowSums( transitions )''')
