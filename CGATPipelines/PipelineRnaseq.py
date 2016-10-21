@@ -219,20 +219,10 @@ class Quantifier(object):
         self.kmer = kmer
         self.biascorrect = biascorrect
 
-        suffixes = (".bam",
-                    ".fastq",
-                    ".fastq.1",
-                    ".fastq.1.gz",
-                    ".fastq.gz",
-                    ".sra")
-
-        for suffix in suffixes:
-            if infile.endswith(suffix):
-                self.sample = P.snip(os.path.basename(infile), suffix)
-                break
-
-        if not self.sample:
-            raise ValueError("could not find sample name")
+        # TS: assume sample name is directory for outfile which is
+        # should be for pipeline_rnaseqdiffexpression. This would be
+        # better handled in pipeline though
+        self.sample = os.path.basename(os.path.dirname(self.gene_outfile))
 
     def run_transcript(self):
         ''' generate transcript-level quantification estimates'''

@@ -834,10 +834,19 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
 
 else:
     SEQUENCEFILES_REGEX = regex(
-        ".*.(fastq.1.gz|fastq.gz|sra)")
-    SEQUENCEFILES_KALLISTO_OUTPUT = r"quant.dir/kallisto/\1/abundance.h5"
-    SEQUENCEFILES_SALMON_OUTPUT = r"quant.dir/salmon/\1/quant.sf"
-    SEQUENCEFILES_SAILFISH_OUTPUT = r"quant.dir/sailfish/\1/quant.sf"
+        "(\S+).(fastq.1.gz|fastq.gz|sra)")
+
+    SEQUENCEFILES_KALLISTO_OUTPUT = [
+        r"kallisto.dir/\1/transcripts.tsv.gz",
+        r"kallisto.dir/\1/transcripts.tsv.gz"]
+        
+    SEQUENCEFILES_SALMON_OUTPUT = [
+        r"salmon.dir/\1/transcripts.tsv.gz",
+        r"salmon.dir/\1/transcripts.tsv.gz"]
+
+    SEQUENCEFILES_SAILFISH_OUTPUT = [
+        r"sailfish.dir/\1/transcripts.tsv.gz",
+        r"sailfish.dir/\1/transcripts.tsv.gz"]
 ###################################################
 
 
@@ -1013,8 +1022,6 @@ def runSalmon(infiles, outfiles):
        :term: `PARAMS` salmon library type
        as for sailfish - use
        http://sailfish.readthedocs.io/en/master/library_type.html#fraglibtype
-    salmon_biascorrect: bool
-       :term: `PARAMS` use salmon bias correct option?
     outfiles: list
        paths to output files for transcripts and genes
     '''
@@ -1034,7 +1041,6 @@ def runSalmon(infiles, outfiles):
         bootstrap=PARAMS["salmon_bootstrap"],
         libtype=PARAMS['salmon_libtype'],
         kmer=PARAMS['salmon_kmer'],
-        biascorrect=PARAMS['salmon_bias_correct'],
         transcript2geneMap=transcript2geneMap)
 
     Quantifier.run_all()
@@ -1301,6 +1307,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
         --fdr=%(sleuth_fdr)s
         --model=%(model)s
         --contrast=%(contrast)s
+        --sleuth-genewise
         --sleuth-counts-dir=%(quantifier)s.dir
         --reference-group=%(refgroup)s
         --gene-biomart=%(sleuth_gene_biomart)s
