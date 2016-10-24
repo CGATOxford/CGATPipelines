@@ -839,7 +839,7 @@ else:
     SEQUENCEFILES_KALLISTO_OUTPUT = [
         r"kallisto.dir/\1/transcripts.tsv.gz",
         r"kallisto.dir/\1/transcripts.tsv.gz"]
-        
+
     SEQUENCEFILES_SALMON_OUTPUT = [
         r"salmon.dir/\1/transcripts.tsv.gz",
         r"salmon.dir/\1/transcripts.tsv.gz"]
@@ -1151,7 +1151,10 @@ def runDESeq2(infiles, outfiles, design_name):
     --log=%(transcript_log)s
     -v 0
     > %(transcript_out)s;
-    checkpoint;
+    '''
+    P.run()
+
+    statement = '''
     python %(scriptsdir)s/counts2table.py
     --tag-tsv-file=%(genes)s
     --design-tsv-file=%(design)s
@@ -1209,7 +1212,10 @@ def runEdgeR(infiles, outfiles, design_name):
     --log=%(transcript_log)s
     -v 0
     > %(transcript_out)s;
-    checkpoint;
+    '''
+    P.run()
+
+    statement = '''
     python %(scriptsdir)s/counts2table.py
     --tag-tsv-file=%(genes)s
     --design-tsv-file=%(design)s
