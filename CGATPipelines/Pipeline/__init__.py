@@ -249,7 +249,6 @@ CONFIG = Parameters.CONFIG
 # and drop PARAMS/CONFIG variables into the submodules
 Local.CONFIG = CONFIG
 Local.PARAMS = PARAMS
-Database.PARAMS = PARAMS
 Control.PARAMS = PARAMS
 Execution.PARAMS = PARAMS
 Files.PARAMS = PARAMS

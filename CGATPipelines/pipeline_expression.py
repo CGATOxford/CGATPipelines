@@ -28,40 +28,23 @@ Code
 
 """
 import sys
-import tempfile
-import optparse
 import shutil
-import itertools
 import csv
-import math
-import random
 import re
 import glob
 import os
-import shutil
-import collections
-import configparser
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
 
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 from ruffus import *
-import csv
 import sqlite3
-import CGAT.IndexedFasta as IndexedFasta
-import CGAT.IndexedGenome as IndexedGenome
-import CGAT.FastaIterator as FastaIterator
-import CGAT.Genomics as Genomics
 import CGAT.IOTools as IOTools
-import CGAT.MAST as MAST
-import CGAT.GTF as GTF
-import CGAT.Bed as Bed
-import CGAT.Stats as Stats
-import io
-import pysam
-import numpy
 import gzip
 import CGAT.Expression as Expression
-import fileinput
 
 import rpy2
 from rpy2.robjects import r as R
@@ -180,7 +163,7 @@ def estimateExpression(infiles, outfile):
 
 def getTreatmentsAndControls(infile):
 
-    layout = configparser.RawConfigParser()
+    layout = ConfigParser.RawConfigParser()
 
     layout.read(infile)
 

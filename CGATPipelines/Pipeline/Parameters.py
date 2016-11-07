@@ -28,11 +28,14 @@ Reference
 
 """
 
-import types
 import re
 import collections
 import os
-import configparser
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
+
 import sys
 
 import CGAT.Experiment as E
