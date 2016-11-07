@@ -37,9 +37,7 @@ from CGAT.IOTools import touchFile, snip
 
 from CGATPipelines.Pipeline.Execution import buildStatement, run
 from CGATPipelines.Pipeline.Files import getTempFile
-
-# Set from Pipeline.py
-PARAMS = {}
+from CGATPipelines.Pipeline.Parameters import getParams
 
 
 def tablequote(track):
@@ -104,7 +102,7 @@ def build_load_statement(tablename, retry=True, options=""):
     if retry:
         opts.append(" --retry ")
 
-    global PARAMS
+    PARAMS = getParams()
     backend = PARAMS["database_backend"]
 
     if backend not in ("sqlite", "mysql", "postgres"):
@@ -190,7 +188,7 @@ def load(infile,
         Amount of memory to allocate for job. If unset, uses the global
         default.
     """
-    global PARAMS
+    PARAMS = getParams()
     if job_memory is None:
         job_memory = PARAMS["cluster_memory_default"]
 
@@ -289,8 +287,9 @@ def concatenateAndLoad(infiles,
         default.
 
     """
+    PARAMS = getParams()
+
     if job_memory is None:
-        global PARAMS
         job_memory = PARAMS["cluster_memory_default"]
 
     if tablename is None:
@@ -405,7 +404,7 @@ def mergeAndLoad(infiles,
         same.
 
     '''
-    global PARAMS
+    PARAMS = getParams()
     if len(infiles) == 0:
         raise ValueError("no files for merging")
 
@@ -481,7 +480,7 @@ def connect():
 
     # Note that in the future this might return an sqlalchemy or
     # db.py handle.
-    global PARAMS
+    PARAMS = getParams()
     if PARAMS["database_backend"] == "sqlite":
         dbh = sqlite3.connect(getDatabaseName())
 
@@ -619,7 +618,7 @@ def getDatabaseName():
     '''
 
     locations = ["database_name", "database"]
-    global PARAMS
+    PARAMS = getParams()
     for location in locations:
         database = PARAMS.get(location, None)
         if database is not None:
