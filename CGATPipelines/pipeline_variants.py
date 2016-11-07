@@ -129,7 +129,7 @@ import CGAT.IOTools as IOTools
 import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGAT.FastaIterator as FastaIterator
-from . import PipelineEnrichment as PEnrichment
+import CGATPipelines.PipelineEnrichment as PEnrichment
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import scipy.stats
 import CGAT.Stats as Stats

@@ -48,7 +48,11 @@ import subprocess
 import sys
 import tempfile
 import time
-from io import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
 from multiprocessing.pool import ThreadPool
 
 # talking to mercurial

@@ -38,7 +38,7 @@ import os
 import sys
 import re
 import subprocess
-from . import farm
+import farm
 
 import CGAT.Experiment as E
 

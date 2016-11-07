@@ -173,7 +173,7 @@ class MastSummary(Mast):
     """return summary of mast results.
 
     Return for each track the number of intervals in total,
-    the number of intervals submitted to mast, 
+    the number of intervals submitted to mast,
 
     The evalue used as a MAST curve cutoff, the number and % explained using the Mast cutoff.
 
@@ -209,10 +209,10 @@ class MastSummary(Mast):
 
         intervals_and_peakvals = \
             self.get("""
-                              SELECT peakval, evalue
-                              FROM %(track)s_mast AS m, %(track)s_intervals AS i
-                              WHERE i.interval_id = m.id AND motif = '%(slice)s'
-                              ORDER BY peakval""" % locals() )
+            SELECT peakval, evalue
+            FROM %(track)s_mast AS m, %(track)s_intervals AS i
+            WHERE i.interval_id = m.id AND motif = '%(slice)s'
+            ORDER BY peakval""" % locals())
 
         intervals_with_motifs = len(
             [x for x in intervals_and_peakvals if x[1] <= evalue])
@@ -267,10 +267,10 @@ class MastSummary(Mast):
 
         intervals_and_peakvals = \
             self.get("""
-                               SELECT peakval, nmatches
-                               FROM %(track)s_mast AS m, %(track)s_intervals AS i
-                               WHERE i.interval_id = m.id AND motif = '%(slice)s'
-                               ORDER BY peakval""" % locals() )
+            SELECT peakval, nmatches
+            FROM %(track)s_mast AS m, %(track)s_intervals AS i
+            WHERE i.interval_id = m.id AND motif = '%(slice)s'
+            ORDER BY peakval""" % locals())
 
         intervals_with_motifs = len(
             [x for x in intervals_and_peakvals if x[1] > 0])
@@ -314,7 +314,7 @@ class MastAllCorrelations(Mast):
         ORDER BY i.%(field)s DESC"""
                         % locals())
         return odict(list(zip(("evalue", "nmatches", "length", "peakval", "avgval"),
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 
 class MastPairwiseCorrelation(Mast):
@@ -411,9 +411,9 @@ class MastMotifLocationMiddle(Mast):
         #
         # only take single matches (multiple matches need not be centered)
         data = self.getValues(
-            """SELECT ((i.start + i.length / 2) - (m.start + (m.end - m.start) / 2)) 
+            """SELECT ((i.start + i.length / 2) - (m.start + (m.end - m.start) / 2))
             / ((CAST(i.length AS FLOAT) - (m.end - m.start))/2)
-            FROM %(track)s_mast as m, %(track)s_intervals as i 
+            FROM %(track)s_mast as m, %(track)s_intervals as i
             WHERE i.interval_id = m.id AND motif = '%(slice)s'
             AND m.nmatches = 1"""
             % locals())
@@ -505,7 +505,7 @@ class MastROC(Mast):
 
         for field in self.mFields:
 
-            values = self.get("""SELECT i.%(field)s, m.evalue 
+            values = self.get("""SELECT i.%(field)s, m.evalue
             FROM %(track)s_mast as m, %(track)s_intervals as i
             WHERE i.interval_id = m.id AND motif = '%(slice)s'
             ORDER BY i.%(field)s DESC"""
@@ -802,7 +802,7 @@ class AnnotationsMotifs(AnnotationsMatrix):
     def getStatement(self, slice=None):
 
         statement = '''
-        SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous, 
+        SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous,
           CASE WHEN m.nmatches > 0 THEN motif || '+' ELSE motif || '-' END
         FROM %(track)s_intervals AS i,
         %(track)s_annotations AS a ON a.gene_id = i.interval_id,

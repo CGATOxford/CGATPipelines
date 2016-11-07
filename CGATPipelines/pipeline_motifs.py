@@ -139,7 +139,7 @@ import xml.etree.ElementTree
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 
-from . import PipelineMotifs as PipelineMotifs
+import CGATPipelines.PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################

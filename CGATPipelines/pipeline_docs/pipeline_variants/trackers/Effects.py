@@ -191,11 +191,11 @@ class GeneListTruncatedStopsMin(TrackerEffects):
             annotations.transcript_info AS i
         WHERE i.transcript_id = e.transcript_id
         GROUP BY i.gene_id
-        HAVING m >= %(min_truncated)i 
+        HAVING m >= %(min_truncated)i
         ''' % self.members(locals())
 
         return odict(list(zip(headers,
-                         list(zip(*self.get(statement))))))
+                              list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -223,12 +223,12 @@ class TranscriptListTruncatedStopsMin(TrackerEffects):
             %(track)s_effects AS e,
             annotations.transcript_info AS i
         WHERE i.transcript_id = e.transcript_id AND
-              m > %(min_truncated)i 
+              m > %(min_truncated)i
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
         return odict(list(zip(headers,
-                         list(zip(*self.get(statement))))))
+                              list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -271,7 +271,7 @@ class SplicingCounts(VariantsTracker):
         result = odict()
         for column in columns:
             result[column] = self.getValue(
-                '''SELECT SUM(%(column)s) FROM %(track)s_effects_splicing''' % locals() )
+                '''SELECT SUM(%(column)s) FROM %(track)s_effects_splicing''' % locals())
         return result
 
 #####################################################
@@ -289,7 +289,7 @@ class FrameShiftCorrection(VariantsTracker):
             ("nframeshifts", "nunchanged", "ncorrected", "nuncorrected"),
             self.getFirstRow(
                 '''SELECT SUM(nframeshifts), SUM(nunchanged_frames), SUM(ncorrected_frames), SUM(nuncorrected_frames)
-            FROM %(track)s_effects_splicing''' % locals() ))))
+            FROM %(track)s_effects_splicing''' % locals()))))
         return result
 
 #####################################################
@@ -305,7 +305,7 @@ class FrameShiftCorrectedTranscripts(VariantsTracker):
     def __call__(self, track, slice=None):
         return odict(self.get(
             '''SELECT transcript_id, ncorrected_frames
-            FROM %(track)s_effects_splicing WHERE ncorrected_frames > 0''' % locals()) )
+            FROM %(track)s_effects_splicing WHERE ncorrected_frames > 0''' % locals()))
 
 #####################################################
 #####################################################
@@ -335,7 +335,7 @@ class CDSCountsTranscripts(VariantsTracker):
         result = odict()
         for column in columns:
             result[column] = self.getValue('''SELECT COUNT(*) FROM %(track)s_effects_translation
-                                    WHERE %(column)s > 0''' % locals() )
+                                    WHERE %(column)s > 0''' % locals())
         return result
 
 #####################################################
@@ -435,11 +435,11 @@ class VariantsCDSEffectCodesPerPosition(VariantsTracker):
 
     def __call__(self, track, slice=None):
 
-        statement = """SELECT 
+        statement = """SELECT
                   COUNT(*) AS 'all',
-                  SUM(CASE WHEN X > 0 AND N = 0 AND S = 0 THEN 1 ELSE 0 END) AS 'X', 
+                  SUM(CASE WHEN X > 0 AND N = 0 AND S = 0 THEN 1 ELSE 0 END) AS 'X',
                   SUM(CASE WHEN N > 0 AND X = 0 AND S = 0 THEN 1 ELSE 0 END) AS 'N',
-                  SUM(CASE WHEN S > 0 AND X = 0 AND N = 0 THEN 1 ELSE 0 END) AS 'S' 
+                  SUM(CASE WHEN S > 0 AND X = 0 AND N = 0 THEN 1 ELSE 0 END) AS 'S'
                   FROM %(track)s"""
 
         result = self.getFirstRow(statement % locals())

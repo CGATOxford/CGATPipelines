@@ -312,12 +312,12 @@ def main(argv=sys.argv):
 
             options.stdout.write("\t".join(
                 (list(map(str,
-                     (section, objct,
-                      c.calls,
-                      d,
-                      percall,
-                      c.running,
-                      ))))) + "\n")
+                          (section, objct,
+                           c.calls,
+                           d,
+                           percall,
+                           c.running,
+                           ))))) + "\n")
 
             running.extend([x for x, y in c._started.items() if y != 0])
 

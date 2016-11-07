@@ -104,6 +104,7 @@ def build_load_statement(tablename, retry=True, options=""):
     if retry:
         opts.append(" --retry ")
 
+    global PARAMS
     backend = PARAMS["database_backend"]
 
     if backend not in ("sqlite", "mysql", "postgres"):
@@ -125,7 +126,7 @@ def build_load_statement(tablename, retry=True, options=""):
     db_options = " ".join(opts)
 
     statement = ('''
-    python %(scriptsdir)s/csv2db.py
+    cgat csv2db
     %(db_options)s
     %(options)s
     --table=%(tablename)s
@@ -189,7 +190,7 @@ def load(infile,
         Amount of memory to allocate for job. If unset, uses the global
         default.
     """
-
+    global PARAMS
     if job_memory is None:
         job_memory = PARAMS["cluster_memory_default"]
 
@@ -205,11 +206,11 @@ def load(infile,
 
     if collapse:
         statement.append(
-            "python %(scriptsdir)s/table2table.py --collapse=%(collapse)s")
+            "cgat table2table --collapse=%(collapse)s")
 
     if transpose:
         statement.append(
-            """python %(scriptsdir)s/table2table.py --transpose
+            """cgat table2table --transpose
             --set-transpose-field=%(transpose)s""")
 
     if shuffle:
@@ -289,6 +290,7 @@ def concatenateAndLoad(infiles,
 
     """
     if job_memory is None:
+        global PARAMS
         job_memory = PARAMS["cluster_memory_default"]
 
     if tablename is None:
@@ -315,7 +317,7 @@ def concatenateAndLoad(infiles,
                                           options=load_options,
                                           retry=retry)
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --cat=%(cat)s
     --missing-value=%(missing_value)s
     %(cat_options)s
@@ -403,6 +405,7 @@ def mergeAndLoad(infiles,
         same.
 
     '''
+    global PARAMS
     if len(infiles) == 0:
         raise ValueError("no files for merging")
 
@@ -436,7 +439,7 @@ def mergeAndLoad(infiles,
 
     if row_wise:
         transform = """| perl -p -e "s/bin/track/"
-        | python %(scriptsdir)s/table2table.py --transpose""" % PARAMS
+        | cgat table2table --transpose""" % PARAMS
     else:
         transform = ""
 
@@ -445,7 +448,7 @@ def mergeAndLoad(infiles,
         options="--add-index=track " + options,
         retry=retry)
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     %(header_stmt)s
     --skip-titles
     --missing-value=0
@@ -478,7 +481,7 @@ def connect():
 
     # Note that in the future this might return an sqlalchemy or
     # db.py handle.
-
+    global PARAMS
     if PARAMS["database_backend"] == "sqlite":
         dbh = sqlite3.connect(getDatabaseName())
 
@@ -616,7 +619,7 @@ def getDatabaseName():
     '''
 
     locations = ["database_name", "database"]
-
+    global PARAMS
     for location in locations:
         database = PARAMS.get(location, None)
         if database is not None:

@@ -277,7 +277,7 @@ import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineTracks as PipelineTracks
 
-from . import PipelineTranscriptDiffExpression as TranscriptDiffExpression
+import CGATPipelines.PipelineTranscriptDiffExpression as TranscriptDiffExpression
 
 # load options from the config file
 PARAMS = P.getParameters(

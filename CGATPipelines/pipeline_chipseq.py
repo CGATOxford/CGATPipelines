@@ -193,8 +193,8 @@ import CGAT.Bed as Bed
 import pysam
 import numpy
 
-from . import PipelineChipseq as PipelineChipseq
-from . import PipelineMotifs as PipelineMotifs
+import CGATPipelines.PipelineChipseq as PipelineChipseq
+import CGATPipelines.PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
 

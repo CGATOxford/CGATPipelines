@@ -152,7 +152,7 @@ import CGAT.Masker as Masker
 import fileinput
 import CGAT.Experiment as E
 import logging as L
-from . import PipelineChipseq as PIntervals
+import CGATPipelines.PipelineChipseq as PIntervals
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
 from ruffus import *

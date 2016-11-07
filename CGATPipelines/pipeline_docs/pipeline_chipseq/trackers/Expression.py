@@ -149,7 +149,7 @@ class ExpressionAffymetrixSourceCounts(TrackerSQL):
         statement = '''SELECT ee.source,
                               COUNT(distinct e.cluster_id),
                               COUNT(distinct e.transcript_id),
-                              COUNT(distinct e.gene_id) 
+                              COUNT(distinct e.gene_id)
                               FROM %(track)s AS ee
                     LEFT JOIN probeset2transcript as e ON e.cluster_id = ee.cluster_id
                     GROUP BY ee.source''' % locals()
@@ -159,8 +159,8 @@ class ExpressionAffymetrixSourceCounts(TrackerSQL):
         statement = '''SELECT 'all',
                               COUNT(distinct e.cluster_id),
                               COUNT(distinct e.transcript_id),
-                              COUNT(distinct e.gene_id) 
-                    FROM %(track)s AS ee 
+                              COUNT(distinct e.gene_id)
+                    FROM %(track)s AS ee
                     LEFT JOIN probeset2transcript as e ON e.cluster_id = ee.cluster_id''' % locals()
 
         data.extend(self.get(statement))
@@ -193,7 +193,7 @@ class ExpressionSourceCounts(TrackerSQL):
         statement = '''SELECT e.source,
                               COUNT(distinct e.cluster_id),
                               COUNT(distinct e.transcript_id),
-                              COUNT(distinct e.gene_id) 
+                              COUNT(distinct e.gene_id)
                     FROM %(track)s AS e
                     GROUP BY e.source''' % locals()
 
@@ -202,7 +202,7 @@ class ExpressionSourceCounts(TrackerSQL):
         statement = '''SELECT 'all',
                               COUNT(distinct e.cluster_id),
                               COUNT(distinct e.transcript_id),
-                              COUNT(distinct e.gene_id) 
+                              COUNT(distinct e.gene_id)
                     FROM %(track)s AS e''' % locals()
 
         data.extend(self.get(statement))
@@ -217,8 +217,8 @@ class ExpressionSourceCounts(TrackerSQL):
 
         statement = '''SELECT t.source,
                               COUNT(distinct t.transcript_id),
-                              COUNT(distinct t.gene_id) 
-                    FROM transcripts AS t 
+                              COUNT(distinct t.gene_id)
+                    FROM transcripts AS t
                     LEFT JOIN %(track)s AS e ON t.transcript_id = e.transcript_id
                     WHERE e.transcript_id IS NULL
                     GROUP BY t.source''' % locals()
@@ -227,8 +227,8 @@ class ExpressionSourceCounts(TrackerSQL):
 
         statement = '''SELECT 'all',
                               COUNT(distinct t.transcript_id),
-                              COUNT(distinct t.gene_id) 
-                    FROM transcripts AS t 
+                              COUNT(distinct t.gene_id)
+                    FROM transcripts AS t
                     LEFT JOIN %(track)s AS e ON t.transcript_id = e.transcript_id
                     WHERE e.transcript_id IS NULL
                     ''' % locals()
@@ -263,10 +263,10 @@ class ExpressionCounts(DefaultTracker):
 
         table = "%s_levels" % (track)
         headers = ('clusters', 'transcripts', 'genes')
-        statement = '''SELECT 
+        statement = '''SELECT
                               COUNT(distinct m.cluster_id),
                               COUNT(distinct m.transcript_id),
-                              COUNT(distinct m.gene_id) 
+                              COUNT(distinct m.gene_id)
                     FROM probeset2transcript AS m, %(table)s AS t
                     WHERE m.cluster_id = t.cluster_id
                     ''' % locals()
@@ -274,10 +274,10 @@ class ExpressionCounts(DefaultTracker):
         data = self.getFirstRow(statement)
         result = odict(list(zip(headers, data)))
 
-        statement = '''SELECT 
+        statement = '''SELECT
                               COUNT(distinct cluster_id),
                               COUNT(distinct transcript_id),
-                              COUNT(distinct gene_id) 
+                              COUNT(distinct gene_id)
                     FROM probeset2transcript'''
 
         data = self.getFirstRow(statement)
@@ -302,20 +302,20 @@ class ExpressionCountsPerGroup(DefaultTracker):
 
         table = "%s_levels" % (track)
         headers = ('cluster_id', 'clusters', 'transcripts', 'genes')
-        statement = '''SELECT 
-                              COUNT(distinct m.cluster_id), 
+        statement = '''SELECT
+                              COUNT(distinct m.cluster_id),
                               COUNT(distinct m.transcript_id),
-                              COUNT(distinct m.gene_id) 
+                              COUNT(distinct m.gene_id)
                     FROM probeset2transcript AS m, %(table)s AS t
                     WHERE m.cluster_id = t.cluster_id''' % locals()
 
         data = self.getFirstRow(statement)
         result = odict(list(zip(headers, data)))
 
-        statement = '''SELECT 
-                              COUNT(distinct cluster_id), 
+        statement = '''SELECT
+                              COUNT(distinct cluster_id),
                               COUNT(distinct transcript_id),
-                              COUNT(distinct gene_id) 
+                              COUNT(distinct gene_id)
                     FROM probeset2transcript'''
 
         data = self.getFirstRow(statement)
@@ -345,7 +345,7 @@ class ExpressionProbesetsPerGene(DefaultTracker):
         if slice == "cluster":
             statement = '''
                     SELECT COUNT(distinct e.probeset)
-                    FROM probeset2transcript AS e 
+                    FROM probeset2transcript AS e
                     GROUP BY e.cluster_id''' % locals()
         elif slice == "transcript":
             statement = '''
@@ -359,7 +359,7 @@ class ExpressionProbesetsPerGene(DefaultTracker):
                     GROUP BY e.gene_id''' % locals()
 
         return odict(((slice,
-                       self.getValues(statement)), ))
+                       self.getValues(statement)),))
 
 ######################################################################
 ######################################################################
@@ -380,7 +380,7 @@ class ExpressionReplicateCorrelation(DefaultTracker):
         headers = ('replicate1', 'replicate2', 'coeff', 'observations',
                    'pvalue', 'significance', 'alternative', 'method')
         data = self.get('''SELECT replicate1, replicate2, coeff, observations, pvalue, significance, alternative, method
-        FROM %(table)s WHERE track = "%(track)s" ''' % locals() )
+        FROM %(table)s WHERE track = "%(track)s" ''' % locals())
 
         result = odict()
         for x, y in enumerate(data):
@@ -418,10 +418,10 @@ class ExpressionFullCorrelation(DefaultTracker):
         xtrack, replicate = track.split("-")
 
         data = self.get('''SELECT track2, replicate2, coeff
-        FROM %(table)s WHERE track1 = "%(xtrack)s" AND replicate1 = "%(replicate)s" ''' % locals() )
+        FROM %(table)s WHERE track1 = "%(xtrack)s" AND replicate1 = "%(replicate)s" ''' % locals())
 
-        data.extend( self.get('''SELECT track1, replicate1, coeff
-        FROM %(table)s WHERE track2 = "%(xtrack)s" AND replicate2 = "%(replicate)s" ''' % locals() ) )
+        data.extend(self.get('''SELECT track1, replicate1, coeff
+        FROM %(table)s WHERE track2 = "%(xtrack)s" AND replicate2 = "%(replicate)s" ''' % locals()))
 
         data = [("-".join((x[0], x[1])), x[2]) for x in data]
         data.append((track, 1.0))
@@ -483,7 +483,7 @@ class ExpressionDifferencesCalibrationTTest1(ExpressionTracker):
         for exponent in range(0, 10):
             pvalue = math.pow(10, -exponent)
             total = self.getValue(
-                '''SELECT COUNT(*) FROM %(track)s AS a WHERE a.pvalue < %(pvalue)s''' % locals() )
+                '''SELECT COUNT(*) FROM %(track)s AS a WHERE a.pvalue < %(pvalue)s''' % locals())
             if total == 0:
                 break
             exponents.append((pvalue, total, exponent))
@@ -493,9 +493,9 @@ class ExpressionDifferencesCalibrationTTest1(ExpressionTracker):
                 continue
             pvalues, overlaps = [], []
             for pvalue, total, exponent in exponents:
-                val = self.getValue( '''SELECT COUNT(*) 
+                val = self.getValue('''SELECT COUNT(*)
                            FROM %(track)s AS a, %(other)s AS b
-                           WHERE a.cluster_id = b.cluster_id AND 
+                           WHERE a.cluster_id = b.cluster_id AND
                                  a.pvalue < %(pvalue)s AND b.pvalue < %(pvalue)s ''' % locals())
                 pvalues.append(exponent)
                 overlaps.append(100.0 * val / total)
@@ -525,8 +525,7 @@ class ExpressionDifferencesCalibrationTTest2(ExpressionTracker):
     def __call__(self, track, slice=None):
 
         tablename_ref = "exp%(track)sD3_vs_exp%(track)sUnstim_ttest" % locals()
-        tablename_fg = "exp%(track)sD3Est_vs_exp%(track)sUnstim_ttest" % locals(
-        )
+        tablename_fg = "exp%(track)sD3Est_vs_exp%(track)sUnstim_ttest" % locals()
         tablename_bg = "exp%(track)sEst_vs_exp%(track)sUnstim_ttest" % locals()
 
         counts = []
@@ -534,12 +533,12 @@ class ExpressionDifferencesCalibrationTTest2(ExpressionTracker):
         for exponent in range(0, 10):
             pvalue = math.pow(10, -exponent)
             total = self.getValue(
-                '''SELECT COUNT(*) FROM %(tablename_ref)s AS a WHERE a.pvalue < %(pvalue)s''' % locals() )
+                '''SELECT COUNT(*) FROM %(tablename_ref)s AS a WHERE a.pvalue < %(pvalue)s''' % locals())
             c = []
             for tablename in (tablename_fg, tablename_bg):
-                val = self.getValue( '''SELECT COUNT(*) 
+                val = self.getValue('''SELECT COUNT(*)
                            FROM %(tablename_ref)s AS a, %(tablename)s AS b
-                           WHERE a.cluster_id = b.cluster_id AND 
+                           WHERE a.cluster_id = b.cluster_id AND
                                  a.pvalue < %(pvalue)s AND b.pvalue < %(pvalue)s ''' % locals())
                 c.append(val)
             counts.append([exponent, total] + c)
@@ -677,9 +676,9 @@ class ExpressionDifferencesOverlap(ExpressionTracker):
         result = odict()
         for other in tracks:
             result[other] = \
-                self.getValue( '''SELECT COUNT(*) FROM %(track)s AS a, %(other)s AS b
-                           WHERE a.cluster_id = b.cluster_id AND 
-                                 %(cutoff1)s AND %(cutoff2)s''' % locals() )
+                self.getValue('''SELECT COUNT(*) FROM %(track)s AS a, %(other)s AS b
+                           WHERE a.cluster_id = b.cluster_id AND
+                                 %(cutoff1)s AND %(cutoff2)s''' % locals())
 
         return result
 
@@ -726,8 +725,9 @@ class DifferentiallyExpressedGenesFoldChangeCategories(ExpressionTracker):
         t1 = 1.0 / self.mThreshold
         t2 = self.mThreshold
 
-        statement = "SELECT COUNT(DISTINCT e.gene_id) FROM %(track)s AS a, probeset2transcript AS e WHERE e.cluster_id = a.cluster_id AND %%s" % locals(
-        )
+        statement = (
+            "SELECT COUNT(DISTINCT e.gene_id) FROM %(track)s AS a, "
+            "probeset2transcript AS e WHERE e.cluster_id = a.cluster_id AND %%s" % locals())
 
         r[">%s fold down" % self.mThreshold] = self.getValue(
             statement % ("fold < %(t1)f" % locals()))
@@ -757,9 +757,9 @@ class DifferentiallyExpressedGenesDistanceToInterval(ExpressionTracker):
     unresponsive
        gene shows no significant differential expression
     upregulated
-       gene shows significant differential expression and is upregulated 
+       gene shows significant differential expression and is upregulated
     downregulated
-       gene shows significant differential expression and is upregulated 
+       gene shows significant differential expression and is upregulated
     all
        all genes
 
@@ -787,31 +787,31 @@ class DifferentiallyExpressedGenesDistanceToInterval(ExpressionTracker):
         field = self.mCutoffField
 
         statement = '''
-        SELECT min( abs(a.dists) )
+        SELECT min( abs(a.dists))
         FROM %(track)s as d, probeset2transcript as e, %(master)s_assoc AS a, %(master)s_readcounts AS c
-        WHERE 
-            e.cluster_id = d.cluster_id AND 
-            e.transcript_id = a.transcript_id AND 
-            c.gene_id = a.id AND 
+        WHERE
+            e.cluster_id = d.cluster_id AND
+            e.transcript_id = a.transcript_id AND
+            c.gene_id = a.id AND
             %%s
             GROUP BY c.gene_id''' % locals()
 
-        statement = '''SELECT MIN(distance) 
+        statement = '''SELECT MIN(distance)
         FROM probeset2transcript as e,
              %(track)s as d,
              %(master)s_distance AS a
-        WHERE 
-            e.cluster_id = d.cluster_id AND 
-            e.transcript_id = a.transcript_id AND 
+        WHERE
+            e.cluster_id = d.cluster_id AND
+            e.transcript_id = a.transcript_id AND
             a.distance != '' AND
-            a.distance >= %(min_distance)i AND 
+            a.distance >= %(min_distance)i AND
              %%s
-            GROUP BY e.gene_id''' % self.members( locals() )
+            GROUP BY e.gene_id''' % self.members(locals())
 
         if slice == "responsive":
             s = statement % ("%(field)s %(threshold)s" % locals())
         elif slice == "unresponsive":
-            s = statement % ("not( %(field)s %(threshold)s )" % locals())
+            s = statement % ("not( %(field)s %(threshold)s)" % locals())
         elif slice == "up":
             s = statement % (
                 "%(field)s %(threshold)s AND fold >= 1" % locals())
@@ -852,7 +852,7 @@ class GeneList(ExpressionTracker):
     '''a table with candidate genes.
 
     '''
-    mColumnsFixed = ("gene_name", "pos", )
+    mColumnsFixed = ("gene_name", "pos",)
     mColumnsVariable = ()
     mMaxEntries = None
 
@@ -915,7 +915,7 @@ class CandidateGenesMotifs(GeneList):
        the minimum P-Value among intervals in the neighborhood containing one of the canonical motifs.
 
     '''
-    mColumnsFixed = ("pos", )
+    mColumnsFixed = ("pos",)
     mColumnsVariable = (
         "nprobes", "nintervals", "exp-pvalue", "motif-pvalue", "description")
     mMotif = "rxrvdr"
@@ -933,12 +933,12 @@ class CandidateGenesMotifs(GeneList):
 
         # cross join necessary to use all indices
         statement = '''
-          SELECT 
+          SELECT
                e.gene_id, ii.gene_name,
                e.contig, e.start, e.end,
-               COUNT(DISTINCT e.cluster_id), 
+               COUNT(DISTINCT e.cluster_id),
                COUNT(DISTINCT a.id),
-               min(d.%(field)s) AS p1, 
+               min(d.%(field)s) AS p1,
                min(m.evalue) AS p2,
                ee.description
           FROM %(master)s_assoc as a CROSS JOIN
@@ -947,15 +947,15 @@ class CandidateGenesMotifs(GeneList):
                probeset2transcript AS e,
                gene_info AS ii,
                expression as ee
-          WHERE 
+          WHERE
                 i.gene_id = e.gene_id AND
-                ii.gene_id = e.gene_id AND 
-                a.transcript_id = e.transcript_id AND 
+                ii.gene_id = e.gene_id AND
+                a.transcript_id = e.transcript_id AND
                 e.cluster_id = d.cluster_id AND
-                a.id = m.id AND 
-                e.cluster_id = ee.cluster_id AND 
+                a.id = m.id AND
+                e.cluster_id = ee.cluster_id AND
                 m.motif = '%(motif)s'
-          GROUP BY e.gene_id 
+          GROUP BY e.gene_id
           HAVING p1 %(threshold)s and p2 <= %(evalue_threshold)f''' % locals()
 
         return statement
@@ -984,10 +984,10 @@ class CandidateGenesPeakval(CandidateGenesMotifs):
 
         # cross join necessary to use all indices
         statement = '''
-          SELECT 
+          SELECT
                e.gene_id, ii.gene_name,
                e.contig, min(e.start), max(e.end),
-               COUNT(DISTINCT e.cluster_id), 
+               COUNT(DISTINCT e.cluster_id),
                COUNT(DISTINCT i.interval_id),
                MIN(d.%(field)s) AS p1,
                MIN(i.peakval) AS minp,
@@ -999,10 +999,10 @@ class CandidateGenesPeakval(CandidateGenesMotifs):
                expression AS ee,
                gene_info AS ii,
                %(track)s AS d
-          WHERE 
+          WHERE
                 a.transcript_id = e.transcript_id AND
-                ii.gene_id = e.gene_id AND 
-                e.cluster_id = d.cluster_id AND 
+                ii.gene_id = e.gene_id AND
+                e.cluster_id = d.cluster_id AND
                 e.cluster_id = ee.cluster_id AND
                 i.interval_id = a.id AND
                 i.peakval >= %(minval)i
@@ -1037,8 +1037,8 @@ class DifferentiallyExpressedGenes(GeneList):
 
         # cross join necessary to use all indices
         statement = '''
-          SELECT 
-               e.gene_id, ii.gene_name, 
+          SELECT
+               e.gene_id, ii.gene_name,
                e.contig, min(e.start), max(e.end),
                COUNT(DISTINCT e.cluster_id),
                MIN(d.fold),
@@ -1049,10 +1049,10 @@ class DifferentiallyExpressedGenes(GeneList):
                %(track)s AS d,
                gene_info AS ii,
                expression AS ee
-          WHERE 
-                e.cluster_id = d.cluster_id AND 
+          WHERE
+                e.cluster_id = d.cluster_id AND
                 e.cluster_id = ee.cluster_id AND
-                ii.gene_id = e.gene_id 
+                ii.gene_id = e.gene_id
           GROUP BY e.gene_id having p1 %(threshold)s
           ORDER by p1''' % locals()
 
@@ -1070,7 +1070,7 @@ class ExpressionIntervalCounts(ExpressionTracker):
     '''return counts of genes that:
 
     1. do or do not overlap with an interval at the TSS
-    2. are responsive or are not responsive 
+    2. are responsive or are not responsive
 
     Also, those within 5k of the TSS are further stratified by
     whether or not they contain a motif.
@@ -1099,24 +1099,24 @@ class ExpressionIntervalCounts(ExpressionTracker):
 
         # cross join necessary to use all indices
         statement = '''
-        SELECT 
+        SELECT
                e.gene_id,
                MIN(tss.closest_dist),
-               COUNT(DISTINCT e.cluster_id), 
+               COUNT(DISTINCT e.cluster_id),
                COUNT(DISTINCT i.interval_id),
                MIN(d.%(field)s) AS p1,
                MIN(i.peakval) AS minp,
                MAX(i.peakval) AS maxp,
                ee.description,
                MAX(mast.nmatches)
-        FROM 
+        FROM
                probeset2transcript AS e
                LEFT JOIN %(track)s AS d ON d.cluster_id = e.cluster_id
-               LEFT JOIN %(master)s_tss as tss ON tss.closest_id  = e.gene_id 
+               LEFT JOIN %(master)s_tss as tss ON tss.closest_id  = e.gene_id
                LEFT JOIN %(master)s_intervals AS i ON i.interval_id = tss.gene_id
                LEFT JOIN expression AS ee ON ee.cluster_id = e.cluster_id
-               LEFT JOIN %(master)s_mast AS mast on mast.id = i.interval_id AND mast.motif = '%(motif)s' 
-        WHERE e.source = 'protein_coding' 
+               LEFT JOIN %(master)s_mast AS mast on mast.id = i.interval_id AND mast.motif = '%(motif)s'
+        WHERE e.source = 'protein_coding'
         GROUP BY e.gene_id''' % locals()
 
         data = self.get(statement)
@@ -1187,28 +1187,28 @@ class ExpressionNumMotifs(ExpressionIntervalCounts):
 
         statement = '''
         SELECT
-               (SELECT COUNT(*) 
-                       FROM %(master)s_tss as tss 
-                       WHERE tss.closest_id = e.gene_id AND 
-                             tss.closest_dist < %(max_dist)i) 
+               (SELECT COUNT(*)
+                       FROM %(master)s_tss as tss
+                       WHERE tss.closest_id = e.gene_id AND
+                             tss.closest_dist < %(max_dist)i)
                AS nintervals,
-               (SELECT CASE WHEN COUNT(*) THEN COUNT(*) ELSE 0 END 
-                       FROM %(master)s_tss as tss, 
+               (SELECT CASE WHEN COUNT(*) THEN COUNT(*) ELSE 0 END
+                       FROM %(master)s_tss as tss,
                             %(master)s_mast as mast
-                       WHERE tss.closest_id = e.gene_id AND 
-                             tss.closest_dist < %(max_dist)i AND 
-                             mast.id = tss.gene_id AND 
-                             mast.motif = '%(motif)s' )
+                       WHERE tss.closest_id = e.gene_id AND
+                             tss.closest_dist < %(max_dist)i AND
+                             mast.id = tss.gene_id AND
+                             mast.motif = '%(motif)s')
                AS nmotifs,
-               (SELECT CASE WHEN SUM(mast.nmatches) THEN SUM(mast.nmatches) ELSE 0 END 
-                       FROM %(master)s_tss as tss, 
+               (SELECT CASE WHEN SUM(mast.nmatches) THEN SUM(mast.nmatches) ELSE 0 END
+                       FROM %(master)s_tss as tss,
                             %(master)s_mast as mast
-                       WHERE tss.closest_id = e.gene_id AND 
-                             tss.closest_dist < %(max_dist)i AND 
-                             mast.id = tss.gene_id AND 
-                             mast.motif = '%(motif)s' ) 
+                       WHERE tss.closest_id = e.gene_id AND
+                             tss.closest_dist < %(max_dist)i AND
+                             mast.id = tss.gene_id AND
+                             mast.motif = '%(motif)s')
                AS nmatches
-        FROM 
+        FROM
                probeset2transcript AS e,
                %(track)s AS d ON d.cluster_id = e.cluster_id
         WHERE e.source = 'protein_coding'
@@ -1218,15 +1218,15 @@ class ExpressionNumMotifs(ExpressionIntervalCounts):
 
         where = "d.%(field)s %(threshold)s" % locals()
         responsive_statement = statement % locals()
-        where = "not( d.%(field)s %(threshold)s )" % locals()
+        where = "not( d.%(field)s %(threshold)s)" % locals()
         unresponsive_statement = statement % locals()
 
         def _getData(statement):
             data = self.get(statement)
             return odict(list(zip(("nintervals",
-                              "nmotifs",
-                              "nmatches"),
-                             list(zip(*data)))))
+                                   "nmotifs",
+                                   "nmatches"),
+                                  list(zip(*data)))))
 
         return odict((("responsive",
                        _getData(responsive_statement)),
@@ -1258,15 +1258,15 @@ class CandidateGenesOverlap(GeneList):
 
         # cross join necessary to use all indices
         statement = '''
-          SELECT 
+          SELECT
                e.gene_id, e.contig, min(e.start), max(e.end),
-               COUNT(DISTINCT e.cluster_id), 
+               COUNT(DISTINCT e.cluster_id),
                COUNT(DISTINCT i.interval_id),
                MIN(d.%(field)s) AS p1,
                MIN(i.peakval) AS minp,
                MAX(i.peakval) AS maxp,
                ee.description
-          FROM 
+          FROM
                probeset2transcript AS e CROSS JOIN
                %(track)s AS d ON d.cluster_id = e.cluster_id,
                %(master)s_tss as tss ON tss.closest_id  = e.gene_id,
@@ -1509,7 +1509,7 @@ class GOPower(ExpressionTracker):
         select = self.mSelect % self.mTableName
         xtrack, xslice, subset, background = track.split(":")
 
-        stmt = """%(select)s AND track = '%(xtrack)s' AND slice = '%(xslice)s' 
+        stmt = """%(select)s AND track = '%(xtrack)s' AND slice = '%(xslice)s'
                         AND subset='%(subset)s' AND background = '%(background)s'
                         AND code != '?'
                         ORDER BY category""" % locals()
@@ -1550,7 +1550,7 @@ class GOMatrix(ExpressionTracker):
                 WHEN 1 THEN
                           CASE code
                           WHEN '+' THEN (100.0 * (ratio -1))
-                          ELSE - (100.0 * (1-ratio) )
+                          ELSE - (100.0 * (1-ratio))
                           END
                 ELSE 0
                 END

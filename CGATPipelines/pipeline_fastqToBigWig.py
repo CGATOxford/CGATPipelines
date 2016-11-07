@@ -155,7 +155,7 @@ import sys
 import glob
 import os
 import CGAT.Experiment as E
-from . import PipelineChipseq as PIntervals
+import CGATPipelines.PipelineChipseq as PIntervals
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.Pipeline as P

@@ -183,9 +183,9 @@ import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.MatrixTools as MatrixTools
-from . import PipelinePeakcalling as PipelinePeakcalling
-from . import PipelineMotifs as PipelineMotifs
-from . import PipelineWindows as PipelineWindows
+import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
+import CGATPipelines.PipelineMotifs as PipelineMotifs
+import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 

@@ -56,7 +56,7 @@ class MeanVsMaxReadDepth(ReferenceData):
         data = [(x[0], x[1], math.log(x[2]))
                 for x in self.get(statement) if x[2] > 0]
         return odict(list(zip(("mean coverage", "max coverage", "length"),
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 
 class MeanVsMedianReadDepth(ReferenceData):
@@ -79,7 +79,7 @@ class MeanVsMedianReadDepth(ReferenceData):
         data = [(x[0], x[1], math.log(x[2]))
                 for x in self.get(statement) if x[2] > 0]
         return odict(list(zip(("mean coverage", "median coverage", "length"),
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 
 class ReadDirectionality(MappingTracker):

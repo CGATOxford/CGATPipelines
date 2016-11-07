@@ -12,9 +12,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import urllib.request
-import urllib.error
-import urllib.parse
+from future.moves.urllib.request import urlopen
 from CGATPipelines.Pipeline import cluster_runnable
 
 
@@ -972,8 +970,8 @@ class OntologyAnnotation(APIAnnotation):
         Tests that it is possibly to connect to the URL.
         '''
         try:
-            urllib.request.urlopen('http://purl.obolibrary.org/obo/go.owl',
-                                   timeout=1)
+            urlopen('http://purl.obolibrary.org/obo/go.owl',
+                    timeout=1)
             return True
         except urllib.error.URLError:
             pass

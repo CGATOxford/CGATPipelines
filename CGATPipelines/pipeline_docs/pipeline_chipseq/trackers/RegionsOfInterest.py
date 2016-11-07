@@ -21,7 +21,7 @@ class AllRegionsOfInterest(TrackerROI):
         extra_columns = sorted(
             [x for x in columns if x not in ("class", "contig", "start", "end", "roi_id", "pos")])
         extra = ",".join(extra_columns)
-        data = self.get( '''SELECT roi_id, contig, start, end, %(extra)s FROM
+        data = self.get('''SELECT roi_id, contig, start, end, %(extra)s FROM
         regions_of_interest WHERE class = '%(track)s' ''' % locals())
 
         n = odict()
@@ -80,14 +80,14 @@ class ROIOverlapCounts(ChipseqReport.DefaultTracker):
              %(track)s_roi as ovl
         WHERE
              snp.roi_id = roi.roi_id AND
-             ovl.roi_id = roi.roi_id 
+             ovl.roi_id = roi.roi_id
         GROUP BY class
         '''
 
         data = self.get(statement % locals())
 
         return odict(list(zip(columns,
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 
 ##########################################################################
@@ -109,7 +109,7 @@ class ROIOverlap(ChipseqReport.DefaultTracker):
         FROM regions_of_interest as roi,
              %(track)s_roi as ovl,
              %(track)s_intervals as i
-             LEFT JOIN snps as snp ON snp.roi_id = roi.roi_id 
+             LEFT JOIN snps as snp ON snp.roi_id = roi.roi_id
         WHERE
              ovl.roi_id = roi.roi_id AND
              ovl.interval_id = i.interval_id
@@ -119,7 +119,7 @@ class ROIOverlap(ChipseqReport.DefaultTracker):
         data = self.get(statement % locals())
 
         return odict(list(zip(columns,
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -142,8 +142,8 @@ class ROIOverlapWithGenes(ChipseqReport.DefaultTracker):
                    "gene_strand", "gene_distance")
 
         statement = '''
-        SELECT class, roi.contig, roi.start, roi.end, 
-               snp.snp, snp.pos, 
+        SELECT class, roi.contig, roi.start, roi.end,
+               snp.snp, snp.pos,
                (SELECT group_concat( gene_name, ',') FROM roi_genes WHERE roi_genes.roi_id = roi.roi_id) AS genenames,
                i.start, i.end,
                min( abs(i.start - snp.pos), abs(i.end - snp.pos) ) AS iv_d,
@@ -153,7 +153,7 @@ class ROIOverlapWithGenes(ChipseqReport.DefaultTracker):
              %(track)s_intervals as i,
              %(track)s_tss as tss,
              gene_info as info
-             LEFT JOIN snps as snp ON snp.roi_id = roi.roi_id 
+             LEFT JOIN snps as snp ON snp.roi_id = roi.roi_id
         WHERE
              ovl.roi_id = roi.roi_id AND
              ovl.interval_id = i.interval_id AND
@@ -165,7 +165,7 @@ class ROIOverlapWithGenes(ChipseqReport.DefaultTracker):
         data = self.get(statement % locals())
 
         return odict(list(zip(columns,
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -190,9 +190,9 @@ class GWASOverlapWithGenes(ChipseqReport.DefaultTracker):
                    "gene_strand", "gene_distance")
 
         statement = '''
-        SELECT class, regions.contig, regions.start, regions.end, 
-               regions.snp, regions.pos, 
-               (SELECT group_concat( gene_name, ',') FROM %(tablename)s_genes WHERE 
+        SELECT class, regions.contig, regions.start, regions.end,
+               regions.snp, regions.pos,
+               (SELECT group_concat( gene_name, ',') FROM %(tablename)s_genes WHERE
                        %(tablename)s_genes.roi_id = regions.roi_id) AS genenames,
                i.start, i.end,
                min( abs(i.start - regions.pos), abs(i.end - regions.pos) ) AS iv_d,
@@ -213,7 +213,7 @@ class GWASOverlapWithGenes(ChipseqReport.DefaultTracker):
         data = self.get(statement % self.members(locals()))
 
         return odict(list(zip(columns,
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 
 ##########################################################################
@@ -235,7 +235,7 @@ class GWASIntervalList(ChipseqReport.DefaultTracker):
 
         data = self.get(statement % self.members(locals()))
         return odict(list(zip(("class", "contig", "start", "end", "snps"),
-                         list(zip(*data)))))
+                              list(zip(*data)))))
 
 
 ##########################################################################
@@ -257,7 +257,7 @@ class SelectionOverlapWithGenes(ChipseqReport.DefaultTracker):
                    "gene_strand", "gene_distance")
 
         statement = '''
-        SELECT class, regions.contig, regions.start, regions.end, 
+        SELECT class, regions.contig, regions.start, regions.end,
                i.start, i.end,
                closest_id, info.gene_name, closest_strand, closest_dist
         FROM %(tablename)s as regions,
@@ -276,4 +276,4 @@ class SelectionOverlapWithGenes(ChipseqReport.DefaultTracker):
         data = self.get(statement % self.members(locals()))
 
         return odict(list(zip(columns,
-                         list(zip(*data)))))
+                              list(zip(*data)))))

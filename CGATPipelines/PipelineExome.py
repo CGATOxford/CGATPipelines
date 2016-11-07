@@ -18,12 +18,9 @@ import CGAT.CSV as csv
 import CGAT.VCF as VCF
 import collections
 import re
-import urllib.request
-import urllib.parse
-import urllib.error
+from future.moves.urllib.request import urlopen
 import itertools
-from bs4 import BeautifulSoup
-from bs4 import NavigableString
+from bs4 import BeautifulSoup, NavigableString
 from rpy2.robjects import pandas2ri
 from rpy2.robjects import r as R
 import copy
@@ -37,7 +34,7 @@ def getGATKOptions():
 
 
 def makeSoup(address):
-    sock = urllib.request.urlopen(address)
+    sock = urlopen(address)
     htmlSource = sock.read()
     soup = BeautifulSoup(htmlSource)
     return soup
