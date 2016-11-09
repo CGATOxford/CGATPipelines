@@ -629,6 +629,10 @@ config
 dump
    write pipeline configuration to stdout
 
+printconfig
+   write pipeline configuration to stdout in a user-friendly way so
+   it is easier to debug pipeline parameters
+
 touch
    touch files only, do not run
 
@@ -684,7 +688,7 @@ def main(args=sys.argv):
                       type="choice",
                       choices=(
                           "make", "show", "plot", "dump", "config", "clone",
-                          "check", "regenerate"),
+                          "check", "regenerate", "printconfig"),
                       help="action to take [default=%default].")
 
     parser.add_option("--pipeline-format", dest="pipeline_format",
@@ -1002,6 +1006,11 @@ def main(args=sys.argv):
         # convert to normal dictionary (not defaultdict) for parsing purposes
         # do not change this format below as it is exec'd in peekParameters()
         print "dump = %s" % str(dict(PARAMS))
+
+    elif options.pipeline_action == "printconfig":
+        print "Printing out pipeline parameters: "
+        for k in sorted(PARAMS):
+            print k, "=", PARAMS[k]
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)

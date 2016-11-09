@@ -104,6 +104,18 @@ suitable. For instance, it has been noted that inclusion of poorly
 support transcripts leads to poorer quantification of well-supported
 transcripts.
 
+Note: If the transcripts.fa is not being generated within the
+pipeline, you must ensure the suppled geneset.fa is sorted in gene_id
+order (gtf2gtf --method=sort --sort-order=gene) and you must supply a
+file mapping transcript ids to gene ids called transcript2gene.tsv
+with the following form:
+
+transcript_1   g_1
+transcript_2   g_1
+transcript_3   g_2
+transcript_4   g_3
+
+
 Principal targets
 -----------------
 
@@ -555,6 +567,10 @@ if PARAMS["geneset_auto_generate"]:
         --filter-method=transcript
         --map-tsv-file=%(mapfile)s
         --log=%(outfile)s.log
+        | python %(scriptsdir)s/gtf2gtf.py
+        --method=sort
+        --sort-order=gene+transcript
+        --log=%(outfile)s.log
         | gzip
         > %(outfile)s
         '''
@@ -640,7 +656,7 @@ else:
 def buildKallistoIndex(infile, outfile):
     ''' build a kallisto index'''
 
-    job_memory = "2G"
+    job_memory = "12G"
 
     statement = '''
     kallisto index -i %(outfile)s -k %(kallisto_kmer)s %(infile)s
@@ -701,23 +717,77 @@ if PARAMS['simulation_run']:
     @mkdir("simulation.dir")
     @transform(buildReferenceTranscriptome,
                suffix(".fa"),
-               "_kmers.tsv",
+               "_transcript_kmers.tsv",
                output_dir="simulation.dir")
-    def countKmers(infile, outfile):
+    def countTranscriptKmers(infile, outfile):
         ''' count the number of unique and non-unique kmers per transcript '''
 
         job_memory = PARAMS["simulation_kmer_memory"]
 
         statement = '''
-        python %(scriptsdir)s/fasta2unique_kmers.py --input-fasta=%(infile)s
-        --kmer-size=%(kallisto_kmer)s -L %(outfile)s.log > %(outfile)s '''
+        python %(scriptsdir)s/fasta2unique_kmers.py
+        --input-fasta=%(infile)s
+        --method=transcript
+        --kmer-size=%(kallisto_kmer)s
+        -L %(outfile)s.log
+        > %(outfile)s '''
 
         P.run()
 
-    @transform(countKmers,
+    @transform(countTranscriptKmers,
                suffix(".tsv"),
                ".load")
-    def loadKmers(infile, outfile):
+    def loadTranscriptKmers(infile, outfile):
+        ''' load the kmer counts'''
+
+        options = "--add-index=id"
+        P.load(infile, outfile, options=options)
+
+    @mkdir("simulation.dir")
+    @transform(buildReferenceTranscriptome,
+               suffix(".fa"),
+               "_gene_kmers.tsv",
+               output_dir="simulation.dir")
+    def countGeneKmers(infile, outfile):
+        ''' count the number of unique and non-unique kmers per gene '''
+
+        job_memory = PARAMS["simulation_kmer_memory"]
+
+        if PARAMS["geneset_auto_generate"]:
+            genemap = P.getTempFilename(shared=True)
+
+            dbh = connect()
+            select = dbh.execute('''
+            SELECT DISTINCT transcript_id, gene_id FROM transcript_info''')
+
+            with IOTools.openFile(genemap, "w") as outf:
+                for line in select:
+                    outf.write("%s\t%s\n" % (line[0], line[1]))
+
+        else:
+            assert os.path.exists("transcript2gene.tsv"), (
+                "if you want to run the simulation on a user-supplied "
+                "geneset, you need to supply a file mapping "
+                "transcripts to genes " "called transcript2gene.tsv")
+            genemap = "transcript2gene.tsv"
+
+        statement = '''
+        python %(scriptsdir)s/fasta2unique_kmers.py
+        --input-fasta=%(infile)s
+        --method=gene
+        --genemap=%(genemap)s
+        --kmer-size=%(kallisto_kmer)s
+        -L %(outfile)s.log > %(outfile)s '''
+
+        P.run()
+
+        if PARAMS["geneset_auto_generate"]:
+            os.unlink(genemap)
+
+    @transform(countGeneKmers,
+               suffix(".tsv"),
+               ".load")
+    def loadGeneKmers(infile, outfile):
         ''' load the kmer counts'''
 
         options = "--add-index=id"
@@ -819,8 +889,7 @@ if PARAMS['simulation_run']:
         infile, counts = infiles
 
         # multithreading not supported until > v0.42.1
-        # job_threads = PARAMS["kallisto_threads"]
-        job_threads = 1
+        job_threads = PARAMS["kallisto_threads"]
         job_memory = "8G"
 
         kallisto_options = PARAMS["kallisto_options"]
@@ -857,8 +926,7 @@ if PARAMS['simulation_run']:
         infiles, index = infiles
         infile, counts = infiles
 
-        # job_threads = PARAMS["salmon_threads"]
-        job_threads = 1
+        job_threads = PARAMS["salmon_threads"]
         job_memory = "8G"
 
         salmon_options = PARAMS["salmon_options"]
@@ -985,7 +1053,7 @@ if PARAMS['simulation_run']:
 
     @transform(concatSimulationResults,
                suffix("results.tsv"),
-               add_inputs(countKmers),
+               add_inputs(countTranscriptKmers),
                "correlations.tsv")
     def calculateCorrelations(infiles, outfile):
         ''' calculate correlation across simulation iterations per transcript'''
@@ -1043,7 +1111,8 @@ if PARAMS['simulation_run']:
         P.load(infile, outfile, options=options)
 
     @mkdir("simulation.dir")
-    @follows(loadKmers,
+    @follows(loadTranscriptKmers,
+             loadGeneKmers,
              loadCorrelation,
              loadLowConfidenceTranscripts)
     def simulation():
@@ -1097,14 +1166,13 @@ def quantifyWithKallisto(infiles, outfile):
     index = infiles[0][1]
 
     # multithreading not supported until > v0.42.1
-    # job_threads = PARAMS["kallisto_threads"]
-    job_threads = 1
+    job_threads = PARAMS["kallisto_threads"]
     job_memory = "6G"
 
     kallisto_options = PARAMS["kallisto_options"]
     bootstrap = PARAMS["kallisto_bootstrap"]
 
-    m = PipelineMapping.Kallisto()
+    m = PipelineMapping.Kallisto(pseudobam=PARAMS['kallisto_psuedobam'])
     statement = m.build(infile, outfile)
 
     P.run()
@@ -1120,8 +1188,7 @@ def quantifyWithSalmon(infiles, outfile):
     infile = [x[0] for x in infiles]
     index = infiles[0][1]
 
-    # job_threads = PARAMS["salmon_threads"]
-    job_threads = 1
+    job_threads = PARAMS["salmon_threads"]
     job_memory = "6G"
 
     salmon_options = PARAMS["salmon_options"]
@@ -1145,8 +1212,7 @@ def quantifyWithSailfish(infiles, outfile):
     infile = [x[0] for x in infiles]
     index = infiles[0][1]
 
-    # job_threads = PARAMS["salmon_threads"]
-    job_threads = 1
+    job_threads = PARAMS["sailfish_threads"]
     job_memory = "6G"
 
     sailfish_options = PARAMS["sailfish_options"]
@@ -1213,6 +1279,7 @@ def quantify():
 ###############################################################################
 
 
+# T.S move to Expression.py
 def estimateSleuthMemory(bootstraps, samples, transcripts):
     ''' The memory usage of Sleuth is dependent upon the number of
     samples, transcripts and bootsraps.
@@ -1300,6 +1367,12 @@ def runSleuth(design, outfiles, quantifier, transcripts):
 
     if PARAMS['sleuth_genewise']:
 
+        # gene-wise sleuth seems to be even more memory hungry!
+        # Use 2 * transcript memory estimate
+        job_memory = estimateSleuthMemory(
+            PARAMS["%(quantifier)s_bootstrap" % locals()],
+            2 * number_samples, number_transcripts)
+
         outfile_genes = outfile.replace(".tsv", "_genes.tsv")
         counts_genes = counts.replace(".tsv", "_genes.tsv")
         tpm_genes = tpm.replace(".tsv", "_genes.tsv")
@@ -1318,24 +1391,10 @@ def runSleuth(design, outfiles, quantifier, transcripts):
         --outfile-sleuth-count=%(counts_genes)s
         --outfile-sleuth-tpm=%(tpm_genes)s
         --sleuth-genewise
+        --gene-biomart=%(sleuth_gene_biomart)s
         >%(outfile_genes)s '''
 
         P.run()
-
-# # define sleuth targets
-# SLEUTHTARGETS = []
-
-# mapToSleuthTargets = {'kallisto': (runSleuthKallisto,),
-#                       'salmon': (runSleuthSalmon,),
-#                       'sailfish': (runSleuthSailfish,)}
-
-# for x in P.asList(PARAMS["quantifiers"]):
-#     SLEUTHTARGETS.extend(mapToSleuthTargets[x])
-
-
-# @follows(*SLEUTHTARGETS)
-# def runSleuth():
-#     pass
 
 
 @follows(*QUANTTARGETS)

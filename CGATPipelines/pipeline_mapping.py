@@ -720,13 +720,14 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     "*.export.txt.gz",
                     "*.csfasta.gz",
                     "*.csfasta.F3.gz",
+                    "*.remote",
                     )
 
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
-    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz)")
+    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz|remote)")
 
 ###################################################################
 ###################################################################
@@ -847,7 +848,7 @@ def mapReadsWithTophat(infiles, outfile):
     m = PipelineMapping.Tophat(
         executable=P.substituteParameters(**locals())["tophat_executable"],
         strip_sequence=PARAMS["strip_sequence"],
-        tool_options=PARAMS["tophat2_options"])
+        tool_options=PARAMS["tophat_options"])
     infile, reffile, transcriptfile = infiles
     tophat_options = PARAMS["tophat_options"] + \
         " --raw-juncs %(reffile)s " % locals()
@@ -2043,7 +2044,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_memory = "16G"
+    job_memory = "32G"
 
     bamfile, readsfile = infiles
 

@@ -149,8 +149,6 @@ def convertReadsToIntervals(bamfile,
     statement = " ; ".join(statement)
     P.run()
 
-    os.unlink(tmpdir)
-
 
 def countTags(infile, outfile):
     '''count number of tags in bed-file.
@@ -1243,7 +1241,7 @@ def loadSummarizedContextStats(infiles,
 
     """
 
-    header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
+    header = ",".join([P.snip(os.path.basename(x), suffix)
                       for x in infiles])
     filenames = " ".join(infiles)
 

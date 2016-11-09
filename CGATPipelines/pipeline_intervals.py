@@ -378,6 +378,11 @@ def buildProcessingSummary(infiles, outfile):
 def indexIntervals(infile, outfile):
     '''index intervals with tabix.
     '''
+
+    # patch for Jenkins - make sure file exists. Some files
+    # seem to appear with a lag.
+    P.touch(outfile)
+
     statement = '''zcat %(infile)s
     | sort -k1,1 -k2,2n
     | bgzip > %(outfile)s;
@@ -1115,14 +1120,17 @@ def loadTomTom(infile, outfile):
         return
 
     # get the motif name from the xml file
-
     tree = xml.etree.ElementTree.ElementTree()
     tree.parse(xml_file)
     motifs = tree.find("targets")
     name2alt = {}
     for motif in motifs.getiterator("motif"):
         name = motif.get("name")
+        if name is None:
+            name = motif.get("id")
         alt = motif.get("alt")
+        if alt is None:
+            alt = name
         name2alt[name] = alt
 
     tmpfile = P.getTempFile(".")

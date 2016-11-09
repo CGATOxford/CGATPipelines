@@ -466,6 +466,8 @@ class SequenceCollectionProcessor(object):
     # be located.
     tmpdir_fastq = None
 
+    keep_sra = True
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -504,7 +506,7 @@ class SequenceCollectionProcessor(object):
 
         assert len(infiles) > 0, "no input files for processing"
 
-        tmpdir_fastq = P.getTempDir()
+        tmpdir_fastq = P.getTempDir(shared=True)
 
         # create temporary directory again for nodes
         statement = ["mkdir -p %s" % tmpdir_fastq]
@@ -543,6 +545,73 @@ class SequenceCollectionProcessor(object):
                 fastqfiles.append(("%s/%s.fa" % (tmpdir_fastq, track),))
                 self.datatype = "fasta"
 
+            elif infile.endswith(".remote"):
+                files = []
+                for line in IOTools.openFile(infile):
+                    repo, acc = line.strip().split("\t")[:2]
+                    if repo == "SRA":
+                        statement.append(Sra.prefetch(acc))
+                        f, format = Sra.peek(acc)
+                        statement.append(Sra.extract(acc, tmpdir_fastq))
+
+                        extracted_files = ["%s/%s" % (
+                            tmpdir_fastq, os.path.basename(x))
+                                                for x in sorted(f)]
+                        if not self.keep_sra:
+                            statement.append(Sra.clean_cache(acc))
+                        files.extend(extracted_files)
+                    
+                    elif repo == "ENA":
+                        filenames, dl_paths = Sra.fetch_ENA_files(acc)
+                        for f in dl_paths:
+                            statement.append(Sra.fetch_ENA(f, tmpdir_fastq))
+                        files.extend([os.path.join(tmpdir_fastq, x) for x
+                                      in filenames])
+                    
+                    elif repo == "TCGA":
+                        tar_name = line.strip().split("\t")[2]
+                        token = glob.glob("gdc-user-token*")
+
+                        if len(token) > 0:
+                            token = token[0]
+                        else:
+                            token = None
+
+                        statement.append(Sra.fetch_TCGA_fastq(acc,
+                                                              tar_name,
+                                                              token,
+                                                              tmpdir_fastq))
+
+                        files.append(os.path.join(tmpdir_fastq, acc + "_1.fastq.gz"))
+                        files.append(os.path.join(tmpdir_fastq, acc + "_2.fastq.gz"))
+
+                    else:
+                        raise ValueError("Unknown repository: %s" % repo)
+
+                if len(files) == 1 and files[0].endswith("_1.fastq.gz"):
+                    new_files = [re.sub("_1.fastq.gz",
+                                        ".fastq.gz",
+                                        files[0])]
+
+                elif len(files) == 2:
+                    new_files = [re.sub(r"_([12]).fastq.gz",
+                                        r".fastq.\1.gz",
+                                        x) for x in files]
+
+                else:
+                    new_files = files
+
+                out_base = os.path.basename(os.path.splitext(outfile)[0])
+                new_files = [re.sub(r"%s/(.+).(fastq..*gz)" % tmpdir_fastq,
+                                    r"%s/%s_\1.\2" % (tmpdir_fastq, out_base),
+                                    nf) for nf in new_files]
+
+                for old, new in zip(files, new_files):
+                    if old != new:
+                        statement.append("mv %s %s" % (old, new))
+                    
+                fastqfiles.append(new_files)
+                        
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
@@ -552,6 +621,7 @@ class SequenceCollectionProcessor(object):
                 # T.S need to use abi-dump for colorspace files
                 if datatype == "basecalls":
                     tool = "fastq-dump"
+                    self.datatype = "basecalls"
                 elif datatype == "colorspace":
                     tool = "abi-dump"
                     self.datatype = "solid"
@@ -618,9 +688,10 @@ class SequenceCollectionProcessor(object):
                     infile = sra_extraction_files[0]
                     basename = os.path.basename(infile)
 
-                    if (len(sra_extraction_files) == 1 and
-                        (basename.endswith("_1.fastq.gz") and
-                         self.datatype != "solid")):
+                    if(len(sra_extraction_files) == 1 and
+                       basename.endswith("_1.fastq.gz") and
+                       self.datatype != "solid"):
+
                         basename = basename[:-11] + ".fastq.gz"
                         statement.append(
                             "mv %s %s/%s" % (infile, tmpdir_fastq, basename))
@@ -631,19 +702,15 @@ class SequenceCollectionProcessor(object):
                     # record of qual files
                     elif self.datatype == "solid":
                         # single end SOLiD data
-
                         infile = P.snip(infile, "_1.fastq.gz") + "_F3.csfasta.gz"
-                        quality = P.snip(infile, "_F3.csfasta.gz") + "_QV.qual.gz"
+                        quality = P.snip(infile, "_F3.csfasta.gz") + "_F3_QV.qual.gz"
 
                         # qual file does not exist as tmpdir from
                         # SRA.extract is removed
                         # if not os.path.exists(quality):
                         #    raise ValueError("no quality file for %s" % infile)
 
-                        fastqfiles.append(("%s/%s_F3.csfasta.gz" %
-                                           (tmpdir_fastq, track),
-                                           "%s/%s_QV.qual.gz" %
-                                           (tmpdir_fastq, track)))
+                        fastqfiles.append((infile, quality))
 
                     # T.S I'm not sure if this works. Need a test case!
                     elif infile.endswith(".csfasta.F3.gz"):
@@ -808,7 +875,7 @@ class SequenceCollectionProcessor(object):
         self.tmpdir_fastq = tmpdir_fastq
 
         assert len(fastqfiles) > 0, "no fastq files for mapping"
-        return "; ".join(statement) + ";", fastqfiles
+        return "; checkpoint;".join(statement) + ";", fastqfiles
 
 
 class Mapper(SequenceCollectionProcessor):
@@ -1186,7 +1253,8 @@ class Salmon(Mapper):
 
 class Kallisto(Mapper):
 
-    '''run Kallisto to quantify transcript abundance from fastq files'''
+    '''run Kallisto to quantify transcript abundance from fastq files
+    - set pseudobam to True to output a pseudobam along with the quantification'''
 
     def __init__(self, pseudobam=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
@@ -1317,6 +1385,105 @@ class SubsetHead(Mapper):
         return " ".join(statement)
 
 
+class SubsetHeads(Mapper):
+    """subset fastq files by taking the first n sequences.
+
+    This differs from SubsetHeads in that list of limits is passed
+    along with a list of outfile sentinel file that will be used as a
+    file prefix.
+
+    A single file can then be parsed once and subsetted to multiple
+    outfiles"""
+
+    compress = True
+
+    def __init__(self, limits=[1000000], *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.limits = limits
+
+    def mapper(self, infiles, outfile):
+        '''count number of reads by counting number of lines
+        in fastq files.
+        '''
+
+        limits = [x * 4 for x in sorted(self.limits)]  # 4 lines per fastq entry
+        output_prefix = P.snip(outfile, ".sentinel")
+        assert len(infiles) == 1
+        infiles = infiles[0]
+        statement = []
+        if len(infiles) == 1:
+            f = infiles[0]
+            awk_cmd = ""
+            for n, ix in enumerate(range(0, len(limits))):
+                limit = limits[ix]
+                output_filename = output_prefix + "_%i.fastq.gz" % n
+                awk_cmd += '''{if (NR<%(limit)s) print |
+                "gzip > %(output_filename)s"};''' % locals()
+            awk_cmd += '{if (NR>%s) {exit}};' % limits[-1]
+
+            statement.append(
+                """zcat %(f)s| awk '%(awk_cmd)s';""" % locals())
+
+        elif len(infiles) > 1:
+            for x, f in enumerate(infiles):
+                awk_cmd = ""
+                for n, ix in enumerate(range(0, len(limits))):
+                    limit = limits[ix]
+                    output_filename = output_prefix + "_%i.fastq.%i.gz" % (n, x + 1)
+                    awk_cmd += '''{if (NR<%(limit)s) print |
+                    "gzip > %(output_filename)s"};''' % locals()
+                awk_cmd += '{if (NR>%s) {exit}};' % limits[-1]
+
+                statement.append(
+                    """zcat %(f)s| awk '%(awk_cmd)s';""" % locals())
+
+        return " ".join(statement)
+
+
+class SubsetRandom(Mapper):
+    """subset fastq files by taking a random n sequences"""
+
+    compress = True
+
+    def __init__(self, limit=1000000, *args, **kwargs):
+        Mapper.__init__(self, *args, **kwargs)
+        self.limit = limit
+
+    def mapper(self, infiles, outfile):
+        '''count number of reads by counting number of lines
+        in fastq files.
+        '''
+        limit = self.limit * 4  # 4 lines per fastq entry
+        statement = []
+        output_prefix = P.snip(outfile, ".subset")
+        assert len(infiles) == 1
+        infiles = infiles[0]
+
+        # check if single or paired end
+        if len(infiles) == 1:
+            fastq = infiles[0]
+            statement = """
+            zcat %(fastq1)s |
+            paste - - - - |
+            sort -R |
+            awk -F'\\t'  'NR > %(limit)i {exit} {OFS="\\n";
+            print $1,$3,$5,$7 | "gzip > %(output_prefix)s.fastq.gz}"}';
+            """ % locals()
+
+        if len(infiles) == 2:
+            fastq1, fastq2 = infiles
+            statement = """
+            paste <(zcat %(fastq1)s) <(zcat %(fastq2)s) |
+            paste - - - - |
+            sort -R |
+            awk -F'\\t'  'NR > %(limit)i {exit} {OFS="\\n";
+            print $1,$3,$5,$7 | "gzip > %(output_prefix)s.fastq.1.gz";
+            print $2,$4,$6,$8 | "gzip > %(output_prefix)s.fastq.2.gz"}';
+            """ % locals()
+
+        return statement
+
+
 class BWA(Mapper):
     '''Mapper for BWA'''
 
@@ -1382,7 +1549,7 @@ class BWA(Mapper):
         track = P.snip(os.path.basename(outfile), ".bam")
 
         if nfiles == 1:
-            infiles = ",".join([self.quoteFile(x[0]) for x in infiles])
+            infiles = " ".join([self.quoteFile(x[0]) for x in infiles])
 
             statement.append('''
             bwa aln %%(bwa_aln_options)s -t %%(bwa_threads)i
@@ -2341,7 +2508,7 @@ class Hisat(Mapper):
         index_prefix = "%(hisat_index_dir)s/%(genome)s"
 
         if self.stranded:
-            strandedness = "--rna-strandness %s" % stranded
+            strandedness = "--rna-strandness %s" % self.stranded
         else:
             strandedness = ""
 
@@ -2369,7 +2536,7 @@ class Hisat(Mapper):
             mkdir %(tmpdir_hisat)s;
             %(executable)s
             --threads %%(hisat_threads)i
-            --rna-strandness %%(hisat_library_type)s
+            %(strandedness)s
             %%(hisat_options)s
             -x %(index_prefix)s
             -1 %(infiles1)s
@@ -2431,7 +2598,7 @@ class Hisat(Mapper):
         statement = '''
         samtools view -uS %(tmpdir_hisat)s/%(track)s
         %(strip_cmd)s
-        | samtools sort -o %(outfile)s 2>>%(outfile)s.hisat.log;
+        | samtools sort - -o %(outfile)s 2>>%(outfile)s.hisat.log;
         samtools index %(outfile)s;
         rm -rf %(tmpdir_hisat)s;
         ''' % locals()
@@ -2574,7 +2741,6 @@ class GSNAP(Mapper):
         '''
 
         track = P.snip(os.path.basename(outfile), ".bam")
-        outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""
@@ -2593,7 +2759,7 @@ class GSNAP(Mapper):
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort -o %(outf)s 2>>%(outfile)s.log;
+        | samtools sort -o %(outfile)s 2>>%(outfile)s.log;
         samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -2728,7 +2894,6 @@ class STAR(Mapper):
             statement to pass to P.run to run post processing.
         '''
         track = P.snip(os.path.basename(outfile), ".bam")
-        outf = P.snip(outfile, ".bam")
         tmpdir = self.tmpdir_fastq
 
         strip_cmd, unique_cmd = "", ""

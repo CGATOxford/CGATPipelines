@@ -9,12 +9,33 @@ RNASeqQC pipeline
 :Tags: Python
 
 
-Sailfish is utlised to rapidly estimate transcript abundance. This
-requires a multi-fasta transcripts file.
+Overview
+========
 
-For further details see http://www.cs.cmu.edu/~ckingsf/software/sailfish/
+This pipeline should be run as the first step in your RNA seq analysis
+work flow. It will help detect error and biases within your raw
+data. The output of the pipeline can be used to filter out problematic
+cells in a standard RNA seq experiment. For single cell RNA seq the
+pipeline_rnaseqqc.py should be run instead.
 
-Individual tasks are enabled in the configuration file.
+Sailfish is used to perform rapid alignment-free transcript
+quantification and hisat is used to align a subset of reads to the
+reference genome.
+
+From the sailfish and hisat output, a number of analyses are
+performed, either within the pipeline or during the reporting:
+
+- Proportion of reads aligned to annotated features (rRNA, protein coding, lincRNA etc)
+- Sequencing depth saturation curves Per Sample
+- Per-sample expression distributions
+- Strandedness assesment
+- Assessment of sequence biases
+- Expression of top genes and expression of genes of interest
+
+Most of the above analysis will group samples by the sample factors
+(see Important configuration options below for details on how factors
+are identified)
+
 
 Usage
 =====
@@ -22,10 +43,6 @@ Usage
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning`
 on general information how to use CGAT pipelines.
 
-Configuration
--------------
-
-No general configuration required.
 
 Input
 -----
@@ -70,11 +87,26 @@ and then set the ``factors`` variable in :file:`pipeline.ini` to::
 
    factors=experiment-source-replicate-lane
 
+If you want to include additional factors which are not identifiable
+from the sample names you can specfify these in an optional file
+"additional_factors.tsv". This file must contain the sample names in
+the first columns and then an additional column for each factor (tab
+separated). See below for an example to include the additional factors
+"preparation_date" and "rna_quality":
+
+sample    preparation_date    rna_quality
+sample1-mRNA-10k-R1-L01    01-01-2016    poor
+sample1-mRNA-10k-R1-L01    01-01-2016    poor
+sample1-mRNA-10k-R1-L02    04-01-2016    good
+sample1-mRNA-10k-R1-L02    04-01-2016    good
+
+
 Pipeline output
 ===============
 
 The major output is a set of HTML pages and plots reporting on the
 apparent biases in transcript abudance within the sequence archive
+The pipeline also produces output in the database file:`csvdb`.
 
 Example
 =======
@@ -90,14 +122,41 @@ To run the example, simply unpack and untar::
 
 Requirements:
 
-sailfish
++---------+------------+------------------------------------------------+
+|*Program*|*Version*   |*Purpose*                                       |
++---------+------------+------------------------------------------------+
+|sailfish |>=0.9.0     |pseudo alignment                               |
++---------+------------+------------------------------------------------+
+|hisat    |>=0.1.6     |read mapping                                   |
++---------+------------+------------------------------------------------+
+|samtools |>=0.1.16    |bam/sam files
++---------+------------+------------------------------------------------+
+|bedtools |            |work with intervals
++---------+------------+------------------------------------------------+
+|picard   |>=1.42      |bam/sam files
++---------+------------+------------------------------------------------+
+|bamstats |>=1.22      |from CGR, liverpool
++---------+------------+------------------------------------------------+
+|sra-tools|            |extracting sra files
++---------+------------+------------------------------------------------+
+
+
+Glossary
+========
+
+.. glossary::
+
+   hisat
+      hisat_- a read mapper used in the pipeline because it is
+              relatively quick to run
+   sailfish
+      sailfish_-a pseudoaligner that is used for quantifying the
+                abundance transcripts
+.._hisat: http://ccb.jhu.edu/software/hisat/manual.shtml
+.. sailfish: https://github.com/kingsfordgroup/sailfish
 
 Code
 ====
-
-ToDo
-====
-Documentation
 
 """
 
@@ -121,6 +180,8 @@ import numpy as np
 import itertools
 from scipy.stats import linregress
 
+from rpy2.robjects import r as R
+from rpy2.robjects import pandas2ri
 
 import CGAT.Experiment as E
 import CGAT.GTF as GTF
@@ -129,6 +190,7 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.Pipeline as P
+import CGATPipelines.PipelineRnaseq as PipelineRnaseq
 
 ###################################################
 ###################################################
@@ -187,6 +249,10 @@ SEQUENCEFILES_REGEX = regex(
     r"(.*\/)*(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
     "csfasta.gz|csfasta.F3.gz|export.txt.gz)")
 
+###################################################################
+# Pipeline Utility functions
+###################################################################
+
 
 def connect():
     '''connect to database.
@@ -209,6 +275,32 @@ def connect():
     cc.close()
 
     return dbh
+
+
+def findSuffixedFile(prefix, suffixes):
+    for check_suffix in suffixes:
+        check_infile = prefix + check_suffix
+        if os.path.exists(check_infile):
+            return (check_infile, check_suffix)
+
+###################################################################
+# count number of reads
+###################################################################
+
+
+@follows(mkdir("nreads.dir"))
+@transform(SEQUENCEFILES,
+           SEQUENCEFILES_REGEX,
+           r"nreads.dir/\2.nreads")
+def countReads(infile, outfile):
+    '''Count number of reads in input files.'''
+    m = PipelineMapping.Counter()
+    statement = m.build((infile,), outfile)
+    P.run()
+
+###################################################################
+# build geneset
+###################################################################
 
 
 @follows(mkdir("geneset.dir"))
@@ -428,6 +520,47 @@ def buildJunctions(infile, outfile):
     P.run()
 
 
+@transform(buildCodingGeneSet,
+           suffix(".gtf.gz"),
+           ".fasta")
+def buildTranscriptFasta(infile, outfile):
+    """build geneset where all exons within a gene
+    are merged.
+    """
+    dbname = outfile[:-len(".fasta")]
+
+    statement = '''zcat %(infile)s
+    | python %(scriptsdir)s/gff2fasta.py
+    --is-gtf
+    --genome=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
+    | python %(scriptsdir)s/index_fasta.py
+    %(dbname)s --force-output -
+    > %(dbname)s.log
+    '''
+    P.run()
+
+
+@transform(buildCodingGeneSet,
+           suffix(".gtf.gz"),
+           ".tsv")
+def buildTranscriptGeneMap(infile, outfile):
+    """build a map of transcript ids to gene ids."""
+
+    statement = """
+    zcat %(infile)s
+    |python %(scriptsdir)s/gtf2tsv.py
+    --attributes-as-columns
+    --output-only-attributes
+    | python %(scriptsdir)s/csv_cut.py transcript_id gene_id
+    > %(outfile)s"""
+    P.run()
+
+###################################################################
+# subset fastqs
+###################################################################
+
+
 @follows(mkdir("fastq.dir"))
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
@@ -440,6 +573,101 @@ def subsetSequenceData(infile, outfile):
     statement = m.build((infile,), outfile)
     P.run()
     P.touch(outfile)
+
+
+@follows(mkdir("fastq.dir"))
+@merge(countReads,
+       "fastq.dir/highest_depth_sample.sentinel")
+def identifyHighestDepth(infiles, outfile):
+    ''' identify the sample with the highest depth'''
+
+    highest_depth = 0
+    for count_inf in infiles:
+        for line in IOTools.openFile(count_inf, "r"):
+            if not line.startswith("nreads"):
+                continue
+            nreads = int(line[:-1].split("\t")[1])
+            if nreads > highest_depth:
+                highest_depth = nreads
+                highest_depth_sample = os.path.basename(
+                    P.snip(count_inf, ".nreads"))
+
+    assert highest_depth_sample, ("unable to identify the sample "
+                                  "with the highest depth")
+
+    infile, inf_suffix = findSuffixedFile(highest_depth_sample,
+                                          [x[1:] for x in SEQUENCESUFFIXES])
+    infile = os.path.abspath(infile)
+
+    assert infile, ("unable to find the raw data for the "
+                    "sample with the highest depth")
+
+    dst = os.path.abspath(P.snip(outfile, ".sentinel") + inf_suffix)
+
+    def forcesymlink(src, dst):
+        try:
+            os.symlink(src, dst)
+        except:
+            os.remove(dst)
+            os.symlink(src, dst)
+
+    forcesymlink(infile, dst)
+
+    # if paired end fastq, need to link the paired end too!
+    if inf_suffix == ".fastq.1.gz":
+        dst2 = P.snip(outfile, ".sentinel") + ".fastq.2.gz"
+        forcesymlink(infile.replace(".fastq.1.gz", ".fastq.2.gz"), dst2)
+
+    forcesymlink("%s.nreads" % highest_depth_sample,
+                 "nreads.dir/highest_depth_sample.nreads")
+
+    P.touch(outfile)
+
+
+@split(identifyHighestDepth,
+       "fastq.dir/highest_counts_subset_*")
+def subsetRange(infile, outfiles):
+    '''subset highest depth sample to 10%-100% depth '''
+
+    outfile = "fastq.dir/highest_counts_subset.sentinel"
+    infile_prefix = P.snip(os.path.basename(infile), ".sentinel")
+    nreads_inf = "nreads.dir/%s.nreads" % infile_prefix
+
+    for line in IOTools.openFile(nreads_inf, "r"):
+        if not line.startswith("nreads"):
+            continue
+        nreads = int(line[:-1].split("\t")[1])
+
+    infile, inf_suffix = findSuffixedFile(P.snip(infile, ".sentinel"),
+                                          [x[1:] for x in SEQUENCESUFFIXES])
+
+    # PipelineMapping.Counter double counts for paired end
+    # Note: this wont handle sra. Need to add a call to Sra.peak to check for
+    # paired end files in SRA
+    if inf_suffix == ".fastq.1.gz":
+        nreads = nreads/2
+
+    subset_depths = range(10, 110, 10)
+    limits = [int(nreads / (100.0 / int(depth)))
+              for depth in subset_depths]
+
+    ignore_pipe_erors = True
+    ignore_errors = True
+    m = PipelineMapping.SubsetHeads(limits=limits)
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+    P.touch(outfile)
+
+
+@follows(subsetSequenceData)
+def subset():
+    pass
+
+###################################################################
+# map reads
+###################################################################
 
 
 @follows(mkdir("hisat.dir"))
@@ -523,15 +751,9 @@ def mapReadsWithHisat(infiles, outfile):
     P.run()
 
 
-@follows(mkdir("nreads.dir"))
-@transform(SEQUENCEFILES,
-           SEQUENCEFILES_REGEX,
-           r"nreads.dir/\2.nreads")
-def countReads(infile, outfile):
-    '''Count number of reads in input files.'''
-    m = PipelineMapping.Counter()
-    statement = m.build((infile,), outfile)
-    P.run()
+###################################################################
+# build mapping stats
+###################################################################
 
 
 @transform(mapReadsWithHisat,
@@ -620,25 +842,82 @@ def loadContextStats(infiles, outfile):
     PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
 
-@transform(buildCodingGeneSet,
-           suffix(".gtf.gz"),
-           ".fasta")
-def buildTranscriptFasta(infile, outfile):
-    """build geneset where all exons within a gene
-    are merged.
-    """
-    dbname = outfile[:-len(".fasta")]
+@originate("geneset.dir/altcontext.bed.gz")
+def buildBedContext(outfile):
+    ''' Generate a bed file that can be passed into buildAltContextStats '''
 
-    statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/gff2fasta.py
-    --is-gtf
-    --genome=%(genome_dir)s/%(genome)s
-    --log=%(outfile)s.log
-    | python %(scriptsdir)s/index_fasta.py
-    %(dbname)s --force-output -
-    > %(dbname)s.log
-    '''
+    dbh = connect()
+
+    tmp_bed_sorted_filename = P.getTempFilename(shared=True)
+
+    tmp_bed_sorted = IOTools.openFile(tmp_bed_sorted_filename, "w")
+
+    sql_statements = [
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "lincRNA"
+        FROM gene_info GI
+        JOIN geneset_lincrna_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "lincRNA"''',
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "snoRNA"
+        FROM gene_info GI
+        JOIN geneset_noncoding_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "snoRNA"''',
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "miRNA"
+        FROM gene_info GI
+        JOIN geneset_noncoding_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "miRNA"''',
+        '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "protein_coding"
+        FROM gene_info GI
+        JOIN geneset_coding_exons_gtf GTF
+        ON GI.gene_id=GTF.gene_id
+        WHERE GI.gene_biotype == "protein_coding"''']
+
+    for sql_statement in sql_statements:
+        state = dbh.execute(sql_statement)
+
+        for line in state:
+            tmp_bed_sorted.write(("%s\n") % "\t".join(map(str, line)))
+
+    tmp_bed_sorted.close()
+
+    statement = '''sortBed  -i %(tmp_bed_sorted_filename)s | gzip > %(outfile)s'''
+
     P.run()
+
+    os.unlink(tmp_bed_sorted_filename)
+
+
+@P.add_doc(PipelineWindows.summarizeTagsWithinContext)
+@follows(buildBedContext)
+@transform(mapReadsWithHisat,
+           suffix(".bam"),
+           add_inputs(buildBedContext),
+           ".altcontextstats.tsv.gz")
+def buildAltContextStats(infiles, outfile):
+    ''' build mapping context stats of snoRNA, miRNA, lincRNA, protein coding '''
+
+    infile, bed = infiles
+
+    PipelineWindows.summarizeTagsWithinContext(
+        infile, bed,  outfile)
+
+
+@P.add_doc(PipelineWindows.loadSummarizedContextStats)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@follows(loadContextStats)
+@merge(buildAltContextStats, "altcontext_stats.load")
+def loadAltContextStats(infiles, outfile):
+    ''' load context mapping statistics into context_stats table '''
+    PipelineWindows.loadSummarizedContextStats(infiles,
+                                               outfile,
+                                               suffix=".altcontextstats.tsv.gz")
+
+
+###################################################################
+# alignment-free quantification
+###################################################################
 
 
 @follows(mkdir("sailfish.dir"))
@@ -651,22 +930,6 @@ def indexForSailfish(infile, outfile):
     statement = '''
     sailfish index --transcripts=%(infile)s
     --out=%(outfile)s '''
-    P.run()
-
-
-@transform(buildCodingGeneSet,
-           suffix(".gtf.gz"),
-           ".tsv")
-def buildTranscriptGeneMap(infile, outfile):
-    """build a map of transcript ids to gene ids."""
-
-    statement = """
-    zcat %(infile)s
-    |python %(scriptsdir)s/gtf2tsv.py
-    --attributes-as-columns
-    --output-only-attributes
-    | python %(scriptsdir)s/csv_cut.py transcript_id gene_id
-    > %(outfile)s"""
     P.run()
 
 
@@ -700,6 +963,7 @@ def runSailfish(infiles, outfile):
        ["sailfish.dir/sailfish_transcripts.tsv.gz",
         "sailfish.dir/sailfish_genes.tsv.gz"])
 def mergeSailfishResults(infiles, outfiles):
+    ''' concatenate sailfish expression estimates from each sample'''
 
     s_infiles = " " .join(sorted(infiles))
     outfile_transcripts, outfile_genes = outfiles
@@ -728,10 +992,12 @@ def mergeSailfishResults(infiles, outfiles):
     | awk -v OFS="\\t"
     '/^Name/
     { sample_id+=1;
-      if (sample_id == 1)
-      {gsub(/Name/, "gene_id"); printf("sample_id\\t%%s\\n", $0); next;}}
+      if (sample_id == 1) {
+         gsub(/Name/, "gene_id");
+         printf("sample_id\\t%%s\\n", $0)};
+      next;}
     !/^#/
-      {printf("%%i\\t%%s\\n", sample_id, $0)}'
+        {printf("%%i\\t%%s\\n", sample_id, $0)}'
     | gzip
     > %(outfile_genes)s
     """
@@ -747,6 +1013,235 @@ def loadSailfishResults(infile, outfile):
            "--add-index=gene_id "
            "--add-index=transcript_id "
            "--map=sample_id:int")
+
+###################################################################
+# strand bias
+###################################################################
+
+
+@transform(buildReferenceGeneSet,
+           suffix("reference.gtf.gz"),
+           "refflat.txt")
+def buildRefFlat(infile, outfile):
+    '''build flat geneset for Picard RnaSeqMetrics.'''
+
+    tmpflat = P.getTempFilename(".")
+
+    statement = '''
+    gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s %(tmpflat)s;
+    paste <(cut -f 12 %(tmpflat)s) <(cut -f 1-10 %(tmpflat)s)
+    > %(outfile)s
+    '''
+    P.run()
+    os.unlink(tmpflat)
+
+
+@P.add_doc(PipelineMappingQC.buildPicardRnaSeqMetrics)
+@transform(mapReadsWithHisat,
+           suffix(".bam"),
+           add_inputs(buildRefFlat),
+           ".picard_rna_metrics")
+def buildPicardRnaSeqMetrics(infiles, outfile):
+    '''Get duplicate stats from picard RNASeqMetrics '''
+    # convert strandness to tophat-style library type
+    if PARAMS["hisat_library_type"] == ("RF" or "R"):
+        strand = "SECOND_READ_TRANSCRIPTION_STRAND"
+    elif PARAMS["hisat_library_type"] == ("FR" or "F"):
+        strand = "FIRST_READ_TRANSCRIPTION_STRAND"
+    else:
+        strand = "NONE"
+
+    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, strand, outfile)
+
+
+@P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load",
+                                  "picard_rna_histogram.load"])
+def loadPicardRnaSeqMetrics(infiles, outfiles):
+    '''merge alignment stats into single tables.'''
+    PipelineMappingQC.loadPicardRnaSeqMetrics(infiles, outfiles)
+
+
+###################################################################
+# saturation analysis
+###################################################################
+
+@transform(subsetRange,
+           regex("fastq.dir/highest_counts_subset_(\d+).fastq.1.gz"),
+           add_inputs(indexForSailfish,
+                      buildCodingGeneSet,
+                      buildTranscriptGeneMap),
+           r"sailfish.dir/highest_counts_subset_\1/quant.sf")
+def runSailfishSaturation(infiles, outfile):
+    '''quantify abundance of transcripts with increasing subsets of the data'''
+
+    job_threads = PARAMS["sailfish_threads"]
+    job_memory = PARAMS["sailfish_memory"]
+
+    infile, index, geneset, transcript_map = infiles
+
+    sailfish_bootstrap = 20
+    sailfish_libtype = PARAMS["sailfish_libtype"]
+    sailfish_options = PARAMS["sailfish_options"]
+    sailfish_options += "--geneMap %s" % transcript_map
+
+    m = PipelineMapping.Sailfish()
+
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+
+@mkdir("sailfish.dir/plots.dir")
+@merge(runSailfishSaturation,
+       "sailfish.dir/plots.dir/saturation_plots.sentinel")
+def plotSailfishSaturation(infiles, outfile):
+    ''' Plot the relationship between sample sequencing depth and
+    quantification accuracy'''
+
+    plotfile_base = P.snip(outfile, ".sentinel")
+    bootstrap_sat_plotfile = plotfile_base + "_boostrap_cv.png"
+    accuracy_sat_plotfile = plotfile_base + "_accuracy.png"
+
+    quant_dir = os.path.dirname(os.path.dirname(infiles[0]))
+
+    # This is currently hardcoded to expect 10 infiles named:
+    # (quant.dir)/highest_counts_subset_(n)/quant.sf,
+    # where (n) is the subset index (0-9)
+
+    R('''
+    library(reshape2)
+    library(ggplot2)
+    library(Hmisc)
+
+    Path = "%(quant_dir)s"
+
+    # following code to read Sailfish binary files borrows from Rob
+    # Patro's Wasabi R package for making sailfish/salmon output
+    # compatable with sleuth
+    minfo <- rjson::fromJSON(file=file.path(
+      Path, 'highest_counts_subset_9', "aux", "meta_info.json"))
+
+    numBoot <- minfo$num_bootstraps
+
+    point_df = read.table(file.path(Path, 'highest_counts_subset_9', "quant.sf"),
+                          sep="\t", header=T, row.names=1)
+
+    final_cols = NULL
+
+    for (ix in seq(0,9,1)){
+      bootCon <- gzcon(file(file.path(
+        Path, paste0('highest_counts_subset_', ix), 'aux',
+                     'bootstrap', 'bootstraps.gz'), "rb"))
+
+      # read in binary data
+      boots <- readBin(bootCon, "double",
+                       n = minfo$num_targets * minfo$num_bootstraps)
+      close(bootCon)
+
+      # turn data into dataframe
+      boots_df = t(data.frame(matrix(unlist(boots),
+                              nrow=minfo$num_bootstraps, byrow=T)))
+
+      # add rownames
+      rownames(boots_df) = rownames(point_df)
+
+      final_cols[[paste0("sample_", ix)]] = apply(boots_df, 1,
+                                                  function(x) sd(x)/mean(x))
+    }
+
+    # make final dataframe with boostrap CVs
+    final_df = data.frame(do.call("cbind", final_cols))
+
+    # add expression values, subset to transcripts with >1 read and bin exp
+    final_df$max_exp = point_df$NumReads
+    final_df = final_df[final_df$max_exp>1,]
+    final_df$max_exp = as.numeric(cut2(final_df$max_exp, g=10))
+
+    # melt and aggregate
+    melted_df = melt(final_df, id="max_exp")
+    melted_df = melted_df[is.finite(melted_df$value),]
+    aggdata <-aggregate(melted_df$value,
+                        by=list(melted_df$max_exp, melted_df$variable),
+                        FUN=mean)
+    aggdata$Group.1 = as.factor(aggdata$Group.1)
+
+    m_txt = element_text(size=20)
+    my_theme = theme(
+    axis.text=m_txt,
+    axis.title=m_txt,
+    legend.text=m_txt,
+    legend.title=m_txt,
+    aspect.ratio=1)
+
+    p = ggplot(aggdata, aes(10*as.numeric(Group.2), x,
+                            colour=Group.1, group=Group.1)) +
+    geom_line() +
+    theme_bw() +
+    xlab("Sampling depth (%%)") +
+    ylab("Average Coefficient of variance") +
+    scale_colour_manual(name="Exp. Decile",
+                        values=colorRampPalette(c("yellow","purple"))(10)) +
+    scale_x_continuous(breaks=seq(10,100,10), limits=c(10,100)) +
+    my_theme
+
+    ggsave("%(bootstrap_sat_plotfile)s")
+
+    # read in the point estimate data
+
+    tpm_est = NULL
+
+    ref_point_df = read.table(
+      file.path(Path, 'highest_counts_subset_9', "quant.sf"),
+      sep="\t", header=T, row.names=1)
+
+    for (ix in seq(0,9,1)){
+
+    point_df = read.table(
+      file.path(Path, paste0('highest_counts_subset_', ix), "quant.sf"),
+      sep="\t", header=T, row.names=1)
+
+    tpm_est[[paste0("sample_", ix)]] = (
+      abs(point_df$TPM - ref_point_df$TPM) / ref_point_df$TPM)
+    }
+
+    tpm_est_df = data.frame(do.call("cbind", tpm_est))
+
+    # add expression values, subset to transcripts with >1 read and bin exp.
+    tpm_est_df$max_exp = point_df$NumReads
+    tpm_est_df = tpm_est_df[point_df$NumReads>1,]
+    tpm_est_df$max_exp = as.numeric(cut2(tpm_est_df$max_exp, g=10))
+
+    # melt and aggregate
+    melted_df = melt(tpm_est_df, id="max_exp")
+    melted_df = melted_df[is.finite(melted_df$value),]
+    aggdata <-aggregate(melted_df$value,
+                        by=list(melted_df$max_exp, melted_df$variable),
+                        FUN=mean)
+    aggdata$Group.1 = as.factor(aggdata$Group.1)
+
+    p = ggplot(aggdata, aes(10*as.numeric(Group.2), x,
+                            colour=Group.1, group=Group.1)) +
+    geom_line() +
+    theme_bw() +
+    xlab("Sampling depth (%%)") +
+    ylab("Abs. difference in exp. estimate (normalised)") +
+    scale_colour_manual(name="Exp. Decile",
+                        values=colorRampPalette(c("yellow","purple"))(10)) +
+    scale_x_continuous(breaks=seq(10,90,10), limits=c(10,90)) +
+    my_theme
+
+    ggsave("%(accuracy_sat_plotfile)s")
+
+    ''' % locals())
+
+    P.touch(outfile)
+
+
+###################################################################
+# gene coverage profiles
+###################################################################
 
 
 @follows(mkdir("transcriptprofiles.dir"))
@@ -855,11 +1350,16 @@ def buildFactorTable(infiles, outfile):
         raise ValueError("factors not defined in config file")
     factor_names = factor_names.split("-")
 
+    sampleID2sampleName = {}
+
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("sample_id\tfactor\tfactor_value\n")
 
         for sample_id, filename in enumerate(sorted(infiles)):
+
             sample_name, suffix = os.path.basename(filename).split(".", 1)
+            sampleID2sampleName[sample_name] = sample_id + 1
+
             parts = sample_name.split("-")
 
             if len(parts) != len(factor_names):
@@ -875,6 +1375,30 @@ def buildFactorTable(infiles, outfile):
                                       factor, factor_value)) + "\n")
             outf.write("\t".join((str(sample_id + 1), "genome",
                                   PARAMS["genome"])) + "\n")
+
+        if os.path.exists("additional_factors.tsv"):
+            with IOTools.openFile("additional_factors.tsv", "r") as inf:
+                header = inf.next()
+                header = header.strip().split("\t")
+                additional_factors = header[1:]
+                for line in inf:
+                    line = line.strip().split("\t")
+                    sample_name = line[0]
+                    factors_values = line[1:]
+                    for factor_ix in range(0, len(additional_factors)):
+                        try:
+                            outf.write("\t".join((
+                                str(sampleID2sampleName[sample_name]),
+                                additional_factors[factor_ix],
+                                factors_values[factor_ix])) + "\n")
+                        except KeyError as ke:
+                            sample_names = [os.path.basename(x).split(".")[0]
+                                            for x in infiles]
+                            raise KeyError(
+                                "Sample name in additional_factors table does "
+                                " not match up with sample names from raw "
+                                "infiles: %s not in %s" % (
+                                    ke, ",".join(sample_names)))
 
 
 @transform((buildExperimentTable, buildSamplesTable, buildFactorTable),
@@ -943,13 +1467,10 @@ def summariseBias(infiles, outfile):
     def norm(array):
         array_min = array.min()
         array_max = array.max()
-        return [(x - array_min)/(array_max-array_min) for x in array]
+        return pd.Series([(x - array_min)/(array_max-array_min) for x in array])
 
     def bin2floats(qcut_bin):
         qcut_bin2 = qcut_bin.replace("(", "[").replace(")", "]")
-        # print "qcut_bin: ", qcut_bin, qcut_bin2
-        # print type(qcut_bin)
-        # print type(qcut_bin2)
         try:
             qcut_list = eval(qcut_bin2, {'__builtins__': None}, {})
             return qcut_list
@@ -963,18 +1484,18 @@ def summariseBias(infiles, outfile):
 
         temp_dict[attribute] = function
         means_df = df[["LogTPM", "sample_id"]].groupby(
-            [pd.qcut(df.ix[:, attribute], bins), "sample_id"])
+            ["sample_id", pd.qcut(df.ix[:, attribute], bins)])
 
         means_df = pd.DataFrame(means_df.agg(function))
         means_df.reset_index(inplace=True)
 
         atr_values = means_df[attribute]
-
         means_df.drop(attribute, axis=1, inplace=True)
-        means_df["LogTPM_norm"] = norm(means_df["LogTPM"])
+
+        means_df["LogTPM_norm"] = list(
+            means_df.groupby("sample_id")["LogTPM"].apply(norm))
 
         means_df[attribute] = [np.mean(bin2floats(x)) for x in atr_values]
-
         means_df = pd.melt(means_df, id_vars=[attribute, "sample_id"])
         means_df.columns = ["bin", "sample_id", "variable", "value"]
         means_df["bias_factor"] = [attribute, ] * len(means_df)
@@ -987,7 +1508,6 @@ def summariseBias(infiles, outfile):
     factors = atr.columns.tolist()
 
     for factor in factors:
-
         tmp_df = aggregate_by_factor(
             merged, factor, samples, PARAMS["bias_bin"], np.mean)
 
@@ -1004,12 +1524,206 @@ def loadBias(infile, outfile):
     P.load(infile, outfile, options="--add-index=sample_id")
 
 
+###################################################################
+# top genes
+###################################################################
+
+
+@mkdir("sailfish.dir/plots.dir")
+@follows(loadSailfishResults, loadMetaInformation)
+@originate("sailfish.dir/plots.dir/top_expressed.sentinel")
+def plotTopGenesHeatmap(outfile):
+    '''extract the top 1000 genes (by expression) for each sample and
+    plot a heatmap of the intersection'''
+
+    # if someone can find a nice heatmap plotter from a dissimilarity
+    # matrix which is compatable with CGATReport, the sqlite and
+    # pandas code should be changed into a tracker
+
+    exp_select_cmd = '''
+    SELECT TPM, gene_id, sample_name
+    FROM sailfish_genes AS A
+    JOIN samples AS B
+    ON A.sample_id = B.id
+    '''
+
+    dbh = connect()
+
+    exp_df = pd.read_sql(exp_select_cmd, dbh)
+
+    factors_select_cmd = '''
+    SELECT factor, factor_value, sample_name
+    FROM samples AS A
+    JOIN factors AS B
+    ON A.id = B.sample_id
+    '''
+
+    top_n = 1000
+
+    factors_df = pd.read_sql(factors_select_cmd, dbh)
+
+    exp_df['TPM'] = exp_df['TPM'].astype(float)
+    exp_df_pivot = pd.pivot_table(exp_df, values=["TPM"],
+                                  index="gene_id",
+                                  columns="sample_name")
+
+    # extract the top genes per sample
+    top_genes = {}
+    for col in exp_df_pivot.columns:
+        top_genes[col] = exp_df_pivot[col].sort_values(
+            ascending=False)[0:top_n].index
+
+    # set up the empty df
+    intersection_df = pd.DataFrame(
+        index=xrange(0, len(exp_df_pivot.columns)**2-len(exp_df_pivot.columns)),
+        columns=["sample1", "sample2", "intersection", "fraction"])
+
+    # populate the df
+    n = 0
+    for col1, col2 in itertools.combinations_with_replacement(exp_df_pivot.columns, 2):
+        s1_genes = top_genes[col1]
+        s2_genes = top_genes[col2]
+        intersection = set(s1_genes).intersection(set(s2_genes))
+        fraction = len(intersection) / float(top_n)
+        intersection_df.ix[n] = [col1[1], col2[1], len(intersection), fraction]
+        n += 1
+
+        # if the samples are different, calculate the reverse intersection too
+        if col1 != col2:
+            intersection_df.ix[n] = [col2[1], col1[1],
+                                     len(intersection), fraction]
+            n += 1
+
+    # pivot to format for heatmap.3 plotting
+    intersection_df['fraction'] = intersection_df['fraction'].astype('float')
+    intersection_pivot = pd.pivot_table(
+        intersection_df, index="sample1", columns="sample2", values="fraction")
+
+    for factor in set(factors_df['factor'].tolist()):
+        print factor
+        print factors_df
+        # don't want to plot coloured by genome
+        if factor == "genome":
+            continue
+
+        plotfile = "%s_%s.png" % (P.snip(outfile, ".sentinel"), factor)
+
+        plotHeatmap = R('''
+        function(int_df, fact_df){
+
+        library(GMD)
+        library(RColorBrewer)
+
+        # subset fact_df to required factor and
+        # refactor to remove unwanted levels
+        fact_df = fact_df[fact_df$factor=="%(factor)s",]
+        rownames(fact_df) = fact_df$sample_name
+        fact_df$factor_value = factor(fact_df$factor_value)
+
+        # set up heatmap side colours
+        colours = colorRampPalette(
+          brewer.pal(length(levels(fact_df$factor_value)),"Dark2"))(
+            length(levels(fact_df$factor_value)))
+        side_colours = colours[as.numeric((fact_df$factor_value))]
+        print(side_colours)
+        # plot
+        png("%(plotfile)s", width=1000, heigh=1000)
+        heatmap.3(as.dist(1- as.matrix(int_df)),
+                  Rowv=FALSE, Colv=FALSE,
+                  ColIndividualColors = side_colours,
+                  RowIndividualColors = side_colours,
+                  breaks=100, main="%(factor)s")
+        dev.off()
+        }
+        ''' % locals())
+
+        plotHeatmap(pandas2ri.py2ri(intersection_pivot),
+                    pandas2ri.py2ri(factors_df))
+
+    P.touch(outfile)
+
+
+###################################################################
+# Plot expression distribution
+###################################################################
+
+@mkdir("sailfish.dir/plots.dir")
+@follows(loadMetaInformation,
+         loadSailfishResults)
+@originate("sailfish.dir/plots.dir/expression_distribution.sentinel")
+def plotExpression(outfile):
+    "Plot the per sample expression distibutions coloured by factor levels"
+
+    # Note: this was being done within the pipeline but the size of
+    # the dataframe seemed to be causing errors:
+    # "Data values must be of type string or None."
+    # See RnaseqqcReport.ExpressionDistribution tracker
+
+    dbh = connect()
+
+    statement = """
+    SELECT sample_id, transcript_id, TPM
+    FROM sailfish_transcripts"""
+
+    df = pd.read_sql(statement, dbh)
+
+    df['logTPM'] = df['TPM'].apply(lambda x: np.log2(x + 0.1))
+
+    factors = dbh.execute("SELECT DISTINCT factor FROM factors")
+    factors = [x[0] for x in factors if x[0] != "genome"]
+
+    for factor in factors:
+
+        plotfile = P.snip(outfile, ".sentinel") + "_%s.png" % factor
+
+        factor_statement = '''
+        select *
+        FROM factors
+        JOIN samples
+        ON factors.sample_id = samples.id
+        WHERE factor = "%(factor)s"''' % locals()
+
+        factor_df = pd.read_sql(factor_statement, dbh)
+
+        full_df = pd.merge(df, factor_df, left_on="sample_id",
+                           right_on="sample_id")
+
+        plotDistribution = R('''
+        function(df){
+
+        library(ggplot2)
+        p = ggplot(df, aes(x=logTPM, group=sample_name,
+                           colour=as.factor(factor_value))) +
+        geom_density() +
+        xlab("Log2(TPM)") + ylab("Density") +
+        scale_colour_discrete(name="Factor Level") +
+        theme_bw() +
+        ggtitle("%(factor)s")
+
+        ggsave("%(plotfile)s")
+        }
+        ''' % locals())
+
+        plotDistribution(pandas2ri.py2ri(full_df))
+
+    P.touch(outfile)
+
+###################################################################
+# Main pipeline tasks
+###################################################################
+
+
 @follows(loadContextStats,
          loadBAMStats,
          loadTranscriptProfiles,
          loadSailfishResults,
          loadMetaInformation,
-         loadBias)
+         loadBias,
+         loadPicardRnaSeqMetrics,
+         loadAltContextStats,
+         plotSailfishSaturation,
+         plotTopGenesHeatmap,
+         plotExpression)
 def full():
     pass
 

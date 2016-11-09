@@ -1,8 +1,8 @@
 .. _rnaseqqcpipeline:
 
-===================
-Top Expressed Genes
-===================
+===============================
+Expression of genes of interest
+===============================
 
 Summary
 =======
@@ -12,31 +12,26 @@ The top expressed genes should be similar for samples from the sample group.
 Results
 =======
 
-.. report:: RnaseqqcReport.TopGenes
+.. report:: RnaseqqcReport.GenesOfInterest
    :groupby: track
    :render: r-ggplot
-   :statement: aes(gene_id, sample_name, fill=value) +
+   :statement: aes(gene_id, sample_name, fill=log(TPM)) +
 	       geom_tile() +
-	       scale_fill_gradient2(low="goldenrod1", high="darkorchid4", mid="grey95", name="Z-score") +
-	       xlab("") + ylab("") +
+	       scale_fill_continuous(name="log TPM") +
 	       theme_bw() +
-	       theme(
-	       axis.text.x=element_text(angle=90, vjust=0.5,
-	       hjust=1)) +
-	       facet_grid(factor_value~., scales="free")
+	       xlab("") + ylab("") +
+	       facet_grid(factor_value~., scales='free')
 
 
 Aims
 ----
 
-Compare the expression of the top 20 most highly expressed genes across the samples
+Compare the expression of particular genes of interest
 
 Inputs
 ------
 
-Sailfish expression estimates (including bootstraps) from a single
-sample subsampled to varying degrees (10-100% depth). Transcripts with
-<1 average counts per sample are not included in this analysis.
+Sailfish expression estimates (Transcripts Per Million; TPM)
 
 Outputs
 -------
