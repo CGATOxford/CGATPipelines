@@ -267,7 +267,7 @@ def filterBamfiles(infile, sentinel):
     outfile = P.snip(sentinel, ".sentinel") + ".bam"
 
     # ensure bamfile is sorted,
-    statement = ["samtools sort @IN@ @OUT@", ]
+    statement = ["samtools sort -O BAM -o @OUT@.bam @IN@ ", ]
 
     # remove unmapped reads
     statement.append("python %(scriptsdir)s/bam2bam.py"
@@ -564,7 +564,10 @@ def runIDROnIndividualReplicates(infiles, outfile):
     # set IDR parameters (HACK!) WrapperIDR is in /ifs/devel/CGAT
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_base = "/".join(PARAMS['scriptsdir'].split("/")[:-1])
+    idr_script = os.path.join(idr_base, "CGAT", "WrapperIDR.py")
+
+    # idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
 
     # iterate through pairwise combinations of infiles
     for infile1, infile2 in itertools.combinations(infiles, 2):
@@ -590,7 +593,10 @@ def runIDROnIndividualReplicates(infiles, outfile):
            r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForIndividualReplicates(infiles, outfile):
     # HACK!
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    # idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_base = "/".join(PARAMS['scriptsdir'].split("/")[:-1])
+    idr_script = os.path.join(idr_base, "CGAT", "WrapperIDR.py")
+
     statement = IDR.getIDRPlotStatement(infiles, outfile, idr_script)
     P.run()
 #    print statement
@@ -609,7 +615,9 @@ def runIDROnPseudoreplicates(infiles, outfile):
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_base = "/".join(PARAMS['scriptsdir'].split("/")[:-1])
+    idr_script = os.path.join(idr_base, "CGAT", "WrapperIDR.py")
+    # idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -632,7 +640,10 @@ def runIDROnPseudoreplicates(infiles, outfile):
          add_inputs(r"\1*-uri.sav"),
          r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForPseudoreplicates(infiles, outfile):
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    # idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_base = "/".join(PARAMS['scriptsdir'].split("/")[:-1])
+    idr_script = os.path.join(idr_base, "CGAT", "WrapperIDR.py")
+
     statement = IDR.getIDRPlotStatement(infiles[0], outfile, idr_script)
     P.run()
 
@@ -650,7 +661,9 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
                              PARAMS_ANNOTATIONS["interface_contigs"])
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_base = "/".join(PARAMS['scriptsdir'].split("/")[:-1])
+    idr_script = os.path.join(idr_base, "CGAT", "WrapperIDR.py")
+    # idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -673,7 +686,10 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
          add_inputs(r"\1*-uri.sav"),
          r"\1_batch-consistency.pdf")
 def plotBatchConsistencyForPooledPseudoreplicates(infiles, outfile):
-    idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
+    idr_base = "/".join(PARAMS['scriptsdir'].split("/")[:-1])
+    idr_script = os.path.join(idr_base, "CGAT", "WrapperIDR.py")
+
+    # idr_script = os.path.join(os.path.dirname(P.__file__), "WrapperIDR.py")
     statement = IDR.getIDRPlotStatement(infiles[0], outfile, idr_script)
     P.run()
 #    print "\n" + statement + "\n"
@@ -901,7 +917,7 @@ def generatePeakSets(infile, outfiles):
                  " max(n_peaks) AS nPeaks"
                  " FROM individual_replicates_nPeaks"
                  " GROUP BY experiment")
-    df = Database.fetch_DataFrame(statement)
+    df = Database.fetch_DataFrame(statement, dbhandle=PARAMS['database_name'])
     # reassign experiment as index
     df = df.set_index("Experiment")
 
@@ -911,7 +927,7 @@ def generatePeakSets(infile, outfiles):
                  " Experiment,"
                  " n_peaks AS nPeaks"
                  " FROM pooled_pseudoreplicates_nPeaks")
-    df2 = Database.fetch_DataFrame(statement)
+    df2 = Database.fetch_DataFrame(statement, dbhandle=PARAMS['database_name'])
 
     # reassign experiment as index
     df2 = df2.set_index("Experiment")

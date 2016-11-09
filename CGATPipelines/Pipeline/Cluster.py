@@ -35,7 +35,7 @@ Reference
 import re
 import os
 import stat
-
+import CGAT.Experiment as E
 try:
     import drmaa
     HAS_DRMAA = True
