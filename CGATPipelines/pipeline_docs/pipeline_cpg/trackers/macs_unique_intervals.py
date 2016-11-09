@@ -24,7 +24,7 @@ class UniqueIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(stop-start),0) as length FROM %(track)s_unique_intervals" % locals())
-        return odict(zip(("Unique intervals", "mean_interval_length"), data))
+        return odict(list(zip(("Unique intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 
@@ -193,11 +193,11 @@ class UniqueIntervalCoverage(cpgTracker):
                 select_statement += sep + f.replace("-", "_")
                 out_fields.append(f)
                 sep = ","
-        print out_fields
+        print(out_fields)
         statement = '''SELECT %(select_statement)s FROM %(track)s_unique_coverage''' % locals(
         )
         data = self.get(statement)
-        result = odict(zip((out_fields), zip(*data)))
+        result = odict(list(zip((out_fields), list(zip(*data)))))
         return result
 
 ##########################################################################
@@ -215,7 +215,7 @@ class UniqueIntervalLengthVsAverageValue(cpgTracker):
         data = self.get( '''SELECT length, avgval FROM %(track)s_unique_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "avgval"), zip(*data)))
+        return odict(list(zip(("length", "avgval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -230,7 +230,7 @@ class UniqueIntervalLengthVsPeakValue(cpgTracker):
         data = self.get( '''SELECT length, peakval FROM %(track)s_unique_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "peakval"), zip(*data)))
+        return odict(list(zip(("length", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -245,7 +245,7 @@ class UniqueIntervalLengthVsFoldChange(cpgTracker):
         data = self.get( '''SELECT length, fold FROM %(track)s_unique_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "foldchange"), zip(*data)))
+        return odict(list(zip(("length", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -260,7 +260,7 @@ class UniqueIntervalAvgValVsPeakVal(cpgTracker):
         data = self.get( '''SELECT avgval, peakval FROM %(track)s_unique_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("avgval", "peakval"), zip(*data)))
+        return odict(list(zip(("avgval", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -275,7 +275,7 @@ class UniqueIntervalAvgValVsFoldChange(cpgTracker):
         data = self.get( '''SELECT avgval, fold FROM %(track)s_unique_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("avgval", "foldchange"), zip(*data)))
+        return odict(list(zip(("avgval", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -290,4 +290,4 @@ class UniqueIntervalPeakValVsFoldChange(cpgTracker):
         data = self.get( '''SELECT peakval, fold FROM %(track)s_unique_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("peakval", "foldchange"), zip(*data)))
+        return odict(list(zip(("peakval", "foldchange"), list(zip(*data)))))

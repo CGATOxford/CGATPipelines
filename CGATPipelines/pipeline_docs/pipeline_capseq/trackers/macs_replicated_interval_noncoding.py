@@ -160,7 +160,7 @@ class noncodingTSSOverlap(cpgReport.cpgTracker):
 
         hist, bins = numpy.histogram(
             data, bins=numpy.arange(0, max(data) + 1, 1))
-        return odict(zip(map(str, bins[:-1]), hist))
+        return odict(list(zip(list(map(str, bins[:-1])), hist)))
 
 ##########################################################################
 

@@ -28,46 +28,29 @@ Code
 
 """
 import sys
-import tempfile
-import optparse
 import shutil
-import itertools
 import csv
-import math
-import random
 import re
 import glob
 import os
-import shutil
-import collections
-import ConfigParser
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
 
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 from ruffus import *
-import csv
 import sqlite3
-import CGAT.IndexedFasta as IndexedFasta
-import CGAT.IndexedGenome as IndexedGenome
-import CGAT.FastaIterator as FastaIterator
-import CGAT.Genomics as Genomics
 import CGAT.IOTools as IOTools
-import CGAT.MAST as MAST
-import CGAT.GTF as GTF
-import CGAT.Bed as Bed
-import CGAT.Stats as Stats
-import cStringIO
-import pysam
-import numpy
 import gzip
 import CGAT.Expression as Expression
-import fileinput
 
 import rpy2
 from rpy2.robjects import r as R
 
 if os.path.exists("conf.py"):
-    execfile("conf.py")
+    exec(compile(open("conf.py").read(), "conf.py", 'exec'))
 
 TARGET_ANNOTATION = 'ensembl_regions.gff'
 TARGET_GENESET = 'ensembl.gtf'
@@ -119,7 +102,7 @@ def importFromSeries(infiles, outfile):
         line = re.sub('"', "", line)
         if line.startswith("ID_REF"):
             line = "\t".join([map_header[x]
-                             for x in line[:-1].split("\t")]) + "\n"
+                              for x in line[:-1].split("\t")]) + "\n"
 
         tmpf.write(line)
 
@@ -128,7 +111,7 @@ def importFromSeries(infiles, outfile):
 
     header = map_header["ID_REF"]
     statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
+   cgat csv2db %(csv2db_options)s \
               --add-index=%(header)s \
               --table=%(tablename)s \
     < %(tmpname)s > %(outfile)s
@@ -146,7 +129,7 @@ def importCEL(infile, outfiles):
 
     indir = PARAMS["datadir"]
 
-    for old, new in map_cel.iteritems():
+    for old, new in map_cel.items():
         oldname = os.path.join(indir, old + ".CEL")
         newname = os.path.join(".", new + ".CEL")
 
@@ -175,7 +158,7 @@ def estimateExpression(infiles, outfile):
     R.boxplot(raw_data)
     R.boxplot(eset)
 
-    print R.as_list(R.assayData(eset))
+    print(R.as_list(R.assayData(eset)))
 
 
 def getTreatmentsAndControls(infile):
@@ -205,7 +188,7 @@ def getTreatmentsAndControls(infile):
 
     cc.execute(statement)
 
-    r = zip(*cc.fetchall())
+    r = list(zip(*cc.fetchall()))
 
     probesets = r[0]
     treatments = r[1:len(treatments) + 1]
@@ -261,7 +244,7 @@ def importExpressionLevels(infiles, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
+   cgat csv2db %(csv2db_options)s \
               --add-index=probeset \
               --table=%(tablename)s \
     < %(infile_table)s > %(outfile)s
@@ -329,7 +312,7 @@ def importPresence(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
+   cgat csv2db %(csv2db_options)s \
               --add-index=probeset \
               --table=%(tablename)s \
     < %(infile)s > %(outfile)s

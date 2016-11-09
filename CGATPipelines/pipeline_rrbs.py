@@ -234,7 +234,7 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     )
 
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                      for suffix_name in SEQUENCESUFFIXES])
+                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
     r"(\S+)-(\S+)-(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra)")
@@ -287,7 +287,7 @@ def combineReadStartSummaries(infiles, outfile):
     statement = '''echo -e
             "file\\treads\\tsequence\\tsample\\tcondition\\trep"
             > %(outfile)s;
-            python %%(scriptsdir)s/combine_tables.py -v0  -a CAT -t
+            cgat combine_tables -v0  -a CAT -t
             %(infile_list)s|
             sed -e 's/sequence_characteristics.dir\///g'
             -e 's/.fastq.*start.tsv//g'|
@@ -307,7 +307,7 @@ def loadStartSummary(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -383,7 +383,7 @@ def plotReadBias(infile, outfile):
 
     m_bias_infile = P.snip(infile, ".bismark.cov") + ".M-bias.txt"
 
-    print m_bias_infile
+    print(m_bias_infile)
 
     RRBS.plotReadBias(m_bias_infile, outfile,
                       submit=True, job_options=job_options)
@@ -406,7 +406,7 @@ def sortAndIndexBams(infile, outfile):
     sort_out = P.snip(outfile, ".bam")
     statement = '''samtools sort %(infile)s %(sort_out)s;
                    samtools index %(outfile)s;''' % locals()
-    print statement
+    print(statement)
     P.run()
 
 ###################################################################
@@ -438,7 +438,7 @@ def buildBigWig(infile, outfile):
 
     # wigToBigWig observed to use 16G
     job_memory = "16G"
-    statement = '''python %(scriptsdir)s/bam2wiggle.py
+    statement = '''cgat bam2wiggle
     --output-format=bigwig
     %(bigwig_options)s
     %(infile)s
@@ -473,14 +473,14 @@ def loadBigWigStats(infiles, outfile):
         P.toTable(outfile),
         options="--add-index=track")
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --header-names=%(headers)s
     --skip-titles
     --missing-value=0
     --ignore-empty
     %(data)s
     | perl -p -e "s/bin/track/"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s
     '''
@@ -530,7 +530,7 @@ def make1basedCpgIslands(infile, outfile):
         lines = f.readlines()
         for line in lines:
             contig, start, stop = line.split()
-            for position in [x for x in range(int(start), int(stop)+2)]:
+            for position in [x for x in range(int(start), int(stop) + 2)]:
                 out.write("%s\t%s\t%s\n" % (contig, position, "CpGIsland"))
     out.close()
 
@@ -653,7 +653,7 @@ def loadMergeCoverage(infile, outfile):
     job_threads = 2
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -679,7 +679,7 @@ def summariseCoverage(infile, outfile):
                    uniq -c | cut -f1 |awk '{print $1}' | sort -n | uniq -c|
                    awk -F' ' '{OFS="\\t";} {print $1,$2;}'
                    > %(outfile)s''' % locals()
-    print statement
+    print(statement)
     P.run()
 
 
@@ -691,7 +691,7 @@ def concatenateCoverage(infiles, outfile):
 
     statement = '''echo -e "file\\tfreq\\tcov\\tsample\\tcondition\\trep"
                 > %(outfile)s;
-                python %%(scriptsdir)s/combine_tables.py -v0
+                cgat combine_tables -v0
                 --glob="methylation.dir/*.coverage.tsv" -a CAT -t|
                 sed -e 's/methylation.dir\///g'
                 -e 's/_bismark.*.coverage.tsv//g'|
@@ -710,7 +710,7 @@ def loadCoverage(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -724,7 +724,7 @@ def summariseCpGOverlap(infiles, outfile):
     for x in infiles:
         if x.endswith(".cov"):
             infile_list.append(x)
-    print(len(infile_list))
+    print((len(infile_list)))
     infile_list = " ".join(infile_list)
     coverage_range = [1, 2, 5, 10, 20, 30]
     coverage_range = " ".join(map(str, coverage_range))
@@ -736,7 +736,7 @@ def summariseCpGOverlap(infiles, outfile):
                 awk  -F' '  '{OFS="\\t"; print $1}'| sort| uniq -c|
                 awk -v threshold=$x -F' ' '{OFS="\\t";print $1,$2,threshold}'
                 >> %(outfile)s; done''' % locals()
-    print infile_list
+    print(infile_list)
     P.run()
 
 
@@ -749,7 +749,7 @@ def loadCpGOverlap(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -780,7 +780,7 @@ def concatenateRemainingReads(infiles, outfile):
     statement = '''echo -e
                 "file\\tthreshold\\treads\\tpercentage\\tsample\\tcondition\\trep"
                 > %(outfile)s;
-                python %%(scriptsdir)s/combine_tables.py -v0
+                cgat combine_tables -v0
                 --glob="methylation.dir/*.reads_by_threshold.tsv" -a CAT -t|
                 sed -e 's/methylation.dir\///g'
                 -e 's/_bismark.*.reads_by_threshold.tsv//g'|
@@ -799,7 +799,7 @@ def loadRemainingReads(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -824,7 +824,7 @@ def makeGeneProfiles(infiles, outfile):
     # ensures only large RAM nodes used
     job_options = "-l mem_free=24G"
 
-    statement = '''python %%(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
                   --bamfile=%(infile)s --gtffile=%(genes_gtf)s
                   --method=tssprofile --reporter=gene
                   -P %(outname)s
@@ -833,7 +833,7 @@ def makeGeneProfiles(infiles, outfile):
                   checkpoint;
                   for file in %(outname)s*;
                   do mv $file coverage.dir/.; done'''
-    print statement
+    print(statement)
     P.run()
 
 ########################################################################
@@ -938,7 +938,7 @@ def loadCoveredCpGs(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -969,7 +969,7 @@ def calculateMethylationFrequency(infile, outfile):
     df2 = pd.read_sql_query(select_cmd2, dbh)
 
     def my_digitise(array):
-        return np.digitize(array, range(0, 100, 10))
+        return np.digitize(array, list(range(0, 100, 10)))
 
     df_binned = df2[[x for x in df2.columns if "perc" in x]].apply(
         my_digitise, axis=1)
@@ -986,7 +986,7 @@ def calculateMethylationFrequency(infile, outfile):
                                             x.split("_")[2]))
                                   for x in agg['variable']]
 
-    agg['value'] = ["[ %s - %s ]" % (str((x-1)*10), str(x*10))
+    agg['value'] = ["[ %s - %s ]" % (str((x - 1) * 10), str(x * 10))
                     for x in agg['value']]
 
     agg.to_csv(outfile, sep="\t", index=False)
@@ -1056,7 +1056,7 @@ def generateClusterSpikeIns(infile, outfile):
     job_options = "-l mem_free=4G"
 
     statement = '''cat %(infile)s |
-    python %%(scriptsdir)s/data2spike.py --method=spike
+    cgat data2spike --method=spike
     --design-tsv-file=design.tsv --difference-method=relative
     --spike-shuffle-column-suffix=-perc
     --spike-keep-column-suffix=-meth,-unmeth
@@ -1083,7 +1083,7 @@ def splitSpikeClustersDataframe(infile, outfiles):
     split_at = 1000
     for sub in range(0, int(max(df['cluster_id'])), split_at):
         temp_df = df[df['cluster_id'] >= sub]
-        temp_df = temp_df[temp_df['cluster_id'] < sub+split_at]
+        temp_df = temp_df[temp_df['cluster_id'] < sub + split_at]
         temp_df.to_csv("_".join((outprefix, str(sub))),
                        header=True, index=False, sep="\t")
 
@@ -1206,11 +1206,11 @@ def runM3D(infile, outfile, root, design):
 def calculateM3DClustersPvalue(infiles, outfile, pair1, pair2):
     job_options = "-l mem_free=4G -pe dedicated 1"
     infiles = infiles[:-1]
-    print "pair1: %s" % pair1
-    print "pair2: %s" % pair2
+    print("pair1: %s" % pair1)
+    print("pair2: %s" % pair2)
     pair = [pair1, pair2]
 
-    print infiles, outfile, pair
+    print(infiles, outfile, pair)
     RRBS.calculateM3Dpvalue(infiles, outfile, pair,
                             submit=True, job_options=job_options)
 
@@ -1223,7 +1223,7 @@ def loadM3DClusters(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''cat %(infile)s |
-                python %%(scriptsdir)s/csv2db.py
+                cgat csv2db
                 --table %(tablename)s --retry --ignore-empty
                  > %(outfile)s''' % locals()
     P.run()
@@ -1236,7 +1236,7 @@ def summariseM3D(infile, outfile):
     ''' summarise the number of cluster passing threshold'''
     # adjusted p-value threshold
     threshold = 0.05
-    print infile, outfile, threshold
+    print(infile, outfile, threshold)
     RRBS.summariseM3D(infile, outfile, threshold, submit=True)
 
 
@@ -1245,17 +1245,17 @@ def summariseM3D(infile, outfile):
 def combineM3Dsummaries(infiles, outfiles):
     ''' combine M3D summary tables'''
     outfile1, outfile2 = outfiles
-    print outfile1, outfile2
+    print(outfile1, outfile2)
 
     tablename = P.toTable(outfile2)
 
-    statement = ''' python %%(scriptsdir)s/combine_tables.py -v0  -a file
+    statement = ''' cgat combine_tables -v0  -a file
                     --glob=M3D_plots.dir/*between_summary.tsv > %(outfile1)s;
                     cat %(outfile1)s |
-                    python %%(scriptsdir)s/csv2db.py
+                    cgat csv2db
                     --table %(tablename)s --retry --ignore-empty
                     > %(outfile2)s''' % locals()
-    print statement
+    print(statement)
     P.run()
 
 
@@ -1334,7 +1334,7 @@ def publish():
     export_files = {"bigwigfiles": glob.glob("*/*.bigwig")}
 
     if PARAMS['ucsc_exclude']:
-        for filetype, files in export_files.iteritems():
+        for filetype, files in export_files.items():
             new_files = set(files)
             for f in files:
                 for regex in P.asList(PARAMS['ucsc_exclude']):

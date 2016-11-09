@@ -139,7 +139,7 @@ PARAMS = P.PARAMS
 
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 
 def getGenomes():
@@ -212,11 +212,11 @@ elif "maf_dir" in PARAMS:
             genome_query, genome_target = getGenomes()
 
             statement = '''gunzip < %(infile)s 
-             | python %(scriptsdir)s/maf2psl.py
+             | cgat maf2psl
                   --query=%(maf_name_query)s
                   --target=%(maf_name_target)s
                   --log=%(outfile)s.log
-             | python %(scriptsdir)s/psl2psl.py
+             | cgat psl2psl
                   --method=filter-fasta
                   --method=sanitize
                   --queries-tsv-file=%(genome_query)s
@@ -235,11 +235,11 @@ elif "maf_dir" in PARAMS:
 
         statement = '''gunzip < %(infile)s 
         | sort -k10,10 -k12,12n
-        | python %(scriptsdir)s/psl2psl.py
+        | cgat psl2psl
         --method=remove-overlapping-query
         --log=%(outfile)s.log
         | sort -k14,14 -k16,16n
-        | python %(scriptsdir)s/psl2psl.py
+        | cgat psl2psl
         --method=remove-overlapping-target
         --log=%(outfile)s.log
         | gzip
@@ -278,7 +278,7 @@ elif "maf_dir" in PARAMS:
                   %(target)s.sizes
                   %(query)s.sizes
                   /dev/stdout
-             | python %(scriptsdir)s/psl2psl.py
+             | cgat psl2psl
                   --queries-tsv-file=%(genome_query)s
                   --target-psl-file=%(genome_target)s
                   --method=sanitize
@@ -342,7 +342,7 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
 
     statement = '''cat %(tmpfilename)s
     | %(pipeline_scriptsdir)s/gff_sort pos
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
@@ -369,7 +369,7 @@ def importRepeatsFromEnsembl(infile, outfile,
     -d %(ensembl_database)s
     --repeattypes %(repeattypes)s
     | %(pipeline_scriptsdir)s/gff_sort pos
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
@@ -410,7 +410,7 @@ def mergeRepeats(infile, outfile):
 
     statement = '''gunzip
     < %(infile)s
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=merge-features
     --min-distance=0
     --max-distance=10
@@ -440,10 +440,10 @@ def buildAlignedRepeats(infiles, outfile):
     # statement = r'''
     #     gunzip < %(interface_alignment_psl)s
     #     | %(cmd-farm)s --split-at-lines=%(granularity)i --log=%(outfile)s.log --is-binary
-    #          "python %(scriptsdir)s/psl2psl.py
+    #          "cgat psl2psl
     #             --method=test
     #     	--log=%(outfile)s.log
-    #           | python %(scriptsdir)s/psl2psl.py
+    #           | cgat psl2psl
     #     	--method=map
     #     	--filter-query=%(infile_query)s
     #     	--filter-target=%(infile_target)s
@@ -454,10 +454,10 @@ def buildAlignedRepeats(infiles, outfile):
 
     statement = '''
     gunzip < %(interface_alignment_psl)s
-    | python %(scriptsdir)s/psl2psl.py
+    | cgat psl2psl
     --method=test
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/psl2psl.py
+    | cgat psl2psl
     --method=map
     --filter-query=%(infile_query)s
     --filter-target=%(infile_target)s
@@ -480,12 +480,12 @@ def buildRepeatsRates(infile, outfile):
     statement = '''gunzip < %(infile)s 
     | sort -k10,10 -k14,14 -k9,9 -k12,12n
     | %(cmd-farm)s --split-at-lines=10000 --output-header --log=%(outfile)s.log
-    "python %(scriptsdir)s/psl2psl.py
+    "cgat psl2psl
     --log=%(outfile)s.log
     --method=add-sequence
     --queries-tsv-file=%(genome_query)s
     --target-psl-file=%(genome_target)s
-    | python %(scriptsdir)s/psl2table.py
+    | cgat psl2table
     --method=query-counts
     --method=baseml
     --baseml-model=REV"
@@ -502,7 +502,7 @@ def computeAlignmentStats(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/psl2stats.py
+    | cgat psl2stats
     --log=%(outfile)s.log
     > %(outfile)s'''
 
@@ -539,7 +539,7 @@ def buildRepeatDistribution(infile, outfile):
 
     statement = '''gunzip
     < %(infile)s
-    | python %(scriptsdir)s/gff2histogram.py
+    | cgat gff2histogram
     --output-filename-pattern="%(outfile)s.%%s"
     --method=all
     > %(outfile)s

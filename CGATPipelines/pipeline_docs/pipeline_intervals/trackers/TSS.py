@@ -3,10 +3,10 @@ import sys
 import re
 import types
 import itertools
-import Annotations
+from . import Annotations
 
 from CGATReport.Tracker import *
-from IntervalReport import *
+from .IntervalReport import *
 
 ##########################################################################
 ##########################################################################
@@ -57,15 +57,15 @@ class TSSDistanceVersusPeakVal(Annotations.AnnotationSlicer, IntervalTracker):
         table = self.mTable
         column, where = self.mColumn, self.mWhere
         if not slice or slice == "all":
-            print """SELECT %(column)s, i.peakval FROM %(track)s_%(table)s AS d, %(track)s_intervals AS i 
-                                      WHERE i.interval_id = d.gene_id AND %(where)s""" % locals()
+            print("""SELECT %(column)s, i.peakval FROM %(track)s_%(table)s AS d, %(track)s_intervals AS i 
+                                      WHERE i.interval_id = d.gene_id AND %(where)s""" % locals())
             data = self.get( """SELECT %(column)s, i.peakval FROM %(track)s_%(table)s AS d, %(track)s_intervals AS i 
                                       WHERE i.interval_id = d.gene_id AND %(where)s""" % locals() )
         else:
             data = self.get( """SELECT %(column)s, i.peakval FROM %(track)s_%(table)s AS d, %(track)s_%(annotations)s as a, %(track)s_intervals AS i 
                                       WHERE i.interval_id = d.gene_id AND d.gene_id = a.gene_id AND a.is_%(slice)s AND %(where)s""" % locals() )
 
-        return odict(zip(("distance", "peakval"), zip(*data)))
+        return odict(list(zip(("distance", "peakval"), list(zip(*data)))))
 
 
 class TSSClosestUpstream(TSSClosest):

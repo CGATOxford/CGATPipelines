@@ -6,7 +6,7 @@ import itertools
 import math
 import numpy
 
-from RnaseqTranscriptsReport import *
+from .RnaseqTranscriptsReport import *
 
 
 class TranscriptStatus(RnaseqTranscriptsTracker, Status):

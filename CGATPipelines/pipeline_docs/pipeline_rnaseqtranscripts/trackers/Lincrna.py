@@ -4,4 +4,4 @@ import re
 import types
 import itertools
 
-from RnaseqTranscriptsReport import *
+from .RnaseqTranscriptsReport import *

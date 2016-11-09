@@ -221,4 +221,4 @@ class replicatedAssociations(cpgTracker):
                                         where closest_dist < 1000""" % locals() )
         except:
             data5 = "0"
-        return odict(zip(("Protein-coding TSS", "Non-coding TSS", "H3K4Me1 Enhancer", "RNAseq transcript", "lincRNA TSS"), (data1, data2, data3, data4, data5)))
+        return odict(list(zip(("Protein-coding TSS", "Non-coding TSS", "H3K4Me1 Enhancer", "RNAseq transcript", "lincRNA TSS"), (data1, data2, data3, data4, data5))))

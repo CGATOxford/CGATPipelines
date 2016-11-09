@@ -5,7 +5,7 @@ import types
 import itertools
 
 from CGATReport.Tracker import *
-from MappingReport import *
+from .MappingReport import *
 
 
 class ExonValidationSummary(MappingTracker, SingleTableTrackerRows):

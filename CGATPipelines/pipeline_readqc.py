@@ -168,7 +168,8 @@ PARAMS = P.PARAMS
 
 # define input files and preprocessing steps
 # list of acceptable input formats
-INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz", "*.remote"]
+INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz",
+                 "*.sra", "*.csfasta.gz", "*.remote"]
 
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
@@ -351,7 +352,7 @@ def reconcileReads(infile, outfile):
         job_threads = PARAMS["threads"]
         job_memory = "8G"
         statement = """python
-            %(scriptsdir)s/fastqs2fastqs.py
+            cgat fastqs2fastqs
             --method=reconcile
             --output-filename-pattern=%(outfile)s.fastq.%%s.gz
             %(in1)s %(in2)s"""
@@ -424,7 +425,7 @@ def runFastqScreen(infiles, outfile):
     # using parameters from Pipeline.ini
     with IOTools.openFile(os.path.join(tempdir, "fastq_screen.conf"),
                           "w") as f:
-        for i, k in PARAMS.items():
+        for i, k in list(PARAMS.items()):
             if i.startswith("fastq_screen_database"):
                 f.write("DATABASE\t%s\t%s\n" % (i[22:], k))
 
@@ -473,7 +474,7 @@ def combineExperimentLevelReadQualities(infiles, outfile):
     Combine summaries of read quality for different experiments
     """
     infiles = " ".join(infiles)
-    statement = ("python %(scriptsdir)s/combine_tables.py "
+    statement = ("cgat combine_tables "
                  "  --log=%(outfile)s.log "
                  "  --regex-filename='.+/(.+)_per_sequence_quality.tsv' "
                  "%(infiles)s"

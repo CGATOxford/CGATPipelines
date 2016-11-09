@@ -145,7 +145,7 @@ class NubiscanPeakValWithMotif(Nubiscan):
 
         result = Stats.getSensitivityRecall(
             [(int(x[0]), x[2] > 0) for x in data])
-        return odict(zip(("peakval", "proportion with motif", "recall"), zip(*result)))
+        return odict(list(zip(("peakval", "proportion with motif", "recall"), list(zip(*result)))))
 
 ################################################
 ################################################
@@ -207,7 +207,7 @@ class NubiscanROC(Nubiscan):
             values = self.get(statement)
             try:
                 result = Stats.computeROC([(x[1], x[2] > 0) for x in values])
-            except ValueError, msg:
+            except ValueError as msg:
                 # ignore results where there are no positives among values.
                 continue
 
@@ -216,7 +216,7 @@ class NubiscanROC(Nubiscan):
         d = Histogram.Combine(rocs)
 
         bins = [x[0] for x in d]
-        values = zip(*[x[1] for x in d])
+        values = list(zip(*[x[1] for x in d]))
 
         result = odict()
         for f, v in zip(self.mFields, values):
@@ -244,7 +244,7 @@ class NubiscanAUC(NubiscanROC):
     def __call__(self, track, slice=None):
 
         data = NubiscanROC.__call__(self, track, slice)
-        for k, d in data.iteritems():
+        for k, d in data.items():
             data[k] = Stats.getAreaUnderCurve(d['FPR'], d[k])
         return data
 

@@ -26,7 +26,7 @@ class cgiIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(stop-start),0) as length FROM %(track)s" % locals())
-        return odict(zip(("CGI intervals", "mean_interval_length"), data))
+        return odict(list(zip(("CGI intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 

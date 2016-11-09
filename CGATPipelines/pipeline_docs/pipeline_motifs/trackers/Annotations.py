@@ -4,7 +4,7 @@ import re
 import types
 import itertools
 
-from IntervalReport import *
+from .IntervalReport import *
 
 ##########################################################################
 ##########################################################################
@@ -89,7 +89,7 @@ class Annotations(IntervalTracker, AnnotationSlicer):
             data = self.getFirstRow(
                 "%(select)s FROM %(track)s_%(table)s WHERE %(where)s AND is_%slices" % locals())
 
-        return odict(zip(self.columns, data))
+        return odict(list(zip(self.columns, data)))
 
 
 class AllAnnotations(Annotations):

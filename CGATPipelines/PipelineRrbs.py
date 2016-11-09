@@ -96,9 +96,9 @@ def plotReadBias(infile, outfile):
                   for x in row_values]
         row += 1
         while lines[line + row].strip():
-            print lines[line+row].strip()
+            print(lines[line + row].strip())
             row_values = lines[line + row].strip().split("\t")
-            row_values = map(num, row_values)
+            row_values = list(map(num, row_values))
             rows.append(row_values)
             row += 1
         df = pd.DataFrame(rows, columns=header)
@@ -111,16 +111,16 @@ def plotReadBias(infile, outfile):
         while line < len(lines):
             if lines[line].strip() == "CpG context":
                 df = dfFromTsvTable(lines, line, "CpG")
-                print df
+                print(df)
             elif lines[line].strip() == "CHG context":
                 df2 = dfFromTsvTable(lines, line, "CHG")
-                print df2
+                print(df2)
             elif lines[line].strip() == "CHH context":
                 df3 = dfFromTsvTable(lines, line, "CHH")
-                print df3
+                print(df3)
             line += 1
     final_df = pd.concat([df, df2, df3])
-    final_df.index = range(len(final_df['context']))
+    final_df.index = list(range(len(final_df['context'])))
     r_dataframe = com.convert_to_r_dataframe(final_df)
 
     plot1_out = (P.snip(outfile, ".read_position.tsv") +
@@ -195,7 +195,7 @@ def pandasMerge(infile1, infile2, outfile, merge_type, left, right,
     def pandasRead(infile, peak=False):
         if peak:
             col_dtype = columnsPeak(infile)
-            print col_dtype
+            print(col_dtype)
             return pd.read_csv(infile, sep=delim, comment=com,
                                dtype=col_dtype, na_values="NA")
         else:
@@ -220,7 +220,7 @@ def fasta2CpG(infile, outfile):
 
     # AH: Use FastaIterator
     fasta = FastaIterator.FastaIterator(IOTools.openFile(infile, "r"))
-    temp_contig = fasta.next()
+    temp_contig = next(fasta)
 
     outfile = IOTools.openFile(outfile, "w")
     outfile.write("contig\tposition\tstrand\tread_position\n")
@@ -232,17 +232,18 @@ def fasta2CpG(infile, outfile):
         pos_start = [x.start(0) for x in iter_pos]
         # loop through pairs of MspI sites and add positions to dictionary
         MspI_cpg_dict = {}
-        for n in range(0, len(pos_start)-1):
-            frag_length = pos_start[n+1] - pos_start[n]
+        for n in range(0, len(pos_start) - 1):
+            frag_length = pos_start[n + 1] - pos_start[n]
             if frag_length > 25 and frag_length < 300:
                 if frag_length >= 51:
                     # need to include additional base at the end of the read
                     # to check for final CG
-                    read_f = contig_seq[pos_start[n]+1:pos_start[n]+53]
-                    read_r = contig_seq[pos_start[n+1]-49:pos_start[n+1]+3]
+                    read_f = contig_seq[pos_start[n] + 1:pos_start[n] + 53]
+                    read_r = contig_seq[
+                        pos_start[n + 1] - 49:pos_start[n + 1] + 3]
                 else:
-                    read_f = contig_seq[pos_start[n]+1:pos_start[n+1]+1]
-                    read_r = contig_seq[pos_start[n]+3:pos_start[n+1]+3]
+                    read_f = contig_seq[pos_start[n] + 1:pos_start[n + 1] + 1]
+                    read_r = contig_seq[pos_start[n] + 3:pos_start[n + 1] + 3]
                 # find positions of CGs in in silico reads
                 f_cgs = re.finditer("[cC][gG]", read_f)
                 r_cgs = re.finditer("[cC][gG]", read_r)
@@ -254,9 +255,9 @@ def fasta2CpG(infile, outfile):
                     MspI_cpg_dict[contig_position] = read_pos
                 for x in r_cgs:
                     # 1-based read position
-                    read_pos = len(read_r)-(x.start(0)+1)
+                    read_pos = len(read_r) - (x.start(0) + 1)
                     # contig position 1-based
-                    contig_position = pos_start[n+1] + 4 - read_pos
+                    contig_position = pos_start[n + 1] + 4 - read_pos
                     MspI_cpg_dict[contig_position] = read_pos
 
         # find location of ALL cpgs
@@ -275,7 +276,7 @@ def fasta2CpG(infile, outfile):
                 read_pos = MspI_cpg_dict[g_pos]
             outfile.write("%s\t%s\t%s\t%s\n" % (contig, g_pos,
                                                 "-", read_pos))
-        temp_contig = fasta.next()
+        temp_contig = next(fasta)
     outfile.close()
 
 
@@ -357,7 +358,7 @@ def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
 
         GC = (C + G) / seq_length
 
-        OE = sequence.count("CG") * seq_length / float(C*G)
+        OE = sequence.count("CG") * seq_length / float(C * G)
 
         return GC, OE
 
@@ -369,8 +370,8 @@ def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
         HCP = False
         MCP = False
         LCP = False
-        for seq_start in range(0, len(prom_seq)-window, slide):
-            GC, OE = getGC(prom_seq[seq_start: seq_start+window])
+        for seq_start in range(0, len(prom_seq) - window, slide):
+            GC, OE = getGC(prom_seq[seq_start: seq_start + window])
 
             if GC >= 0.55 and OE >= 0.6:
                 return "HCP"
@@ -401,17 +402,18 @@ def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
             ("contig", "position", "feature", "CpG_density")))
 
         for promoter in select:
-            gene_id, contig, start, end, strand = map(str, promoter)
+            gene_id, contig, start, end, strand = list(map(str, promoter))
 
             if strand == "+":
                 if int(start) >= 2000:
                     prom_seq = IxFA.getSequence(
-                        contig, strand, int(start)-2000, int(start)+500)
+                        contig, strand, int(start) - 2000, int(start) + 500)
                     CpGs = getCpGs(prom_seq)
                     CpGs = [x + int(start) - 2000 for x in CpGs]
 
                 else:
-                    prom_seq = IxFA.getSequence(contig, strand, 0, int(start)+500)
+                    prom_seq = IxFA.getSequence(
+                        contig, strand, 0, int(start) + 500)
                     CpGs = getCpGs(prom_seq)
 
             elif strand == "-":
@@ -419,7 +421,7 @@ def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
                 # this will skip the gene
                 try:
                     prom_seq = IxFA.getSequence(
-                        contig, strand, int(end)-500, int(end)+2000)
+                        contig, strand, int(end) - 500, int(end) + 2000)
                 except:
                     pass
 
@@ -462,7 +464,8 @@ def findRepeatCpGs(outfile, genome_fasta, repeats_gff):
                 repeat_class = atr[0].split(" ")[1].replace('"', '')
                 repeat_family = atr[1].split(" ")[1].replace('"', '')
 
-                repeat_seq_f = IxFA.getSequence(contig, "+", int(start), int(stop))
+                repeat_seq_f = IxFA.getSequence(
+                    contig, "+", int(start), int(stop))
 
                 CpGs_f = getCpGs(repeat_seq_f)
 
@@ -533,7 +536,7 @@ def mergeCpGAnnotations(meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf,
         "Germline-Dex-mean", "Germline-Veh-mean", "Liver-Dex-mean",
         "Liver-Veh-mean", "contig", "position"])
     df.columns = [x.replace("-mean", "") for x in df.columns]
-    df['position'] = df['position']-1
+    df['position'] = df['position'] - 1
     df.set_index(["contig", "position"], inplace=True)
 
     def readAndMerge(df, cpg_annotations_inf):
@@ -682,7 +685,7 @@ def splitDataframeClusters(infile, prefix, suffix):
     positions = df['position'].astype('int').tolist()
     contigs = df['contig'].tolist()
     # df.set_index('position', inplace=True)
-    current_pos, count, splits, n, first_pos = (0,)*5
+    current_pos, count, splits, n, first_pos = (0,) * 5
     current_contig = ""
     size = 10
     distance = 100
@@ -695,9 +698,9 @@ def splitDataframeClusters(infile, prefix, suffix):
             count += 1
         else:
             if count >= size:
-                temp_cluster_df = df[first_pos:ix+1]
+                temp_cluster_df = df[first_pos:ix + 1]
                 if n >= split_at:
-                    identifier = splits*split_at
+                    identifier = splits * split_at
                     filename = "%(prefix)s%(identifier)i%(suffix)s" % locals()
                     cluster_df.to_csv(
                         filename, index=False, header=True, sep="\t",
@@ -712,12 +715,12 @@ def splitDataframeClusters(infile, prefix, suffix):
                     n += count
             current_pos = next_pos
             current_contig = next_contig
-            first_pos = ix+1
+            first_pos = ix + 1
             count = 0
 
     # make sure final clusters are written out into smaller final file
     if n < split_at:
-        identifier = splits*split_at
+        identifier = splits * split_at
         filename = "%(prefix)s%(identifier)i%(suffix)s" % locals()
         cluster_df.to_csv(
             filename, index=False, header=True, sep="\t",
@@ -736,7 +739,7 @@ def calculateCoverage(infile, outfile):
 
             header = inf.next().strip().split("\t")
             coverage_cols = ["meth" in x for x in header]
-            n_samples = sum(coverage_cols)/2
+            n_samples = sum(coverage_cols) / 2
             cpgi_col = header.index('cpgi')
 
             line_n = 0
@@ -964,7 +967,7 @@ rowRanges <- GRanges(seqnames = Rle(as.character(df$contig)),
     return(M3Dstat)
     }''' % locals())
 
-    df.to_csv(outfile+".pd", sep="\t")
+    df.to_csv(outfile + ".pd", sep="\t")
     # out.close()
     M3Dstat = func(r_df)
 
@@ -982,7 +985,7 @@ def M3Dstat2pvalue(df, columns, pair):
 
     def sampler(M3Dstat, vector, n):
         rand = np.random.choice(vector, size=n, replace=True, )
-        return len(rand[rand > M3Dstat])/n
+        return len(rand[rand > M3Dstat]) / n
 
     def addPvalues(df, within_df, repeat):
         df['p_value'] = df['value'].apply(
@@ -1542,7 +1545,7 @@ def summaryPlots(infile, outfile):
 
     for tissue in tissues:
         for treatment_pair in itertools.combinations(treatments, 2):
-            treatment1, treatment2 = map(str, treatment_pair)
+            treatment1, treatment2 = list(map(str, treatment_pair))
             tissue = str(tissue)
             out.write("plotting tissue: %s, treatment: %s vs. %s\n"
                       % (tissue, treatment1, treatment2))
@@ -1613,7 +1616,7 @@ def spikeInClustersAnalysis(infile, outfile):
     samples = [re.sub("_10_pipeline.*", "", os.path.basename(x).strip())
                for x in infiles]
     samples_str = '","'.join(samples)
-    outfile_log = open(outfile+".log", "w")
+    outfile_log = open(outfile + ".log", "w")
     outfile_log.close()
     # outfile_log.write("samples: %s\n" % samples)
     samples_treatment = [x[1] for x in samples]
@@ -1652,14 +1655,14 @@ def spikeInClustersAnalysisBiSeq(infile, outfile):
     samples = [re.sub("_10_pipeline.*", "", os.path.basename(x).strip())
                for x in infiles]
     samples_str = '","'.join(samples)
-    print "samples: %s\n" % samples
+    print("samples: %s\n" % samples)
     samples_treatment = [x[1] for x in samples]
     group1, group2 = (samples_treatment[0], samples_treatment[1])
     samples_treatment = '","'.join(samples_treatment)
-    print "sample treatments: %s\n" % samples_treatment
+    print("sample treatments: %s\n" % samples_treatment)
 
     infiles = '","'.join([x.strip() for x in infiles])
-    print infiles
+    print(infiles)
     base = P.snip(outfile, ".out")
 
     BiSeq_power_analysis = r('''
@@ -1802,7 +1805,7 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
     seqnames_split = [["".join((x[0], x[1])), x[2], x[3], x[4], x[5], x[6]]
                       if len(x) > 6 else x for x in seqnames_split]
     cluster_values_df = pd.DataFrame(data=seqnames_split,
-                                     index=range(1, len(seqnames_split)+1))
+                                     index=list(range(1, len(seqnames_split) + 1)))
     cluster_values_df.columns = cluster_characteristics
     concat_df = pd.concat([analysis_df, cluster_values_df], axis=1)
     groups = [x[0] for x in groups]
@@ -1926,7 +1929,7 @@ def runBiSeq(infiles, outfile, sample_id):
     # use this when following callMethylationStatus(i.e full run)
     # cov_infiles = infiles
 
-    cov_infiles = filter(lambda x: sample_id in x, infiles)
+    cov_infiles = [x for x in infiles if sample_id in x]
     out = open(outfile, "w")
     base = P.snip(os.path.abspath(outfile), ".tsv")
     basenames = [os.path.basename(x) for x in cov_infiles]

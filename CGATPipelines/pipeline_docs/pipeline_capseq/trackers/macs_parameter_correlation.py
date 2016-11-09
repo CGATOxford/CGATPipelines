@@ -25,7 +25,7 @@ class IntervalLengthVsAverageValue(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT length, avgval FROM %(track)s_macs_merged_intervals" % locals())
-        return odict(zip(("length", "avgval"), zip(*data)))
+        return odict(list(zip(("length", "avgval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -39,7 +39,7 @@ class IntervalLengthVsPeakValue(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT length, peakval FROM %(track)s_macs_merged_intervals" % locals())
-        return odict(zip(("length", "peakval"), zip(*data)))
+        return odict(list(zip(("length", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -53,7 +53,7 @@ class IntervalLengthVsFoldChange(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT length, fold FROM %(track)s_macs_merged_intervals" % locals())
-        return odict(zip(("length", "foldchange"), zip(*data)))
+        return odict(list(zip(("length", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -68,7 +68,7 @@ class IntervalLengthVsCpG(cpgTracker):
         data = self.get( """SELECT i.length, c.CpG_ObsExp 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("length", "CpG_ObsExp"), zip(*data)))
+        return odict(list(zip(("length", "CpG_ObsExp"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -83,7 +83,7 @@ class IntervalLengthVsGC(cpgTracker):
         data = self.get( """SELECT i.length, c.pGC 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("length", "GC_content"), zip(*data)))
+        return odict(list(zip(("length", "GC_content"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -114,7 +114,7 @@ class IntervalAvgValVsPeakVal(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT avgval, peakval FROM %(track)s_macs_merged_intervals" % locals())
-        return odict(zip(("avgval", "peakval"), zip(*data)))
+        return odict(list(zip(("avgval", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -128,7 +128,7 @@ class IntervalAvgValVsFoldChange(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT avgval, fold FROM %(track)s_macs_merged_intervals" % locals())
-        return odict(zip(("avgval", "foldchange"), zip(*data)))
+        return odict(list(zip(("avgval", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -143,7 +143,7 @@ class IntervalAvgValVsCpG(cpgTracker):
         data = self.get( """SELECT i.avgval, c.CpG_ObsExp 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("avgval", "CpG_ObsExp"), zip(*data)))
+        return odict(list(zip(("avgval", "CpG_ObsExp"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -158,7 +158,7 @@ class IntervalAvgValVsGC(cpgTracker):
         data = self.get( """SELECT i.avgval, c.pGC 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("avgval", "GC_content"), zip(*data)))
+        return odict(list(zip(("avgval", "GC_content"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -189,7 +189,7 @@ class IntervalPeakValVsFoldChange(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT peakval, fold FROM %(track)s_macs_merged_intervals" % locals())
-        return odict(zip(("peakval", "foldchange"), zip(*data)))
+        return odict(list(zip(("peakval", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -204,7 +204,7 @@ class IntervalPeakValVsCpG(cpgTracker):
         data = self.get( """SELECT i.peakval, c.CpG_ObsExp 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("peakval", "CpG_ObsExp"), zip(*data)))
+        return odict(list(zip(("peakval", "CpG_ObsExp"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -219,7 +219,7 @@ class IntervalPeakValVsGC(cpgTracker):
         data = self.get( """SELECT i.peakval, c.pGC 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("peakval", "GC_content"), zip(*data)))
+        return odict(list(zip(("peakval", "GC_content"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -251,7 +251,7 @@ class IntervalFoldChangeVsCpG(cpgTracker):
         data = self.get( """SELECT i.fold, c.CpG_ObsExp 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("Fold_Change", "CpG_ObsExp"), zip(*data)))
+        return odict(list(zip(("Fold_Change", "CpG_ObsExp"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -266,7 +266,7 @@ class IntervalFoldChangeVsGC(cpgTracker):
         data = self.get( """SELECT i.fold, c.pGC 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("Fold_Change", "GC_content"), zip(*data)))
+        return odict(list(zip(("Fold_Change", "GC_content"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -298,7 +298,7 @@ class IntervalCpGVsGC(cpgTracker):
         data = self.get( """SELECT c.CpG_ObsExp , c.pGC 
                             FROM %(track)s_macs_merged_intervals i, %(track)s_merged_composition c
                             WHERE i.interval_id=c.gene_id""" % locals() )
-        return odict(zip(("CpG_ObsExp", "GC_content"), zip(*data)))
+        return odict(list(zip(("CpG_ObsExp", "GC_content"), list(zip(*data)))))
 
 ##########################################################################
 

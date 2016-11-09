@@ -2,7 +2,7 @@
 from CGATReport.Tracker import *
 from collections import OrderedDict as odict
 
-from RnaseqDiffExpressionReport import *
+from .RnaseqDiffExpressionReport import *
 
 import numpy
 
