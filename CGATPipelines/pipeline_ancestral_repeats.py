@@ -557,7 +557,7 @@ def exportRatesAsGFF(infile, outfile):
 
     statement = '''gunzip
     < %(infile)s
-    | python %(toolsdir)s/csv_cut.py qName qStart qEnd distance converged
+    | cgat csv_cut qName qStart qEnd distance converged
     | awk '!/qName/ && $5 {printf("%%s\\tancestral_repeat\\texon\\t%%s\\t%%s\\t%%s\\t+\\t.\\t.\\n", $1, $2, $3, $4);}'
     | gzip
     > %(outfile)s

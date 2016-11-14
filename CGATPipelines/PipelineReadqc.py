@@ -13,7 +13,7 @@ import os
 import re
 import glob
 import collections
-import io
+from six import StringIO
 import pandas as pd
 import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
@@ -140,14 +140,14 @@ def loadFastqc(filename,
 
             options.tablename = prefix + "_" + re.sub(" ", "_", name)
 
-            inf = io.StringIO("\n".join([header] + data) + "\n")
+            inf = StringIO("\n".join([header] + data) + "\n")
             CSV2DB.run(inf, options)
             results.append((name, status))
 
         # load status table
         options.tablename = prefix + "_status"
 
-        inf = io.StringIO(
+        inf = StringIO(
             "\n".join(["name\tstatus"] +
                       ["\t".join(x) for x in results]) + "\n")
         CSV2DB.run(inf, options)

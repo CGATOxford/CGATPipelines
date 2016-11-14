@@ -2,7 +2,6 @@
 Read mapping pipeline
 =====================
 
-:Author: Andreas Heger
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -2064,7 +2063,7 @@ def buildBAMStats(infiles, outfile):
     else:
         fastq_option = ""
 
-    statement = '''python
+    statement = '''
     cgat bam2stats
          %(fastq_option)s
          --force-output
