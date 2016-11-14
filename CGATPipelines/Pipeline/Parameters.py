@@ -50,7 +50,7 @@ CGATSCRIPTS_ROOT_DIR = os.path.dirname(
     os.path.dirname(E.__file__))
 
 # CGAT Code collection scripts
-CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
+CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "CGAT", "scripts")
 
 # root directory of CGAT Pipelines
 CGATPIPELINES_ROOT_DIR = os.path.dirname(os.path.dirname(
