@@ -143,13 +143,18 @@ def findColumnPosition(infile, column):
         while True:
             header = inf.readline()
             if not header.startswith("#"):
-                column_ix = header.strip().split("\t").index(column)
+                head = header.strip().split("\t")
+                j = 0
+                for h in head:
+                    if column in h:
+                        column_ix = j
+                    j += 1
+                # column_ix = header.strip().split("\t").index(column)                                                                                                                                                                       
                 break
         if column_ix:
             return column_ix + 1
         else:
             raise ValueError("could not find %s in file header" % column)
-
 
 class Quantifier(object):
     ''' base class for transcript and gene-level quantification from a
@@ -355,7 +360,7 @@ class Gtf2tableQuantifier(Quantifier):
         statement = '''
         mkdir %(outfile_dir)s;
         zcat %(annotations)s
-        | python %(scriptsdir)s/gtf2table.py
+        | cgat gtf2table
               --reporter=%(reporter)s
               --bam-file=%(bamfile)s
               --counter=length
@@ -528,8 +533,8 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
 
         log.write("plot correlations scatter: %s\n" % cor_scatter_outfile)
         log.write("plot correlations heatmap: %s\n" % cor_heatmap_outfile)
-        counts_log10.plotPairwise(
-            cor_scatter_outfile, cor_heatmap_outfile, subset=2000)
+        #counts_log10.plotPairwise(
+        #    cor_scatter_outfile, cor_heatmap_outfile, subset=2000)
 
         # for the heatmap, and pca we want the top expressed genes (top 25%).
         counts_log10.removeObservationsPerc(percentile_rowsums=75)
