@@ -1123,6 +1123,7 @@ def count():
 def runDESeq2(infiles, outfiles, design_name):
     ''' run DESeq2 to identify differentially expression transcripts/genes'''
 
+    design_name = design_name.lower()
     counts, design = infiles
     transcripts, genes = counts
     transcript_out, gene_out = outfiles
@@ -1133,9 +1134,9 @@ def runDESeq2(infiles, outfiles, design_name):
     gene_prefix = P.snip(gene_out, ".tsv")
     gene_log = gene_prefix + ".log"
 
-    model = PARAMS['deseq2_model_%s' % design_name]
-    contrast = PARAMS['deseq2_contrast_%s' % design_name]
-    refgroup = PARAMS['deseq2_refgroup_%s' % design_name]
+    model = PARAMS['deseq2_model%s' % design_name]
+    contrast = PARAMS['deseq2_contrast%s' % design_name]
+    refgroup = PARAMS['deseq2_refgroup%s' % design_name]
 
     statement = '''
     python %(scriptsdir)s/counts2table.py
@@ -1185,6 +1186,7 @@ def runDESeq2(infiles, outfiles, design_name):
 def runEdgeR(infiles, outfiles, design_name):
     ''' run edgeR to identify differentially expression transcripts/genes'''
 
+    design_name = design_name.lower()
     counts, design = infiles
     transcripts, genes = counts
     transcript_out, gene_out = outfiles
@@ -1195,9 +1197,9 @@ def runEdgeR(infiles, outfiles, design_name):
     gene_prefix = P.snip(gene_out, ".tsv")
     gene_log = gene_prefix + ".log"
 
-    model = PARAMS['edger_model_%s' % design_name]
-    contrast = PARAMS['edger_contrast_%s' % design_name]
-    refgroup = PARAMS['edger_refgroup_%s' % design_name]
+    model = PARAMS['edger_model%s' % design_name]
+    contrast = PARAMS['edger_contrast%s' % design_name]
+    refgroup = PARAMS['edger_refgroup%s' % design_name]
 
     statement = '''
     python %(scriptsdir)s/counts2table.py
@@ -1244,6 +1246,7 @@ def runEdgeR(infiles, outfiles, design_name):
 def runSleuth(infiles, outfiles, design_name, quantifier):
     ''' run sleuth to identify differentially expression transcripts/genes'''
 
+    design_name_lower = design_name.lower()
     counts, design = infiles
     transcripts, genes = counts
     transcript_out, gene_out = outfiles
@@ -1254,9 +1257,9 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
     gene_prefix = P.snip(gene_out, ".tsv")
     gene_log = gene_prefix + ".log"
 
-    model = PARAMS['sleuth_model_%s' % design_name]
-    contrast = PARAMS['sleuth_contrast_%s' % design_name]
-    refgroup = PARAMS['sleuth_refgroup_%s' % design_name]
+    model = PARAMS['sleuth_model%s' % design_name_lower]
+    contrast = PARAMS['sleuth_contrast%s' % design_name_lower]
+    refgroup = PARAMS['sleuth_refgroup%s' % design_name_lower]
 
     transcripts = os.path.join("geneset.dir",
                                P.snip(PARAMS['geneset'], ".gtf.gz") + ".fa")
