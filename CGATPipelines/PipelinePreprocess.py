@@ -41,6 +41,7 @@ import CGAT.IOTools as IOTools
 import CGAT.Fastq as Fastq
 import CGATPipelines.PipelineMapping as Mapping
 import CGAT.Sra as Sra
+import CGAT.Experiment as E
 
 
 def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
@@ -87,7 +88,12 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         %s_fastqc_Overrepresented_sequences;''' % table
 
         cc = dbh.cursor()
-        found_contaminants.extend(cc.execute(query).fetchall())
+        # if there is no contamination table for even a single sample
+        # it will prevent the whole pipeline progressing
+        try:
+            found_contaminants.extend(cc.execute(query).fetchall())
+        except sqlite3.OperationalError:
+            E.warn("No table found for {}".format(t))
 
     if len(found_contaminants) == 0:
         P.touch(outfile)
