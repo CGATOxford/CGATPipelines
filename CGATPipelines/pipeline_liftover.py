@@ -95,7 +95,7 @@ PARAMS = P.PARAMS
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 PARAMS = P.getParameters()
 
@@ -131,13 +131,13 @@ def convertGtf2Psl(infile, outfile):
     statement = """gunzip 
     < %(infile)s
     | awk '$3 == "exon"'
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
     --genome=%(genomefile)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2psl.py
+    | cgat gff2psl
     --allow-duplicates
     --is-gtf
     --log=%(outfile)s.log
@@ -161,7 +161,7 @@ def convertBed2Psl(infile, outfile):
         raise IOError("genome %s does not exist" % genomefile)
 
     statement = """gunzip < %(infile)s 
-    | python %(scriptsdir)s/bed2psl.py 
+    | cgat bed2psl 
          --genome=%(genomefile)s
          --log=%(outfile)s.log 
     | gzip > %(outfile)s
@@ -196,7 +196,7 @@ def mergeTranscripts(infile, outfile):
 		--renumber-column=":id" 
 		--log=%(outfile)s.log 
 		--subdirs \
-        "python %(scriptsdir)s/psl2assembly.py 
+        "cgat psl2assembly 
                --staggered=all 
                --method=region
                --method=transcript
@@ -271,7 +271,7 @@ def mapTranscripts(infile, outfile):
 def convertMappedPslToGtf(infile, outfile):
     '''convert to gtf for export.'''
     statement = """
-    python %(scriptsdir)s/psl2gff.py --as-gtf 
+    cgat psl2gff --as-gtf 
     < %(infile)s 
     | gzip
     > %(outfile)s

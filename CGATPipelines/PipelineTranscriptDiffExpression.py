@@ -82,7 +82,7 @@ def runSleuthAll(samples, base_dir, counts, tpm):
     '''
 
     design = pd.DataFrame({
-        "group": ([0, 1] * ((len(samples)+1)/2))[0:len(samples)],
+        "group": ([0, 1] * ((len(samples) + 1) / 2))[0:len(samples)],
         "include": [1, ] * len(samples),
         "pair": [0, ] * len(samples)})
 
@@ -219,8 +219,8 @@ def calculateCorrelations(infiles, outfile, bin_step=1):
                       left_index=True, right_index=True)
     df_final = pd.merge(df_kmer, df_agg, left_index=True, right_index=True)
     df_final['fraction_bin'] = (
-        np.digitize(df_final["fraction_unique"]*100, bins=range(0, 100, bin_step),
-                    right=True))/100.0
+        np.digitize(df_final["fraction_unique"] * 100, bins=list(range(0, 100, bin_step)),
+                    right=True)) / 100.0
 
     # Multiply bin number by step size to get the fraction for the bin
     df_final['fraction_bin'] = df_final['fraction_bin'] * bin_step
@@ -236,12 +236,12 @@ def calculateCorrelations(infiles, outfile, bin_step=1):
 
     df_final['log2diff_tpm'] = np.log2(df_final['est_tpm'] /
                                        df_final['tpm'])
-    df_final['log2diff_tpm_thres'] = [x if abs(x) < 2 else 2 * x/abs(x)
+    df_final['log2diff_tpm_thres'] = [x if abs(x) < 2 else 2 * x / abs(x)
                                       for x in df_final['log2diff_tpm']]
 
     df_final['log2diff_counts'] = np.log2(df_final['est_counts'] /
                                           df_final['read_count'])
-    df_final['log2diff_counts_thres'] = [x if abs(x) < 1 else x/abs(x)
+    df_final['log2diff_counts_thres'] = [x if abs(x) < 1 else x / abs(x)
                                          for x in df_final['log2diff_counts']]
 
     df_final.to_csv(outfile, sep="\t", index=True)
@@ -250,67 +250,67 @@ def calculateCorrelations(infiles, outfile, bin_step=1):
 def loadSleuthTable(infile, outfile, transcript_info, gene_biotypes,
                     database, annotations_database):
 
-        tmpfile = P.getTempFilename("/ifs/scratch/")
+    tmpfile = P.getTempFilename("/ifs/scratch/")
 
-        table = os.path.basename(transcript_info)
+    table = os.path.basename(transcript_info)
 
-        if gene_biotypes:
-            where_cmd = "WHERE " + " OR ".join(
-                ["gene_biotype = '%s'" % x
-                 for x in gene_biotypes.split(",")])
-        else:
-            where_cmd = ""
+    if gene_biotypes:
+        where_cmd = "WHERE " + " OR ".join(
+            ["gene_biotype = '%s'" % x
+             for x in gene_biotypes.split(",")])
+    else:
+        where_cmd = ""
 
-        select = """SELECT DISTINCT
+    select = """SELECT DISTINCT
         transcript_id, transcript_biotype, gene_id, gene_name
         FROM annotations.%(table)s
         %(where_cmd)s""" % locals()
 
-        df1 = pd.read_table(infile, sep="\t")
-        df1.set_index("transcript_id", drop=True, inplace=True)
+    df1 = pd.read_table(infile, sep="\t")
+    df1.set_index("transcript_id", drop=True, inplace=True)
 
-        df2 = pd.read_sql(select, connect(database, annotations_database))
-        df2.set_index("transcript_id", drop=False, inplace=True)
+    df2 = pd.read_sql(select, connect(database, annotations_database))
+    df2.set_index("transcript_id", drop=False, inplace=True)
 
-        df = df1.join(df2)
-        df.to_csv(tmpfile, sep="\t", index=True)
+    df = df1.join(df2)
+    df.to_csv(tmpfile, sep="\t", index=True)
 
-        options = "--add-index=transcript_id"
-        P.load(tmpfile, outfile, options=options)
-        os.unlink(tmpfile)
+    options = "--add-index=transcript_id"
+    P.load(tmpfile, outfile, options=options)
+    os.unlink(tmpfile)
 
 
 def loadSleuthTableGenes(infile, outfile, gene_info, gene_biotypes,
                          database, annotations_database):
 
-        tmpfile = P.getTempFilename("/ifs/scratch/")
+    tmpfile = P.getTempFilename("/ifs/scratch/")
 
-        table = os.path.basename(gene_info)
+    table = os.path.basename(gene_info)
 
-        if gene_biotypes:
-            where_cmd = "WHERE " + " OR ".join(
-                ["gene_biotype = '%s'" % x
-                 for x in gene_biotypes.split(",")])
-        else:
-            where_cmd = ""
+    if gene_biotypes:
+        where_cmd = "WHERE " + " OR ".join(
+            ["gene_biotype = '%s'" % x
+             for x in gene_biotypes.split(",")])
+    else:
+        where_cmd = ""
 
-        select = """SELECT DISTINCT
+    select = """SELECT DISTINCT
         gene_id, gene_name
         FROM annotations.%(table)s
         %(where_cmd)s""" % locals()
 
-        df1 = pd.read_table(infile, sep="\t")
-        df1.set_index("test_id", drop=False, inplace=True)
+    df1 = pd.read_table(infile, sep="\t")
+    df1.set_index("test_id", drop=False, inplace=True)
 
-        df2 = pd.read_sql(select, connect(database, annotations_database))
-        df2.set_index("gene_id", drop=False, inplace=True)
+    df2 = pd.read_sql(select, connect(database, annotations_database))
+    df2.set_index("gene_id", drop=False, inplace=True)
 
-        df = df1.join(df2)
-        df.to_csv(tmpfile, sep="\t", index=True)
+    df = df1.join(df2)
+    df.to_csv(tmpfile, sep="\t", index=True)
 
-        options = "--add-index=gene_id"
-        P.load(tmpfile, outfile, options=options)
-        os.unlink(tmpfile)
+    options = "--add-index=gene_id"
+    P.load(tmpfile, outfile, options=options)
+    os.unlink(tmpfile)
 
 
 def convertFromFish(infile, outfile):

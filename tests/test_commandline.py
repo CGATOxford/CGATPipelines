@@ -86,7 +86,7 @@ def filterFiles(files):
 
                 if "regex" in values:
                     rx = re.compile(values["regex"])
-                    files = filter(rx.search, files)
+                    files = list(filter(rx.search, files))
     return files
 
 
@@ -114,7 +114,7 @@ def loadScript(script_name):
     modulename = ".".join((re.sub("/", ".", dirname), basename))
     try:
         module = importlib.import_module(modulename)
-    except ImportError, msg:
+    except ImportError as msg:
         sys.stderr.write('could not import %s - skipped: %s\n' %
                          (modulename, msg))
         module = None

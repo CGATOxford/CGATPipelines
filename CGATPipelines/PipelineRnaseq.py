@@ -99,7 +99,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     # write summary table
     outf = IOTools.openFile(outfile + ".removed.tsv.gz", "w")
     outf.write("gene_id\tnoverlap\tsection\n")
-    for gene_id, r in remove_genes.iteritems():
+    for gene_id, r in remove_genes.items():
         for s in r:
             counter[s] += 1
         outf.write("%s\t%i\t%s\n" % (gene_id,
@@ -125,7 +125,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
 
     outf = IOTools.openFile(outfile + ".summary.tsv.gz", "w")
     outf.write("category\ttranscripts\n")
-    for x, y in counter.iteritems():
+    for x, y in counter.items():
         outf.write("%s\t%i\n" % (x, y))
     outf.write("input\t%i\n" % len(genes_input))
     outf.write("output\t%i\n" % len(genes_output))
@@ -139,21 +139,21 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     if merge:
         statement = '''
         %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=unset-genes --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=merge-genes
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=merge-exons
             --merge-exons-distance=5
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=renumber-genes
             --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=renumber-transcripts
             --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
@@ -199,6 +199,7 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
 
     outfile : string
         defines naming of 3 output files for each input file
+
         1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format
         produced by cufflinks (see manual). Contains the assembled gene
         isoforms.
@@ -257,7 +258,11 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
 def loadCufflinks(infile, outfile):
     '''load cufflinks expression levels into database
 
+<<<<<<< HEAD
         Takes cufflinks output and loads into database for later report
+=======
+        Takes cufflinks output and loads into database for later report building
+>>>>>>> master
         For each input file it generates two tables in a sqlite database:
 
         1. outfile_fpkm: contains information from infile.fpkm_tracking.gz
@@ -271,7 +276,11 @@ def loadCufflinks(infile, outfile):
         infile.fpkm_tracking.gz
     outfile : string
         Output filename used to create logging information in `.load` files.
+<<<<<<< HEAD
         Also used to create "_fpkm" and "_genefpkm" tables in database.
+=======
+        Also used to create "_fpkm" and "_genefpkm" tables in database. 
+>>>>>>> master
     '''
 
     track = P.snip(outfile, ".load")
@@ -326,7 +335,7 @@ def mergeCufflinksFPKM(infiles, outfile, genesets,
          for x in infiles])
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
         --log=%(outfile)s.log
         --columns=1
         --skip-titles
@@ -480,7 +489,7 @@ def buildExpressionStats(
             "SELECT treatment_name, control_name, "
             "COUNT(*) FROM %(tablename)s "
             "GROUP BY treatment_name,control_name" % locals()
-            ).fetchall())
+        ).fetchall())
         status = toDict(Database.executewait(
             dbhandle,
             "SELECT treatment_name, control_name, status, "
@@ -493,7 +502,7 @@ def buildExpressionStats(
             "COUNT(*) FROM %(tablename)s "
             "WHERE significant "
             "GROUP BY treatment_name,control_name" % locals()
-            ).fetchall())
+        ).fetchall())
 
         fold2 = toDict(Database.executewait(
             dbhandle,
@@ -503,7 +512,7 @@ def buildExpressionStats(
             "GROUP BY treatment_name,control_name,significant"
             % locals()).fetchall())
 
-        for treatment_name, control_name in tested.keys():
+        for treatment_name, control_name in list(tested.keys()):
             outf.write("\t".join(map(str, (
                 design,
                 geneset,
@@ -529,7 +538,7 @@ def buildExpressionStats(
 
         # require at least 10 datapoints - otherwise smooth scatter fails
         if len(data) > 10:
-            data = zip(*data)
+            data = list(zip(*data))
 
             pngfile = ("%(outdir)s/%(design)s_%(geneset)s_%(level)s"
                        "_pvalue_vs_length.png") % locals()
@@ -704,7 +713,7 @@ def loadCuffdiff(dbhandle, infile, outfile, min_fpkm=1.0):
         headers = "gene_id\t" + "\t".join([sample_lookup[x] for x in samples])
         outf.write(headers + "\n")
 
-        for gene in genes.iterkeys():
+        for gene in genes.keys():
             outf.write(gene + "\t")
             s = 0
             while x < len(samples) - 1:
@@ -1050,7 +1059,7 @@ def buildUTRExtension(infile, exportdir, outfile):
         # number of transitions between utrs
         transitions = numpy.zeros((3, 3), numpy.int)
 
-        for x in xrange(len(utrs)):
+        for x in range(len(utrs)):
             utr, exon = utrs[x], exons[x]
 
             # only consider genes with expression coverage
@@ -1169,7 +1178,7 @@ def buildUTRExtension(infile, exportdir, outfile):
 
         counter = E.Counter()
 
-        for idx in xrange(len(utrs)):
+        for idx in range(len(utrs)):
 
             gene_id = genes[idx]
 
@@ -1205,7 +1214,7 @@ def buildUTRExtension(infile, exportdir, outfile):
             states = None
             try:
                 states = list(R('''states = Viterbi( hmm )'''))
-            except ri.RRuntimeError, msg:
+            except ri.RRuntimeError as msg:
                 counter.skipped_error += 1
                 new_utrs[gene_id] = Utr._make((old_utr, None, None, "fail"))
                 continue

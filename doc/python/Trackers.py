@@ -9,7 +9,7 @@ from SphinxReport.Tracker import *
 if not os.path.exists("conf.py"):
     raise IOError( "could not find conf.py" )
 
-execfile( "conf.py" )
+exec(compile(open( "conf.py" ).read(), "conf.py", 'exec'))
 
 def iterate_with_wrap( lines ):
     """iterate over lines in a Makefile

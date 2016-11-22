@@ -1,5 +1,5 @@
-from RnaseqDiffExpressionReport import ProjectTracker
-from RnaseqDiffExpressionReport import linkToEnsembl, linkToUCSC
+from .RnaseqDiffExpressionReport import ProjectTracker
+from .RnaseqDiffExpressionReport import linkToEnsembl, linkToUCSC
 
 
 class TopDifferentiallyExpressedGenes(ProjectTracker):

@@ -5,7 +5,7 @@ import types
 import itertools
 
 from CGATReport.Tracker import *
-from RnaseqReport import *
+from .RnaseqReport import *
 
 
 class ExonValidationSummary(RnaseqTracker, SingleTableTrackerRows):

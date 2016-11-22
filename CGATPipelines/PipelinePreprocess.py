@@ -41,6 +41,7 @@ import CGAT.IOTools as IOTools
 import CGAT.Fastq as Fastq
 import CGATPipelines.PipelineMapping as Mapping
 import CGAT.Sra as Sra
+import CGAT.Experiment as E
 
 
 def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
@@ -84,13 +85,13 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
             table = "_" + table
 
         cc = dbh.cursor()
-        columns = [i[1] for i in cc.execute('PRAGMA table_info(main)')]
 
-        if "Possible_Source" and "Sequence" in columns:
-            query = '''SELECT Possible_Source, Sequence FROM
-            %s_fastqc_Overrepresented_sequences;''' % table
-
+        # if there is no contamination table for even a single sample
+        # it will prevent the whole pipeline progressing
+        try:
             found_contaminants.extend(cc.execute(query).fetchall())
+        except sqlite3.OperationalError:
+            E.warn("No table found for {}".format(t))
 
     if len(found_contaminants) == 0:
         P.touch(outfile)
@@ -244,7 +245,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
             else:
                 suffixes = [track + ".fastq.gz"]
 
-            if idx == len(self.processors)-1:
+            if idx == len(self.processors) - 1:
                 # last iteration, write to output files
                 next_files = [output_prefix + s
                               for s in suffixes]
@@ -269,7 +270,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
                 for fn in current_files:
                     cmd_processors.append(
                         """zcat %(fn)s
-                        | python %%(scriptsdir)s/fastq2summary.py
+                        | cgat fastq2summary
                         --guess-format=illumina-1.8
                         > %(fn)s.summary""")
 
@@ -585,7 +586,7 @@ class Reconcile(ProcessTool):
         assert len(infiles) == 2
         infile1, infile2 = infiles
 
-        cmd = """python %%(scriptsdir)s/fastqs2fastqs.py
+        cmd = """cgat fastqs2fastqs
         --method=reconcile
         --output-filename-pattern=%(output_prefix)s.fastq.%%%%s.gz
         %(infile1)s %(infile2)s;
@@ -644,11 +645,11 @@ class Flash(ProcessTool):
             infile_base2 = re.sub(".1.fastq.gz", ".2.fastq.gz", infile_base1)
             infile = re.sub(".fastq.1.gz", ".fastq.gz", infile1)
             postprocess_cmd = '''zcat %(infile)s |
-            python %%(scriptsdir)s/fastq2summary.py
+            cgat fastq2summary
             --guess-format=illumina-1.8 -v0
             > summary.dir/%(infile_base1)s.summary;
             zcat %(infile)s |
-            python %%(scriptsdir)s/fastq2summary.py
+            cgat fastq2summary
             --guess-format=illumina-1.8 -v0
             > summary.dir/%(infile_base2)s.summary
             ;''' % locals()
@@ -670,7 +671,7 @@ class ReverseComplement(ProcessTool):
         cmds = []
         for infile, outfile in zip(infiles, outfiles):
             cmds.append('''zcat %(infile)s
-            | python %%(scriptsdir)s/fastq2fastq.py
+            | cgat fastq2fastq
             --method=reverse-complement
             --log=%(output_prefix)s.log
             | gzip > %(outfile)s;
@@ -685,7 +686,7 @@ class Pandaseq(ProcessTool):
     prefix = "pandaseq"
 
     def get_num_files(self, infiles):
-        print "infiles=", infiles
+        print("infiles=", infiles)
         assert len(infiles) == 2
         return 1
 

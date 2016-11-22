@@ -3,9 +3,9 @@ import sys
 import re
 import types
 import itertools
-from IntervalReport import *
+from .IntervalReport import *
 
-import Annotations
+from . import Annotations
 
 ##########################################################################
 ##########################################################################

@@ -38,7 +38,7 @@ class replicatedIntervalsPerContig(cpgTracker):
         n = odict()
         for d in data:
             contig = d[:1]
-            n[str(contig)] = odict(zip(headers,  d[2:]))
+            n[str(contig)] = odict(list(zip(headers,  d[2:])))
 
         #result =  zip(headers, zip(*data))
         return data

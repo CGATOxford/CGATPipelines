@@ -3,7 +3,7 @@ import itertools
 import math
 import sqlite3
 
-from RnaseqDiffExpressionReport import *
+from .RnaseqDiffExpressionReport import *
 
 
 class DESummary(ProjectTracker, SingleTableTrackerRows):

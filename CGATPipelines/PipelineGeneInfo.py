@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
-import urllib2
+from future.moves.urllib.request import urlopen
 from CGATPipelines.Pipeline import cluster_runnable
 
 
@@ -37,6 +37,7 @@ class APIAnnotation(object):
     Parent class for any annotation type to be downloaded via an API,
     parsed and loaded into a database.
     '''
+
     def __init__(self, prefix, datasource, outdb, options=None, ohost=None,
                  email=None):
         '''
@@ -185,7 +186,7 @@ class APIAnnotation(object):
         useful to have it available easily later - this stores a basic
         tab delimited file containing this information.
         '''
-        df = pd.DataFrame(zip(genelist1, genelist2), columns=cnames)
+        df = pd.DataFrame(list(zip(genelist1, genelist2)), columns=cnames)
         df.to_csv(out, sep="\t", index=False)
 
     def getTranslation(self, translation):
@@ -202,6 +203,7 @@ class EntrezAnnotation(APIAnnotation):
     Used to read, parse and load data from the Entrez API, which is accessed
     via the Entrez BioPython package.
     '''
+
     def __init__(self, prefix, outdb, email):
         '''
         Prefix - used to reconise the annotation currently running
@@ -232,6 +234,7 @@ class EntrezGeneAnnotation(EntrezAnnotation):
     '''
     Entrez Gene annotation object
     '''
+
     def __init__(self, outdb, email):
         EntrezAnnotation.__init__(self, "entrezgene", outdb, email)
 
@@ -255,6 +258,7 @@ class EntrezTaxonomyAnnotation(EntrezAnnotation):
     '''
     Entrez Taxonomy Annotation object
     '''
+
     def __init__(self, outdb, email):
         EntrezAnnotation.__init__(self, "entreztaxonomy", outdb, email)
 
@@ -276,6 +280,7 @@ class MyGeneInfoAnnotation(APIAnnotation):
     and data types are not consistent for different annotations so
     a different parser is currently needed for each annotation type.
     '''
+
     def __init__(self, prefix, source, outdb, options=None, ohost=None,
                  email=None):
         APIAnnotation.__init__(self, prefix, source, outdb, options, ohost,
@@ -333,7 +338,7 @@ class MyGeneInfoAnnotation(APIAnnotation):
             # convert JSON format to nested Python dictionaries.
             jcon = json.loads(con)
             for line in jcon:
-                for f in line.keys():
+                for f in list(line.keys()):
                     if f not in DB:
                         DB[f] = dict()
                     DB[f][line['query']] = line[f]
@@ -344,6 +349,7 @@ class SymbolAnnotation(MyGeneInfoAnnotation):
     '''
     Gene symbol annotation from mygene.info
     '''
+
     def __init__(self, source, outdb, host, shost):
         '''
         host is the entrez taxonomy ID of the species to download symbols for
@@ -363,10 +369,11 @@ class SymbolAnnotation(MyGeneInfoAnnotation):
         '''
         entrez, symbol = [], []
         res = self.dataset['symbol']
-        for item in res.items():
+        for item in list(res.items()):
             entrez.append(item[0])
             symbol.append(item[1])
-        df = pd.DataFrame(zip(entrez, symbol), columns=['entrez', 'symbol'])
+        df = pd.DataFrame(list(zip(entrez, symbol)),
+                          columns=['entrez', 'symbol'])
         df = self.translate(df, 'entrez', 'ensemblg')
         self.resultspd['ensemblg2symbol_%s$geneid' % self.shost] = df
         self.storeTranslation(df['ensemblg'], df['symbol'],
@@ -378,6 +385,7 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
     '''
     Used to parse Ensembl data from mygene.info
     '''
+
     def __init__(self, source, outdb):
         MyGeneInfoAnnotation.__init__(self, "ensembl", source, outdb)
 
@@ -441,16 +449,16 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                             p2g.append(L['protein'])
         # load everything into the self.resultsz dictionary so that
         # self.loadZippedTables will put it into the database
-        self.resultsz['ensemblg2entrez$geneid'] = [zip(ensembl2entrez,
-                                                       entrez2ensembl),
+        self.resultsz['ensemblg2entrez$geneid'] = [list(zip(ensembl2entrez,
+                                                            entrez2ensembl)),
                                                    ['ensemblg', 'entrez'],
                                                    ['int', 'varchar(25)']]
 
-        self.resultsz['ensemblg2ensemblt$other'] = [zip(g2t, t2g),
+        self.resultsz['ensemblg2ensemblt$other'] = [list(zip(g2t, t2g)),
                                                     ['ensemblg', 'ensemblt'],
                                                     ['varchar(25)',
                                                      'varchar(25)']]
-        self.resultsz['ensemblg2ensemblp$other'] = [zip(g2p, p2g),
+        self.resultsz['ensemblg2ensemblp$other'] = [list(zip(g2p, p2g)),
                                                     ['ensemblg', 'ensemblp'],
                                                     ['varchar(25)',
                                                      'varchar(25)']]
@@ -464,6 +472,7 @@ class GoAnnotation(MyGeneInfoAnnotation):
     '''
     GO gene ontology annotation downloaded from mygene.info
     '''
+
     def __init__(self, source, outdb, options):
         '''
         options can be BP, CC, MF or any combination of these, stored as a
@@ -511,15 +520,16 @@ class GoAnnotation(MyGeneInfoAnnotation):
                                     godict[subterm].append(L[subterm])
                                 else:
                                     godict[subterm].append("")
-        dfs = pd.DataFrame(zip(entrez2go, allgoids), columns=['entrez', 'go'])
+        dfs = pd.DataFrame(list(zip(entrez2go, allgoids)),
+                           columns=['entrez', 'go'])
         results = self.translate(dfs, 'entrez', 'ensemblg')
         # add the ensemblg to go term dataframe to resultspd for
         # self.loadPDTables to load into the database
         self.resultspd['ensemblg2go$annot'] = results
         # add the metadata to the resultsz dictionary for
         # self.loadZippedTables() to load into the database.
-        self.resultsz['go$details'] = [zip(goids, gotypes, godict['term'],
-                                           godict['evidence']),
+        self.resultsz['go$details'] = [list(zip(goids, gotypes, godict['term'],
+                                                godict['evidence'])),
                                        ['go',
                                         'gotype',
                                         'goterm',
@@ -537,6 +547,7 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
     database, those of interest (or
     all) can be specified in the pipeline.ini.
     '''
+
     def __init__(self, source, outdb, options):
         '''
         options - which pathway databases to keep (as a comma delimited
@@ -557,7 +568,7 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
         '''
         DB = self.dataset
         if 'pathway' not in DB:
-            print "pathway annotations not available for this species"
+            print("pathway annotations not available for this species")
             return 0
         pathwaydict = DB['pathway']
         D = dict()
@@ -569,7 +580,7 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
 
         if 'all' in typelist:
             allkeys = set()
-            for k in DB['pathway'].keys():
+            for k in list(DB['pathway'].keys()):
                 allkeys = allkeys | set(DB['pathway'][k].keys())
             typelist = list(allkeys)
 
@@ -584,7 +595,7 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
             D["%s_name" % db] = []
 
         # for each entrez id in the pathway dictionary
-        for q in pathwaydict.keys():
+        for q in list(pathwaydict.keys()):
             # for each of the requested annotation types
             for db in typelist:
                 idset = set()
@@ -607,8 +618,8 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
             entrez2ids = D["%s_entrez2ids" % db]
             id = D["%s_id" % db]
             name = D["%s_name" % db]
-            identrez = zip(entrez2ids, ids2entrez)
-            idname = zip(id, name)
+            identrez = list(zip(entrez2ids, ids2entrez))
+            idname = list(zip(id, name))
             dfs = pd.DataFrame(identrez, columns=['entrez', db])
             dfs = self.translate(dfs, 'entrez', 'ensemblg')
             self.resultspd['ensemblg2%s$annot' % db] = dfs
@@ -625,6 +636,7 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
     The organisms of interest can be specified in pipeline.ini or, if 'all'
     is specified, every available organism is used ($25 organisms).
     '''
+
     def __init__(self, source, outdb, options, ohost, email):
         MyGeneInfoAnnotation.__init__(self, "homologene", source, outdb,
                                       options, ohost, email)
@@ -645,7 +657,7 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
 
         if 'all' in taxa:
             allspp = set()
-            for q in homodb.keys():
+            for q in list(homodb.keys()):
                 geneset = homodb[q]
                 if type(geneset) is not list:
                     geneset = [geneset]
@@ -678,7 +690,7 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
 
         i = 0
         # for each entrez id in the original species
-        for q in homodb.keys():
+        for q in list(homodb.keys()):
             # retrieve the list of genes (stored as a list of lists as
             # [[host, id], [host, id], [host, id]])
             for item in homodb[q]['genes']:
@@ -702,7 +714,7 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
         # types
         for host in entrezdict:
             # zip original species entrez and other species entrez
-            R = zip(entrezdict[host][0], entrezdict[host][1])
+            R = list(zip(entrezdict[host][0], entrezdict[host][1]))
             # transalate original species entrez into ensemblg
             R = pd.DataFrame(R, columns=['entrez', 'entrez_%s' % host])
             R = self.translate(R, 'entrez', 'ensemblg')
@@ -744,6 +756,7 @@ class DataMineAnnotation(APIAnnotation):
     The easiest way to find the appropriate views and constraints is using the
     QueryBuilder on the various websites.
     '''
+
     def __init__(self, prefix, source, outdb, chost, ind, views, constraints,
                  hostid):
         '''
@@ -850,21 +863,21 @@ class DataMineAnnotation(APIAnnotation):
         ind = self.ind
         for k in z:
             symbols.append(k[0])
-            terms.append(k[ind+1])
+            terms.append(k[ind + 1])
             L = list(k)
             L.remove(k[0])
-            L.remove(k[ind+1])
-            k2 = [k[ind+1]]
+            L.remove(k[ind + 1])
+            k2 = [k[ind + 1]]
             k2 += L
             other.append(tuple(k2))
 
         # translate symbols into ensemblg IDs in the original species
-        dfs = pd.DataFrame(zip(symbols, terms),
+        dfs = pd.DataFrame(list(zip(symbols, terms)),
                            columns=['symbol_%s' % self.chost, 'term'])
         dfs = self.translate(dfs, 'symbol_%s' % self.chost, 'ensemblg')
         # use views to generate column names
         views = self.views
-        cols = [v.replace(".", "_") for v in views[0:ind] + views[(ind+1):]]
+        cols = [v.replace(".", "_") for v in views[0:ind] + views[(ind + 1):]]
         cols = ['term'] + cols
         other = pd.DataFrame(other, columns=cols)
         # store results in the resultspd dictionary to load into the
@@ -879,6 +892,7 @@ class MGIAnnotation(DataMineAnnotation):
     mouse phenotype data using the DataMineAnnotation methods above,
     identified using the mousemine QueryBuilder tool.
     '''
+
     def __init__(self, source, outdb):
         prefix = "mgi"
         chost = "Mus_musculus"
@@ -900,6 +914,7 @@ class MousePathwayAnnotation(DataMineAnnotation):
     the DataMineAnnotation methods above, identified using the
     mousemine QueryBuilder tool.
     '''
+
     def __init__(self, source, outdb):
         prefix = "mousepathway"
         chost = "Mus_musculus"
@@ -917,6 +932,7 @@ class HPOAnnotation(DataMineAnnotation):
     data using the DataMineAnnotation methods above, identifed using
     the humanmine QueryBuilder tool.
     '''
+
     def __init__(self, source, outdb):
         prefix = "hpo"
         chost = "Homo_sapiens"
@@ -945,6 +961,7 @@ class OntologyAnnotation(APIAnnotation):
     HP:0000099    HP:0000095
     HP:0000099    HP:0000123
     '''
+
     def __init__(self, prefix, datasource, outdb):
         APIAnnotation.__init__(self, prefix, datasource, outdb)
 
@@ -953,10 +970,10 @@ class OntologyAnnotation(APIAnnotation):
         Tests that it is possibly to connect to the URL.
         '''
         try:
-            urllib2.urlopen('http://purl.obolibrary.org/obo/go.owl',
-                            timeout=1)
+            urlopen('http://purl.obolibrary.org/obo/go.owl',
+                    timeout=1)
             return True
-        except urllib2.URLError:
+        except urllib.error.URLError:
             pass
 
     def download(self, genes=None, fields=None):
@@ -983,22 +1000,23 @@ class OntologyAnnotation(APIAnnotation):
         root = tree.getroot()
         r = dict()
         for aclass in root.findall('owl:Class', ns):
-            nam = aclass.attrib.values()[0].split("/")[-1]
+            nam = list(aclass.attrib.values())[0].split("/")[-1]
             for subclassof in aclass.findall('rdfs:subClassOf', ns):
                 if nam not in r:
                     r[nam] = set()
-                if len(subclassof.attrib.values()) == 1:
-                    r[nam].add(subclassof.attrib.values()[0].split("/")[-1])
+                if len(list(subclassof.attrib.values())) == 1:
+                    r[nam].add(list(subclassof.attrib.values())
+                               [0].split("/")[-1])
 
         klist = []
         vlist = []
-        for item in r.items():
+        for item in list(r.items()):
             key = item[0]
             vals = item[1]
             for v in vals:
                 klist.append(key.replace("_", ":"))
                 vlist.append(v.replace("_", ":"))
-        self.resultsz['%s$ont' % self.prefix] = [zip(klist, vlist),
+        self.resultsz['%s$ont' % self.prefix] = [list(zip(klist, vlist)),
                                                  ['id', 'subclass_of'],
                                                  ['varchar(250)',
                                                   'varchar(250)']]

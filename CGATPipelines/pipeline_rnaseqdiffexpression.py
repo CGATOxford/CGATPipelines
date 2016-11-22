@@ -452,13 +452,13 @@ def buildMaskGtf(infile, outfile):
     outf = IOTools.openFile(outfile, "wb")
     for entry in GTF.iterator(geneset):
         if entry.gene_id in rrna_list or entry.gene_id in chrM_list:
-            outf.write("\t".join((map(
+            outf.write("\t".join((list(map(
                 str,
                 [entry.contig, entry.source, entry.feature,
                  entry.start, entry.end, ".", entry.strand,
                  ".", "transcript_id" + " " + '"' +
                  entry.transcript_id + '"' + ";" + " " +
-                 "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+                 "gene_id" + " " + '"' + entry.gene_id + '"'])))) + "\n")
 
     outf.close()
 
@@ -570,12 +570,12 @@ def buildCodingExons(infile, outfile):
     statement = '''
     zcat %(infile)s
     | awk '$3 == "CDS"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
     | perl -p -e "s/CDS/exon/"
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --log=%(outfile)s.log
     | gzip
@@ -601,14 +601,14 @@ def buildUnionIntersectionExons(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=intersect-transcripts
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --is-gtf
     --method=crop-unique
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py --is-gtf --log=%(outfile)s.log
+    | cgat gff2bed --is-gtf --log=%(outfile)s.log
     | sort -k1,1 -k2,2n
     | gzip
     > %(outfile)s
@@ -636,14 +636,14 @@ def buildUnionExons(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --is-gtf
     --method=crop-unique
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py
+    | cgat gff2bed
     --is-gtf
     --log=%(outfile)s.log
     | sort -k1,1 -k2,2n
@@ -698,7 +698,7 @@ def buildGeneLevelReadCounts(infiles, outfile):
     # ignore multi-mapping reads
     statement = '''
     zcat %(exons)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=genes
           --bam-file=%(bamfile)s
           --counter=length
@@ -775,7 +775,7 @@ def aggregateGeneLevelReadCounts(infiles, outfile):
     infiles = " ".join(infiles)
     # use anysense unique counts, needs to parameterized
     # for stranded/unstranded rnaseq data
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --columns=1
     --take=%(counting_type)s
     --use-file-prefix
@@ -847,7 +847,7 @@ def buildGeneLevelReadExtension(infile, outfile):
     statement = '''
     zcat %(cds)s
     %(remove_contigs)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=genes
           --bam-file=%(infile)s
           --counter=position
@@ -914,7 +914,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(geneset)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=transcripts
           --bam-file=%(bamfile)s
           --counter=length
@@ -997,7 +997,7 @@ def aggregateTranscriptLevelReadCounts(infiles, outfile):
     infiles = " ".join(infiles)
     # use anysense unique counts, needs to parameterized
     # for stranded/unstranded rnaseq data
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --columns=1
     --take=%(counting_type)s
     --use-file-prefix
@@ -1085,7 +1085,7 @@ def aggregateFeatureCounts(infiles, outfile):
         as rows and tracks as the columns - this is a `tsv.gz` file      '''
 
     infiles = " ".join(infiles)
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --columns=1
     --take=7
     --use-file-prefix
@@ -1206,8 +1206,8 @@ def loadFeatureCountsSummary(infiles, outfile):
     aggregateTranscriptLevelReadCounts,
     aggregateGeneLevelReadCounts,
     aggregateFeatureCounts),
-           suffix(".tsv.gz"),
-           ".stats.tsv.gz")
+    suffix(".tsv.gz"),
+    ".stats.tsv.gz")
 def summarizeCounts(infile, outfile):
     '''perform summarization of read counts
 
@@ -1239,7 +1239,7 @@ def summarizeCounts(infile, outfile):
 
     prefix = P.snip(outfile, ".tsv.gz")
     job_memory = "32G"
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
     --method=summary
     --tags-tsv-file=%(infile)s
     --output-filename-pattern=%(prefix)s_
@@ -1287,7 +1287,7 @@ def summarizeCountsPerDesign(infiles, outfile):
 
     design_file, counts_file = infiles
     prefix = P.snip(outfile, ".tsv")
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
               --method=summary
               --design-tsv-file=%(design_file)s
               --tags-tsv-file=%(counts_file)s
@@ -1402,7 +1402,7 @@ def runDESeq(infiles, outfile):
 
     track = P.snip(outfile, ".tsv.gz")
 
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
     --method=deseq
     --tags-tsv-file=%(count_file)s
     --design-tsv-file=%(design_file)s
@@ -1523,7 +1523,7 @@ def runEdgeR(infiles, outfile):
     design_file, count_file = infiles
     track = P.snip(outfile, ".tsv.gz")
 
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
     --method=edger
     --tags-tsv-file=%(count_file)s
     --design-tsv-file=%(design_file)s
@@ -1651,7 +1651,7 @@ def runDESeq2(infiles, outfile):
     track = P.snip(outfile, ".tsv.gz")
 
     statement = (
-        "python %(scriptsdir)s/runExpression.py"
+        "cgat runExpression"
         " --method=deseq2"
         " --outfile=%(outfile)s"
         " --output-filename-pattern=%(track)s_"
@@ -1849,7 +1849,7 @@ def buildCuffdiffPlots(infile, outfile):
             control_mean > 0
             """ % locals()
 
-            data = zip(*Database.executewait(dbhandle, statement))
+            data = list(zip(*Database.executewait(dbhandle, statement)))
 
             pngfile = ("%(outdir)s/%(geneset)s_%(method)s_"
                        "%(level)s_%(track1)s_vs_%(track2)s_"
@@ -1989,7 +1989,7 @@ def plotTagStats(infiles, outfile):
     design_file, counts_file = infiles
 
     statement = '''
-    python %(scriptsdir)s/runExpression.py
+    cgat runExpression
     --tags-tsv-file=%(counts_file)s
     --design-tsv-file=%(design_file)s
     --method=plottagstats
@@ -2037,7 +2037,7 @@ def plotDETagStats(infile, outfile):
     job_memory = "8G"
 
     statement = '''
-    python %(scriptsdir)s/runExpression.py
+    cgat runExpression
     --result-tsv-file=%(infile)s
     --method=plotdetagstats
     --output-filename-pattern=%(outfile)s

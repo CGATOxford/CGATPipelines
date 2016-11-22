@@ -201,7 +201,7 @@ def test_scripts():
 
                 if "regex" in values:
                     rx = re.compile(values["regex"])
-                    scriptdirs = filter(rx.search, scriptdirs)
+                    scriptdirs = list(filter(rx.search, scriptdirs))
 
     # ignore those which don't exist as tests (files added through MANIFEST.in,
     # such as version.py, __init__.py, ...
@@ -239,7 +239,7 @@ def test_scripts():
 
         script_tests = yaml.load(open(fn))
 
-        for test, values in script_tests.items():
+        for test, values in list(script_tests.items()):
             check_script.description = os.path.join(scriptdir, test)
 
             # deal with scripts in subdirectories. These are prefixed

@@ -48,7 +48,11 @@ import subprocess
 import sys
 import tempfile
 import time
-from cStringIO import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
+
 from multiprocessing.pool import ThreadPool
 
 # talking to mercurial
@@ -360,18 +364,18 @@ def peekParameters(workingdir,
 
     # update interface
     if update_interface:
-        for key, value in dump.items():
+        for key, value in list(dump.items()):
             if key.startswith("interface"):
                 dump[key] = os.path.join(workingdir, value)
 
     # keep only interface if so required
     if restrict_interface:
-        dump = dict([(k, v) for k, v in dump.iteritems()
+        dump = dict([(k, v) for k, v in dump.items()
                      if k.startswith("interface")])
 
     # prefix all parameters
     if prefix is not None:
-        dump = dict([("%s%s" % (prefix, x), y) for x, y in dump.items()])
+        dump = dict([("%s%s" % (prefix, x), y) for x, y in list(dump.items())])
 
     return dump
 
@@ -957,7 +961,7 @@ def main(args=sys.argv):
                 execute("inkscape %s" % filename)
                 os.unlink(filename)
 
-        except ruffus_exceptions.RethrownJobError, value:
+        except ruffus_exceptions.RethrownJobError as value:
 
             if not options.debug:
                 E.error("%i tasks with errors, please see summary below:" %
@@ -1005,12 +1009,12 @@ def main(args=sys.argv):
     elif options.pipeline_action == "dump":
         # convert to normal dictionary (not defaultdict) for parsing purposes
         # do not change this format below as it is exec'd in peekParameters()
-        print "dump = %s" % str(dict(PARAMS))
+        print("dump = %s" % str(dict(PARAMS)))
 
     elif options.pipeline_action == "printconfig":
-        print "Printing out pipeline parameters: "
+        print("Printing out pipeline parameters: ")
         for k in sorted(PARAMS):
-            print k, "=", PARAMS[k]
+            print(k, "=", PARAMS[k])
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
