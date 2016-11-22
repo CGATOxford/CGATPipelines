@@ -1147,13 +1147,13 @@ def loadFeatureCounts(infile, outfile):
     '''Load aggregated feature counts into database.
 
     Load the aggregted feature counts of all tracks into a database table.
-    For example "refcoding.genelengths.tsv.gz" will be table
-    "refcoding_genelengths" in database.
+    For example "refcoding.featurecounts.tsv.gz" will be table
+    "refcoding_featurecounts" in database.
 
     Parameters
     ----------
     infile : string
-        filename of aggregated feature lengths (e.g. `genelengths.tsv.gz`).
+        filename of aggregated feature counts (e.g. `featurecounts.tsv.gz`).
     outfile : string
         filename of `.load` file summarising information loaded into
         database table'''
@@ -1168,13 +1168,13 @@ def loadFeatureLengths(infile, outfile):
     '''Load aggregated feature counts into database.
 
     Load the aggregted feature counts of all tracks into a database table.
-    For example "refcoding.featurecounts.tsv.gz" will be table
-    "refcoding_featurecounts" in database.
+    For example "refcoding.genelengths.tsv.gz" will be table
+    "refcoding_genelengths" in database.
 
     Parameters
     ----------
     infile : string
-        filename of aggregated feature counts (e.g. `featurecounts.tsv.gz`).
+        filename of feature lengths table (e.g. `featurelengths.tsv.gz`).
     outfile : string
         filename of `.load` file summarising information loaded into
         database table'''
