@@ -81,8 +81,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 class Splicer(object):
     ''' base clase for DS experiments '''
 
-    def __init__(self, design, gtf=None, executable=None):
-        self.design = design
+    def __init__(self, gtf=None, executable=None):
         if gtf:
             self.gtf = gtf
         if executable:
@@ -150,7 +149,7 @@ class rMATS(Splicer):
        using rMATS
     '''
 
-    def __init__(self, pvalue=0.05,
+    def __init__(self, design, pvalue=0.05,
                  *args, **kwargs):
         Splicer.__init__(self, *args, **kwargs)
         self.pvalue = pvalue
@@ -251,10 +250,11 @@ class DEXSeq(Splicer):
        using DEXSeq
     '''
 
-    def __init__(self, countsdir, model=None, *args, **kwargs):
+    def __init__(self, design, countsdir, model=None, *args, **kwargs):
         Splicer.__init__(self, *args, **kwargs)
         self.countsdir = os.path.abspath(countsdir)
         self.model = model
+        self.design = design
 
     def splicer(self, outfile):
         design = self.design
@@ -266,7 +266,7 @@ class DEXSeq(Splicer):
         statement = '''
         python %%(scriptsdir)s/counts2table.py
         --design-tsv-file=%(design)s
-        --output-filename-pattern=%(outfile)s
+        --output-filename-pattern=%(outfile)s/
         --log=%(outfile)s/DEXSeq.log
         --method=dexseq
         --fdr=%(dexseq_fdr)s
