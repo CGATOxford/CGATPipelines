@@ -79,3 +79,42 @@ taken from the ENSEMBL gene set.
    Proportion of alignments that align to protein coding genes or
    pseudo genes.
 
+Protein coding expression
+=========================
+
+The following plots list the number of alignments to protein
+coding and (protein coding) pseudogene exons. The annotations are
+taken from the ENSEMBL gene set.
+
+.. report:: Mapping.MappingContext
+   :render: table
+   :slices: total,protein_coding,pseudogene
+
+   Number of alignments that align to protein coding genes or pseudo
+   genes.
+
+.. report:: Mapping.MappingContext
+   :render: pie-plot
+   :pie-first-is-total: genomic
+   :groupby: track
+   :slices: total,protein_coding,pseudogene
+   :layout: column-3
+   :width: 200
+
+   Proportion of alignments that align to protein coding genes or
+   pseudo genes.
+
+
+Contextual data from gene profiles
+==================================
+
+Information about the location relative to gene annotations that reads map to.
+This is useful to find out what gene features are enriched in the dataset. Transcript
+profiles for 3' to 5' biases can be found in the RNASeq QC section of the report.
+
+.. report:: Tracker.TrackerImages
+   :render: gallery-plot
+   :glob: */*' to geneprofile*.detail.png
+
+   Gene profile plots
+
