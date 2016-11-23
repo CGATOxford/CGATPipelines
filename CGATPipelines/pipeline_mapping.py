@@ -2398,6 +2398,48 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
+@transform(MAPPINGTARGETS,
+           suffix(".bam"),
+           add_inputs(buildCodingExons),
+           ".geneprofile.gz")
+def buildGeneProfiles(infiles, outfile):
+    '''build gene coverage profiles
+
+    Gene coverage plots are useful to determine mapping location
+    for a number of genomic techniques.
+
+    In addition to the outfile specified by the task, plots will be
+    saved with full and focus views of the meta-profile
+
+    Parameters
+    ----------
+    infiles : list of str
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str`
+       Input filename in :term:`gtf` format
+
+    outfile : str
+       Output filename in :term:`tsv` format
+    '''
+
+    bamfile, gtffile = infiles
+
+    job_memory = "8G"
+
+    statement = '''cgat bam2geneprofile
+                --method=geneprofilewithintrons
+                --bam-file=%(bamfile)s
+                --gtf-file=%(gtffile)s
+                --normalize-transcript=total-sum
+                --normalize-profile=area
+                --log=%(outfile)s.log
+                --output-filename-pattern=%(outfile)s.%%s
+                > %(outfile)s '''
+
+    P.run()
+
+
 @active_if(SPLICED_MAPPING)
 @P.add_doc(PipelineMappingQC.buildPicardRnaSeqMetrics)
 @transform(MAPPINGTARGETS,
@@ -2583,6 +2625,7 @@ def buildIGVSampleInformation(infiles, outfile):
 @follows(loadReadCounts,
          loadPicardStats,
          loadBAMStats,
+         buildGeneProfiles,
          loadContextStats)
 def general_qc():
     pass
