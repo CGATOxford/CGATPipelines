@@ -2424,7 +2424,6 @@ def buildGeneProfiles(infiles, outfile):
     '''
 
     bamfile, gtffile = infiles
-
     job_memory = "8G"
 
     statement = '''cgat bam2geneprofile
@@ -2436,7 +2435,6 @@ def buildGeneProfiles(infiles, outfile):
                 --log=%(outfile)s.log
                 --output-filename-pattern=%(outfile)s.%%s
                 > %(outfile)s '''
-
     P.run()
 
 
