@@ -449,7 +449,7 @@ def getBamFiles(infile, suffix):
 
     controls = getControl(Sample(track))
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    if not os.path.exists(controlfile):
+    if not os.path.exists(str(controlfile)):
         L.warn("no controlfile '%s' for track '%s' not found " %
                (controlfile, track))
         controlfile = None
@@ -632,7 +632,7 @@ def buildBAMStats(infile, outfile):
 
     job_memory = "4G"
 
-    statement = '''python
+    statement = '''
     cgat bam2stats
          --force-output
          --output-filename-pattern=%(outfile)s.%%s
