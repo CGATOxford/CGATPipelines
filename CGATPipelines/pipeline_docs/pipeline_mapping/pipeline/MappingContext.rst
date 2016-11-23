@@ -114,7 +114,7 @@ profiles for 3' to 5' biases can be found in the RNASeq QC section of the report
 
 .. report:: Tracker.TrackerImages
    :render: gallery-plot
-   :glob: */*' to geneprofile*.detail.png
+   :glob: */*geneprofile*.detail.png
 
    Gene profile plots
 
