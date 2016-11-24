@@ -6,7 +6,7 @@ import itertools
 import math
 import numpy
 
-from .RnaseqReport import *
+from RnaseqReport import *
 
 
 class MappingStatus(Status):

@@ -1,6 +1,6 @@
 import math
 
-from .GeneSetsReport import *
+from GeneSetsReport import *
 
 
 class GeneSetsSummaryForeground(GeneSetsTracker):

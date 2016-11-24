@@ -1,6 +1,6 @@
 from CGATReport.Tracker import SingleTableTrackerRows
 from CGATReport.Tracker import SingleTableTrackerHistogram
-from .MappingReport import MappingTracker
+from MappingReport import MappingTracker
 
 
 class MappingSummary(MappingTracker, SingleTableTrackerRows):
