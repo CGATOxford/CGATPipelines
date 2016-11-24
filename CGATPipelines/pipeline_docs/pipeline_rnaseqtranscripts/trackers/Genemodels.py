@@ -7,7 +7,7 @@ import itertools
 from CGATReport.Tracker import *
 from collections import OrderedDict as odict
 
-from .RnaseqTranscriptsReport import *
+from RnaseqTranscriptsReport import *
 
 
 class TrackerGenemodels(RnaseqTranscriptsTracker):

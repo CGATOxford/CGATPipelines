@@ -4,7 +4,7 @@ import re
 import types
 import itertools
 
-from .IntervalReport import *
+from IntervalReport import *
 
 ##########################################################################
 ##########################################################################

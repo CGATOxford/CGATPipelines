@@ -1,6 +1,6 @@
 import os
 import collections
-from .ReadqcReport import DATABASE
+from ReadqcReport import DATABASE
 from CGATReport.Tracker import Status
 
 

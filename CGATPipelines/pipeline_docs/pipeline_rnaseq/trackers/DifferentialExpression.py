@@ -9,7 +9,7 @@ from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 from CGATReport.odict import OrderedDict as odict
 
-from .RnaseqReport import *
+from RnaseqReport import *
 
 ##############################################################
 ##############################################################

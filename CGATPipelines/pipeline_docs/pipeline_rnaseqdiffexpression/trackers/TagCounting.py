@@ -1,4 +1,4 @@
-from .RnaseqDiffExpressionReport import *
+from RnaseqDiffExpressionReport import *
 
 
 class TagCountsCorrelations(ProjectTracker):

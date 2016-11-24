@@ -1,6 +1,6 @@
 import math
 from collections import OrderedDict as odict
-from .MappingReport import MappingTracker
+from MappingReport import MappingTracker
 
 
 class ReferenceData(MappingTracker):

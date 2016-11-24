@@ -1,7 +1,7 @@
 # tracks taken from geneset comparison
 # need to integrated
 
-from .MappingReport import *
+from MappingReport import *
 
 
 class AnnotationsAssociated:
