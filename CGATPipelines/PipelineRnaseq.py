@@ -510,16 +510,19 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
     with IOTools.openFile(logfile, "w") as log:
 
         plot_prefix = P.snip(logfile, ".log")
+        log.write("1")
 
         # need to manually read in data as index column is not the first column
-        counts = Counts.Counts(pd.read_table(counts_inf, sep="\t", index_col=0))
+        in_table = pd.read_table(counts_inf, sep="\t", index_col=0)
+        in_table = in_table.dropna(axis=0)
+        counts = Counts.Counts(in_table)
         counts.table.columns = [x.replace(".", "-") for x in counts.table.columns]
-
+        log.write("2")
         design = Expression.ExperimentalDesign(design_inf)
-
+        log.write("3")
         # make certain counts table only include samples in design
         counts.restrict(design)
-
+        log.write("4")
         cor_scatter_outfile = plot_prefix + "_pairwise_correlations_scatter.png"
         cor_heatmap_outfile = plot_prefix + "_pairwise_correlations_heatmap.png"
         pca_var_outfile = plot_prefix + "_pca_variance.png"
@@ -530,7 +533,7 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
         # use log expression so that the PCA is not overly biased
         # towards the variance in the most highly expressed genes
         counts_log10 = counts.log(base=10, pseudocount=0.1, inplace=False)
-
+        log.write("2")
         log.write("plot correlations scatter: %s\n" % cor_scatter_outfile)
         log.write("plot correlations heatmap: %s\n" % cor_heatmap_outfile)
         #counts_log10.plotPairwise(
@@ -539,7 +542,7 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
         # for the heatmap, and pca we want the top expressed genes (top 25%).
         counts_log10.removeObservationsPerc(percentile_rowsums=75)
 
-        log.write("plot pc3,pc4: %s\n" % pca1_outfile)
+        log.write("plot pc1,pc2: %s\n" % pca1_outfile)
         counts_log10.plotPCA(design,
                              pca_var_outfile, pca1_outfile,
                              x_axis="PC1", y_axis="PC2",
@@ -675,21 +678,21 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     if merge:
         statement = '''
         %(pipeline_scriptsdir)s/gff_sort pos < %(tmpfilename)s
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=unset-genes --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=merge-genes
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=merge-exons
             --merge-exons-distance=5
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=renumber-genes
             --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
             --method=renumber-transcripts
             --pattern-identifier="NONC%%06i"
             --log=%(outfile)s.log
@@ -866,7 +869,7 @@ def mergeCufflinksFPKM(infiles, outfile, genesets,
          for x in infiles])
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
         --log=%(outfile)s.log
         --columns=1
         --skip-titles
