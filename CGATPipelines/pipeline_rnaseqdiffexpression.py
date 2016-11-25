@@ -490,7 +490,7 @@ def buildReferenceTranscriptome(infile, outfile):
     statement = '''
     zcat %(infile)s |
     awk '$3=="exon"'|
-    python %(scriptsdir)s/gff2fasta.py
+    cgat gff2fasta
     --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
     --log=%(outfile)s.log > %(outfile)s;
     samtools faidx %(outfile)s
@@ -1139,7 +1139,7 @@ def runDESeq2(infiles, outfiles, design_name):
     refgroup = PARAMS['deseq2_refgroup%s' % design_name]
 
     statement = '''
-    python %(scriptsdir)s/counts2table.py
+    cgat counts2table
     --tag-tsv-file=%(transcripts)s
     --design-tsv-file=%(design)s
     --method=deseq2
@@ -1156,7 +1156,7 @@ def runDESeq2(infiles, outfiles, design_name):
     P.run()
 
     statement = '''
-    python %(scriptsdir)s/counts2table.py
+    cgat counts2table
     --tag-tsv-file=%(genes)s
     --design-tsv-file=%(design)s
     --method=deseq2
@@ -1202,7 +1202,7 @@ def runEdgeR(infiles, outfiles, design_name):
     refgroup = PARAMS['edger_refgroup%s' % design_name]
 
     statement = '''
-    python %(scriptsdir)s/counts2table.py
+    cgat counts2table
     --tag-tsv-file=%(transcripts)s
     --design-tsv-file=%(design)s
     --method=edger
@@ -1218,7 +1218,7 @@ def runEdgeR(infiles, outfiles, design_name):
     P.run()
 
     statement = '''
-    python %(scriptsdir)s/counts2table.py
+    cgat counts2table
     --tag-tsv-file=%(genes)s
     --design-tsv-file=%(design)s
     --method=edger
@@ -1246,7 +1246,7 @@ def runEdgeR(infiles, outfiles, design_name):
 def runSleuth(infiles, outfiles, design_name, quantifier):
     ''' run sleuth to identify differentially expression transcripts/genes'''
 
-    design_name_lower = design_name.lower()
+    design_name = design_name.lower()
     counts, design = infiles
     transcripts, genes = counts
     transcript_out, gene_out = outfiles
@@ -1257,9 +1257,10 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
     gene_prefix = P.snip(gene_out, ".tsv")
     gene_log = gene_prefix + ".log"
 
-    model = PARAMS['sleuth_model%s' % design_name_lower]
-    contrast = PARAMS['sleuth_contrast%s' % design_name_lower]
-    refgroup = PARAMS['sleuth_refgroup%s' % design_name_lower]
+    model = PARAMS['sleuth_model%s' % design_name]
+    E.info(model)
+    contrast = PARAMS['sleuth_contrast%s' % design_name]
+    refgroup = PARAMS['sleuth_refgroup%s' % design_name]
 
     transcripts = os.path.join("geneset.dir",
                                P.snip(PARAMS['geneset'], ".gtf.gz") + ".fa")
@@ -1280,7 +1281,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
         number_samples, number_transcripts)
 
     statement = '''
-    python %(scriptsdir)s/counts2table.py
+    cgat counts2table
     --design-tsv-file=%(design)s
     --output-filename-pattern=%(transcript_prefix)s
     --log=%(transcript_log)s
@@ -1308,7 +1309,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
             2 * number_samples, number_transcripts)
 
         statement = '''
-        python %(scriptsdir)s/counts2table.py
+        cgat counts2table
         --design-tsv-file=%(design)s
         --output-filename-pattern=%(gene_prefix)s
         --log=%(gene_log)s
@@ -1467,7 +1468,7 @@ def expressionSummaryPlots(infiles, logfiles):
     transcript_inf, gene_inf = expression_infs
     transcript_log, gene_log = logfiles
 
-    job_memory = "4G"
+    job_memory = "100G"
 
     if not os.path.exists(os.path.dirname(gene_log)):
         os.mkdir(os.path.dirname(gene_log))
@@ -1544,7 +1545,7 @@ def buildGeneLevelReadExtension(infile, outfile):
     statement = '''
     zcat %(cds)s
     %(remove_contigs)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=genes
           --bam-file=%(infile)s
           --counter=position
