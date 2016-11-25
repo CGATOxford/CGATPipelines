@@ -1468,7 +1468,7 @@ def expressionSummaryPlots(infiles, logfiles):
     transcript_inf, gene_inf = expression_infs
     transcript_log, gene_log = logfiles
 
-    job_memory = "100G"
+    job_memory = "10G"
 
     if not os.path.exists(os.path.dirname(gene_log)):
         os.mkdir(os.path.dirname(gene_log))
