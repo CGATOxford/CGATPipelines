@@ -25,7 +25,7 @@ class replicatedUniqueIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(stop-start),0) as length FROM %(track)s_unique_intervals" % locals())
-        return odict(zip(("Unique intervals", "mean_interval_length"), data))
+        return odict(list(zip(("Unique intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 
@@ -39,7 +39,7 @@ class replicatedSharedIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(stop-start),0) as length FROM %(track)s_shared_intervals" % locals())
-        return odict(zip(("Shared intervals", "mean_interval_length"), data))
+        return odict(list(zip(("Shared intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 
@@ -54,7 +54,7 @@ class replicatedOverlapIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT track, overlap FROM %(track)s_overlap" % locals())
-        return odict(zip(("Track", "Intervals"), zip(*data)))
+        return odict(list(zip(("Track", "Intervals"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -73,7 +73,7 @@ class replicatedOverlapCpG(cpgTracker):
                             FROM %(track)s_cgi c, external_interval_sets e, %(track)s_replicated_intervals i 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -92,7 +92,7 @@ class replicatedOverlapChipseq(cpgTracker):
                             FROM %(track)s_chipseq c, external_interval_sets e, %(track)s_replicated_intervals i 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -111,7 +111,7 @@ class replicatedOverlapCAPseq(cpgTracker):
                             FROM %(track)s_capseq c, external_interval_sets e, %(track)s_replicated_intervals i 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -130,7 +130,7 @@ class replicatedOverlapChromatinMarks(cpgTracker):
                             FROM %(track)s_chromatin c, external_interval_sets e, %(track)s_replicated_intervals i 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -144,4 +144,4 @@ class replicatedGatResults(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT track, annotation, round(expected,0) as expected, observed, round(fold,1) as fold, pvalue FROM external_dataset_gat_results ")
-        return odict(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), zip(*data)))
+        return odict(list(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), list(zip(*data)))))

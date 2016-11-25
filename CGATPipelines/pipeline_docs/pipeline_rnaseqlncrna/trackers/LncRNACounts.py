@@ -124,7 +124,7 @@ class TranscriptNumbers(Tracker):
         counts = []
         for gtf in GTF.iterator(IOTools.openFile(self.getFilename(track))):
             transcript_counts[gtf.gene_id].add(gtf.transcript_id)
-        for gene, transcripts in transcript_counts.iteritems():
+        for gene, transcripts in transcript_counts.items():
             counts.append(len(transcripts))
         return np.mean(counts)
 
@@ -139,7 +139,7 @@ class TranscriptNumberDistribution(TranscriptNumbers):
         counts = []
         for gtf in GTF.iterator(IOTools.openFile(self.getFilename(track))):
             transcript_counts[gtf.gene_id].add(gtf.transcript_id)
-        for gene, transcripts in transcript_counts.iteritems():
+        for gene, transcripts in transcript_counts.items():
             counts.append(len(transcripts))
         return counts
 
@@ -154,7 +154,7 @@ class TranscriptNumberCumFreq(TranscriptNumbers):
         counts = []
         for gtf in GTF.iterator(IOTools.openFile(self.getFilename(track))):
             transcript_counts[gtf.gene_id].add(gtf.transcript_id)
-        for gene, transcripts in transcript_counts.iteritems():
+        for gene, transcripts in transcript_counts.items():
             counts.append(len(transcripts))
         count, lower, dx, _ = scipy.stats.cumfreq(
             counts, numbins=40, defaultreallimits=(1, 15))

@@ -168,7 +168,7 @@ def chunk_iterator_column(infile, args, prefix, use_header=False):
 
         files.write("%s/%s.in" % (prefix, key), line)
 
-    for filename, count in files.items():
+    for filename, count in list(files.items()):
         E.info("created file %s with %i items" % (filename, count))
         yield filename
 
@@ -279,7 +279,7 @@ def chunk_iterator_psl_overlap(infile, args, prefix, use_header=False):
     filename = None
     while 1:
 
-        match = iterator.next()
+        match = next(iterator)
 
         if match is None:
             break
@@ -749,7 +749,7 @@ def runDRMAA(data, environment):
 
         try:
             retval = session.wait(jobid, drmaa.Session.TIMEOUT_WAIT_FOREVER)
-        except Exception, msg:
+        except Exception as msg:
             # ignore message 24 in PBS
             # code 24: drmaa: Job finished but resource usage information
             # and/or termination status could not be provided.":

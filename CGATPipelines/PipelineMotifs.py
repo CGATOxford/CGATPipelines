@@ -450,7 +450,7 @@ def loadGLAM2SCAN(infile, outfile):
             else:
                 controls[id].append(match.score)
 
-        for id, matches in full_matches.iteritems():
+        for id, matches in full_matches.items():
 
             nmatches = len(matches)
             scores = [x.score for x in matches]
@@ -812,7 +812,7 @@ def runGLAM2(infile, outfile, dbhandle):
         maxsize=int(
             PARAMS["meme_max_size"]),
         proportion=PARAMS["meme_proportion"])
-    
+
     min_sequences = int(nseq / 10.0)
     statement = '''
     %(execglam2)s -2 -O %(tmpdir)s %(glam2_options)s -z %(min_sequences)i n %(tmpfasta)s > %(outfile)s.log

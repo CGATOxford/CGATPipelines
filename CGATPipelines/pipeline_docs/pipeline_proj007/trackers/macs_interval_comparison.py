@@ -25,7 +25,7 @@ class ExternalIntervalLists(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT bed, intervals FROM external_interval_sets" % locals())
-        return odict(zip(("Dataset", "Intervals"), zip(*data)))
+        return odict(list(zip(("Dataset", "Intervals"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -44,7 +44,7 @@ class OverlapCpG(cpgTracker):
                             FROM %(track)s_replicated_cgi_venn c, external_interval_sets e, (select count(*) as a_intervals from %(track)s_replicated_intervals) b 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -63,7 +63,7 @@ class OverlapChipseq(cpgTracker):
                             FROM %(track)s_replicated_chipseq c, external_interval_sets e, (select count(*) as a_intervals from %(track)s_replicated_intervals) b 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -82,7 +82,7 @@ class OverlapCAPseq(cpgTracker):
                             FROM %(track)s_replicated_capseq c, external_interval_sets e, (select count(*) as a_intervals from %(track)s_replicated_intervals) b 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -101,7 +101,7 @@ class OverlapChromatinMarks(cpgTracker):
                             FROM %(track)s_replicated_chromatin c, external_interval_sets e, (select count(*) as a_intervals from %(track)s_replicated_intervals) b 
                             WHERE c.track=e.bed""" % locals() )
 
-        return odict(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), zip(*data)))
+        return odict(list(zip(("Track", "A Intervals", "B Intervals", "Overlap", "%A", "%B"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -115,4 +115,4 @@ class gatResults(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT track, annotation, round(expected,0) as expected, observed, round(fold,1) as fold, pvalue FROM external_dataset_gat_results ")
-        return odict(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), zip(*data)))
+        return odict(list(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), list(zip(*data)))))

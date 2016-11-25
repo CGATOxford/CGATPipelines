@@ -243,7 +243,7 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     )
 
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                      for suffix_name in SEQUENCESUFFIXES])
+                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
     r"(.*\/)*(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|"
@@ -423,7 +423,7 @@ def buildCodingGeneSet(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=gene
     --map-tsv-file=%(genes_tsv)s
@@ -455,12 +455,12 @@ def buildCodingExons(infile, outfile):
     statement = '''
     zcat %(infile)s
     | awk '$3 == "CDS"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
     | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --log=%(outfile)s.log
     | gzip
@@ -530,11 +530,11 @@ def buildTranscriptFasta(infile, outfile):
     dbname = outfile[:-len(".fasta")]
 
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/gff2fasta.py
+    | cgat gff2fasta
     --is-gtf
     --genome=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/index_fasta.py
+    | cgat index_fasta
     %(dbname)s --force-output -
     > %(dbname)s.log
     '''
@@ -549,10 +549,10 @@ def buildTranscriptGeneMap(infile, outfile):
 
     statement = """
     zcat %(infile)s
-    |python %(scriptsdir)s/gtf2tsv.py
+    |cgat gtf2tsv
     --attributes-as-columns
     --output-only-attributes
-    | python %(scriptsdir)s/csv_cut.py transcript_id gene_id
+    | cgat csv_cut transcript_id gene_id
     > %(outfile)s"""
     P.run()
 
@@ -645,9 +645,9 @@ def subsetRange(infile, outfiles):
     # Note: this wont handle sra. Need to add a call to Sra.peak to check for
     # paired end files in SRA
     if inf_suffix == ".fastq.1.gz":
-        nreads = nreads/2
+        nreads = nreads / 2
 
-    subset_depths = range(10, 110, 10)
+    subset_depths = list(range(10, 110, 10))
     limits = [int(nreads / (100.0 / int(depth)))
               for depth in subset_depths]
 
@@ -799,7 +799,7 @@ def buildBAMStats(infile, outfile):
         fastq_option = ""
 
     statement = '''python
-    %(scriptsdir)s/bam2stats.py
+    cgat bam2stats
          %(fastq_option)s
          --force-output
          --mask-bed-file=%(rna_file)s
@@ -1276,7 +1276,7 @@ def buildTranscriptProfiles(infiles, outfile):
 
     job_memory = "8G"
 
-    statement = '''python %(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
     --output-filename-pattern="%(outfile)s.%%s"
     --force-output
     --reporter=transcript
@@ -1301,7 +1301,8 @@ def loadTranscriptProfiles(infiles, outfile):
     regex = ("transcriptprofiles.dir/(\S+).transcriptprofile.gz."
              "geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz")
 
-    infiles = [x + ".geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz" for x in infiles]
+    infiles = [
+        x + ".geneprofileabsolutedistancefromthreeprimeend.matrix.tsv.gz" for x in infiles]
 
     P.concatenateAndLoad(infiles, outfile, regex_filename=regex)
 
@@ -1378,7 +1379,7 @@ def buildFactorTable(infiles, outfile):
 
         if os.path.exists("additional_factors.tsv"):
             with IOTools.openFile("additional_factors.tsv", "r") as inf:
-                header = inf.next()
+                header = next(inf)
                 header = header.strip().split("\t")
                 additional_factors = header[1:]
                 for line in inf:
@@ -1421,7 +1422,7 @@ def characteriseTranscripts(infile, outfile):
     ''' obtain attributes for transcripts '''
 
     statement = '''
-    cat %(infile)s | python %(scriptsdir)s/fasta2table.py
+    cat %(infile)s | cgat fasta2table
     --split-fasta-identifier --section=na,dn,length -v 0
     | gzip > %(outfile)s'''
 
@@ -1435,7 +1436,7 @@ def characteriseTranscripts(infile, outfile):
 def summariseBias(infiles, outfile):
 
     def percentage(x):
-        return float(x[0])/float(x[1])
+        return float(x[0]) / float(x[1])
 
     def lin_reg_grad(x, y):
         slope, intercept, r, p, stderr = linregress(x, y)
@@ -1447,7 +1448,7 @@ def summariseBias(infiles, outfile):
     atr = atr.rename(columns={'pGC': 'GC_Content'})
 
     for di in itertools.product("ATCG", repeat=2):
-        di = di[0]+di[1]
+        di = di[0] + di[1]
         temp_df = atr.loc[:, [di, "length"]]
         atr[di] = temp_df.apply(percentage, axis=1)
 
@@ -1467,7 +1468,7 @@ def summariseBias(infiles, outfile):
     def norm(array):
         array_min = array.min()
         array_max = array.max()
-        return pd.Series([(x - array_min)/(array_max-array_min) for x in array])
+        return pd.Series([(x - array_min) / (array_max - array_min) for x in array])
 
     def bin2floats(qcut_bin):
         qcut_bin2 = qcut_bin.replace("(", "[").replace(")", "]")
@@ -1475,7 +1476,7 @@ def summariseBias(infiles, outfile):
             qcut_list = eval(qcut_bin2, {'__builtins__': None}, {})
             return qcut_list
         except:
-            print "FAILED!!! qcut_bin: ", qcut_bin2
+            print("FAILED!!! qcut_bin: ", qcut_bin2)
             return None
 
     def aggregate_by_factor(df, attribute, sample_names, bins, function):
@@ -1575,7 +1576,8 @@ def plotTopGenesHeatmap(outfile):
 
     # set up the empty df
     intersection_df = pd.DataFrame(
-        index=xrange(0, len(exp_df_pivot.columns)**2-len(exp_df_pivot.columns)),
+        index=range(0, len(exp_df_pivot.columns) **
+                    2 - len(exp_df_pivot.columns)),
         columns=["sample1", "sample2", "intersection", "fraction"])
 
     # populate the df
@@ -1600,8 +1602,8 @@ def plotTopGenesHeatmap(outfile):
         intersection_df, index="sample1", columns="sample2", values="fraction")
 
     for factor in set(factors_df['factor'].tolist()):
-        print factor
-        print factors_df
+        print(factor)
+        print(factors_df)
         # don't want to plot coloured by genome
         if factor == "genome":
             continue

@@ -9,7 +9,7 @@ from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 from CGATReport.odict import OrderedDict as odict
 
-from RnaseqReport import *
+from .RnaseqReport import *
 
 ##############################################################
 ##############################################################
@@ -198,7 +198,7 @@ class DifferentialExpressionCorrelationPValue(DifferentialExpressionComparison):
                          AND a.status == 'OK' and b.status == 'OK'
                          ''' )
 
-        for k in data.keys():
+        for k in list(data.keys()):
             data[k] = [math.log10(x + 0.0000001) for x in data[k]]
 
         return data

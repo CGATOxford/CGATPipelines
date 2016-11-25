@@ -36,7 +36,7 @@ def outputSegments(outfile,
         raise ValueError("invalid section `%s`" % section)
 
     ninput, ncontigs, nsegments, ndiscarded = 0, 0, 0, 0
-    for contig, gffs in intervals.items():
+    for contig, gffs in list(intervals.items()):
         ninput += 1
         if remove_regex and remove_regex.search(contig):
             continue
@@ -54,7 +54,7 @@ def outputSegments(outfile,
             for x in segments:
                 synonyms[x[2].source].append((x[0], x[1]))
 
-            for key, segs in synonyms.iteritems():
+            for key, segs in synonyms.items():
                 outfile.write("%s\t%s\t%s\n" % (prefix, key, "\t".join(
                     ["(%i,%i)" % x for x in segs])))
                 outfile_synonyms.write("##Synonym\t%s\t%s\n" % (key, contig))
@@ -71,7 +71,7 @@ def buildGenomeGCSegmentation(infile, outfile):
     '''segment the genome into windows according to G+C content.'''
 
     statement = '''
-    python %(scriptsdir)s/fasta2bed.py 
+    cgat fasta2bed 
         --method=fixed-width-windows 
         --window-size=%(enrichment_gc_window_size)i 
         --log=%(outfile)s.log 
@@ -84,7 +84,7 @@ def buildAnnotatorGC(infile, outfile):
     '''compute G+C regions.'''
 
     statement = '''
-    python %(scriptsdir)s/bed2bed.py
+    cgat bed2bed
         --method=bins
         --num-bins=%(enrichment_gc_bins)s
         --binning-method=%(enrichment_gc_method)s 
@@ -98,12 +98,12 @@ def buildIsochoresGC(infile, outfile):
     '''compute isochores based on G+C content
     '''
     statement = '''
-    python %(scriptsdir)s/fasta2bed.py
+    cgat fasta2bed
         --method=fixed-width-windows
         --window-size=%(enrichment_gc_window_size)i
         --log=%(outfile)s.log
     < %(infile)s
-    | python %(scriptsdir)s/bed2bed.py
+    | cgat bed2bed
         --method=bins
         --num-bins=%(enrichment_gc_bins)s
         --binning-method=%(enrichment_gc_method)s
@@ -153,7 +153,7 @@ def buildWorkSpace(outfile, workspace):
         P.checkParameter("genome")
 
         statement = '''
-        python %(scriptsdir)s/index2bed.py
+        cgat index2bed
         --genome=%(genome)s
         --log=%(outfile)s.log
         --remove-regex='%(enrichment_remove_pattern)s'
@@ -181,7 +181,7 @@ def buildWorkSpace(outfile, workspace):
         statement = '''
         awk '($3 == "intronic" || $3 == "intergenic" )'
         < %(enrichment_regions)s
-        | python %(scriptsdir)s/gff2enrichment.py
+        | cgat gff2enrichment
                 --section=workspace
                 --max-length=0
                 --log=%(outfile)s.log
@@ -194,7 +194,7 @@ def buildWorkSpace(outfile, workspace):
         statement = '''
         awk '($3 == "CDS" || $3 ~ /UTR/ || $3 ~ /flank/)'
         < %(enrichment_regions)s
-        | python %(scriptsdir)s/gff2enrichment.py
+        | cgat gff2enrichment
                 --section=workspace
                 --max-length=0
                 --log=%(outfile)s.log
@@ -219,7 +219,7 @@ def buildWorkSpace(outfile, workspace):
 
         P.checkParameter("enrichment_geneterritories")
         statement = '''
-        python %(scriptsdir)s/gff2enrichment.py \
+        cgat gff2enrichment \
                 --section=workspace \
                 --max-length=0 \
                 --log=%(outfile)s.log \
@@ -231,8 +231,8 @@ def buildWorkSpace(outfile, workspace):
 
         P.checkParameter("enrichment_mappability")
         statement = '''
-        python %(scriptsdir)s/bed2gff.py < %(enrichment_mappability)s
-        | python %(scriptsdir)s/gff2enrichment.py
+        cgat bed2gff < %(enrichment_mappability)s
+        | cgat gff2enrichment
                 --section=workspace
                 --max-length=0
                 --log=%(outfile)s.log
@@ -259,7 +259,7 @@ def buildAnnotatorAnnotations(tmpdir, outfile,
     if annotations == "architecture":
         statement = '''
          cat %(promotors)s %(annotation)s
-         | python %(scriptsdir)s/gff2annotator2tsv.py
+         | cgat gff2annotator2tsv
         --section=annotations-gff
         --log=%(outfile)s.log
         --remove-regex='%(annotator_remove_pattern)s'
@@ -267,7 +267,7 @@ def buildAnnotatorAnnotations(tmpdir, outfile,
         '''
     elif annotations == "go":
         statement = '''
-        python %(scriptsdir)s/gff2annotator2tsv.py
+        cgat gff2annotator2tsv
         --section=annotations-go
         --map-tsv-file=<(cut -f 2,4 < %(gofile)s)
         --log=%(outfile)s.log
@@ -279,7 +279,7 @@ def buildAnnotatorAnnotations(tmpdir, outfile,
         bedfiles = " ".join(bedfiles)
         statement = '''
         cat %(bedfiles)s
-        | python %(scriptsdir)s/bed2annotator2tsv.py
+        | cgat bed2annotator2tsv
         --max-length=0
         --merge-overlapping
         --section=annotations
@@ -333,7 +333,7 @@ def buildGeneSetAnnotations(infiles, outfile, slice):
     subsets = " ".join(subsets)
 
     statement = '''
-    python %(scriptsdir)s/gff2annotator2tsv.py
+    cgat gff2annotator2tsv
     --section=annotations-genes
     --log=%(outfile)s.log
     --remove-regex='%(annotator_remove_pattern)s'
@@ -365,8 +365,8 @@ def buildAnnotatorSlicedSegments(tmpdir, outfile, track, slice):
     statement = '''
     %(cmd-sql)s %(database)s 
     "SELECT g.* FROM %(track)s_gtf as g, %(track)s_annotation AS a WHERE a.gene_id = g.gene_id AND %(where)s"
-    | python %(scriptsdir)s/gtf2tsv.py --invert
-    | python %(scriptsdir)s/gff2annotator2tsv.py
+    | cgat gtf2tsv --invert
+    | cgat gff2annotator2tsv
     --remove-regex='%(annotator_remove_pattern)s'
     --log=%(outfile)s.log
     --section=segments
@@ -389,8 +389,8 @@ def buildAnnotatorSegments(tmpdir, infile, outfile):
     tmpsegments = os.path.join(tmpdir, "segments")
 
     statement = '''
-    python %(scriptsdir)s/bed2gff.py < %(infile)s
-    | python %(scriptsdir)s/gff2annotator2tsv.py
+    cgat bed2gff < %(infile)s
+    | cgat gff2annotator2tsv
     --remove-regex='%(annotator_remove_pattern)s'
     --log=%(outfile)s.log --section=segments
     > %(tmpsegments)s
@@ -448,7 +448,7 @@ def genericImportAnnotator(infiles, outfile, table, workspace, slice, subset, fd
     tmpfilename = P.getTempFilename()
 
     statement = '''
-    python %(scriptsdir)s/annotator2tsv.py \
+    cgat annotator2tsv \
     --method=fdr-table \
     --fdr-method=%(fdr_method)s \
     --log=%(outfile)s.log \
@@ -469,11 +469,11 @@ def genericImportAnnotator(infiles, outfile, table, workspace, slice, subset, fd
     tmpfilename2 = tmpfile.name
 
     statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
+   cgat csv2db %(csv2db_options)s \
     --table=%(table)s
     < %(tmpfilename2)s > %(outfile)s'''
 
-    P.run(**dict(locals().items() + PARAMS.items()))
+    P.run(**dict(list(locals().items()) + list(PARAMS.items())))
     os.unlink(tmpfilename)
     os.unlink(tmpfilename2)
 
@@ -495,14 +495,14 @@ def importAnnotator(infiles, outfile, regex_id, table,
         transform = '''sed "s/^id/track/"'''
 
     statement = '''
-    python %(scriptsdir)s/annotator2tsv.py
+    cgat annotator2tsv
     --method=fdr-table
     --fdr-method=%(fdr_method)s 
     --log=%(outfile)s.log
     --regex-identifier="%(regex_id)s"
     %(infile)s
     | %(transform)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s 
     --table=%(table)s 
     > %(outfile)s
     '''
@@ -606,7 +606,7 @@ def makeAnnotatorROIGO(roi_class, outfile, gofile, workspace, overlap=None):
                                          overlap=overlap)
 
     if segments is None:
-        E.info("no segments for roi_class `%s` and overlap `%s` - no computation." % 
+        E.info("no segments for roi_class `%s` and overlap `%s` - no computation." %
                (roi_class, overlap))
         return
     annotations = buildAnnotatorAnnotations(tmpdir,
@@ -667,7 +667,7 @@ def makeAnnotatorArchitecture(infile, outfile,
 ############################################################
 
 
-def makeAnnotator(infile, 
+def makeAnnotator(infile,
                   outfile,
                   segments,
                   annotations,

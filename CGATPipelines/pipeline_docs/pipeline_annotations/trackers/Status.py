@@ -1,4 +1,4 @@
-from AnnotationReport import *
+from .AnnotationReport import *
 
 import CGAT.Pipeline as P
 import CGAT.IOTools as IOTools
@@ -16,7 +16,7 @@ class AnnotationStatus(Status):
 
 
     '''
-    tracks = [x for x, y in PARAMS.items() if str(y).endswith(
+    tracks = [x for x, y in list(PARAMS.items()) if str(y).endswith(
         (".bed.gz", ".gtf.gz", ".gff.gz",
          ".tsv.gz", ".tsv"))]
 

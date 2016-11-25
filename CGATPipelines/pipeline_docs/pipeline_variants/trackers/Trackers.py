@@ -378,7 +378,7 @@ class SubstitutionMatrixCounts(Tracker):
 
         nonsyn, stop, syn = 0, 0, 0
 
-        for codon, aa in self.mGeneticCode.items():
+        for codon, aa in list(self.mGeneticCode.items()):
             if aa == "X":
                 continue
             for pos in range(0, 3):

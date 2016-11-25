@@ -6,7 +6,7 @@ from CGATReport.Tracker import SingleTableTrackerHistogram
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 
-from IsoformReport import *
+from .IsoformReport import *
 
 
 class imagesTracker(TrackerImages):
@@ -173,7 +173,7 @@ class TranscriptNumberSamplesExpressed(IsoformTracker):
             df_tmp = pd.DataFrame(
                 {"Count": df.apply(func=lambda row:
                                    sum([x > threshold for x in row]), axis=1),
-                 "No_transcripts": range(0, len(df.index))})
+                 "No_transcripts": list(range(0, len(df.index)))})
 
             df_tmp = df_tmp.ix[df_tmp['Count'] > 0, :]
 

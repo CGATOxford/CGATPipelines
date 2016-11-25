@@ -164,7 +164,7 @@ TRACKS_OVERLAP = TRACKS_META + TRACKS_GENESETS
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -235,7 +235,7 @@ def buildRepeatTrack(infile, outfile):
     for gff in GTF.iterator(gzip.open(infile, "r")):
         nrepeats += 1
     sample = set(
-        random.sample(xrange(nrepeats), PARAMS["ancestral_repeats_samplesize"]))
+        random.sample(range(nrepeats), PARAMS["ancestral_repeats_samplesize"]))
 
     outf = gzip.open(outfile, "w")
     gtf = GTF.Entry()
@@ -270,8 +270,8 @@ def buildIntronTrack(infile, outfile):
     statement = '''gunzip 
     < %(infile)s 
     | %(pipeline_scriptsdir)s/gff_sort pos
-    | python %(scriptsdir)s/gff2gff.py --join=100,10000,2,5 --log=%(outfile)s.log 
-    | python %(scriptsdir)s/gtf2gtf.py 
+    | cgat gff2gff --join=100,10000,2,5 --log=%(outfile)s.log 
+    | cgat gtf2gtf 
     --method=filter --filter-method=gene --sample-size=%(ancestral_repeats_samplesize)i --log=%(outfile)s.log 
     | gzip
     > %(outfile)s
@@ -301,10 +301,10 @@ def loadRepeatInformation(infiles, outfile):
 
     statement = '''
     gunzip < %(repeatsfile)s 
-    | python %(scriptsdir)s/gff2bed.py -v 0 
+    | cgat gff2bed -v 0 
     | coverageBed -a stdin -b %(tmpfilename)s
     | awk 'BEGIN { printf("contig\\tstart\\tend\\tnover_entries\\tnover_bases\\tlength\\tpover\\n" );} {print;}'
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s 
     --table=%(table)s 
     > %(outfile)s
     '''
@@ -323,11 +323,11 @@ def buildMergedTracks(infiles, outfile):
     infiles = " ".join(infiles)
     statement = '''
     zcat %(infiles)s 
-    | python %(scriptsdir)s/gff2psl.py 
+    | cgat gff2psl 
     --log=%(outfile)s.log 
     --is-gtf 
     --allow-duplicates 
-    | python %(scriptsdir)s/psl2psl.py 
+    | cgat psl2psl 
     --log=%(outfile)s.log 
     --method=rename-query 
     --unique 
@@ -341,7 +341,7 @@ def buildMergedTracks(infiles, outfile):
     --log=%(outfile)s.log 
     --subdirs 
     --max-files=60 
-    "python %(scriptsdir)s/psl2assembly.py 
+    "cgat psl2assembly 
     --method=locus 
     --threshold-merge-distance=0 
     --threshold-merge-overlap=1 
@@ -354,7 +354,7 @@ def buildMergedTracks(infiles, outfile):
     P.run()
 
     statement = '''
-    python %(scriptsdir)s/psl2gff.py 
+    cgat psl2gff 
     --log=%(outfile)s.log 
     --as-gtf
     < %(outfile)s.locus.psl 
@@ -382,7 +382,7 @@ def buildFilteredAlignment(infiles, outfile):
 
     statement = '''gunzip 
     < %(infile_alignment)s 
-    | python %(scriptsdir)s/psl2psl.py 
+    | cgat psl2psl 
     --method=filter-remove 
     --filter-query=<(gunzip < %(infile_genes)s)
     --log=%(outfile)s.log 
@@ -405,7 +405,7 @@ def buildAlignmentStats(infile, outfile):
     to_cluster = USECLUSTER
 
     statement = '''
-    python %(scriptsdir)s/psl2stats.py 
+    cgat psl2stats 
     --log=%(outfile)s.log 
     < %(infile)s
     | gzip
@@ -429,8 +429,8 @@ def loadGTF(infile, outfile):
 
     statement = '''gunzip
     < %(infile)s
-    | python %(scriptsdir)s/gtf2tsv.py 
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    | cgat gtf2tsv 
+    |cgat csv2db %(csv2db_options)s 
     --add-index=gene_id 
     --map=gene_id:str 
     --add-index=transcript_id 
@@ -457,9 +457,9 @@ def buildAnnotations(infiles, outfile):
 
     statement = '''gunzip 
     < %(infile)s 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
+    | cgat gtf2gtf --method=sort --sort-order=gene
     | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60 
-    "python %(scriptsdir)s/gtf2table.py 
+    "cgat gtf2table 
     --counter=position 
     --counter=classifier 
     --section=exons 
@@ -504,9 +504,9 @@ def makeOverrun(infiles, outfile):
 
     statement = '''gunzip 
     < %(infile)s 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
+    | cgat gtf2gtf --method=sort --sort-order=gene
     | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60 
-    "python %(scriptsdir)s/gtf2table.py 
+    "cgat gtf2table 
     --filename-format=gff
     --counter=overrun 
     --log=%(outfile)s.log 
@@ -544,9 +544,9 @@ def makeDistances(infiles, outfile):
 
     statement = '''gunzip
     < %(infile)s 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
+    | cgat gtf2gtf --method=sort --sort-order=gene
     | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60 
-    "python %(scriptsdir)s/gtf2table.py 
+    "cgat gtf2table 
     --counter=distance-genes 
     --log=%(outfile)s.log 
     --gff-file=<( gunzip < %(annotation)s ) " 
@@ -581,7 +581,7 @@ def makeSegments(infile, outfile):
 
     statement = '''gunzip < %(infile)s 
     | %(pipeline_scriptsdir)s/gff_sort pos 
-    | python %(scriptsdir)s/gff2histogram.py 
+    | cgat gff2histogram 
     --method=values 
     --output-filename-pattern="%(outfile)s.%%s"
     --force-output 
@@ -592,10 +592,10 @@ def makeSegments(infile, outfile):
 
     statement = '''gunzip 
     < %(infile)s 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=position+gene
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
-    | python %(scriptsdir)s/gff2histogram.py 
+    | cgat gtf2gtf --method=sort --sort-order=position+gene
+    | cgat gtf2gtf --method=merge-transcripts 
+    | cgat gtf2gtf --method=sort --sort-order=gene
+    | cgat gff2histogram 
     --method=values 
     --force-output 
     --output-filename-pattern="%(outfile)s_genes.%%s" 
@@ -616,7 +616,7 @@ def loadSegments(infile, outfile):
               "_genes.distances", "_genes.sizes", "_genes.overlaps"):
         y = re.sub("\.", "_", x)
         statement = '''
-        python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+        cgat csv2db %(csv2db_options)s 
         --add-index=gene_id 
         --map=gene_id:str 
         --table=%(table)s%(y)s 
@@ -641,9 +641,9 @@ def makeRepeats(infiles, outfile):
 
     statement = '''gunzip
     < %(infile)s 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
+    | cgat gtf2gtf --method=sort --sort-order=gene
     | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60
-    "python %(scriptsdir)s/gtf2table.py 
+    "cgat gtf2table 
     --filename-format=gff
     --counter=overlap 
     --log=%(outfile)s.log 
@@ -683,19 +683,19 @@ def makeDifference(infiles, outfile):
     first, last = [x[:-len(".gtf.gz")] for x in infiles]
 
     statement = '''
-         python %(scriptsdir)s/diff_gtf.py 
+         cgat diff_gtf 
     --log=%(outfile)s.log 
     -p --output-equivalent --ignore-strand --output-filename-pattern="%(outfile)s.%%s" 
     <(gunzip < %(first)s.gtf.gz)
     <(gunzip < %(last)s.gtf.gz)
     > %(outfile)s.log'''
     P.run()
-    
-    statement = '''python %(scriptsdir)s/diff_gtf.py 
+
+    statement = '''cgat diff_gtf 
     --log=%(outfile)s.log 
     -p --output-equivalent --ignore-strand --output-filename-pattern="%(outfile)s_genes.%%s" 
-    <( gunzip < %(first)s.gtf.gz | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --log=%(outfile)s.log ) 
-    <( gunzip < %(last)s.gtf.gz | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --log=%(outfile)s.log )
+    <( gunzip < %(first)s.gtf.gz | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log ) 
+    <( gunzip < %(last)s.gtf.gz | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log )
     > %(outfile)s.log'''
     P.run()
 
@@ -703,7 +703,7 @@ def makeDifference(infiles, outfile):
     # has been set to --counter=overlap
     statement = '''gunzip
     < %(first)s.gtf.gz 
-    | python %(scriptsdir)s/gtf2table.py 
+    | cgat gtf2table 
     --log=%(outfile)s.log 
     --counter=length 
     --counter=overlap
@@ -726,7 +726,7 @@ def loadDifference(infile, outfile):
     cat < %(infile)s 
     | python %(toolsdir)s/csv_cut.py --large --remove cov_values 
     | grep -v "\\bna\\b" 
-    |python %(scriptsdir)s/csv2db.py --allow-empty-file 
+    |cgat csv2db --allow-empty-file 
     %(csv2db_options)s 
     --add-index=gene_id 
     --map=gene_id:str
@@ -738,7 +738,7 @@ def loadDifference(infile, outfile):
     i = infile + ".genes_ovl"
     if os.path.exists(i):
         statement = '''
-        python %(scriptsdir)s/csv2db.py --allow-empty-file 
+        cgat csv2db --allow-empty-file 
         %(csv2db_options)s 
         --map=gene_id1:str 
         --map=gene_id2:str 
@@ -754,7 +754,7 @@ def loadDifference(infile, outfile):
     i = infile + "_genes.genes_ovl"
     if os.path.exists(i):
         statement = '''
-        python %(scriptsdir)s/csv2db.py --allow-empty-file 
+        cgat csv2db --allow-empty-file 
         %(csv2db_options)s 
         --map=gene_id1:str 
         --map=gene_id2:str 
@@ -792,13 +792,13 @@ def _makeOverlap(infiles, outfile, subset="all"):
     statement = '''
     for d in %(tracks)s; do 
     gunzip < ${d}.gtf.gz
-    | python %(scriptsdir)s/gtf2gtf.py 
+    | cgat gtf2gtf 
     --map-tsv-file=<( %(cmd-sql)s %(database)s "SELECT gene_id FROM ${d}_annotation WHERE %(where)s" )
     --log=%(outfile)s.log 
     --method=filter --filter-method=gene 
     > %(outfile)s_tmp_${d}.xgtf ;
     done;
-    python %(scriptsdir)s/gtfs2tsv.py
+    cgat gtfs2tsv
     %(extra_options)s 
     --pattern-identifier='%(outfile)s_tmp_(.*).xgtf'
     --log=%(outfile)s.log 
@@ -855,7 +855,7 @@ def loadOverlap(infile, outfile):
     statement = '''
     grep -v "\\bna\\b" 
     < %(infile)s 
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    |cgat csv2db %(csv2db_options)s
     --map set1:str 
     --map set2:str 
     --add-index=set1 
@@ -892,8 +892,8 @@ def buildRepeatMaskedSequences(infile, outfile):
                            PARAMS_ANNOTATIONS["interface_repeats_gff"])
 
     statement = '''gunzip < %(infile)s 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
-    | python %(scriptsdir)s/gff2fasta.py 
+    | cgat gtf2gtf --method=sort --sort-order=gene
+    | cgat gff2fasta 
     --is-gtf 
     --genome-file=%(genome_dir)s/%(genome)s
     --remove-masked-regions 
@@ -1095,7 +1095,7 @@ def loadCodingPotential(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s 
-    | python %(scriptsdir)s/csv2db.py 
+    | cgat csv2db 
               %(csv2db_options)s 
               --allow-empty-file
               --add-index=gene_id 
@@ -1126,8 +1126,8 @@ def exportSequences(infile, outfile):
 
     statement = '''gunzip 
     < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
-    | python %(scriptsdir)s/gff2fasta.py 
+    | cgat gtf2gtf --method=sort --sort-order=gene
+    | cgat gff2fasta 
     --is-gtf 
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log 
@@ -1172,21 +1172,21 @@ def makeRates(infiles, outfile):
 
     statement = '''gunzip 
     < %(infile_gtf)s 
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort --sort-order=gene
-    | python %(scriptsdir)s/gff2psl.py 
+    | cgat gtf2gtf --method=sort --sort-order=gene
+    | cgat gff2psl 
     --is-gtf 
     --genome-file=%(genome_dir)s/%(genome)s 
     --log=%(outfile)s.log 
     | pslMap stdin <(gunzip < %(alignment)s ) stdout 
     | sort -k10,10 -k14,14 -k9,9 -k12,12n 
-    | python %(scriptsdir)s/psl2psl.py 
+    | cgat psl2psl 
     --method=merge 
     --log=%(outfile)s.log 
-    | python %(scriptsdir)s/psl2psl.py 
+    | cgat psl2psl 
     --method=select-query 
     --select=most-nmatches 
     --log=%(outfile)s.log 
-    | python %(scriptsdir)s/psl2psl.py 
+    | cgat psl2psl 
     --method=add-sequence 
     --target-psl-file=%(target_genome)s
     --queries-tsv-file=%(infile_sequences)s
@@ -1195,7 +1195,7 @@ def makeRates(infiles, outfile):
     --split-at-lines=10000 
     --output-header 
     --log=%(outfile)s.log 
-    "python %(scriptsdir)s/psl2table.py 
+    "cgat psl2table 
     %(mask)s
     --method=counts 
     --method=baseml 
@@ -1225,7 +1225,7 @@ def loadRates(infile, outfile):
     | csort -k:qName: -k:aligned:rn 
     | perl -p -e "s/qName/gene_id/" 
     | awk '{if (l==$10) {next;} l = $10; print; }' 
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s --map gene_id:str --table=%(track)s --add-index=gene_id --allow-empty-file
+    |cgat csv2db %(csv2db_options)s --map gene_id:str --table=%(track)s --add-index=gene_id --allow-empty-file
     > %(outfile)s
     '''
 
@@ -1248,7 +1248,7 @@ def makeRepeatsRates(infile, outfile):
 
     statement = '''gunzip 
     < %(infile)s 
-    | python %(scriptsdir)s/gtf2table.py 
+    | cgat gtf2table 
         --proximal-distance=%(ancestral_repeats_max_distance)i 
         --section=exons 
         --counter=proximity-exclusive
@@ -1271,7 +1271,7 @@ def loadRepeatsRates(infile, outfile):
     < %(infile)s 
     | awk '$4 > 0'
     | python %(toolsdir)s/csv_cut.py --remove exons_lengths exons_values
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s 
               --add-index=gene_id 
               --map=gene_id:str 
               --table=%(table)s 
@@ -1304,7 +1304,7 @@ def loadSummary(infile, outfile):
         ON r.gene_id = a.gene_id AND 
         a.aligned >= %(rates_min_aligned)i AND 
         a.distance <= %(rates_max_rate)f''')
-        
+
     if os.path.exists("%s_coverage.load" % track):
         stmt_select.append("cov.nmatches AS nreads, cov.mean AS meancoverage")
         stmt_from.append(

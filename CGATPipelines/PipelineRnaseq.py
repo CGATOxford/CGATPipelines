@@ -638,7 +638,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
     # write summary table
     outf = IOTools.openFile(outfile + ".removed.tsv.gz", "w")
     outf.write("gene_id\tnoverlap\tsection\n")
-    for gene_id, r in remove_genes.iteritems():
+    for gene_id, r in remove_genes.items():
         for s in r:
             counter[s] += 1
         outf.write("%s\t%i\t%s\n" % (gene_id,
@@ -664,7 +664,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
 
     outf = IOTools.openFile(outfile + ".summary.tsv.gz", "w")
     outf.write("category\ttranscripts\n")
-    for x, y in counter.iteritems():
+    for x, y in counter.items():
         outf.write("%s\t%i\n" % (x, y))
     outf.write("input\t%i\n" % len(genes_input))
     outf.write("output\t%i\n" % len(genes_output))

@@ -48,7 +48,7 @@ def createGOFromENSEMBL(infile, outfile):
 
     job_memory = "5G"
     statement = '''
-    python %(scriptsdir)s/runGO.py
+    cgat runGO
     --filename-dump=%(outfile)s
     --database-host=%(go_host)s
     --database-user=anonymous
@@ -193,7 +193,7 @@ def imputeGO(infile_go, infile_paths, outfile):
             goid2type[goid] = go_type
 
     outf = IOTools.openFile(outfile, "w ")
-    for gene_id, in_goids in gene2goids.iteritems():
+    for gene_id, in_goids in gene2goids.items():
         c.genes += 1
         out_goids = set(in_goids)
         for goid in in_goids:
@@ -330,7 +330,7 @@ def createGOSlimFromENSEMBL(infile, outfile):
     job_memory = "5G"
     statement = '''
     zcat < %(infile)s
-    | python %(scriptsdir)s/runGO.py
+    | cgat runGO
     --go2goslim
     --filename-ontology=%(ontology_fn)s
     --slims=%(outfile)s.map
@@ -410,7 +410,7 @@ def runGOFromFiles(outfile,
 
     options = " ".join(options)
     statement = '''
-    python %(scriptsdir)s/runGO.py 
+    cgat runGO 
     --filename-input=%(go_file)s
     --genes-tsv-file=%(fg_file)s
     --output-filename-pattern='%(outdir)s/%%(set)s.%%(go)s.%%(section)s'
@@ -433,7 +433,7 @@ def runGOFromDatabase(outfile,
 
     Gene lists are extracted from a database.
     This method is a wrapper for `runGO.py`.
-    
+
     Arguments
     ---------
     outfile : string

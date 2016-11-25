@@ -14,7 +14,7 @@ from CGATReport.Tracker import *
 if not os.path.exists("conf.py"):
     raise IOError("could not find conf.py")
 
-execfile("conf.py")
+exec(compile(open("conf.py").read(), "conf.py", 'exec'))
 
 ##########################################################################
 ##########################################################################
@@ -74,7 +74,7 @@ class CoverageStats(CoverageByTranscripts):
         columns = Stats.Summary().getHeaders()
         x = CoverageByTranscripts.__call__(self, track, slice)
         stats = Stats.Summary(x["pover1"])
-        data = stats.items()
+        data = list(stats.items())
         data.append( ("100% covered", self.getValue( """SELECT COUNT(*) FROM %s_vs_%s WHERE pover1>= 100""" %
                                                      (self.mMaster,
                                                       track))))
@@ -120,7 +120,7 @@ class CoverageVsLengthByReadDepth(TrackerSQL):
         data = [(math.log(x[0]), x[1], math.log(x[2]))
                 for x in self.getAll(statement % locals())]
 
-        return odict(zip(("log(length)", "log(coverage), log(read_depth)"), zip(*data)))
+        return odict(list(zip(("log(length)", "log(coverage), log(read_depth)"), list(zip(*data)))))
 
 
 class LengthVsReadDepthByLength(TrackerSQL):
@@ -157,7 +157,7 @@ class LengthVsReadDepthByLength(TrackerSQL):
         data = [(math.log(x[0]), math.log(float(x[1]) / x[2]), math.log(x[2]))
                 for x in self.getAll(statement % locals()) if x[2] > 0 and x[1] > 0 and x[0] > 0]
 
-        return odict(zip((("log(read_depth)", "log(length_predicted/length_reference), log(length_reference)"), zip(*data))))
+        return odict(list(zip((("log(read_depth)", "log(length_predicted/length_reference), log(length_reference)"), list(zip(*data))))))
 
 # =================================================================
 # Coverage
@@ -178,7 +178,7 @@ class MeanVsMaxReadDepth(ReferenceData):
         )
         data = [(x[0], x[1], math.log(x[2]))
                 for x in self.getAll(statement) if x[2] > 0]
-        return odict(zip(("mean coverage", "max coverage", "length"), zip(*data)))
+        return odict(list(zip(("mean coverage", "max coverage", "length"), list(zip(*data)))))
 
 
 class MeanVsMedianReadDepth(ReferenceData):
@@ -195,4 +195,4 @@ class MeanVsMedianReadDepth(ReferenceData):
         )
         data = [(x[0], x[1], math.log(x[2]))
                 for x in self.getAll(statement) if x[2] > 0]
-        return odict(zip(("mean coverage", "median coverage", "length"), zip(*data)))
+        return odict(list(zip(("mean coverage", "median coverage", "length"), list(zip(*data)))))

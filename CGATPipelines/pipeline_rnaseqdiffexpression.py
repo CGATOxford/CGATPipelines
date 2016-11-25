@@ -1610,7 +1610,7 @@ def summarizeCountsPerDesign(infiles, outfile):
 
     design_file, counts_file = infiles
     prefix = P.snip(outfile, ".tsv")
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
               --method=summary
               --design-tsv-file=%(design_file)s
               --tags-tsv-file=%(counts_file)s

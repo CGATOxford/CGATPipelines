@@ -142,7 +142,7 @@ class CpGDensity(cpgTracker):
             "SELECT pCpG FROM %(track)s_merged_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT pCpG FROM %(track)s_merged_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))
 
 ##########################################################################
 
@@ -159,7 +159,7 @@ class CpGObsExp1(cpgTracker):
             "SELECT CpG_ObsExp1 FROM %(track)s_merged_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT CpG_ObsExp1 FROM %(track)s_merged_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))
 
 ##########################################################################
 
@@ -176,7 +176,7 @@ class CpGObsExp2(cpgTracker):
             "SELECT CpG_ObsExp FROM %(track)s_merged_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT CpG_ObsExp FROM %(track)s_merged_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))
 
 ##########################################################################
 
@@ -193,4 +193,4 @@ class GCContent(cpgTracker):
             "SELECT pGC FROM %(track)s_merged_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT pGC FROM %(track)s_merged_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))

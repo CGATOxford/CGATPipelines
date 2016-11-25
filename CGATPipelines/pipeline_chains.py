@@ -107,7 +107,7 @@ PARAMS = P.PARAMS
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 PARAMS = P.getParameters()
 
@@ -132,7 +132,7 @@ def writeContigSizes(genome, outfile):
     outf = IOTools.openFile(outfile, "w")
     fasta = IndexedFasta.IndexedFasta(
         os.path.join(PARAMS["genome_dir"], genome))
-    for contig, size in fasta.getContigSizes(with_synonyms=False).iteritems():
+    for contig, size in fasta.getContigSizes(with_synonyms=False).items():
         outf.write("%s\t%i\n" % (contig, size))
     outf.close()
 
@@ -163,7 +163,7 @@ def convertChainToPsl(infile, outfile):
     statement = '''gunzip
     < %(infile)s 
     | %(cmd-farm)s --split-at-regex="^chain" --chunk-size=1000 --max-lines=1000000 --log=%(outfile)s.log
-    " python %(scriptsdir)s/chain2psl.py --log=%(outfile)s.log
+    " cgat chain2psl --log=%(outfile)s.log
       | pslSwap stdin stdout "
     | gzip
     >  %(outfile)s
@@ -195,11 +195,11 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
             E.info("adding %s" % infile)
 
             statement = '''gunzip < %(infile)s 
-                 | python %(scriptsdir)s/maf2psl.py 
+                 | cgat maf2psl 
                       --query=%(track)s
                       --target=%(maf_master)s
                       --log=%(outfile)s.log 
-                 | python %(scriptsdir)s/psl2psl.py 
+                 | cgat psl2psl 
                       --method=filter-fasta 
                       --method=sanitize
                       --queries-tsv-file=%(genomefile)s
@@ -218,11 +218,11 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
 
         statement = '''gunzip < %(infile)s 
              | sort -k10,10 -k12,12n
-             | python %(scriptsdir)s/psl2psl.py 
+             | cgat psl2psl 
                   --method=remove-overlapping-query
                   --log=%(outfile)s.log 
              | sort -k14,14 -k16,16n
-             | python %(scriptsdir)s/psl2psl.py 
+             | cgat psl2psl 
                   --method=remove-overlapping-target
                   --log=%(outfile)s.log 
              | gzip
@@ -243,11 +243,11 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
         to_cluster = True
 
         statement = '''gunzip < %(infile)s 
-                 | python %(scriptsdir)s/maf2psl.py 
+                 | cgat maf2psl 
                       --query=%(query)s
                       --target=%(maf_master)s
                       --log=%(outfile)s.log 
-                 | python %(scriptsdir)s/psl2psl.py 
+                 | cgat psl2psl 
                       --method=filter-fasta 
                       --method=sanitize
                       --queries-tsv-file=%(genomefile)s
@@ -271,11 +271,11 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
 
         statement = '''zcat %(infiles)s 
              | sort -k10,10 -k12,12n
-             | python %(scriptsdir)s/psl2psl.py 
+             | cgat psl2psl 
                   --method=remove-overlapping-query
                   --log=%(outfile)s.log 
              | sort -k14,14 -k16,16n
-             | python %(scriptsdir)s/psl2psl.py 
+             | cgat psl2psl 
                   --method=remove-overlapping-target
                   --log=%(outfile)s.log 
              | gzip
@@ -351,7 +351,7 @@ def convertPslToChain(infile, outfile):
     statement = '''gunzip
     < %(infile)s
     | pslSwap stdin stdout
-    | python %(scriptsdir)s/psl2chain.py --log=%(outfile)s.log
+    | cgat psl2chain --log=%(outfile)s.log
     | chainSort stdin stdout
     | gzip
     > %(outfile)s.sorted.chain.gz;
@@ -384,7 +384,7 @@ def buildPslStats(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s 
-    | python %(scriptsdir)s/psl2stats.py --log=%(outfile)s.log
+    | cgat psl2stats --log=%(outfile)s.log
     > %(outfile)s'''
 
     P.run()
@@ -407,8 +407,8 @@ def buildChainStats(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s 
-    | python %(scriptsdir)s/chain2psl.py --log=%(outfile)s.log
-    | python %(scriptsdir)s/psl2stats.py --log=%(outfile)s.log
+    | cgat chain2psl --log=%(outfile)s.log
+    | cgat psl2stats --log=%(outfile)s.log
     > %(outfile)s'''
 
     P.run()
