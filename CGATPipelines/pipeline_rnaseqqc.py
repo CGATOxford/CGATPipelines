@@ -798,7 +798,7 @@ def buildBAMStats(infile, outfile):
     else:
         fastq_option = ""
 
-    statement = '''python
+    statement = '''
     cgat bam2stats
          %(fastq_option)s
          --force-output
