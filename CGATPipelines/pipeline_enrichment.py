@@ -331,7 +331,8 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 PARAMS['stats_correction'],
                                                 PARAMS['stats_thresh'],
                                                 dbname,
-                                                int(PARAMS['stats_writegenes']),
+                                                int(PARAMS[
+                                                    'stats_writegenes']),
                                                 PARAMS['db_species'],
                                                 int(PARAMS['stats_ngenes']),
                                                 PARAMS['id_type'],

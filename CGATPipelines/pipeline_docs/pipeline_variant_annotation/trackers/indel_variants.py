@@ -67,7 +67,7 @@ class TranscriptListFrameshift(TrackerEffects):
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers, zip(*self.get(statement))))
+        return odict(list(zip(headers, list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -107,7 +107,7 @@ class TranscriptListDeletions(TrackerEffects):
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers, zip(*self.get(statement))))
+        return odict(list(zip(headers, list(zip(*self.get(statement))))))
 
 
 #####################################################
@@ -146,4 +146,4 @@ class TranscriptListInsertions(TrackerEffects):
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers, zip(*self.get(statement))))
+        return odict(list(zip(headers, list(zip(*self.get(statement))))))

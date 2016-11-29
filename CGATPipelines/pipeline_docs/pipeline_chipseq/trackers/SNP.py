@@ -4,7 +4,7 @@ from ChipseqReport import *
 if not os.path.exists("conf.py"):
     raise IOError("could not find conf.py")
 
-execfile("conf.py")
+exec(compile(open("conf.py").read(), "conf.py", 'exec'))
 
 
 class SNPSlicer(ChipseqReport.DefaultTracker):
@@ -22,13 +22,13 @@ class SNPTable(TrackerSQL):
 
     def __call__(self, track, slice=None):
         columns = ("snp", "contig", "pos", "reference", "alleles", "url")
-        data = self.get( """
+        data = self.get("""
         SELECT snp, contig, pos, reference, alleles, url
         FROM snps_of_interest
         """)
 
-        return odict(zip((columns),
-                         zip(*data)))
+        return odict(list(zip((columns),
+                              list(zip(*data)))))
 
 ########################################################
 ########################################################
@@ -67,8 +67,8 @@ class SNPPileup(SNPSlicer):
 
         data = [x[:-2] + ('``%s``' % x[-1],) for x in data]
 
-        return odict(zip((columns),
-                         zip(*data)))
+        return odict(list(zip((columns),
+                              list(zip(*data)))))
 
 ########################################################
 ########################################################
@@ -114,9 +114,9 @@ class SNPIntervals(SNPSlicer):
              %(track)s_intervals AS i,
              %(track)s_mast AS m
         WHERE
-             s.snp = '%(slice)s' AND 
+             s.snp = '%(slice)s' AND
              i.contig = s.contig AND
-             m.id = i.interval_id AND 
+             m.id = i.interval_id AND
              s.pos BETWEEN i.start AND i.end-1
              '''
 
@@ -126,8 +126,8 @@ class SNPIntervals(SNPSlicer):
         data = [
             (ChipseqReport.linkToUCSC(x[0], x[1], x[2]),) + x for x in data]
 
-        return odict(zip((["link"] + [x[2:] for x in columns]),
-                         zip(*data)))
+        return odict(list(zip((["link"] + [x[2:] for x in columns]),
+                              list(zip(*data)))))
 
 ########################################################
 ########################################################
@@ -165,9 +165,9 @@ class SNPMotifs(SNPSlicer):
              %(track)s_intervals AS i,
              %(track)s_mast AS m
         WHERE
-             s.snp = '%(slice)s' AND 
+             s.snp = '%(slice)s' AND
              i.contig = s.contig AND
-             m.id = i.interval_id AND 
+             m.id = i.interval_id AND
              s.pos BETWEEN i.start AND i.end-1
              '''
 
@@ -178,7 +178,7 @@ class SNPMotifs(SNPSlicer):
             snp_position = d[4]
 
             try:
-                motif_positions = map(int, d[-1].split(","))
+                motif_positions = list(map(int, d[-1].split(",")))
             except AttributeError:
                 motif_positions = (d[-1],)
 
@@ -191,5 +191,5 @@ class SNPMotifs(SNPSlicer):
         data = [
             (ChipseqReport.linkToUCSC(x[0], x[1], x[2]),) + x for x in found]
 
-        return odict(zip((["link"] + [x[2:] for x in columns[:-1]]),
-                         zip(*data)))
+        return odict(list(zip((["link"] + [x[2:] for x in columns[:-1]]),
+                              list(zip(*data)))))

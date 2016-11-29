@@ -204,7 +204,7 @@ def buildCodingExons(infile, outfile):
     zcat %(infile)s 
     | awk '$2 == "protein_coding" && $3 == "CDS"'
     | perl -p -e "s/CDS/exon/" 
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-exons --log=%(outfile)s.log 
+    | cgat gtf2gtf --method=merge-exons --log=%(outfile)s.log 
     | gzip 
     > %(outfile)s
     '''
@@ -224,7 +224,7 @@ def buildCodingRegions(infile, outfile):
     zcat %(infile)s 
     | awk '$2 == "protein_coding" && $3 == "CDS"'
     | perl -p -e "s/CDS/exon/" 
-    | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts --log=%(outfile)s.log 
+    | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log 
     | gzip 
     > %(outfile)s
     '''
@@ -283,7 +283,7 @@ def mapReadsWithBFAST(infiles, outfile):
                -n %(bfast_threads)i
                -i %(outfile)s.baf 
     2> %(outfile)s.post.log 
-    | python %(scriptsdir)s/bam2bam.py --output-sam
+    | cgat bam2bam --output-sam
     --method=unset-unmapped-mapq --method=set-nh --log=%(outfile)s.log
     | gzip > %(outfile)s
     '''
@@ -375,7 +375,7 @@ def mapReadsWithBWA(infiles, outfile):
 
     statement = '''
     bwa samse %(bwa_samse_options)s %(bwa_genome_dir)s/%(genome)s_cs %(outfile)s.sai %(infile)s 
-    | python %(scriptsdir)s/bam2bam.py --output-sam
+    | cgat bam2bam --output-sam
     --method=set-nh --method=unset-unmapped-mapq --log=%(outfile)s.log
     | gzip 
     > %(outfile)s
@@ -415,7 +415,7 @@ def mapReadsWithTophat(infiles, outfile):
 
     statement = '''
     zcat %(infile)s 
-    | python %(scriptsdir)s/fastq2solid.py 
+    | cgat fastq2solid 
            --method=change-format --target-format=integer
            --pattern-identifier="%(tmpfile)s.%%s" >& %(outfile)s.log;
     checkpoint;
@@ -471,7 +471,7 @@ def mapReadsWithBowtie(infiles, outfile):
            %(bowtie_options)s
            %(bowtie_genome_dir)s/%(genome)s_cs
            %(tmpfile)s
-    | python %(scriptsdir)s/bam2bam.py --output-sam --method=set-nh --log=%(outfile)s.log
+    | cgat bam2bam --output-sam --method=set-nh --log=%(outfile)s.log
     | gzip
     > %(outfile)s;
     checkpoint;
@@ -555,12 +555,12 @@ def buildReferenceTranscriptome(infile, outfile):
     statement = '''
     zcat %(infile)s
     | awk '$3 == "exon"'
-    | python %(scriptsdir)s/gff2fasta.py
+    | cgat gff2fasta
         --is-gtf
         --genome=%(genome_dir)s/%(genome)s
         --log=%(outfile)s.log
     | perl -p -e "if (/^>/) { s/ .*$// }"
-    | python %(scriptsdir)s/fasta2fasta.py -v 0
+    | cgat fasta2fasta -v 0
     | fold 
     > %(outfile)s;
     checkpoint; 
@@ -632,7 +632,7 @@ def mapReadsWithBowtieAgainstTranscriptome(infiles, outfile):
            --best --strata -a
            %(prefix)s_cs
            %(tmpfile)s
-    | python %(scriptsdir)s/bam2bam.py --output-sam --method=set-nh --log=%(outfile)s.log
+    | cgat bam2bam --output-sam --method=set-nh --log=%(outfile)s.log
     | perl -p -e "if (/^\\@HD/) { s/\\bSO:\S+/\\bSO:coordinate/}"
     | samtools import %(contigs)s - -
     | samtools sort - %(track)s;
@@ -691,7 +691,7 @@ def checkMappedReadsAgainstTranscriptome(infiles, outfile):
     # * not all have CM (tophat does not).
 
     statement = '''
-    python %(scriptsdir)s/bams2bam.py 
+    cgat bams2bam 
        --force-output
        --gtf-file=%(reffile)s
        --filename-mismapped=%(outfile_mismapped)s
@@ -716,18 +716,19 @@ def loadTranscriptomeValidation(infiles, outfile):
 
     to_cluster = USECLUSTER
 
-    headers = ",".join([P.tablequote(P.snip(x, ".accepted.bam")) for x in infiles])
+    headers = ",".join([P.tablequote(P.snip(x, ".accepted.bam"))
+                        for x in infiles])
     infiles = " ".join(["%s.log" % x for x in infiles])
 
     tablename = P.toTable(outfile)
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py 
+    cgat combine_tables 
          --header-names=%(headers)s
          %(infiles)s
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | perl -p -e "s/bin/track/"
-    | python %(scriptsdir)s/csv2db.py
+    | cgat csv2db
          --table=%(tablename)s 
     > %(outfile)s
     '''
@@ -876,9 +877,9 @@ def mapReadsWithBowtieAgainstJunctions(infiles, outfile):
            --best --strata -a
            %(prefix)s_cs
            %(tmpfile)s
-    | python %(scriptsdir)s/bam2bam.py
+    | cgat bam2bam
     --method=set-nh --log=%(outfile)s.log
-    | python %(scriptsdir)s/rnaseq_junction_bam2bam.py
+    | cgat rnaseq_junction_bam2bam
     --contigs-tsv-file=%(contigs)s --log=%(outfile)s.log
     | samtools sort - %(track)s;
     checkpoint;
@@ -1041,7 +1042,7 @@ def buildBAMStats(infiles, outfile):
     nreads = __getReads(readsfile)
 
     statement = '''python
-    %(scriptsdir)s/bam2stats.py
+    cgat bam2stats
          --force-output
          --force-output
          --output-filename-pattern=%(outfile)s.%%s
@@ -1065,15 +1066,15 @@ def loadBAMStats(infiles, outfile):
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
     E.info("loading bam stats - summary")
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
                       --header-names=%(header)s
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/track/"
                 | perl -p -e "s/unique/unique_alignments/"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
+                | cgat table2table --transpose
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s
@@ -1085,14 +1086,14 @@ def loadBAMStats(infiles, outfile):
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
         tname = "%s_%s" % (tablename, suffix)
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
                       --header-names=%(header)s
                       --skip-titles
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --table=%(tname)s 
                 >> %(outfile)s
                 """
@@ -1115,7 +1116,7 @@ def buildExonValidation(infiles, outfile):
     to_cluster = USECLUSTER
     infile, exons = infiles
     statement = '''cat %(infile)s
-    | python %(scriptsdir)s/bam_vs_gtf.py
+    | cgat bam_vs_gtf
          --exons-file=%(exons)s
          --force-output
          --log=%(outfile)s.log
@@ -1140,7 +1141,7 @@ def buildReadStats(infile, outfile):
 
     to_cluster = USECLUSTER
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/fastq2table.py
+    | cgat fastq2table
          --log=%(outfile)s.log
     | %(pipeline_scriptsdir)s/hsort 1
     | gzip
@@ -1164,10 +1165,10 @@ def buildReadCorrespondence(infiles, outfile):
 
     headers = ",".join([P.snip(x, ".bam") for x in infiles])
     sorters = " ".join(["<( samtools view -h %s | %s/hsort 0 )" %
-                       (x, PARAMS["scriptsdir"]) for x in infiles])
+                        (x, PARAMS["scriptsdir"]) for x in infiles])
 
     statement = '''
-    python %(scriptsdir)s/diff_bam.py
+    cgat diff_bam
          --header-names=%(headers)s
          --log=%(outfile)s.log
        %(sorters)s
@@ -1194,9 +1195,9 @@ def loadReadCorrespondence(infiles, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py 
+    cgat combine_tables 
          %(infiles)s
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --table=%(tablename)s 
                 > %(outfile)s
     '''
@@ -1223,14 +1224,14 @@ def mergeAndLoad(infiles, outfile, suffix):
 
     tablename = P.toTable(outfile)
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
                       --header-names=%(header)s
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/track/" 
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
+                | cgat table2table --transpose
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s
@@ -1268,7 +1269,7 @@ def buildExonCoverage(infiles, outfile):
     to_cluster = USECLUSTER
     infile, exons = infiles
     statement = '''zcat < %(exons)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
          --reporter=genes
          --bam-file=%(infile)s
          --counter=read-coverage
@@ -1295,7 +1296,7 @@ def buildRegionCoverage(infiles, outfile):
     to_cluster = USECLUSTER
     infile, exons = infiles
     statement = '''zcat < %(exons)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
          --reporter=genes
          --bam-file=%(infile)s
          --counter=read-coverage
@@ -1380,7 +1381,7 @@ def loadAlignmentStats(infiles, outfile):
     tmpfilename = outf.name
 
     statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s
@@ -1398,10 +1399,10 @@ def loadAlignmentStats(infiles, outfile):
 
         tname = "%s_%s" % (tablename, suffix)
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
                       --missing-value=0
                    %(filenames)s
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --header-names=%(column)s,%(header)s
                       --replace-header
                       --add-index=track

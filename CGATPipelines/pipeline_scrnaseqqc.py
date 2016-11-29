@@ -191,7 +191,7 @@ def makeRepTranscripts(infile, outfile):
 
     statement = '''
     zcat %(infile)s |
-    python %(scriptsdir)s/gff2fasta.py
+    cgat gff2fasta
     --genome-file=%(genome_file)s
     --is-gtf
     --log=%(outfile)s.log
@@ -211,7 +211,7 @@ def makeSplicedCatalog(infile, outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/cgat_fasta2cDNA.py
+    cgat cgat_fasta2cDNA
     --log=%(outfile)s.log
     %(infile)s
     > %(outfile)s
@@ -279,7 +279,7 @@ def makeSailfishIndex(infile, outfile):
     outdir = "/".join(outfile.split("/")[:-1])
     job_threads = 8
     statement = '''
-    python %(scriptsdir)s/fastq2tpm.py
+    cgat fastq2tpm
     --method=make_index
     --program=sailfish
     --index-fasta=%(infile)s
@@ -319,7 +319,7 @@ def quantifyWithSailfish(infiles, outfile):
     job_memory = "1.5G"
 
     statement = '''
-    python %(scriptsdir)s/fastq2tpm.py
+    cgat fastq2tpm
     --log=%(out_dir)s.log
     --program=sailfish
     --method=quant
@@ -368,7 +368,7 @@ def mergeSailfishRuns(infiles, outfile):
     job_memory = "2G"
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=4
     --use-file-prefix
@@ -408,7 +408,7 @@ def mergeSailfishCounts(infiles, outfile):
     job_memory = "4G"
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=5
     --use-file-prefix
@@ -534,7 +534,7 @@ def aggregatePlateFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=7
     --use-file-prefix
@@ -563,7 +563,7 @@ def aggregateAllFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=7
     --use-file-prefix
@@ -606,7 +606,7 @@ def getContextStats(outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/extract_stats.py
+    cgat extract_stats
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -625,7 +625,7 @@ def getAlignmentStats(outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/extract_stats.py
+    cgat extract_stats
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -644,7 +644,7 @@ def getPicardAlignStats(outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/extract_stats.py
+    cgat extract_stats
     --log=%(outfile)s.log
     --task=extract_table
     --database=%(mapping_db)s
@@ -663,7 +663,7 @@ def getPicardInsertStats(outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/extract_stats.py
+    cgat extract_stats
     --log=%(outfile)s.log
     --task=extract_table
     --database=%(mapping_db)s
@@ -682,7 +682,7 @@ def getDuplicationStats(outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/extract_stats.py
+    cgat extract_stats
     --log=%(outfile)s.log
     --task=extract_table
     --database=%(mapping_db)s
@@ -705,7 +705,7 @@ def getCoverageStats(outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/extract_stats.py
+    cgat extract_stats
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -742,7 +742,7 @@ def aggregateQcTables(infiles, outfile):
     infiles = " ".join(infiles)
 
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --columns=1
     --skip-titles
     --log=%(outfile)s.log
@@ -764,7 +764,7 @@ def cleanQcTable(infile, outfile):
     '''
 
     statement = '''
-    python %(scriptsdir)s/extract_stats.py
+    cgat extract_stats
     --task=clean_table
     --log=%(outfile)s.log
     %(infile)s

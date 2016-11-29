@@ -111,7 +111,7 @@ class lncrnaOverlap(cpgTracker):
                    FROM %(track)s_replicated_lncrna_tss_distance n, %(track)s_replicated_interval_lncrna_mapping m
                    WHERE m.interval_id=n.gene_id
                    AND n.is_overlap = 1'''
-        print query
+        print(query)
         data = self.getAll(query)
         return data
 
@@ -176,7 +176,7 @@ class noncodingTSSOverlap(cpgTracker):
 
         hist, bins = numpy.histogram(
             data, bins=numpy.arange(0, max(data) + 1, 1))
-        return odict(zip(map(str, bins[:-1]), hist))
+        return odict(list(zip(list(map(str, bins[:-1])), hist)))
 
 ##########################################################################
 

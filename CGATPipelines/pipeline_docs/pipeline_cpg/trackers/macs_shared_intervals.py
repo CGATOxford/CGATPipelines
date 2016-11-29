@@ -25,7 +25,7 @@ class SharedIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(stop-start),0) as length FROM %(track)s_shared_intervals" % locals())
-        return odict(zip(("Shared intervals", "mean_interval_length"), data))
+        return odict(list(zip(("Shared intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 
@@ -188,7 +188,7 @@ class SharedIntervalLengthVsAverageValue(cpgTracker):
         data = self.get( '''SELECT length, avgval FROM %(track)s_shared_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "avgval"), zip(*data)))
+        return odict(list(zip(("length", "avgval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -203,7 +203,7 @@ class SharedIntervalLengthVsPeakValue(cpgTracker):
         data = self.get( '''SELECT length, peakval FROM %(track)s_shared_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "peakval"), zip(*data)))
+        return odict(list(zip(("length", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -218,7 +218,7 @@ class SharedIntervalLengthVsFoldChange(cpgTracker):
         data = self.get( '''SELECT length, fold FROM %(track)s_shared_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "foldchange"), zip(*data)))
+        return odict(list(zip(("length", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -233,7 +233,7 @@ class SharedIntervalAvgValVsPeakVal(cpgTracker):
         data = self.get( '''SELECT avgval, peakval FROM %(track)s_shared_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("avgval", "peakval"), zip(*data)))
+        return odict(list(zip(("avgval", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -248,7 +248,7 @@ class SharedIntervalAvgValVsFoldChange(cpgTracker):
         data = self.get( '''SELECT avgval, fold FROM %(track)s_shared_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("avgval", "foldchange"), zip(*data)))
+        return odict(list(zip(("avgval", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -263,4 +263,4 @@ class SharedIntervalPeakValVsFoldChange(cpgTracker):
         data = self.get( '''SELECT peakval, fold FROM %(track)s_shared_intervals u, %(track)s_macs_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("peakval", "foldchange"), zip(*data)))
+        return odict(list(zip(("peakval", "foldchange"), list(zip(*data)))))

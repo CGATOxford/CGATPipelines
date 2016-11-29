@@ -45,7 +45,7 @@ def buildTrueTaxonomicRelativeAbundances(infiles, outfile):
             total += 1
             gi = fastq.identifier.split("|")[1]
             result[gi2taxa[gi][i]] += 1
-        for taxa, value in result.iteritems():
+        for taxa, value in result.items():
             outf.write("%s\t%s\t%s\n" %
                        (levels[i], taxa, float(value) / total))
     outf.close()
@@ -188,7 +188,7 @@ def filterByCoverage(infiles, outfile):
             for data in cc.execute(statement).fetchall():
                 contigs.add(data[0])
     outf = open(outfile, "w")
-    print contigs
+    print(contigs)
     for fasta in FastaIterator.iterate(IOTools.openFile(contig_file)):
         identifier = fasta.title.split(" ")[0]
         if identifier in contigs:
@@ -217,7 +217,7 @@ def buildChimerasBasedOnReads(infile, outfile):
     E.info("calculating proportion of 'good' reads")
     outf = open(outfile, "w")
     outf.write("contig\tchimericity\n")
-    for contig in result.keys():
+    for contig in list(result.keys()):
         ngood = collections.defaultdict(int)
         for species in result[contig]:
             ngood[species] += 1
@@ -268,7 +268,7 @@ def buildExpectedCoverageOverGenomes(infiles, outfile):
     # get the proportion of each genome covered
     outf = open(outfile, "w")
     outf.write("gi\texpected_coverage\n")
-    for gi, size in expected_genome_sizes.iteritems():
+    for gi, size in expected_genome_sizes.items():
         if multiply:
             size = size * 2
         if gi not in genome_sizes:
@@ -313,7 +313,7 @@ def buildCoverageOverGenomes(infiles, outfile):
         alignments[(name, gname, gi)] = (
             gname, float(value) / float(genomes[gname]))
 
-    for track, proportion in alignments.iteritems():
+    for track, proportion in alignments.items():
         outf.write("%s\t%s\t%s\t%f\n" %
                    (track[0], track[2], proportion[0], proportion[1]))
     outf.close()

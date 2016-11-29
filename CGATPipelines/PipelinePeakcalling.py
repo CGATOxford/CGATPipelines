@@ -322,7 +322,7 @@ def countPeaks(contig, start, end, samfiles, offsets=None):
     peakval = max(counts)
 
     # set other peak parameters
-    peaks = numpy.array(range(0, length))[counts >= peakval]
+    peaks = numpy.array(list(range(0, length)))[counts >= peakval]
     npeaks = len(peaks)
     # peakcenter is median coordinate between peaks
     # such that it is a valid peak in the middle
@@ -663,7 +663,7 @@ def summarizeMACS(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -740,7 +740,7 @@ def summarizeMACSsolo(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -935,7 +935,7 @@ def summarizeMACS2(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -1021,7 +1021,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile,
         raise OSError("contig size file %s does not exist" % contigsfile)
 
     if sort_bedGraph:
-            statement = '''sorted_bdg=`mktemp -p %(local_tmpdir)s`;
+        statement = '''sorted_bdg=`mktemp -p %(local_tmpdir)s`;
                            checkpoint;
                            sort -k1,1 -k2,2n %(infile)s > $sorted_bdg;
                            checkpoint;
@@ -1032,7 +1032,7 @@ def bedGraphToBigwig(infile, contigsfile, outfile,
                         '''
 
     else:
-            statement = '''
+        statement = '''
                           bedGraphToBigWig %(infile)s %(contigsfile)s %(outfile)s
                         '''
 
@@ -1160,7 +1160,6 @@ def runZinba(infile,
              action="full",
              fragment_size=None,
              tag_size=None):
-
     '''run Zinba for peak detection.
 
     Arguments
@@ -1222,7 +1221,7 @@ def runZinba(infile,
     options = " ".join(options)
 
     statement = '''
-    python %(scriptsdir)s/runZinba.py
+    cgat runZinba
            --input-format=bam
            --fdr-threshold=%(zinba_fdr_threshold)f
            --fragment-size=%(fragment_size)i
@@ -1382,7 +1381,7 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
         "--add-index=interval_id "
         "--allow-empty-file")
 
-    statement = '''python %(scriptsdir)s/bed2table.py
+    statement = '''cgat bed2table
     --counter=peaks
     --bam-file=%(bamfile)s
     --offset=%(shift)i
@@ -1417,7 +1416,7 @@ def loadMACS(infile, outfile, bamfile, controlfile=None):
         statement = '''
         awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
         < %(filename_subpeaks)s
-        | python %(scriptsdir)s/bed2table.py
+        | cgat bed2table
         --counter=peaks
         --bam-file=%(bamfile)s
         --offset=%(shift)i
@@ -1582,7 +1581,7 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
         "--add-index=interval_id "
         "--allow-empty-file")
 
-    statement = '''python %(scriptsdir)s/bed2table.py
+    statement = '''cgat bed2table
     --counter=peaks
     --bam-file=%(bamfile)s
     --offset=%(shift)i
@@ -1617,7 +1616,7 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
         statement = '''
         zcat %(filename_subpeaks)s
         | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
-        | python %(scriptsdir)s/bed2table.py
+        | cgat bed2table
         --counter=peaks
         --bam-file=%(bamfile)s
         --offset=%(shift)i
@@ -1648,7 +1647,7 @@ def loadMACS2(infile, outfile, bamfile, controlfile=None):
         statement = '''
         cat %(filename_broadpeaks)s
         | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4)}'
-        | python %(scriptsdir)s/bed2table.py
+        | cgat bed2table
         --counter=peaks
         --bam-file=%(bamfile)s
         --offset=%(shift)i
@@ -1726,12 +1725,12 @@ def loadZinba(infile, outfile, bamfile,
         headers = "contig,start,end,interval_id,sig,maxloc,maxval,median,qvalue"
 
         statement = '''cat %(infilename)s
-        | python %(scriptsdir)s/csv_cut.py
+        | cgat csv_cut
         Chrom Start Stop Sig Maxloc Max Median qValue
         | awk -v FS='\\t' -v OFS='\\t' \
         '/Chrom/ {next; } \
         {$4=sprintf("%%i\\t%%s", ++a, $4); print}'
-        | python %(scriptsdir)s/bed2table.py
+        | cgat bed2table
         --counter=peaks
         --bam-file=%(bamfile)s
         --offset=%(offset)i
@@ -1751,11 +1750,11 @@ def loadZinba(infile, outfile, bamfile,
             "--allow-empty-file")
 
         statement = '''cat %(infilename)s
-        | python %(scriptsdir)s/csv_cut.py Chrom pStart pStop Sig Maxloc Max Median qValue
+        | cgat csv_cut Chrom pStart pStop Sig Maxloc Max Median qValue
         | awk -v FS='\\t' -v OFS='\\t' \
         '/Chrom/ {next; } \
         {$4=sprintf("%%i\\t%%s", ++a, $4); print}'
-        | python %(scriptsdir)s/bed2table.py
+        | cgat bed2table
         --counter=peaks
         --bam-file=%(bamfile)s
         --offset=%(offset)i
@@ -1788,7 +1787,7 @@ def runSICER(infile,
     if BamTools.isPaired(infile):
         # output strand as well
         statement = ['''cat %(infile)s
-        | python %(scriptsdir)s/bam2bed.py
+        | cgat bam2bed
               --merge-pairs
               --min-insert-size=%(calling_min_insert_size)i
               --max-insert-size=%(calling_max_insert_size)i
@@ -1880,7 +1879,7 @@ def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow",
     statement = '''cat < %(bedfile)s
     | awk '{printf("%%s\\t%%s\\t%%s\\t%%i", $1,$2,$3,++a);
     for (x = 4; x <= NF; ++x) {printf("\\t%%s", $x)}; printf("\\n" ); }'
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --counter=peaks
     --bam-file=%(bamfile)s
     --offset=%(offset)i
@@ -1947,7 +1946,7 @@ def summarizeSICER(infiles, outfile):
             for line in f:
                 if "diag:" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -1989,10 +1988,10 @@ def runPeakRanger(infile, outfile, controlfile):
     assert controlfile is not None, "peakranger requires a control"
 
     statement = '''peakranger ranger
-              --data <( python %(scriptsdir)s/bam2bam.py -v 0
+              --data <( cgat bam2bam -v 0
                 --method=set-sequence < %(infile)s)
 
-              --control <( python %(scriptsdir)s/bam2bam.py -v 0
+              --control <( cgat bam2bam -v 0
                 --method=set-sequence < %(controlfile)s)
               --output %(outfile)s
               --format bam
@@ -2037,7 +2036,7 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
         "--add-index=interval_id "
         "--allow-empty-file")
 
-    statement = '''python %(scriptsdir)s/bed2table.py
+    statement = '''cgat bed2table
     --counter=peaks
     --bam-file=%(bamfile)s
     --offset=%(offset)i
@@ -2059,7 +2058,7 @@ def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="pea
         "--add-index=interval_id "
         "--allow-empty-file")
 
-    statement = '''python %(scriptsdir)s/bed2table.py
+    statement = '''cgat bed2table
     --counter=peaks
     --bam-file=%(bamfile)s
     --offset=%(offset)i
@@ -2118,7 +2117,7 @@ def summarizePeakRanger(infiles, outfile):
             for line in f:
                 if "#region_chr" in line:
                     break
-                for x, y in mapper.items():
+                for x, y in list(mapper.items()):
                     s = y.search(line)
                     if s:
                         results[x].append(s.groups()[0])
@@ -2183,7 +2182,7 @@ def runSPP(infile, outfile, controlfile):
     assert controlfile is not None, "spp requires a control"
 
     statement = '''
-    python %(scriptsdir)s/runSPP.py
+    cgat runSPP
            --input-format=bam
            --control-filename=%(controlfile)s
            --fdr-threshold=%(spp_fdr_threshold)f
@@ -2220,7 +2219,7 @@ def loadSPP(infile, outfile, bamfile, controlfile=None):
     # statement = '''
     #            awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\n", $1,$2,$3,++a);}'
     #            < %(bedfile)s
-    #            | python %(scriptsdir)s/bed2table.py
+    #            | cgat bed2table
     #                       --counter=peaks
     #                       --bam-file=%(bamfile)s
     #                       --offset=%(offset)i
@@ -2228,7 +2227,7 @@ def loadSPP(infile, outfile, bamfile, controlfile=None):
     #                       --output-all-fields
     #                       --bed-header=%(headers)s
     #                       --log=%(outfile)s
-    #            | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    #            | cgat csv2db %(csv2db_options)s
     #                   --add-index=contig,start
     #                   --add-index=interval_id
     #                   --table=%(tablename)s
@@ -2248,7 +2247,7 @@ def loadSPP(infile, outfile, bamfile, controlfile=None):
 
     statement = '''awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%i\\n", $1,$2,$3,++a,$7,$9,$1+$10);}'
     < %(bedfile)s
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --counter=peaks
     --bam-file=%(bamfile)s
     --offset=%(offset)i
@@ -2267,7 +2266,7 @@ def loadSPP(infile, outfile, bamfile, controlfile=None):
     # tablename = P.toTable( outfile ) + "_peaks"
     # statement = '''awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%i\\n", $1,$2,$3,++a,$7,$9,$1+$10);}'
     #            < %(bedfile)s
-    #            | python %(scriptsdir)s/bed2table.py
+    #            | cgat bed2table
     #                       --counter=peaks
     #                       --bam-file=%(bamfile)s
     #                       --offset=%(offset)i
@@ -2275,7 +2274,7 @@ def loadSPP(infile, outfile, bamfile, controlfile=None):
     #                       --output-all-fields
     #                       --bed-header=%(headers)s
     #                       --log=%(outfile)s
-    #            | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    #            | cgat csv2db %(csv2db_options)s
     #                   --add-index=contig,start
     #                   --add-index=interval_id
     #                   --table=%(tablename)s
@@ -2348,7 +2347,7 @@ def estimateSPPQualityMetrics(infile, track, controlfile, outfile):
 def createGenomeWindows(genome, outfile, windows):
 
     statement = '''
-        python %(scriptsdir)s/windows2gff.py
+        cgat windows2gff
             --genome=%(genome)s
             --output-format=bed
             --fixed-width-windows=%(windows)s
@@ -2424,7 +2423,7 @@ def normalizeFileSize(sample_file, input_file, sample_outfile, input_outfile):
 
 
 def buildBedFile(infile, outfile):
-    statement = ("python %(scriptsdir)s/bam2bed.py %(infile)s"
+    statement = ("cgat bam2bed %(infile)s"
                  " | sortBed -i stdin"
                  " > %(outfile)s")
     P.run()
@@ -2681,8 +2680,8 @@ def buildIntervalCounts(infile, outfile, track, fg_replicates, bg_replicates):
     # start counting
     statement = """
     zcat < %(infile)s
-    | python %(scriptsdir)s/bed2gff.py --as-gtf
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat bed2gff --as-gtf
+    | cgat gtf2table
                 --counter=read-coverage
                 --log=%(outfile)s.log
                 --bam-file=%(samfiles_fg)s
@@ -2692,8 +2691,8 @@ def buildIntervalCounts(infile, outfile, track, fg_replicates, bg_replicates):
     if samfiles_bg:
         statement = """
         zcat < %(infile)s
-        | python %(scriptsdir)s/bed2gff.py --as-gtf
-        | python %(scriptsdir)s/gtf2table.py
+        | cgat bed2gff --as-gtf
+        | cgat gtf2table
                     --counter=read-coverage
                     --log=%(outfile)s.log
                     --bam-file=%(samfiles_bg)s
@@ -2832,7 +2831,7 @@ def makeReproducibility(infiles, outfile):
 
     # note: need to quote track names
     statement = '''
-    python %(scriptsdir)s/diff_bed.py --pattern-identifier='([^/]+).bed.gz' %(options)s %(infiles)s
+    cgat diff_bed --pattern-identifier='([^/]+).bed.gz' %(options)s %(infiles)s
     | awk -v OFS="\\t" '!/^#/ { gsub( /-/,"_", $1); gsub(/-/,"_",$2); } {print}'
     > %(outfile)s
     '''
@@ -2936,7 +2935,7 @@ def loadScripture(infile, outfile, bamfile, controlfile=None):
 
     statement = '''zcat %(bedfile)s
     | awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%f\\t%%f\\t%%f\\n", $1,$2,$3,++a,$5,$7,$8,$9,$10);}'
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --counter=peaks
     --bam-file=%(bamfile)s
     --offset=%(offset)i

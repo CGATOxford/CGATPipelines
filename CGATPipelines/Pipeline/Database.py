@@ -37,9 +37,7 @@ from CGAT.IOTools import touchFile, snip
 
 from CGATPipelines.Pipeline.Execution import buildStatement, run
 from CGATPipelines.Pipeline.Files import getTempFile
-
-# Set from Pipeline.py
-PARAMS = {}
+from CGATPipelines.Pipeline.Parameters import getParams
 
 
 def tablequote(track):
@@ -104,6 +102,7 @@ def build_load_statement(tablename, retry=True, options=""):
     if retry:
         opts.append(" --retry ")
 
+    PARAMS = getParams()
     backend = PARAMS["database_backend"]
 
     if backend not in ("sqlite", "mysql", "postgres"):
@@ -125,7 +124,7 @@ def build_load_statement(tablename, retry=True, options=""):
     db_options = " ".join(opts)
 
     statement = ('''
-    python %(scriptsdir)s/csv2db.py
+    cgat csv2db
     %(db_options)s
     %(options)s
     --table=%(tablename)s
@@ -189,7 +188,7 @@ def load(infile,
         Amount of memory to allocate for job. If unset, uses the global
         default.
     """
-
+    PARAMS = getParams()
     if job_memory is None:
         job_memory = PARAMS["cluster_memory_default"]
 
@@ -205,11 +204,11 @@ def load(infile,
 
     if collapse:
         statement.append(
-            "python %(scriptsdir)s/table2table.py --collapse=%(collapse)s")
+            "cgat table2table --collapse=%(collapse)s")
 
     if transpose:
         statement.append(
-            """python %(scriptsdir)s/table2table.py --transpose
+            """cgat table2table --transpose
             --set-transpose-field=%(transpose)s""")
 
     if shuffle:
@@ -288,6 +287,8 @@ def concatenateAndLoad(infiles,
         default.
 
     """
+    PARAMS = getParams()
+
     if job_memory is None:
         job_memory = PARAMS["cluster_memory_default"]
 
@@ -315,7 +316,7 @@ def concatenateAndLoad(infiles,
                                           options=load_options,
                                           retry=retry)
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --cat=%(cat)s
     --missing-value=%(missing_value)s
     %(cat_options)s
@@ -403,6 +404,7 @@ def mergeAndLoad(infiles,
         same.
 
     '''
+    PARAMS = getParams()
     if len(infiles) == 0:
         raise ValueError("no files for merging")
 
@@ -436,7 +438,7 @@ def mergeAndLoad(infiles,
 
     if row_wise:
         transform = """| perl -p -e "s/bin/track/"
-        | python %(scriptsdir)s/table2table.py --transpose""" % PARAMS
+        | cgat table2table --transpose""" % PARAMS
     else:
         transform = ""
 
@@ -445,7 +447,7 @@ def mergeAndLoad(infiles,
         options="--add-index=track " + options,
         retry=retry)
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     %(header_stmt)s
     --skip-titles
     --missing-value=0
@@ -478,7 +480,7 @@ def connect():
 
     # Note that in the future this might return an sqlalchemy or
     # db.py handle.
-
+    PARAMS = getParams()
     if PARAMS["database_backend"] == "sqlite":
         dbh = sqlite3.connect(getDatabaseName())
 
@@ -545,7 +547,7 @@ def createView(dbhandle, tables, tablename, outfile,
              if x != track])
 
     E.info("creating %s from the following tables: %s" %
-           (tablename, str(zip(tablenames, tracks))))
+           (tablename, str(list(zip(tablenames, tracks)))))
     if min(tracks) != max(tracks):
         raise ValueError(
             "number of rows not identical - will not create view")
@@ -616,7 +618,7 @@ def getDatabaseName():
     '''
 
     locations = ["database_name", "database"]
-
+    PARAMS = getParams()
     for location in locations:
         database = PARAMS.get(location, None)
         if database is not None:
@@ -654,12 +656,12 @@ def importFromIterator(
     tmpfile = getTempFile(".")
 
     if columns:
-        keys, values = zip(*columns.items())
+        keys, values = list(zip(*list(columns.items())))
         tmpfile.write("\t".join(values) + "\n")
 
     for row in iterator:
         if not columns:
-            keys = row[0].keys()
+            keys = list(row[0].keys())
             values = keys
             columns = keys
             tmpfile.write("\t".join(values) + "\n")

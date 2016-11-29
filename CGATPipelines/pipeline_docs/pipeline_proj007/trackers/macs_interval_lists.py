@@ -39,7 +39,7 @@ class IntervalList(cpgTracker):
     def __call__(self, track, slice=None):
 
         statement = self.getSQLStatement(track, slice)
-        print statement
+        print(statement)
         data = self.get(statement)
         ucsc_genome = UCSC_GENOME
         n = odict()
@@ -48,7 +48,7 @@ class IntervalList(cpgTracker):
             pos = "`%(contig)s:%(start)i..%(end)i <http://genome.ucsc.edu/cgi-bin/hgTracks?db=%(ucsc_genome)s&position=%(contig)s:%(start)i..%(end)i>`_" \
                 % locals()
             n[str(id)] = odict(
-                zip(self.mColumnsFixed + self.mColumnsVariable, (pos, length,) + d[5:]))
+                list(zip(self.mColumnsFixed + self.mColumnsVariable, (pos, length,) + d[5:])))
 
         return n
 
@@ -69,7 +69,7 @@ class IntervalListFull(cpgTracker):
                        ORDER BY i.peakval DESC''' % locals()
 
         data = self.get(statement)
-        return odict(zip(("contig", "start", "end", "peakval", "avgval"),  zip(*data)))
+        return odict(list(zip(("contig", "start", "end", "peakval", "avgval"),  list(zip(*data)))))
 
 ##########################################################################
 

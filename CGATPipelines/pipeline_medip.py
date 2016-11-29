@@ -184,7 +184,7 @@ TRACKS = sum(itertools.chain([PipelineTracks.Tracks(Sample).loadFromDirectory(
 # if conf.py exists: execute to change the above assignmentsn
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -415,7 +415,7 @@ def loadPicardGCStats(infiles, outfile):
     tmpfilename = outf.name
 
     statement = '''cat %(tmpfilename)s
-                   | python %(scriptsdir)s/csv2db.py
+                   | cgat csv2db
                       %(csv2db_options)s
                       --add-index=track
                       --table=%(tablename)s 
@@ -464,13 +464,13 @@ def runMEDIPS(infile, outfile):
 
     statement = '''
     cat %(infile)s 
-    | python %(scriptsdir)s/bam2bed.py
+    | cgat bam2bed
           --merge-pairs
           --min-insert-size=%(medips_min_insert_size)i
           --max-insert-size=%(medips_max_insert_size)i
           --log=%(outfile)s.log
           -
-    | python %(scriptsdir)s/WrapperMEDIPS.py
+    | cgat WrapperMEDIPS
          --ucsc-genome=%(genome)s
          --genome-file=%(genome_dir)s/%(genome)s
          --bigwig-file
@@ -503,8 +503,8 @@ def loadMEDIPS(infile, outfile):
     cat %(infile)s_saturation_coveredpos.csv
     | tail -n 3 
     | perl -p -e 's/\\"//g; s/[,;]/\\t/g; '
-    | python %(scriptsdir)s/table2table.py --transpose
-    | python %(scriptsdir)s/csv2db.py 
+    | cgat table2table --transpose
+    | cgat csv2db 
            %(csv2db_options)s
            --table=%(table)s
            --replace-header
@@ -530,7 +530,7 @@ def buildCoverageBed(infile, outfile):
 
     statement = '''
     cat %(infile)s 
-    | python %(scriptsdir)s/bam2bed.py
+    | cgat bam2bed
           --merge-pairs
           --min-insert-size=%(medips_min_insert_size)i
           --max-insert-size=%(medips_max_insert_size)i
@@ -538,11 +538,11 @@ def buildCoverageBed(infile, outfile):
           -
     | sort -k1,1 -k2,2n
     | cut -f 1,2,3
-    | python %(scriptsdir)s/bed2bed.py
+    | cgat bed2bed
           --method=sanitize-genome
           --genome-file=%(genome_dir)s/%(genome)s
           --log=%(outfile)s.log
-    | python %(scriptsdir)s/bed2bed.py
+    | cgat bed2bed
           --method=merge
           --merge-distance=%(medips_extension)i
           --log=%(outfile)s.log
@@ -575,7 +575,7 @@ def buildCpGCoverage(infiles, outfile):
 
     statement = '''
     cat %(infile)s 
-    | python %(scriptsdir)s/bam2bed.py
+    | cgat bam2bed
           --merge-pairs
           --min-insert-size=%(medips_min_insert_size)i
           --max-insert-size=%(medips_max_insert_size)i
@@ -583,7 +583,7 @@ def buildCpGCoverage(infiles, outfile):
           -
     | coverageBed -a stdin -b %(cpg_file)s -counts
     | cut -f 6
-    | python %(scriptsdir)s/data2histogram.py
+    | cgat data2histogram
     | gzip
     > %(outfile)s
     '''
@@ -616,7 +616,7 @@ def buildVariableWidthTiles(infiles, outfile):
     statement = '''
     zcat %(infiles)s 
     | sort -k1,1 -k2,2n
-    | python %(scriptsdir)s/bed2bed.py
+    | cgat bed2bed
           --method=merge
           --merge-distance=0
           --log=%(outfile)s.log
@@ -636,7 +636,7 @@ def buildNonoverlappingFixedWidthTiles(infile, outfile):
     '''Build bed file segmenting entire genome using window x and shift y'''
 
     shift = PARAMS["tiling_nonoverlapping_window"]
-    statement = '''python %(scriptsdir)s/genome_bed.py
+    statement = '''cgat genome_bed
                       -g %(genome_dir)s/%(genome)s
                       --window=%(tiling_nonoverlapping_window)i
                       --shift-size=%(shift)i
@@ -653,7 +653,7 @@ def buildOverlappingFixedWidthTiles(infile, outfile):
     assert PARAMS["tiling_overlapping_window"] % 2 == 0
     shift = PARAMS["tiling_overlapping_window"] // 2
 
-    statement = '''python %(scriptsdir)s/genome_bed.py
+    statement = '''cgat genome_bed
                       -g %(genome_dir)s/%(genome)s
                       --window=%(tiling_overlapping_window)i
                       --shift-size=%(shift)i
@@ -687,7 +687,7 @@ def buildTileStats(infile, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gff2histogram.py 
+    | cgat gff2histogram 
                    --force-output
                    --format=bed 
                    --output-section=size
@@ -753,7 +753,7 @@ def buildTiledReadCounts(infiles, outfile):
 
     statement = '''
     samtools view -b %(flag_filter)s -q %(deseq_min_mapping_quality)s %(infile)s 
-    | python %(scriptsdir)s/bam2bed.py
+    | cgat bam2bed
           --merge-pairs
           --min-insert-size=%(medips_min_insert_size)i
           --max-insert-size=%(medips_max_insert_size)i
@@ -938,7 +938,7 @@ def runDE(infiles, outfile, method):
                   --log=%(outfile)s.log
                   --output-filename-pattern=%(outdir)s%%s
                   --subdirs
-              "python %(scriptsdir)s/runExpression.py
+              "cgat runExpression
               --method=%(method)s
               --tags-tsv-file=-
               --design-tsv-file=%(design_file)s
@@ -998,7 +998,7 @@ def mergeDMRWindows(infile, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/medip_merge_intervals.py
+    | cgat medip_merge_intervals
           --log=%(outfile)s.log
           --invert
           --output-filename-pattern=%(outfile)s.%%s.bed.gz
@@ -1040,7 +1040,7 @@ def buildDMRWindowStats(infile, outfile):
     statement = '''
     zcat %(infile)s
     | grep -v 'contig'
-    | python %(scriptsdir)s/gff2histogram.py 
+    | cgat gff2histogram 
                    --force-output
                    --format=bed 
                    --output-section=size
@@ -1067,11 +1067,11 @@ def loadTileStats(infiles, outfile):
     tablename = P.snip(outfile, ".load") + "_stats"
 
     statement = """
-    python %(scriptsdir)s/combine_tables.py 
+    cgat combine_tables 
            --cat=track 
            --regex-filename="(.*).stats.stats.tsv" 
            %(files)s
-    | python %(scriptsdir)s/csv2db.py 
+    | cgat csv2db 
            %(csv2db_options)s
            --add-index=track
            --table=%(tablename)s 
@@ -1083,12 +1083,12 @@ def loadTileStats(infiles, outfile):
     tablename = P.snip(outfile, ".load") + "_hist"
 
     statement = """
-    python %(scriptsdir)s/combine_tables.py 
+    cgat combine_tables 
            --regex-filename="(.*).stats.hist.tsv" 
            --sort-keys=numeric
            --use-file-prefix
            %(files)s
-    | python %(scriptsdir)s/csv2db.py 
+    | cgat csv2db 
            %(csv2db_options)s
            --add-index=track
            --table=%(tablename)s 
@@ -1112,7 +1112,7 @@ def buildDMRBed(infile, outfile):
     to_cluster = True
 
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/csv_cut.py contig start end l2fold significant
+    | cgat csv_cut contig start end l2fold significant
     | awk '$5 == "1" {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%f\\n", $1,$2,$3,++a,$4)}'
     | gzip > %(outfile)s'''
 
@@ -1138,7 +1138,7 @@ def computeDMROverlap(infiles, outfile):
 
     # note: need to quote track names
     statement = '''
-        python %(scriptsdir)s/diff_bed.py 
+        cgat diff_bed 
               --pattern-identifier=".*/(.*).dmr.bed.gz"
               --log=%(outfile)s.log 
               %(options)s %(infiles)s 
@@ -1279,7 +1279,7 @@ def publish():
     for ucsctype, dirname, filename in ucsc_files:
         filename = os.path.basename(filename)
         track = P.snip(filename, ucsctype)
-        print ucsc_urls[ucsctype] % locals()
+        print(ucsc_urls[ucsctype] % locals())
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
