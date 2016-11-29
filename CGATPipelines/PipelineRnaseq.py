@@ -149,12 +149,13 @@ def findColumnPosition(infile, column):
                     if column in h:
                         column_ix = j
                     j += 1
-                # column_ix = header.strip().split("\t").index(column)                                                                                                                                                                       
+                # column_ix = header.strip().split("\t").index(column)
                 break
         if column_ix:
             return column_ix + 1
         else:
             raise ValueError("could not find %s in file header" % column)
+
 
 class Quantifier(object):
     ''' base class for transcript and gene-level quantification from a
@@ -536,8 +537,8 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
         log.write("2")
         log.write("plot correlations scatter: %s\n" % cor_scatter_outfile)
         log.write("plot correlations heatmap: %s\n" % cor_heatmap_outfile)
-        #counts_log10.plotPairwise(
-        #    cor_scatter_outfile, cor_heatmap_outfile, subset=2000)
+        # counts_log10.plotPairwise(
+        # cor_scatter_outfile, cor_heatmap_outfile, subset=2000)
 
         # for the heatmap, and pca we want the top expressed genes (top 25%).
         counts_log10.removeObservationsPerc(percentile_rowsums=75)
