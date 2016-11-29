@@ -1250,7 +1250,7 @@ class Macs2Peakcaller(Peakcaller):
         Example Statement
         zcat K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz |
         awk '$1!="chr"' |
-        python /ifs/devel/katherineb/cgat/scripts/bed2table.py --counter=peaks
+        cgat bed2table --counter=peaks
         --bam-file=K9-13-2_filtered_pseudo_2.bam
         --offset=168
         --control-bam-file=K9-IN-1_filtered.bam
@@ -1264,7 +1264,7 @@ class Macs2Peakcaller(Peakcaller):
         cat macs2.dir/K9-13-2_filtered_pseudo_2.macs2_peaks.broadPeak |
         awk '/Chromosome/ {next; } {printf("%s\t%i\t%i\t%i\t%i\n",
         $1,$2,$3,++a,$4)}' |
-        python /ifs/devel/katherineb/cgat/scripts/bed2table.py
+        cgat bed2table
         --counter=peaks
         --bam-file=K9-13-2_filtered_pseudo_2.bam
         --offset=168
@@ -1319,7 +1319,7 @@ class Macs2Peakcaller(Peakcaller):
         statement = '''
         zcat %(filename_bed)s |
         awk '$1!="chr"' |
-        python %%(scriptsdir)s/bed2table.py
+        cgat bed2table
         --counter=peaks
         --bam-file=%(infile)s
         --offset=%(shift)i
@@ -1344,7 +1344,7 @@ class Macs2Peakcaller(Peakcaller):
             awk '/Chromosome/ {next; }
             {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
             $1,$2,$3,++a,$4)}'
-            | python %%(scriptsdir)s/bed2table.py
+            | cgat bed2table
             --counter=peaks
             --bam-file=%(infile)s
             --offset=%(shift)i
@@ -1369,7 +1369,7 @@ class Macs2Peakcaller(Peakcaller):
             awk '/Chromosome/ {next; }
             {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
             $1,$2,$3,++a,$5)}'
-            | python %%(scriptsdir)s/bed2table.py
+            | cgat bed2table
             --counter=peaks
             --bam-file=%(infile)s
             --offset=%(shift)i
