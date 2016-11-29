@@ -14,7 +14,7 @@ class TrackerGenemodels(RnaseqTracker):
     mPattern = "_gene_expression"
 
     def getTracks(self, subset=None):
-        print "getTracks"
+        print("getTracks")
         return self.getValues("SELECT DISTINCT track FROM %s" % self.name)
 
 

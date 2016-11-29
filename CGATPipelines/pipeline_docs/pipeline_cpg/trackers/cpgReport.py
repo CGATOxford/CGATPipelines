@@ -38,7 +38,7 @@ TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 Sample.setDefault("asTable")
 
 for X in TRACKS:
-    print "TRACK=", X, "\n"
+    print("TRACK=", X, "\n")
 
 ALL = PipelineTracks.Aggregate(TRACKS)
 EXPERIMENTS = PipelineTracks.Aggregate(TRACKS, labels=("condition", "tissue"))
@@ -46,17 +46,17 @@ CONDITIONS = PipelineTracks.Aggregate(TRACKS, labels=("condition", ))
 TISSUES = PipelineTracks.Aggregate(TRACKS, labels=("tissue", ))
 
 MAP_TRACKS = {
-    'master': map(str, list(EXPERIMENTS) + list(CONDITIONS)),
-    'replicates': map(str, list(TRACKS)),
-    'default': map(str, list(EXPERIMENTS)),
-    'experiments': map(str, list(EXPERIMENTS)),
-    'conditions': map(str, list(CONDITIONS)),
-    'tissues': map(str, list(TISSUES)),
-    'merged': map(str, list(EXPERIMENTS)),
+    'master': list(map(str, list(EXPERIMENTS) + list(CONDITIONS))),
+    'replicates': list(map(str, list(TRACKS))),
+    'default': list(map(str, list(EXPERIMENTS))),
+    'experiments': list(map(str, list(EXPERIMENTS))),
+    'conditions': list(map(str, list(CONDITIONS))),
+    'tissues': list(map(str, list(TISSUES))),
+    'merged': list(map(str, list(EXPERIMENTS))),
 }
 
-for x, y in MAP_TRACKS.iteritems():
-    print "MAP_TRACK=", x, "--", y, "\n"
+for x, y in MAP_TRACKS.items():
+    print("MAP_TRACK=", x, "--", y, "\n")
 
 
 ##########################################################################
@@ -69,7 +69,7 @@ class cpgTracker(TrackerSQL):
 
     def getTracks(self, subset=None):
         if subset:
-            for key, tracks in MAP_TRACKS.iteritems():
+            for key, tracks in MAP_TRACKS.items():
                 if key in subset:
                     return tracks
 

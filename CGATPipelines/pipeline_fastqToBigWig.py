@@ -155,7 +155,7 @@ import sys
 import glob
 import os
 import CGAT.Experiment as E
-import PipelineChipseq as PIntervals
+import CGATPipelines.PipelineChipseq as PIntervals
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.Pipeline as P
@@ -196,7 +196,7 @@ TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
         "(\S+).csfasta.gz")
 
 for X in TRACKS:
-    print "TRACK=", X, "\n"
+    print("TRACK=", X, "\n")
 
 ###################################################################
 ###################################################################
@@ -359,7 +359,8 @@ def exportIntervalsAsBedsolo(infile, outfile):
 @transform(dedup, regex(r"(\S+).dedup.bam"), r"\1.bw")
 def bamToWig(infile, outfile):
     ''' convert bam to bigwig '''
-    statement = '''python %%(scriptsdir)s/bam2wiggle.py --output-format=bigwig %(infile)s %(outfile)s ''' % locals()
+    statement = '''cgat bam2wiggle --output-format=bigwig %(infile)s %(outfile)s ''' % locals(
+    )
     P.run()
 
 ###################################################################

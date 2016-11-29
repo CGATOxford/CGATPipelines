@@ -35,7 +35,7 @@ Reference
 import re
 import os
 import stat
-
+import CGAT.Experiment as E
 try:
     import drmaa
     HAS_DRMAA = True
@@ -250,7 +250,7 @@ def collectSingleJobFromCluster(session, job_id,
     try:
         retval = session.wait(
             job_id, drmaa.Session.TIMEOUT_WAIT_FOREVER)
-    except Exception, msg:
+    except Exception as msg:
         # ignore message 24 in PBS code 24: drmaa: Job
         # finished but resource usage information and/or
         # termination status could not be provided.":
@@ -302,20 +302,20 @@ def getStdoutStderr(stdout_path, stderr_path, tries=5):
 
     try:
         stdout = open(stdout_path, "r").readlines()
-    except IOError, msg:
+    except IOError as msg:
         E.warn("could not open stdout: %s" % msg)
         stdout = []
 
     try:
         stderr = open(stderr_path, "r").readlines()
-    except IOError, msg:
+    except IOError as msg:
         E.warn("could not open stdout: %s" % msg)
         stderr = []
 
     try:
         os.unlink(stdout_path)
         os.unlink(stderr_path)
-    except OSError, msg:
+    except OSError as msg:
         pass
 
     return stdout, stderr

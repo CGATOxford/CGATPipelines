@@ -45,7 +45,7 @@ class LongIntervals(IntervalList):
                        AND m.transcript_id=t.transcript_id
                        ORDER BY o.length desc
                        LIMIT 500''' % locals()
-        print statement
+        print(statement)
         return statement
 
 ##########################################################################
@@ -101,7 +101,7 @@ class longPolycombGAT(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT track, annotation, round(expected,0) as expected, observed, round(fold,1) as fold, pvalue FROM long_intervals_gat_results ")
-        return odict(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), zip(*data)))
+        return odict(list(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), list(zip(*data)))))
 
 ##########################################################################
 

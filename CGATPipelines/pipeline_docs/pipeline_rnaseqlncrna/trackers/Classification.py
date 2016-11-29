@@ -61,23 +61,23 @@ class GeneClassificationProportion(TranscriptClassificationProportion):
         # remove classifications where the gene has multiple classifications
         # e.g antisense trumps antisense_intronic
         genes_multi = {}
-        for gene, _class in result.iteritems():
+        for gene, _class in result.items():
             if len(_class) > 1:
                 for h in hierarchy:
                     if h in _class:
                         if gene not in genes_multi:
                             genes_multi[gene] = h
                         else:
-                            print "removed %s as %s" % (gene, h)
+                            print("removed %s as %s" % (gene, h))
 
-        for gene, _class in genes_multi.iteritems():
+        for gene, _class in genes_multi.items():
             if gene in result:
                 # keep as set for consisteny downstream
                 result[gene] = set([_class])
 
         # counts
         counts = collections.defaultdict(int)
-        for _class in result.values():
+        for _class in list(result.values()):
             # all sets so convert to string via list
             c = list(_class)[0]
             if c not in counts:
@@ -86,6 +86,6 @@ class GeneClassificationProportion(TranscriptClassificationProportion):
                 counts[c] += 1
 
         # return dictionary
-        for _class, count in counts.iteritems():
+        for _class, count in counts.items():
             counts[_class] = (count / total) * 100
         return dict(counts)

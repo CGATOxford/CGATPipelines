@@ -50,7 +50,7 @@ class CPCScoreCorellation(TrackerSQL):
             score[data[0]] = data[1]
 
         result = {"length": [], "score": []}
-        for transcript, value in length.iteritems():
+        for transcript, value in length.items():
             result["length"].append(np.log10(length[transcript]))
             result["score"].append(score[transcript])
         return result
@@ -113,16 +113,16 @@ class CPCClass(TrackerSQL):
                                                               AND b.C_NC = 'noncoding' 
                                                               AND a.transcript_id = b.transcript_id""" % (track, c))) / total_nc) * 100
 
-        total_c = len(coding_set.keys())
+        total_c = len(list(coding_set.keys()))
         for c in classes:
             ids = self.getValues(
                 "SELECT transcript_id FROM %(track)s_cpc_result WHERE C_NC = 'coding'")
             for i in ids:
-                if i in coding_set.keys():
+                if i in list(coding_set.keys()):
                     if coding_set[i] == c:
                         result["coding"][c] += 1
 
-        for x, y in result["coding"].iteritems():
+        for x, y in result["coding"].items():
             result["coding"][x] = (float(y) / total_c) * 100
 
         return result

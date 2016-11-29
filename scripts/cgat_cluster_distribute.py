@@ -56,7 +56,7 @@ import CGAT.Experiment as E
 def getNodes(nodes=None):
     '''hack - allow ranges, ...'''
     if nodes is None or len(nodes) == 0:
-        return ["cgat%03i" % x for x in range(1, 15) + range(101, 117)] + \
+        return ["cgat%03i" % x for x in list(range(1, 15)) + list(range(101, 117))] + \
             ["cgat150", "cgatsmp1", "cgatgpu1",
              "andromeda", "gandalf", "saruman"]
     return nodes

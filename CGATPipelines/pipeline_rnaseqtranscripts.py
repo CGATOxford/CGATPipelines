@@ -381,7 +381,7 @@ def writePrunedGTF(infile, outfile):
     # remove \0 bytes within gtf file
     statement = '''%(uncompress)s %(infile)s
     | %(cmds)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort
+    | cgat gtf2gtf --method=sort
     --sort-order=contig+gene --log=%(outfile)s.log
     | %(compress)s > %(outfile)s'''
 
@@ -753,7 +753,7 @@ def buildCodingGeneSet(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=gene
     --map-tsv-file=%(gene_tsv)s
@@ -820,15 +820,15 @@ def buildMaskGtf(infile, outfile):
         if re.findall("rRNA",
                       entry.source) or re.findall("chrM",
                                                   entry.contig):
-            outf.write("\t".join((map(str, [entry.contig,
-                                            entry.source,
-                                            entry.feature,
-                                            entry.start,
-                                            entry.end,
-                                            ".",
-                                            entry.strand,
-                                            ".",
-                                            "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+            outf.write("\t".join((list(map(str, [entry.contig,
+                                                 entry.source,
+                                                 entry.feature,
+                                                 entry.start,
+                                                 entry.end,
+                                                 ".",
+                                                 entry.strand,
+                                                 ".",
+                                                 "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"'])))) + "\n")
     outf.close()
 
 #########################################################################
@@ -1113,12 +1113,13 @@ def loadTranscriptComparison(infile, outfile):
         outf.write("track\tcontig\t%s\n" %
                    "\t".join(Tophat.CuffCompareResult.getHeaders()))
 
-        for track, vv in result.iteritems():
+        for track, vv in result.items():
             track = P.snip(os.path.basename(track), ".gtf.gz")
-            for contig, v in vv.iteritems():
+            for contig, v in vv.items():
                 if v.is_empty:
                     continue
-                outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
+                outf.write("%s\t%s\t%s\n" %
+                           (P.tablequote(track), contig, str(v)))
 
         outf.close()
 
@@ -1177,7 +1178,8 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" %
+                "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1223,7 +1225,7 @@ def loadTranscriptComparison(infile, outfile):
     L.info("loaded %s" % tablename)
 
     tablename = P.toTable(outfile) + "_transcripts"
-    
+
     P.load(tmpfile2, outfile,
            tablename=tablename,
            options='''
@@ -1364,7 +1366,8 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" %
+                "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
@@ -1672,7 +1675,7 @@ def buildLincRNAGeneSet(infiles, outfile):
 
     E.info("added index for numts")
 
-    sections = indices.keys()
+    sections = list(indices.keys())
 
     total_genes, remove_genes = set(), collections.defaultdict(set)
     inf = GTF.iterator(IOTools.openFile(infile_abinitio))
@@ -1719,7 +1722,7 @@ def buildLincRNAGeneSet(infiles, outfile):
     mv %(outfile)s %(outfile)s.tmp;
     checkpoint;
     zcat %(outfile)s.tmp
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort
+    | cgat gtf2gtf --method=sort
     --sort-order=contig+gene --log=%(outfile)s.log
     | gzip > %(outfile)s;
     checkpoint;
@@ -1791,7 +1794,7 @@ def buildAbinitioLincRNAGeneSet(infiles, outfile):
 
     E.info("created index for known noncoding exons to avoid filtering")
 
-    sections = indices.keys()
+    sections = list(indices.keys())
 
     total_transcripts, remove_transcripts = set(), collections.defaultdict(set)
     transcript_length = collections.defaultdict(int)
@@ -1835,7 +1838,7 @@ def buildAbinitioLincRNAGeneSet(infiles, outfile):
 
     outf = open("lincrna_removed.tsv", "w")
     outf.write("transcript_id" + "\t" + "removed" + "\n")
-    for x, y in remove_transcripts.iteritems():
+    for x, y in remove_transcripts.items():
         outf.write("%s\t%s\n" % (x, ",".join(y)))
 
     # write out transcripts that are not in removed set
@@ -1893,7 +1896,7 @@ def buildGeneSetStats(infiles, outfile):
     allfiles = " ".join(other + cuffcompare)
 
     statement = '''
-    python %(scriptsdir)s/gff2stats.py --is-gtf
+    cgat gff2stats --is-gtf
     %(allfiles)s --log=%(outfile)s.log
     | perl -p -e "s/.gtf.gz//"
     | perl -p -e "s/^agg.*cuffcompare.combined/unfiltered/"
@@ -1978,7 +1981,7 @@ def classifyTranscripts(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
            --counter=%(counter)s
            --reporter=transcripts
            --gff-file=%(reference)s
@@ -2006,7 +2009,7 @@ def classifyTranscriptsCuffcompare(infiles, outfile):
     # IMS: change to allow different classifiers
     statement = '''
     zcat %(infile)s.combined.gtf.gz
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
            --counter=%(gtf2table_classifier)s
            --reporter=transcripts
            --gff-file=%(reference)s
@@ -2055,7 +2058,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(geneset)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=transcripts
           --bam-file=%(infile)s
           --counter=length
@@ -2133,9 +2136,9 @@ def buildReproducibility(infile, outfile):
     for rep1, rep2 in itertools.combinations(replicates, 2):
 
         track1, track2 = rep1.asTable(), rep2.asTable()
-        
+
         def _write(statement, code):
-            print statement
+            print(statement)
             data = Database.executewait(dbhandle, statement).fetchall()
             if len(data) == 0:
                 return
@@ -2145,7 +2148,7 @@ def buildReproducibility(infile, outfile):
             null2 = len([x for x in data if x[1] == 0])
             not_null = [x for x in data if x[0] != 0 and x[1] != 0]
             if len(not_null) > 1:
-                x, y = zip(*not_null)
+                x, y = list(zip(*not_null))
                 result = Stats.doCorrelationTest(x, y)
             else:
                 result = Stats.CorrelationTest()
@@ -2221,7 +2224,7 @@ def buildReproducibility(infile, outfile):
            "_reproducibility.load")
 def loadReproducibility(infile, outfile):
     '''load reproducibility results.'''
-        
+
     P.load(infile, outfile, options="--allow-empty-file")
 
 #########################################################################
@@ -2256,7 +2259,7 @@ def full():
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -2312,7 +2315,7 @@ def publish():
 
     bams = []
 
-    for targetdir, filenames in exportfiles.iteritems():
+    for targetdir, filenames in exportfiles.items():
         for src in filenames:
             dest = "%s/%s/%s" % (web_dir, targetdir, src)
             if dest.endswith(".bam"):
@@ -2325,9 +2328,9 @@ def publish():
     for bam in bams:
         filename = os.path.basename(bam)
         track = P.snip(filename, ".bam")
-        print """track type=bam name="%(track)s" '''
+        print("""track type=bam name="%(track)s" '''
         '''bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/'''
-        '''bamfiles/%(filename)s""" % locals()
+        '''bamfiles/%(filename)s""" % locals())
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

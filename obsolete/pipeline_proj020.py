@@ -119,7 +119,7 @@ import shutil
 import collections
 import gzip
 import sqlite3
-import cStringIO
+import io
 import fileinput
 import CGAT.Fastq as fq
 import logging as L

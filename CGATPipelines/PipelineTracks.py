@@ -291,7 +291,7 @@ class Sample(object):
 
         collections.namedtuple.__init__(self)
         self.data = collections.OrderedDict(
-            zip(self.attributes, [None] * len(self.attributes)))
+            list(zip(self.attributes, [None] * len(self.attributes))))
         if filename:
             self.fromFile(filename)
         if tablename:
@@ -303,19 +303,19 @@ class Sample(object):
 
     def asFile(self):
         '''return sample as a filename'''
-        return FILE_SEPARATOR.join(map(to_aggregate, self.data.values()))
+        return FILE_SEPARATOR.join(map(to_aggregate, list(self.data.values())))
 
     def asTable(self):
         '''return sample as a tablename'''
-        return TABLE_SEPARATOR.join(map(to_aggregate, self.data.values()))
+        return TABLE_SEPARATOR.join(map(to_aggregate, list(self.data.values())))
 
     def asR(self):
         '''return sample as valid R label'''
-        return R_SEPARATOR.join(map(to_aggregate, self.data.values()))
+        return R_SEPARATOR.join(map(to_aggregate, list(self.data.values())))
 
     def asList(self):
         '''return sample as a tuple'''
-        return map(to_aggregate, self.data.values())
+        return list(map(to_aggregate, list(self.data.values())))
 
     def fromFile(self, fn):
         '''build sample from filename *fn*'''
@@ -333,11 +333,11 @@ class Sample(object):
         if len(self.attributes) == 1:
             self.data = collections.OrderedDict(((self.attributes, s),))
         else:
-            d = map(from_aggregate, s.split(sep))
+            d = list(map(from_aggregate, s.split(sep)))
             if len(d) != len(self.attributes):
                 raise ValueError(
                     "can not match %s (sep='%s') against attributes %s" % (s, sep, self.attributes))
-            self.data = collections.OrderedDict(zip(self.attributes, d))
+            self.data = collections.OrderedDict(list(zip(self.attributes, d)))
 
     def asAggregate(self, *args):
         '''return a new aggregate Sample.'''
@@ -442,7 +442,7 @@ class AutoSample(Sample):
         if 'replicate' in self.attributes:
             return object.__getattribute__(self, "data")['replicate']
         else:
-            for x in self.data.values():
+            for x in list(self.data.values()):
                 if re.match("R\d+", x):
                     return x
             else:
@@ -453,7 +453,7 @@ class AutoSample(Sample):
         if 'replicate' in self.attributes:
             object.__getattribute__(self, "data")['replicate'] = value
         else:
-            for x, y in self.data.items():
+            for x, y in list(self.data.items()):
                 if re.match("R\d+", y):
                     object.__getattribute__(self, "data")[x] = value
                     return
@@ -500,7 +500,7 @@ class Aggregate:
 
     def getTracks(self, pattern=None):
         '''return all tracks within this aggregate.'''
-        r = sum([x for x in self.track2groups.values()], [])
+        r = sum([x for x in list(self.track2groups.values())], [])
         if pattern:
             return [pattern % x for x in r]
         else:
@@ -508,7 +508,7 @@ class Aggregate:
 
     def __str__(self):
         x = []
-        for key, v in self.track2groups.iteritems():
+        for key, v in self.track2groups.items():
             x.append("%s\t%s" % (str(key), "\t".join(map(str, v))))
         return "\n".join(x)
 
@@ -516,16 +516,16 @@ class Aggregate:
         return self.track2groups[key]
 
     def __iter__(self):
-        return self.track2groups.keys().__iter__()
+        return list(self.track2groups.keys()).__iter__()
 
     def __len__(self):
         return len(self.track2groups)
 
     def keys(self):
-        return self.track2groups.keys()
+        return list(self.track2groups.keys())
 
     def iteritems(self):
-        return self.track2groups.iteritems()
+        return iter(self.track2groups.items())
 
 
 class Tracks:

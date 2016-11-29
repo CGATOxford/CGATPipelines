@@ -26,8 +26,8 @@ class MappingDuplicates(TrackerReadStats):
 
         data = [x[:-1].split("\t")
                 for x in open(self.getFilename(track) + ".histogram")]
-        data = [map(int, x) for x in data[1:]]
-        return odict(zip(("duplicates", "counts"), zip(*data)))
+        data = [list(map(int, x)) for x in data[1:]]
+        return odict(list(zip(("duplicates", "counts"), list(zip(*data)))))
 
 
 class MappingSummaryOld(TrackerReadStats):
