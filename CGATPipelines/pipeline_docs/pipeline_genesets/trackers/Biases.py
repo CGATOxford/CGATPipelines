@@ -1,4 +1,4 @@
-from .GeneSetsReport import *
+from GeneSetsReport import *
 import itertools
 import scipy.stats
 

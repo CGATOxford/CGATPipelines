@@ -1,7 +1,7 @@
 # tracks taken from geneset comparison
 # need to integrated
 
-from .RnaseqReport import *
+from RnaseqReport import *
 
 
 class AnnotationsAssociated:

@@ -8,7 +8,7 @@ import numpy
 import numpy.ma
 import xml.etree.ElementTree
 
-from .IntervalReport import *
+from IntervalReport import *
 
 ##########################################################################
 ##########################################################################
