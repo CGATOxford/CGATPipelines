@@ -433,7 +433,7 @@ def checkBams(infile, filters, qlim, pe, outfile):
     if "lowqual" not in filters:
         qlim = 0
 
-    counter['primary'] = 0
+    counter['primary_alig'] = 0
     counter['secondary'] = 0
     counter['proper_pairs'] = 0
     counter['improper_pairs'] = 0
@@ -450,7 +450,7 @@ def checkBams(infile, filters, qlim, pe, outfile):
         if read.is_secondary:
             counter['secondary'] += 1
         else:
-            counter['primary'] += 1
+            counter['primary_alig'] += 1
 
         if read.is_proper_pair:
             counter['proper_pairs'] += 1
