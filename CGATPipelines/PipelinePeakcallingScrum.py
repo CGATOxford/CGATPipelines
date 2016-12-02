@@ -829,7 +829,6 @@ def makeLink(currentname, newname):
     ln -s %(cwd)s/%(currentname)s %(cwd)s/%(newname)s;
     """ % locals())
 
-
 class Peakcaller(object):
     '''
     Base class for peakcallers
@@ -962,7 +961,8 @@ class Peakcaller(object):
         return ""
 
     def build(self, infile, outfile, contigsfile=None, controlfile=None,
-              insertsizef=None, idr=0, idrc=0, idrsuffix=None, idrcol=None):
+              insertsizef=None, idr=0, idrc=0, idrsuffix=None, idrcol=None,
+              broad_peak=None):
         '''
         Runs the above functions and uses these to build a complete command
         line statement to run the peakcaller and process its output.
@@ -997,7 +997,7 @@ class Peakcaller(object):
 
         peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
         compress_cmd = self.compressOutput(
-            infile, outfile,  contigsfile, controlfile)
+            infile, outfile,  contigsfile, controlfile, broad_peak)
         postprocess_cmd = self.postProcessPeaks(
             infile, outfile, controlfile, insertsizef)
 
@@ -1147,7 +1147,7 @@ class Macs2Peakcaller(Peakcaller):
         return outfile, statement
 
     def compressOutput(self, infile, outfile,
-                       contigsfile, controlfile):
+                       contigsfile, controlfile, broad_peak):
         '''
         Builds a command line statement to compress macs2 outfiles.
         XLS file is compressed using bgzip and tabix
@@ -1200,10 +1200,13 @@ class Macs2Peakcaller(Peakcaller):
 
         # compress macs bed files and index with tabix
         bedfile = outfile + "_summits.bed"
-        statement.append('''
-             bgzip -f %(bedfile)s;
-             tabix -f -p bed %(bedfile)s.gz
-        ''' % locals())
+        if broad_peak == 0:
+            statement.append('''
+            bgzip -f %(bedfile)s;
+            tabix -f -p bed %(bedfile)s.gz
+            ''' % locals())
+        else:
+            statement.append("")
 
         # convert normalized bed graph to bigwig
         # saves 75% of space
@@ -1489,6 +1492,150 @@ class Macs2Peakcaller(Peakcaller):
         out.write("sample\t%s\n%s\n" % ("\t".join(keys), "\t".join(row)))
         out.close()
 
+
+class SicerPeakcaller(Peakcaller):
+    '''
+    Peakcaller subclass to call peaks with sicer and process the sicer output.
+    The peak caller can be ran in two options narror or broad
+
+    Attributes
+    ----------
+    threads: int
+        number of threads to use for peakcalling
+    paired_end: bool
+        1 = paired end, 0 = single end
+    tool_options: str
+        string to append to the cmd statement with macs2 specific options
+    tagsize: int
+        if tag size is known it can be added here, otherwise it is calculated
+    '''
+
+    def __init__(self,
+                 threads=1,
+                 tool_options=None,
+                 fragment_size=None,
+                 effective_genome_fraction=None,
+                 evalue_threshold=None,
+                 fdr_threshold=None,
+                 window_size=None,
+                 gap_size=None,
+                 genome=None
+                 redundancy_threshold=None):
+        super(Macs2Peakcaller, self).__init__(threads, tool_options)
+        self.fragment_size = fragment_size
+        self.effective_genome_fraction = effective_genome_fraction
+        self.evalue_threshold = evalue_threshold
+        self.fdr_threshold = fdr_threshold
+        self.window_size = window_size
+        self.gap_size = gap_size
+        self.genome = genome
+        self.redundancy_threshold = redundancy_threshold
+
+    def callPeaks(self, infile,  outfile, controlfile=None):
+        '''
+        Build command line statement fragment to call peaks with sicer.
+
+        Example Statement:
+
+        Output files have the same stem but various suffixes.  Details are
+        here: 
+        Briefly:
+            .macs2_log
+             Raw macs2 log file
+
+            .macs2_treat_pileup.bdg
+             Bedgraph file of the fragment pileup in the treatment file
+
+            .macs2_control_lambda.brg
+             Bedgraph file of the control lambda
+
+            .macs2_peaks.xls
+             Tabular file which contains information about called peaks
+
+            .macs2_peaks.broadPeak or .macs2.peaks.narrowPeak
+             bed file of peak locations (plus peak summits for narrowPeak)
+
+            .macs2_peaks.gappedPeak
+             bed file of narrow and broad peaks
+
+            .macs2_summits.bed
+             bed file of summit locations (narrow peaks only)
+
+        The original location for the logging file (suffixed .macs2)
+        is overwritten by the output from passing the macs2 xls to
+        bed2table.py to give the final required outfile
+
+        Parameters
+        ----------
+        infile: str
+            path to input bam file
+        outfile: str
+            path to .macs2 output file
+        controlfile: str
+           path to control (input) bam file
+        '''
+
+        if self.tool_options:
+            options = [self.tool_options]
+        else:
+            options = []
+        workdir = outfile + ".dir"
+
+        try:
+            os.mkdir(workdir)
+        except OSError:
+            pass
+
+        if BamTools.isPaired(infile):
+            # output strand as well
+            statement = ['''cat %(infile)s
+            | cgat bam2bed
+            --merge-pairs
+            --min-insert-size=%(calling_min_insert_size)i
+            --max-insert-size=%(calling_max_insert_size)i
+            --log=%(outfile)s.log
+            --bed-format=6
+            > %(workdir)s/foreground.bed''']
+        else:
+            statement = ["bamToBed -i %(infile)s > %(workdir)s/foreground.bed"]
+
+        outfile = os.path.basename(outfile)
+
+        window_size = self.window_size
+        gap_size = self.gap_size
+        effective_genome_fraction = self.effective_genome_fraction
+        fdr_threshold = self.fdr_threshold
+        genome = self.genome
+        redundancy_threshold = self.redundancy_threshold
+
+        if controlfile:
+            statement.append(
+                'bamToBed -i %(controlfile)s > %(workdir)s/control.bed')
+            statement.append("cd %(workdir)s")
+            statement.append('''SICER.sh . foreground.bed control.bed . %(genome)s
+            %(sicer_redundancy_threshold)i
+            %(window_size)i
+            %(fragment_size)i
+            %(effective_genome_fraction)f
+            %(gap_size)i
+            %(fdr_threshold)f
+            >& ../%(outfile)s''')
+
+        else:
+            statement.append('cd%(workdir)s')
+            statement.append('''SICER-rb.sh .foreground.bed . %(genome)s
+            %(redundancy_threshold)i
+            %(window_size)i
+            %(fragment_size)i
+            %(effective_genome_fraction)f
+            %(gap_size)i
+            %(evalue_threshold)f
+            >& ../%(outfile)s''')
+
+        statement.append('rm -f foreground.bed background.bed')
+        statement = '; '.join(statement)
+        
+        P.run()
 
 #############################################
 # IDR Functions
