@@ -1519,7 +1519,7 @@ class SicerPeakcaller(Peakcaller):
                  fdr_threshold=None,
                  window_size=None,
                  gap_size=None,
-                 genome=None
+                 genome=None,
                  redundancy_threshold=None):
         super(Macs2Peakcaller, self).__init__(threads, tool_options)
         self.fragment_size = fragment_size
@@ -1531,14 +1531,14 @@ class SicerPeakcaller(Peakcaller):
         self.genome = genome
         self.redundancy_threshold = redundancy_threshold
 
-    def callPeaks(self, infile,  outfile, controlfile=None):
+    def callPeaks(self, infile, outfile, controlfile=None):
         '''
         Build command line statement fragment to call peaks with sicer.
 
         Example Statement:
 
         Output files have the same stem but various suffixes.  Details are
-        here: 
+        here:
         Briefly:
             .macs2_log
              Raw macs2 log file
@@ -1634,8 +1634,9 @@ class SicerPeakcaller(Peakcaller):
 
         statement.append('rm -f foreground.bed background.bed')
         statement = '; '.join(statement)
-        
-        P.run()
+
+        return outfile, statement
+
 
 #############################################
 # IDR Functions
