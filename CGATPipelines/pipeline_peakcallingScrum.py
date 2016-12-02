@@ -846,7 +846,7 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
     bam_name = snip_bam + "_insertsize"
     insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
                                      PARAMS["database_name"])
-    fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)]['fragment_mean']
+    fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)]['fragmentsize_mean']
 
     window_size = PARAMS["sicer_narrow_window_size"]
     gap_size = PARAMS["sicer_narrow_gap_size"]
@@ -862,8 +862,6 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
 
     peakcaller = PipelinePeakcalling.SicerPeakcaller(
         threads=1,
-        inputf=inputf,
-        paired_end=PARAMS['paired_end'],
         tool_options=PARAMS['sicer_options'],
         window_size=window_size,
         gap_size=gap_size,
@@ -874,12 +872,84 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
 
     statement = peakcaller.build(bam,
                                  outfile,
+                                 controlfile=inputf,
                                  idr=PARAMS['IDR_run'],
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'])
 
     P.run()
     peakcaller.summarise(outfile)
+
+@follows(mkdir('sicer_broad.dir'))
+@follows(mergeInsertSizes)
+@transform(preprocessing,
+           regex("peakcalling_bams.dir/(.*).bam"),
+           add_inputs(makeBamInputTable),
+           r"sicer_broad.dir/\1.broad_sicer")
+def callBroaderPeaksWithSicer(infiles, outfile):
+    '''
+    Takes Bam and pairs with input using design files to
+    call peaks using sicer
+
+    Inputs
+    ======
+    bam file
+    design file - looks up to identify which input file should be used
+    for peakcalling
+    instertsize.tsv - gets insert size to use for peak calling
+
+    Output
+    -----
+    Sicer output files
+    '''
+    D = PipelinePeakcalling.readTable(infiles[1])
+    bam = infiles[0]
+    snip_bam = P.snip(bam)
+    bam_name = snip_bam + "_insertsize"
+    insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
+                                     PARAMS["database_name"])
+    fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)]['fragmentsize_mean']
+    fragment_size = fragment_size.tolist()[0]
+
+    window_size = PARAMS["sicer_broad_window_size"]
+    gap_size = PARAMS["sicer_broad_gap_size"]
+    fdr_threshold = PARAMS["sicer_fdr_threshold"]
+    genome = PARAMS["genome"]
+    redundancy_threshold = PARAMS["sicer_redundancy_threshold"]
+
+    # If there are no inputs
+    if PARAMS['input'] == 0:
+        inputf = None
+    else:
+        inputf = D[bam]
+
+    peakcaller = PipelinePeakcalling.SicerPeakcaller(
+        threads=1,
+        tool_options=PARAMS['sicer_options'],
+        window_size=window_size,
+        gap_size=gap_size,
+        fragment_size=fragment_size,
+        fdr_threshold=fdr_threshold,
+        genome=genome,
+        redundancy_threshold=redundancy_threshold)
+
+    statement = peakcaller.build(bam,
+                                 outfile,
+                                 controlfile=inputf,
+                                 idr=PARAMS['IDR_run'],
+                                 idrc=PARAMS['sicer_idrkeeppeaks'],
+                                 idrcol=PARAMS['sicer_idrcol'])
+
+    P.run()
+    peakcaller.summarise(outfile)
+
+
+
+
+
+
+
+
 
 
 

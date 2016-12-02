@@ -883,7 +883,8 @@ class Peakcaller(object):
         '''
         return ""
 
-    def compressOutput(self, infile, outfile, contigsfile, controlfile):
+    def compressOutput(self, infile, outfile, contigsfile, controlfile,
+                       broad_peak=None):
         '''
         Build command line statement to compress peakcalling output files.
         Returns an empty string if no compressOutput function is defined for
@@ -930,8 +931,7 @@ class Peakcaller(object):
         '''
         return ""
 
-    def preparePeaksForIDR(self, infile, outfile, idr, idrc,
-                           idrsuffix, idrcol):
+    def preparePeaksForIDR(self, outfile, idrc, idrsuffix, idrcol):
         '''
         Build command line statement to prepare the IDR input.
 
@@ -997,7 +997,7 @@ class Peakcaller(object):
 
         peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
         compress_cmd = self.compressOutput(
-            infile, outfile,  contigsfile, controlfile, broad_peak)
+            infile, outfile,  contigsfile, controlfile, broad_peak=None)
         postprocess_cmd = self.postProcessPeaks(
             infile, outfile, controlfile, insertsizef)
 
@@ -1521,7 +1521,7 @@ class SicerPeakcaller(Peakcaller):
                  gap_size=None,
                  genome=None,
                  redundancy_threshold=None):
-        super(Macs2Peakcaller, self).__init__(threads, tool_options)
+        super(SicerPeakcaller, self).__init__(threads, tool_options)
         self.fragment_size = fragment_size
         self.effective_genome_fraction = effective_genome_fraction
         self.evalue_threshold = evalue_threshold
@@ -1579,6 +1579,7 @@ class SicerPeakcaller(Peakcaller):
             options = [self.tool_options]
         else:
             options = []
+
         workdir = outfile + ".dir"
 
         try:
@@ -1595,9 +1596,9 @@ class SicerPeakcaller(Peakcaller):
             --max-insert-size=%(calling_max_insert_size)i
             --log=%(outfile)s.log
             --bed-format=6
-            > %(workdir)s/foreground.bed''']
+            > %(workdir)s/foreground.bed''' % locals()]
         else:
-            statement = ["bamToBed -i %(infile)s > %(workdir)s/foreground.bed"]
+            statement = ["bamToBed -i %(infile)s > %(workdir)s/foreground.bed" % locals()]
 
         outfile = os.path.basename(outfile)
 
@@ -1607,30 +1608,31 @@ class SicerPeakcaller(Peakcaller):
         fdr_threshold = self.fdr_threshold
         genome = self.genome
         redundancy_threshold = self.redundancy_threshold
+        fragment_size = self.fragment_size
 
         if controlfile:
             statement.append(
-                'bamToBed -i %(controlfile)s > %(workdir)s/control.bed')
-            statement.append("cd %(workdir)s")
+                'bamToBed -i %(controlfile)s > %(workdir)s/control.bed' % locals())
+            statement.append("cd %(workdir)s" % locals())
             statement.append('''SICER.sh . foreground.bed control.bed . %(genome)s
-            %(sicer_redundancy_threshold)i
-            %(window_size)i
-            %(fragment_size)i
-            %(effective_genome_fraction)f
-            %(gap_size)i
-            %(fdr_threshold)f
-            >& ../%(outfile)s''')
+            %(redundancy_threshold)s
+            %(window_size)s
+            %(fragment_size)s
+            %(effective_genome_fraction)s
+            %(gap_size)s
+            %(fdr_threshold)s
+            >& ../%(outfile)s''' % locals())
 
         else:
             statement.append('cd%(workdir)s')
             statement.append('''SICER-rb.sh .foreground.bed . %(genome)s
-            %(redundancy_threshold)i
-            %(window_size)i
-            %(fragment_size)i
-            %(effective_genome_fraction)f
-            %(gap_size)i
-            %(evalue_threshold)f
-            >& ../%(outfile)s''')
+            %(redundancy_threshold)s
+            %(window_size)s
+            %(fragment_size)s
+            %(effective_genome_fraction)s
+            %(gap_size)s
+            %(evalue_threshold)s
+            >& ../%(outfile)s''' % locals())
 
         statement.append('rm -f foreground.bed background.bed')
         statement = '; '.join(statement)
