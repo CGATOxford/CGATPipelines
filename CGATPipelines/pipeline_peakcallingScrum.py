@@ -872,13 +872,14 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
         genome=genome,
         redundancy_threshold=redundancy_threshold)
 
-    statement = peakcaller.build(bam, outfile)
+    statement = peakcaller.build(bam,
+                                 outfile,
+                                 idr=PARAMS['IDR_run'],
+                                 idrc=PARAMS['sicer_idrkeeppeaks'],
+                                 idrcol=PARAMS['sicer_idrcol'])
+
     P.run()
     peakcaller.summarise(outfile)
-
-
-
-
 
 
 
