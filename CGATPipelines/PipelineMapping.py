@@ -183,7 +183,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
     ---------
     infile : string
        Input filename in :term:`gtf` format
-    outfile : string
+#    outfile : string
        Output filename in :term:`gtf` format
     logfile : string
        Output filename for logging information.
@@ -1195,7 +1195,6 @@ class Salmon(Mapper):
                  *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.compress = compress
-        self.bias_correct = bias_correct
 
     def mapper(self, infiles, outfile):
 
@@ -1237,32 +1236,17 @@ class Salmon(Mapper):
 
         return statement
 
-    def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
-
-        # if using bias correct, need to rename the bias corrected outfile
-        if self.bias_correct:
-            bias_corrected = outfile.replace(".sf", "_bias_corrected.sf")
-
-            statement = '''
-            rm -rf %(outfile)s;
-            mv %(bias_corrected)s %(outfile)s;
-            ''' % locals()
-            return statement
-
-        else:
-            return ""
-
 
 class Kallisto(Mapper):
 
     '''run Kallisto to quantify transcript abundance from fastq files
     - set pseudobam to True to output a pseudobam along with the quantification'''
 
-    def __init__(self, pseudobam=False, *args, **kwargs):
+    def __init__(self, pseudobam=False, readable_suffix=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.pseudobam = pseudobam
+        self.readable_suffix = readable_suffix
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles'''
@@ -1320,6 +1304,14 @@ class Kallisto(Mapper):
         statement = ('''
         mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
+
+        if self.readable_suffix:
+
+            outfile_readable = outfile + self.readable_suffix
+            statement += ('''
+            kallisto h5dump -o %(tmpdir)s %(outfile)s;
+            mv %(tmpdir)s/abundance.tsv %(outfile_readable)s;
+            rm -rf %(tmpdir)s/bs_abundance_*.tsv;''' % locals())
 
         return statement
 
