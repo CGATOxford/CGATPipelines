@@ -843,16 +843,18 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
     D = PipelinePeakcalling.readTable(infiles[1])
     bam = infiles[0]
     snip_bam = P.snip(bam)
-    bam_name = snip_bam + "_insertsize"
+    bam_name = snip_bam + "_insertsize.tsv"
     insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
                                      PARAMS["database_name"])
     fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)]['fragmentsize_mean']
+    fragment_size = fragment_size.tolist()[0]
 
     window_size = PARAMS["sicer_narrow_window_size"]
     gap_size = PARAMS["sicer_narrow_gap_size"]
     fdr_threshold = PARAMS["sicer_fdr_threshold"]
     genome = PARAMS["genome"]
     redundancy_threshold = PARAMS["sicer_redundancy_threshold"]
+    effective_genome_fraction = PARAMS['sicer_effective_genome_fraction']
 
     # If there are no inputs
     if PARAMS['input'] == 0:
@@ -867,6 +869,7 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
         gap_size=gap_size,
         fragment_size=fragment_size,
         fdr_threshold=fdr_threshold,
+        effective_genome_fraction=effective_genome_fraction,
         genome=genome,
         redundancy_threshold=redundancy_threshold)
 
@@ -878,7 +881,9 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
                                  idrcol=PARAMS['sicer_idrcol'])
 
     P.run()
-    peakcaller.summarise(outfile)
+    peakcaller.summarise(outfile, mode="narrow")
+    #peakcaller.loadData(###########
+    #)
 
 @follows(mkdir('sicer_broad.dir'))
 @follows(mergeInsertSizes)
@@ -916,6 +921,7 @@ def callBroaderPeaksWithSicer(infiles, outfile):
     fdr_threshold = PARAMS["sicer_fdr_threshold"]
     genome = PARAMS["genome"]
     redundancy_threshold = PARAMS["sicer_redundancy_threshold"]
+    effective_genome_fraction = PARAMS['sicer_effective_genome_fraction']
 
     # If there are no inputs
     if PARAMS['input'] == 0:
@@ -930,6 +936,7 @@ def callBroaderPeaksWithSicer(infiles, outfile):
         gap_size=gap_size,
         fragment_size=fragment_size,
         fdr_threshold=fdr_threshold,
+        effective_genome_fraction=effective_genome_fraction,
         genome=genome,
         redundancy_threshold=redundancy_threshold)
 
@@ -941,13 +948,14 @@ def callBroaderPeaksWithSicer(infiles, outfile):
                                  idrcol=PARAMS['sicer_idrcol'])
 
     P.run()
-    peakcaller.summarise(outfile)
+    peakcaller.summarise(outfile, mode="broad")
+    peakcaller.loadData(###########
+    )
 
 
-
-
-
-
+@follows(callNarrowerPeaksWithSicer, callBroaderPeaksWithSicer)
+def runSicer(infile, outfile):
+    pass
 
 
 

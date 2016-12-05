@@ -931,6 +931,14 @@ class Peakcaller(object):
         '''
         return ""
 
+        def loadData(self, infile, outfile, bamfile, controlfile=None, mode=None,
+              fragment_size=None):
+            '''
+
+            '''
+
+            return ""
+
     def preparePeaksForIDR(self, outfile, idrc, idrsuffix, idrcol):
         '''
         Build command line statement to prepare the IDR input.
@@ -1007,8 +1015,10 @@ class Peakcaller(object):
         else:
             prepareIDR_cmd = ""
 
+        loadDatatoDatabase = ""
         full_cmd = " checkpoint ;".join((
-            peaks_cmd, compress_cmd, postprocess_cmd, prepareIDR_cmd))
+            peaks_cmd, compress_cmd, postprocess_cmd, prepareIDR_cmd,
+            loadDatatoDatabase))
 
         return full_cmd
 
@@ -1638,6 +1648,138 @@ class SicerPeakcaller(Peakcaller):
         statement = '; '.join(statement)
 
         return outfile, statement
+
+
+    def loadData(infile, outfile, bamfile, controlfile=None, mode="narrow",
+                 fragment_size=None):
+        '''load Sicer results.'''
+
+        # build filename of input bedfile
+        track = P.snip(os.path.basename(infile), ".sicer")
+        sicerdir = infile + ".dir"
+        window = PARAMS["sicer_" + mode + "_window_size"]
+        gap = PARAMS["sicer_" + mode + "_gap_size"]
+        fdr = "%8.6f" % PARAMS["sicer_fdr_threshold"]
+        offset = fragment_size
+
+        # taking the file islands-summary-FDR, which contains
+        # 'summary file of significant islands with requirement of FDR=0.01'
+
+        bedfile = os.path.join(
+            sicerdir,
+            "foreground" + "-W" + str(window) +
+            "-G" + str(gap) + "-islands-summary-FDR" + fdr)
+
+        assert os.path.exists(bedfile)
+
+        if controlfile:
+            control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
+
+        tablename = P.toTable(outfile) + "_regions"
+        load_statement = P.build_load_statement(
+            tablename,
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
+
+        headers = "contig,start,end,interval_id,chip_reads,control_reads,pvalue,fold,fdr"
+
+        # add new interval id at fourth column
+        statement = '''cat < %(bedfile)
+        | awk '{printf("%%s\\t%%s\\t%%s\\t%%i", $1,$2,$3,++a);
+        for (x = 4; x <= NF; ++x) {printf("\\t%%s", $x)}; printf("\\n" ); }'
+        | cgat bed2table
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(offset)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
+
+        return statement
+
+
+    def summarise(self, infile, mode=None):
+        '''summarise sicer results.'''
+
+
+        infile = "%s_log" % infile
+        outfile = "%s.table" % infile
+
+        map_targets = [
+            ("Window average: (\d+)", "window_mean", ()),
+            ("Fragment size: (\d+) ", "fragment_size", ()),
+            ("Minimum num of tags in a qualified window:  (\d+)",
+             "window_min", ()),
+            ("The score threshold is:  (\d+)", "score_threshold", ()),
+            ("Total number of islands:  (\d+)", "total_islands", ()),
+            ("chip library size   (\d+)", "chip_library_size", ()),
+            ("control library size   (\d+)", "control_library_size", ()),
+            ("Total number of chip reads on islands is:  (\d+)",
+             "chip_island_reads", ()),
+            ("Total number of control reads on islands is:  (\d+)",
+             "control_island_reads", ()),
+            ("Given significance 0.01 ,  there are (\d+) significant islands",
+             "significant_islands", ())]
+
+        # map regex to column
+        mapper, mapper_header, mapper2pos = {}, {}, {}
+        for x, y, z in map_targets:
+            mapper[y] = re.compile(x)
+            mapper_header[y] = z
+            # positions are +1 as first column in row is track
+            mapper2pos[y] = len(mapper_header)
+
+        keys = [x[1] for x in map_targets]
+
+        results = collections.defaultdict(list)
+        with IOTools.openFile(infile) as f:
+            for line in f:
+                if "diag:" in line:
+                    break
+                for x, y in mapper.items():
+                    s = y.search(line)
+                    if s:
+                        results[x].append(s.groups()[0])
+                        break
+
+        if mode == "narrow":
+            row = [P.snip(os.path.basename(infile), ".narrow_sicer_log")]
+        else:
+            row = [P.snip(os.path.basename(infile), ".broad_sicer_log")]
+        for key in keys:
+            val = results[key]
+            if len(val) == 0:
+                v = "na"
+            else:
+                c = len(mapper_header[key])
+                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
+            row.append(v)
+
+        if mode == "narrow":
+            peaks = IOTools.openFile(
+                infile.replace(".narrow_sicer_log",
+                               ".narrow_sicer_peaks.xls.gz")).readlines()
+        else:
+            peaks = IOTools.openFile(
+                infile.replace(".broad_sicer_log",
+                               ".broad_sicer_peaks.xls.gz")).readlines()
+        npeaks = 0
+        for line in peaks:
+            if "#" not in line and "log10" not in line:
+                npeaks += 1
+
+        row.extend([str(npeaks)])
+        keys.extend(["number_of_peaks"])
+
+        out = IOTools.openFile(outfile, "w")
+        out.write("sample\t%s\n%s\n" % ("\t".join(keys), "\t".join(row)))
+        out.close()
+
+
 
 
 #############################################
