@@ -883,10 +883,9 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'])
 
-#    P.run()
+    P.run()
     peakcaller.summarise(outfile, mode="narrow")
-    #peakcaller.loadData(###########
-    #)
+
 
 @follows(mkdir('sicer_broad.dir'))
 @follows(mergeInsertSizes)
@@ -952,8 +951,6 @@ def callBroaderPeaksWithSicer(infiles, outfile):
 
     P.run()
     peakcaller.summarise(outfile, mode="broad")
-    peakcaller.loadData(###########
-    )
 
 
 @follows(callNarrowerPeaksWithSicer, callBroaderPeaksWithSicer)

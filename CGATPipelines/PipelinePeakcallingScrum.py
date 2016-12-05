@@ -1550,37 +1550,43 @@ class SicerPeakcaller(Peakcaller):
         Output files have the same stem but various suffixes.  Details are
         here:
         Briefly:
-            .macs2_log
-             Raw macs2 log file
+        .test-1-removed.bed: redundancy-removed test bed file
 
-            .macs2_treat_pileup.bdg
-             Bedgraph file of the fragment pileup in the treatment file
+        .control-1-removed.bed: redundancy-removed control bed file
 
-            .macs2_control_lambda.brg
-             Bedgraph file of the control lambda
+        .test-W200.graph: summary graph file for test-1-removed.bed with window size 200, in
+        bedGraph format.
 
-            .macs2_peaks.xls
-             Tabular file which contains information about called peaks
+        .test-W200-normalized.wig: the above file normalized by library size per million and
+        converted into wig format. This file can be uploaded to the UCSC genome browser
 
-            .macs2_peaks.broadPeak or .macs2.peaks.narrowPeak
-             bed file of peak locations (plus peak summits for narrowPeak)
+        .test-W200-G600.scoreisland: an intermediate file for debugging usage.
 
-            .macs2_peaks.gappedPeak
-             bed file of narrow and broad peaks
+        .test-W200-G600-islands-summary: summary of all candidate islands with their
+        statistical significance. It has the format:
+        chrom, start, end, ChIP_island_read_count, CONTROL_island_read_count, p_value,
+        fold_change, FDR_threshold
 
-            .macs2_summits.bed
-             bed file of summit locations (narrow peaks only)
+        .test-W200-G600-islands-summary-FDR.01: summary file of significant islands with
+        requirement of FDR=0.01.
 
-        The original location for the logging file (suffixed .macs2)
-        is overwritten by the output from passing the macs2 xls to
-        bed2table.py to give the final required outfile
+        .test-W200-G600-FDR.01-island.bed: delineation of significant islands in "chrom start
+        end read-count-from-redundancy-removed-test.bed" format
+
+        .test-W200-G600-FDR.01-islandfiltered.bed: library of raw redundancy-removed reads
+        on significant islands.
+
+        .test-W200-G600-FDR.01-islandfiltered-normalized.wig: wig file for the island-filtered
+        redundancy-removed reads. This file can be uploaded to the UCSC genome browser
+        and be compared with the track for test-W200-normalized.wig for visual examination of
+        parameter choices and SICER performance.
 
         Parameters
         ----------
         infile: str
             path to input bam file
         outfile: str
-            path to .macs2 output file
+            path to sicer output file
         controlfile: str
            path to control (input) bam file
         '''
