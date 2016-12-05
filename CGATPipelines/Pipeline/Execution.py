@@ -412,7 +412,7 @@ def run(**kwargs):
         # (shellquote(statement), shellfile) )
         # module list outputs to stderr, so merge stderr and stdout
 
-        script = '''#!/bin/bash\n
+        script = '''#!/bin/bash -e \n
                     echo "%(job_name)s : START -> ${0}" >> %(shellfile)s
                     set | sed 's/^/%(job_name)s : /' &>> %(shellfile)s
                     module list 2>&1 | sed 's/^/%(job_name)s: /' &>> %(shellfile)s

@@ -40,27 +40,567 @@ import collections
 import glob
 import itertools
 import math
-import numpy
+import numpy as np
 import os
-import pandas
+import pandas as pd
 import re
+import shutil
+
 
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
 import rpy2.rinterface as ri
 
 import CGAT.BamTools as BamTools
+import CGAT.Counts as Counts
 import CGAT.Database as Database
 import CGAT.Expression as Expression
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
+import CGATPipelines.PipelineMapping as PipelineMapping
+
+from CGATPipelines.Pipeline import cluster_runnable
 
 # AH: commented as I thought we wanted to avoid to
 # enable this automatically due to unwanted side
 # effects in other modules.
 # import rpy2.robjects.numpy2ri
 # rpy2.robjects.numpy2ri.activate()
+
+
+def normaliseCounts(counts_inf, outfile, method):
+    ''' normalise a counts table'''
+
+    counts = Counts.Counts(counts_inf)
+    counts.normalise(method=method)
+    counts.table.index.name = "id"
+
+    if outfile.endswith(".gz"):
+        counts.table.to_csv(outfile, sep="\t", compression="gzip")
+    else:
+        counts.table.to_csv(outfile, sep="\t")
+
+
+def convertFromFishToBear(infile):
+    ''' convert sailfish/salmon output to kallisto(bear)-like, Sleuth
+    compatible h5 file'''
+
+    infile = os.path.dirname(infile)
+
+    convert = R('''library(wasabi)
+    prepare_fish_for_sleuth("%(infile)s", force=TRUE)
+    ''' % locals())
+
+    convert
+
+
+def parse_table(sample, outfile_raw, outfile, columnname):
+    '''
+    parse the output of featurecounts or alignment free qauntifiers
+    and extract number of reads for downstream quantification
+    '''
+
+    column_ix = findColumnPosition(outfile_raw, columnname)
+    sample = sample
+
+    if outfile_raw.endswith("gz"):
+        grep = "zgrep"
+    else:
+        grep = "grep"
+
+    statement = '''
+    echo -e "id\\t%(sample)s" | gzip > %(outfile)s;
+    %(grep)s -v '^#' %(outfile_raw)s |
+    cut -f1,%(column_ix)s | awk 'NR>1' | gzip >> %(outfile)s;
+    ''' % locals()
+    P.run()
+
+
+def estimateSleuthMemory(bootstraps, samples, transcripts):
+    ''' The memory usage of Sleuth is dependent upon the number of
+    samples, transcripts and bootsraps.
+
+    A rough estimate is:
+    24 bytes * bootstraps * samples * transcripts
+    (https://groups.google.com/forum/#!topic/kallisto-sleuth-users/mp064J-DRfI)
+
+    TS: I've found this to be a serious underestimate so we use a
+    more conservative estimate here (48 bytes * ... ) with a default of 2G
+    '''
+
+    estimate = (48 * bootstraps * samples * transcripts)
+
+    job_memory = "%fG" % (max(2.0, (estimate / 1073741824.0)))
+
+    return job_memory
+
+
+def findColumnPosition(infile, column):
+    ''' find the position in the header of the specified column
+    The returned value is one-based (e.g for bash cut)'''
+    with IOTools.openFile(infile, "r") as inf:
+        while True:
+            header = inf.readline()
+            if not header.startswith("#"):
+                head = header.strip().split("\t")
+                j = 0
+                for h in head:
+                    if column in h:
+                        column_ix = j
+                    j += 1
+                # column_ix = header.strip().split("\t").index(column)
+                break
+        if column_ix:
+            return column_ix + 1
+        else:
+            raise ValueError("could not find %s in file header" % column)
+
+
+class Quantifier(object):
+    ''' base class for transcript and gene-level quantification from a
+    BAM or fastq
+
+    Note: All quantifier classes are designed to perform both
+    transcript-level and gene-level analyses in a single run. The
+    runGene method
+    '''
+
+    def __init__(self, infile, transcript_outfile, gene_outfile, annotations,
+                 job_threads=None, job_memory=None, strand=None,
+                 options=None, bootstrap=None,
+                 fragment_length=None, fragment_sd=None,
+                 transcript2geneMap=None, libtype=None, kmer=None,
+                 biascorrect=None):
+        '''
+        Attributes
+        ----------
+        infile: string
+           Input  filename
+        transcript_outfile: string
+           Outfile of transcript quantifications in :term: `gz.raw` format
+        gene_outfile: string
+           Outfile of gene quantifications in :term: `gz.raw` format
+        job_threads: string
+           Number of threads per job
+        strand: int
+           For FeatureCounts the strand is specified as either 0, 1, 2
+        options: string
+           Options specified as a string
+        annotations: string
+           Filename with gene set in :term:`gtf` format.
+        bootstrap: int
+           Number of boostrap values for alignment free quantifiers
+        job_memory: str
+           Amount of memory available for job
+        frangment_length: int
+           Must specify the expected fragment length for single-end reads
+           This is specified in pipeline_ini.
+           :term:`PARAMS` - fragment_length option.
+        frangment_sd: int
+           Must specify the expected fragment length sd for single-end reads
+           This is specified in pipeline_ini.
+           :term:`PARAMS` - fragment_sd option.
+        libtype: string
+           This is specified in pipeline_ini
+           :term:`PARAMS` - library type option.
+        kmer: int
+           This is specified in the pipeline.ini
+           :term:`PARAMS` - kmer size for aligment free quant.
+        '''
+
+        self.infile = infile
+        self.transcript_outfile = transcript_outfile
+        self.gene_outfile = gene_outfile
+        self.job_threads = job_threads
+        self.strand = strand
+        self.options = options
+        self.annotations = annotations
+        self.bootstrap = bootstrap
+        self.job_memory = job_memory
+        self.fragment_length = fragment_length
+        self.fragment_sd = fragment_sd
+        self.t2gMap = transcript2geneMap
+        self.libtype = libtype
+        self.kmer = kmer
+        self.biascorrect = biascorrect
+
+        # TS: assume sample name is directory for outfile which is
+        # should be for pipeline_rnaseqdiffexpression. This would be
+        # better handled in pipeline though
+        self.sample = os.path.basename(os.path.dirname(self.gene_outfile))
+
+    def run_transcript(self):
+        ''' generate transcript-level quantification estimates'''
+        pass
+
+    def run_gene(self):
+        ''' generate gene-level quantification estimates'''
+        pass
+
+    def run_all(self):
+        ''' '''
+        self.run_transcript()
+        self.run_gene()
+
+
+class FeatureCountsQuantifier(Quantifier):
+    ''' quantifier class to run featureCounts '''
+
+    def run_featurecounts(self, level="gene_id"):
+        ''' function to run featureCounts at the transcript-level or gene-level
+
+        If `bamfile` is paired, paired-end counting is enabled and the bam
+        file automatically sorted.
+
+        '''
+
+        bamfile = self.infile
+        job_threads = self.job_threads
+        strand = self.strand
+        options = self.options
+        annotations = self.annotations
+        sample = self.sample
+
+        if level == "gene_id":
+            outfile = self.gene_outfile
+        elif level == "transcript_id":
+            outfile = self.transcript_outfile
+        else:
+            raise ValueError("level must be gene_id or transcript_id!")
+
+        tmpdir = P.getTempDir()
+
+        # need to unzip the annotations for featureCounts
+        annotations_tmp = os.path.join(tmpdir,
+                                       'geneset.gtf')
+        bam_tmp = os.path.join(tmpdir,
+                               os.path.basename(bamfile))
+
+        # -p -B specifies count fragments rather than reads, and both
+        # reads must map to the feature
+        # for legacy reasons look at feature_counts_paired
+        if BamTools.isPaired(bamfile):
+            # select paired end mode, additional options
+            paired_options = "-p -B"
+            # sort by read name
+            paired_processing = \
+                """samtools
+                sort -@ %(job_threads)i -n -o %(bam_tmp)s %(bamfile)s;
+                checkpoint; """ % locals()
+            bamfile = bam_tmp
+        else:
+            paired_options = ""
+            paired_processing = ""
+
+        # raw featureCounts output saved to ".raw" file
+        outfile_raw = P.snip(outfile, ".gz") + ".raw"
+        outfile_dir = os.path.dirname(outfile)
+
+        statement = '''mkdir %(tmpdir)s;
+                       mkdir %(outfile_dir)s;
+                       zcat %(annotations)s > %(annotations_tmp)s;
+                       checkpoint;
+                       %(paired_processing)s
+                       featureCounts %(options)s
+                                     -T %(job_threads)i
+                                     -s %(strand)s
+                                     -a %(annotations_tmp)s
+                                     %(paired_options)s
+                                     -o %(outfile_raw)s -g %(level)s
+                                     %(bamfile)s
+                        >& %(outfile)s.log;
+                        rm -rf %(tmpdir)s; checkpoint;
+                        gzip -f %(outfile_raw)s
+        '''
+        P.run()
+
+        # parse output to extract counts
+        parse_table(self.sample, outfile_raw + ".gz",
+                    outfile, "%s.bam" % self.sample)
+
+    def run_transcript(self):
+        ''' generate transcript-level quantification estimates'''
+        self.run_featurecounts(level="transcript_id")
+
+    def run_gene(self):
+        ''' generate gene-level quantification estimates'''
+        self.run_featurecounts(level="gene_id")
+
+
+class Gtf2tableQuantifier(Quantifier):
+    ''' quantifier class to run gtf2table'''
+
+    def run_gtf2table(self, level="gene_id"):
+        ''' function to run gtf2table script at the transcript-level
+        or gene-level'''
+
+        bamfile = self.infile
+        annotations = self.annotations
+        sample = self.sample
+
+        # define the quantification level
+        if level == "gene_id":
+            outfile = self.gene_outfile
+            reporter = "genes"
+        elif level == "transcript_id":
+            outfile = self.transcript_outfile
+            reporter = "transcripts"
+        else:
+            raise ValueError("level must be gene_id or transcript_id!")
+
+        if BamTools.isPaired(bamfile):
+            counter = 'readpair-counts'
+        else:
+            counter = 'read-counts'
+
+        outfile_raw = P.snip(outfile, ".gz") + ".raw"
+        outfile_dir = os.path.dirname(outfile)
+
+        # ignore multi-mapping reads ("--multi-mapping-method=ignore")
+        statement = '''
+        mkdir %(outfile_dir)s;
+        zcat %(annotations)s
+        | cgat gtf2table
+              --reporter=%(reporter)s
+              --bam-file=%(bamfile)s
+              --counter=length
+              --column-prefix="exons_"
+              --counter=%(counter)s
+              --column-prefix=""
+              --counter=read-coverage
+              --column-prefix=coverage_
+              --min-mapping-quality=%(counting_min_mapping_quality)i
+              --multi-mapping-method=ignore
+              --log=%(outfile_raw)s.log
+        > %(outfile_raw)s; checkpoint;
+        gzip -f %(outfile_raw)s
+        '''
+
+        P.run()
+        # parse output to extract counts
+        parse_table(self.sample, outfile_raw + ".gz", outfile, 'counted_all')
+
+    def run_transcript(self):
+        ''' generate transcript-level quantification estimates'''
+        self.run_gtf2table(level="transcript_id")
+
+    def run_gene(self):
+        ''' generate gene-level quantification estimates'''
+        self.run_gtf2table(level="gene_id")
+
+
+class AF_Quantifier(Quantifier):
+    ''' Parent class for all alignment-free quantification methods'''
+
+    def run_gene(self):
+        ''' Aggregate transcript counts to generate gene-level counts
+        using a map of transript_id to gene_id '''
+
+        transcript_df = pd.read_table(self.transcript_outfile,
+                                      sep="\t", index_col=0)
+        transcript2gene_df = pd.read_table(self.t2gMap, sep="\t", index_col=0)
+        transcript_df = pd.merge(transcript_df, transcript2gene_df,
+                                 left_index=True, right_index=True,
+                                 how="inner")
+        gene_df = pd.DataFrame(transcript_df.groupby(
+             'gene_id')[self.sample].sum())
+        gene_df.index.name = 'id'
+
+        gene_df.to_csv(
+            self.gene_outfile, compression="gzip", sep="\t")
+
+
+class KallistoQuantifier(AF_Quantifier):
+    ''' quantifier class to run kallisto'''
+
+    def run_transcript(self):
+        ''' '''
+        fastqfile = self.infile
+        index = self.annotations
+        job_threads = self.job_threads
+        job_memory = self.job_memory
+        kallisto_options = self.options
+        kallisto_bootstrap = self.bootstrap
+        kallisto_fragment_length = self.fragment_length
+        kallisto_fragment_sd = self.fragment_sd
+        outfile = os.path.join(
+            os.path.dirname(self.transcript_outfile), "abundance.h5")
+        sample = self.sample
+
+        # kallisto output is in binary (".h5") format
+        # Supplying a "readable_suffix" to the PipelineMapping.Kallisto
+        # ensures an additional human readable file is also generated
+        readable_suffix = ".tsv"
+        m = PipelineMapping.Kallisto(readable_suffix=readable_suffix)
+
+        statement = m.build((fastqfile,), outfile)
+
+        P.run()
+
+        outfile_readable = outfile + readable_suffix
+
+        # parse the output to extract the counts
+        parse_table(self.sample, outfile_readable,
+                    self.transcript_outfile, 'est_counts')
+
+
+class SailfishQuantifier(AF_Quantifier):
+    ''' quantifier class to run sailfish'''
+
+    def run_transcript(self):
+        fastqfile = self.infile
+        index = self.annotations
+        job_threads = self.job_threads
+        job_memory = self.job_memory
+
+        sailfish_options = self.options
+        sailfish_bootstrap = self.bootstrap
+        sailfish_libtype = self.libtype
+        outfile = os.path.join(
+            os.path.dirname(self.transcript_outfile), "quant.sf")
+        sample = self.sample
+
+        m = PipelineMapping.Sailfish()
+
+        statement = m.build((fastqfile,), outfile)
+
+        P.run()
+
+        # parse the output to extract the counts
+        parse_table(self.sample, outfile,
+                    self.transcript_outfile, 'NumReads')
+
+        convertFromFishToBear(outfile)
+
+
+class SalmonQuantifier(AF_Quantifier):
+    '''quantifier class to run salmon'''
+    def run_transcript(self):
+        fastqfile = self.infile
+        index = self.annotations
+        job_threads = self.job_threads
+        job_memory = self.job_memory
+        biascorrect = self.biascorrect
+
+        salmon_options = self.options
+        salmon_bootstrap = self.bootstrap
+        salmon_libtype = self.libtype
+        salmon_kmer = self.kmer
+        outfile = os.path.join(
+            os.path.dirname(self.transcript_outfile), "quant.sf")
+        sample = self.sample
+
+        m = PipelineMapping.Salmon(bias_correct=biascorrect)
+
+        statement = m.build((fastqfile,), outfile)
+
+        P.run()
+
+        # parse the output to extract the counts
+        parse_table(self.sample, outfile,
+                    self.transcript_outfile, 'NumReads')
+
+        convertFromFishToBear(outfile)
+
+
+@cluster_runnable
+def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
+    ''' use the plotting methods for Counts object to make summary plots'''
+
+    with IOTools.openFile(logfile, "w") as log:
+
+        plot_prefix = P.snip(logfile, ".log")
+        log.write("1")
+
+        # need to manually read in data as index column is not the first column
+        in_table = pd.read_table(counts_inf, sep="\t", index_col=0)
+        in_table = in_table.dropna(axis=0)
+        counts = Counts.Counts(in_table)
+        counts.table.columns = [x.replace(".", "-") for x in counts.table.columns]
+        log.write("2")
+        design = Expression.ExperimentalDesign(design_inf)
+        log.write("3")
+        # make certain counts table only include samples in design
+        counts.restrict(design)
+        log.write("4")
+        cor_scatter_outfile = plot_prefix + "_pairwise_correlations_scatter.png"
+        cor_heatmap_outfile = plot_prefix + "_pairwise_correlations_heatmap.png"
+        pca_var_outfile = plot_prefix + "_pca_variance.png"
+        pca1_outfile = plot_prefix + "_pc1_pc2.png"
+        pca2_outfile = plot_prefix + "_pc3_pc4.png"
+        heatmap_outfile = plot_prefix + "_heatmap.png"
+
+        # use log expression so that the PCA is not overly biased
+        # towards the variance in the most highly expressed genes
+        counts_log10 = counts.log(base=10, pseudocount=0.1, inplace=False)
+        log.write("2")
+        log.write("plot correlations scatter: %s\n" % cor_scatter_outfile)
+        log.write("plot correlations heatmap: %s\n" % cor_heatmap_outfile)
+        # counts_log10.plotPairwise(
+        # cor_scatter_outfile, cor_heatmap_outfile, subset=2000)
+
+        # for the heatmap, and pca we want the top expressed genes (top 25%).
+        counts_log10.removeObservationsPerc(percentile_rowsums=75)
+
+        log.write("plot pc1,pc2: %s\n" % pca1_outfile)
+        counts_log10.plotPCA(design,
+                             pca_var_outfile, pca1_outfile,
+                             x_axis="PC1", y_axis="PC2",
+                             colour="group", shape="group")
+
+        log.write("plot pc3,pc4: %s\n" % pca2_outfile)
+        counts_log10.plotPCA(design,
+                             pca_var_outfile, pca2_outfile,
+                             x_axis="PC3", y_axis="PC4",
+                             colour="group", shape="group")
+
+        # Z-score normalise the expression for the heatmap visualisation
+        counts_log10.zNormalise(inplace=True)
+
+        log.write("plot heatmap: %s\n" % heatmap_outfile)
+        counts_log10.heatmap(heatmap_outfile, zscore=True)
+
+
+def getAlignmentFreeNormExp(transcript_infiles, basename, column,
+                            transcripts_outf, genes_outf, t2gMap):
+    ''' Extract the normalised expression from the transcript-level
+    quantification, merge across multiple samples and output
+    transcript-level and gene-level tables'''
+
+    for n, infile in enumerate(transcript_infiles):
+        # replace filename to use the full results table
+        dirname = os.path.dirname(infile)
+        sample = os.path.basename(dirname)
+        infile = os.path.join(dirname, basename)
+
+        tmp_df = pd.read_table(infile, sep="\t", index_col=0)
+        tmp_df.drop([x for x in tmp_df.columns if x != column],
+                    axis=1, inplace=True)
+        tmp_df.columns = [sample]
+        tmp_df.index.name = "id"
+
+        if n == 0:
+            transcript_df = tmp_df
+        else:
+            transcript_df = transcript_df.merge(
+                tmp_df, how="outer", left_index=True, right_index=True)
+
+    transcript_df.to_csv(transcripts_outf, sep="\t", compression="gzip")
+
+    transcript2gene_df = pd.read_table(t2gMap, sep="\t", index_col=0)
+    transcript_df = pd.merge(transcript_df, transcript2gene_df,
+                             left_index=True, right_index=True,
+                             how="inner")
+    gene_df = pd.DataFrame(transcript_df.groupby('gene_id').sum())
+    gene_df.index.name = 'id'
+
+    gene_df.to_csv(
+        genes_outf, compression="gzip", sep="\t")
+
+'''
+# ########## old code ################
+'''
 
 
 def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
@@ -174,7 +714,7 @@ def filterAndMergeGTF(infile, outfile, remove_genes, merge=False):
 def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
     '''run cufflinks to estimate expression levels.
 
-    See cufflinks manuals for full explanation of infiles/outfiles/options 
+    See cufflinks manuals for full explanation of infiles/outfiles/options
     http://cole-trapnell-lab.github.io/cufflinks/cufflinks/index.html
 
     Arguments
@@ -186,32 +726,33 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
         Filename of reads in :term:`bam` format.
 
     genome_dir : string
-        :term:`PARAMS` - genome directory containing fasta file. This is 
-        specified in pipeline_ini    
+        :term:`PARAMS` - genome directory containing fasta file. This is
+        specified in pipeline_ini
 
     cufflinks_library_type : string
-        :term:`PARAMS` - cufflinks library type option. This is 
-        specified in pipeline_ini  
+        :term:`PARAMS` - cufflinks library type option. This is
+        specified in pipeline_ini
 
     cufflinks_options : string
         :term:`PARAMS` - cufflinks options (see manual). These are
-        specified in pipeline_ini  
+        specified in pipeline_ini
 
     outfile : string
-        defines naming of 3 output files for each input file 
+        defines naming of 3 output files for each input file
 
-        1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format 
-        produced by cufflinks (see manual). Contains the assembled gene 
-        isoforms. 
+        1.outfile.gtf.gz:  transcripts.gtf file in :term:`gtf` format
+        produced by cufflinks (see manual). Contains the assembled gene
+        isoforms.
         This is the file used for the downstream file analysis
 
-        2.outfile.fpkm_tracking.gz: renamed outfile.isoforms.fpkm_tracking file 
+        2.outfile.fpkm_tracking.gz: renamed outfile.isoforms.fpkm_tracking file
         from cufflinks - contains estimated isoform-level
-        expression values in "FPKM Tracking Format". 
+        expression values in "FPKM Tracking Format".
 
-        3.outfile.genes_tracking.gz: renamed outfile.genes.fpkm_tracking.gz from 
-        cufflinks - contains estimated gene-level 
-        expression values in "FPKM Tracking Format". 
+        3.outfile.genes_tracking.gz: renamed outfile.genes.fpkm_tracking.gz
+        from
+        cufflinks - contains estimated gene-level
+        expression values in "FPKM Tracking Format".
 
     job_threads : int
         Number of threads to use
@@ -258,11 +799,13 @@ def runCufflinks(gtffile, bamfile, outfile, job_threads=1):
 def loadCufflinks(infile, outfile):
     '''load cufflinks expression levels into database
 
-        Takes cufflinks output and loads into database for later report building
+        Takes cufflinks output and loads into database for later report
+        building
         For each input file it generates two tables in a sqlite database:
 
         1. outfile_fpkm: contains information from infile.fpkm_tracking.gz
-        2. outfile_genefpkm : contains information from infile.genes_tracking.gz
+        2. outfile_genefpkm : contains information from
+        infile.genes_tracking.gz
 
     Arguments
     ---------
@@ -272,7 +815,7 @@ def loadCufflinks(infile, outfile):
         infile.fpkm_tracking.gz
     outfile : string
         Output filename used to create logging information in `.load` files.
-        Also used to create "_fpkm" and "_genefpkm" tables in database. 
+        Also used to create "_fpkm" and "_genefpkm" tables in database.
     '''
 
     track = P.snip(outfile, ".load")
@@ -481,7 +1024,7 @@ def buildExpressionStats(
             "SELECT treatment_name, control_name, "
             "COUNT(*) FROM %(tablename)s "
             "GROUP BY treatment_name,control_name" % locals()
-        ).fetchall())
+            ).fetchall())
         status = toDict(Database.executewait(
             dbhandle,
             "SELECT treatment_name, control_name, status, "
@@ -494,7 +1037,7 @@ def buildExpressionStats(
             "COUNT(*) FROM %(tablename)s "
             "WHERE significant "
             "GROUP BY treatment_name,control_name" % locals()
-        ).fetchall())
+            ).fetchall())
 
         fold2 = toDict(Database.executewait(
             dbhandle,
@@ -504,7 +1047,7 @@ def buildExpressionStats(
             "GROUP BY treatment_name,control_name,significant"
             % locals()).fetchall())
 
-        for treatment_name, control_name in list(tested.keys()):
+        for treatment_name, control_name in tested.keys():
             outf.write("\t".join(map(str, (
                 design,
                 geneset,
@@ -530,7 +1073,7 @@ def buildExpressionStats(
 
         # require at least 10 datapoints - otherwise smooth scatter fails
         if len(data) > 10:
-            data = list(zip(*data))
+            data = zip(*data)
 
             pngfile = ("%(outdir)s/%(design)s_%(geneset)s_%(level)s"
                        "_pvalue_vs_length.png") % locals()
@@ -705,7 +1248,7 @@ def loadCuffdiff(dbhandle, infile, outfile, min_fpkm=1.0):
         headers = "gene_id\t" + "\t".join([sample_lookup[x] for x in samples])
         outf.write(headers + "\n")
 
-        for gene in genes.keys():
+        for gene in genes.iterkeys():
             outf.write(gene + "\t")
             s = 0
             while x < len(samples) - 1:
@@ -1047,9 +1590,9 @@ def buildUTRExtension(infile, outfile):
         # counts within and outside UTRs
         within_utr, outside_utr, otherTranscript = [], [], []
         # number of transitions between utrs
-        transitions = numpy.zeros((3, 3), numpy.int)
+        transitions = np.zeros((3, 3), np.int)
 
-        for x in range(len(utrs)):
+        for x in xrange(len(utrs)):
             utr, exon = utrs[x], exons[x]
 
             # only consider genes with expression coverage
@@ -1085,9 +1628,9 @@ def buildUTRExtension(infile, outfile):
 
         E.info("counting: (n,mean): within utr=%i,%f, "
                "outside utr=%i,%f, otherTranscript=%i,%f" %
-               (len(within_utr), numpy.mean(within_utr),
-                len(outside_utr), numpy.mean(outside_utr),
-                len(otherTranscript), numpy.mean(otherTranscript)))
+               (len(within_utr), np.mean(within_utr),
+                len(outside_utr), np.mean(outside_utr),
+                len(otherTranscript), np.mean(otherTranscript)))
 
         ro.globalenv['transitions'] = R.matrix(transitions, nrow=3, ncol=3)
         R('''transitions = transitions / rowSums( transitions )''')
@@ -1168,7 +1711,7 @@ def buildUTRExtension(infile, outfile):
 
         counter = E.Counter()
 
-        for idx in range(len(utrs)):
+        for idx in xrange(len(utrs)):
 
             gene_id = genes[idx]
 
@@ -1204,7 +1747,7 @@ def buildUTRExtension(infile, outfile):
             states = None
             try:
                 states = list(R('''states = Viterbi( hmm )'''))
-            except ri.RRuntimeError as msg:
+            except ri.RRuntimeError, msg:
                 counter.skipped_error += 1
                 new_utrs[gene_id] = Utr._make((old_utr, None, None, "fail"))
                 continue
