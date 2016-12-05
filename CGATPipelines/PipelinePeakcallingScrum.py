@@ -1705,9 +1705,11 @@ class SicerPeakcaller(Peakcaller):
     def summarise(self, infile, mode=None):
         '''summarise sicer results.'''
 
+        def __get(line, stmt):
+            x = line.search(stmt)
+            if x:
+                return x.groups()
 
-        infile = "%s_log" % infile
-        outfile = "%s.table" % infile
 
         map_targets = [
             ("Window average: (\d+)", "window_mean", ()),
@@ -1735,6 +1737,20 @@ class SicerPeakcaller(Peakcaller):
 
         keys = [x[1] for x in map_targets]
 
+        # build headers
+        outfile = "%s.table" % infile 
+        outs = IOTools.openFile(outfile, "w")
+
+        headers = []
+        for k in keys:
+            if mapper_header[k]:
+                headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
+            else:
+                headers.append(k)
+        headers.append("shift")
+
+        outs.write("track\t%s" % "\t".join(headers) + "\n")
+
         results = collections.defaultdict(list)
         with IOTools.openFile(infile) as f:
             for line in f:
@@ -1747,40 +1763,30 @@ class SicerPeakcaller(Peakcaller):
                         break
 
         if mode == "narrow":
-            row = [P.snip(os.path.basename(infile), ".narrow_sicer_log")]
+            row = [P.snip(os.path.basename(infile), ".narrow_sicer")]
         else:
-            row = [P.snip(os.path.basename(infile), ".broad_sicer_log")]
+            row = [P.snip(os.path.basename(infile), ".broad_sicer")]
         for key in keys:
             val = results[key]
             if len(val) == 0:
                 v = "na"
             else:
                 c = len(mapper_header[key])
-                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
+                
+                if c >= 1:
+                    assert len(val) == c, "key=%s, expected=%i, got=%i, val=%s, c=%s" %\
+                        (key,
+                         len(val),
+                            c,
+                            str(val), mapper_header[key])
+                v = "\t".join(val)
             row.append(v)
+        fragment_size = int(row[mapper2pos["fragment_size"]])
+        shift = fragment_size / 2
 
-        if mode == "narrow":
-            peaks = IOTools.openFile(
-                infile.replace(".narrow_sicer_log",
-                               ".narrow_sicer_peaks.xls.gz")).readlines()
-        else:
-            peaks = IOTools.openFile(
-                infile.replace(".broad_sicer_log",
-                               ".broad_sicer_peaks.xls.gz")).readlines()
-        npeaks = 0
-        for line in peaks:
-            if "#" not in line and "log10" not in line:
-                npeaks += 1
+        outs.write("%s\t%i\n" % ("\t".join(row), shift))
 
-        row.extend([str(npeaks)])
-        keys.extend(["number_of_peaks"])
-
-        out = IOTools.openFile(outfile, "w")
-        out.write("sample\t%s\n%s\n" % ("\t".join(keys), "\t".join(row)))
-        out.close()
-
-
-
+        outs.close()
 
 #############################################
 # IDR Functions

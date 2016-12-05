@@ -209,6 +209,9 @@ stages of the pipeline
 
     IDR.dir:
     Directory conatining the output files from IDR analysis
+    IDR is currently only set up to use with macs2 because this
+    is recomended by the authors of IDR. If you require IDR for broad
+    peaks it is recomended to use the macs2 broad peaks setting.
     These include the lists of reproducible peaks and stats and
     QC tables summarising the output of the IDR analysis
 
@@ -880,7 +883,7 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'])
 
-    P.run()
+#    P.run()
     peakcaller.summarise(outfile, mode="narrow")
     #peakcaller.loadData(###########
     #)
@@ -967,7 +970,8 @@ PEAKCALLERS = []
 # single peakcaller at a time
 IDRPEAKCALLERS = []
 # create dictionary of peakcallers and thier functions
-mapToPeakCallers = {'macs2': (callMacs2peaks,)}
+mapToPeakCallers = {'macs2': (callMacs2peaks,),
+                    'sicer': (runSicer,), }
 
 # Call the peakcallers specified in the list
 for x in P.asList(PARAMS['peakcalling_peakcallers']):
