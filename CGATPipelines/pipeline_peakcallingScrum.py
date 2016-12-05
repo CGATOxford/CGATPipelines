@@ -881,7 +881,8 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
                                  controlfile=inputf,
                                  idr=PARAMS['IDR_run'],
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
-                                 idrcol=PARAMS['sicer_idrcol'])
+                                 idrcol=PARAMS['sicer_idrcol'],
+                                 broad_peak=0)
 
     P.run()
     peakcaller.summarise(outfile, mode="narrow")
@@ -947,7 +948,8 @@ def callBroaderPeaksWithSicer(infiles, outfile):
                                  controlfile=inputf,
                                  idr=PARAMS['IDR_run'],
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
-                                 idrcol=PARAMS['sicer_idrcol'])
+                                 idrcol=PARAMS['sicer_idrcol'],
+                                 broad_peak=1)
 
     P.run()
     peakcaller.summarise(outfile, mode="broad")

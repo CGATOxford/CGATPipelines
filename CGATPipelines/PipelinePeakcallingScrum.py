@@ -1005,7 +1005,7 @@ class Peakcaller(object):
 
         peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
         compress_cmd = self.compressOutput(
-            infile, outfile,  contigsfile, controlfile, broad_peak=None)
+            infile, outfile, contigsfile, controlfile, broad_peak=broad_peak)
         postprocess_cmd = self.postProcessPeaks(
             infile, outfile, controlfile, insertsizef)
 
@@ -1213,7 +1213,7 @@ class Macs2Peakcaller(Peakcaller):
         if broad_peak == 0:
             statement.append('''
             bgzip -f %(bedfile)s;
-            tabix -f -p bed %(bedfile)s.gz
+            tabix -f -p bed %(bedfile)s.gz;
             ''' % locals())
         else:
             statement.append("")
@@ -1225,12 +1225,12 @@ class Macs2Peakcaller(Peakcaller):
         statement.append('''
         bedGraphToBigWig %(outfile)s_treat_pileup.bdg
         %(contigsfile)s %(outfile)s_treat_pileup.bw ;
-        checkpoint ; rm -rf %(outfile)s_treat_pileup.bdg''' % locals())
+        checkpoint ; rm -rf %(outfile)s_treat_pileup.bdg;''' % locals())
 
         statement.append('''
         bedGraphToBigWig %(outfile)s_control_lambda.bdg
         %(contigsfile)s %(outfile)s_control_lambda.bw ;
-        checkpoint ; rm -rf %(outfile)s_control_lambda.bdg''' % locals())
+        checkpoint ; rm -rf %(outfile)s_control_lambda.bdg;''' % locals())
 
         # index and compress peak file
         suffix = 'peaks.xls'
@@ -1239,9 +1239,9 @@ class Macs2Peakcaller(Peakcaller):
             | bgzip > %(outfile)s_%(suffix)s.gz;
             x=$(zgrep "[#|log]" %(outfile)s_%(suffix)s.gz | wc -l);
             tabix -f -b 2 -e 3 -S $x %(outfile)s_%(suffix)s.gz;
-             checkpoint; rm -f %(outfile)s_%(suffix)s''' % locals())
+             checkpoint; rm -f %(outfile)s_%(suffix)s;''' % locals())
 
-        return "; checkpoint ;".join(statement)
+        return " checkpoint ;".join(statement)
 
     def postProcessPeaks(self, infile, outfile, controlfile, insertsizefile):
         '''
