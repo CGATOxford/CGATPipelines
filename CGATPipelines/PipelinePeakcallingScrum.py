@@ -829,6 +829,7 @@ def makeLink(currentname, newname):
     ln -s %(cwd)s/%(currentname)s %(cwd)s/%(newname)s;
     """ % locals())
 
+
 class Peakcaller(object):
     '''
     Base class for peakcallers
@@ -932,7 +933,7 @@ class Peakcaller(object):
         return ""
 
         def loadData(self, infile, outfile, bamfile, controlfile=None, mode=None,
-              fragment_size=None):
+                     fragment_size=None):
             '''
 
             '''
@@ -1423,7 +1424,7 @@ class Macs2Peakcaller(Peakcaller):
         narrowpeaks = "%s_peaks.%s" % (outfile, idrsuffix)
         col = idrcol
         statement += '''sort -h -r -k%(col)i,%(col)i %(narrowpeaks)s |
-        head -%(idrc)s > %(idrout)s''' % locals()
+        head -%(idrc)s > %(idrout)s;''' % locals()
         return statement
 
     def summarise(self, infile):
@@ -1655,7 +1656,6 @@ class SicerPeakcaller(Peakcaller):
 
         return outfile, statement
 
-
     def loadData(infile, outfile, bamfile, controlfile=None, mode="narrow",
                  fragment_size=None):
         '''load Sicer results.'''
@@ -1707,7 +1707,6 @@ class SicerPeakcaller(Peakcaller):
 
         return statement
 
-
     def summarise(self, infile, mode=None):
         '''summarise sicer results.'''
 
@@ -1715,7 +1714,6 @@ class SicerPeakcaller(Peakcaller):
             x = line.search(stmt)
             if x:
                 return x.groups()
-
 
         map_targets = [
             ("Window average: (\d+)", "window_mean", ()),
@@ -1744,7 +1742,7 @@ class SicerPeakcaller(Peakcaller):
         keys = [x[1] for x in map_targets]
 
         # build headers
-        outfile = "%s.table" % infile 
+        outfile = "%s_log.table" % infile
         outs = IOTools.openFile(outfile, "w")
 
         headers = []
@@ -1778,13 +1776,10 @@ class SicerPeakcaller(Peakcaller):
                 v = "na"
             else:
                 c = len(mapper_header[key])
-                
+
                 if c >= 1:
                     assert len(val) == c, "key=%s, expected=%i, got=%i, val=%s, c=%s" %\
-                        (key,
-                         len(val),
-                            c,
-                            str(val), mapper_header[key])
+                        (key, len(val), c, str(val), mapper_header[key])
                 v = "\t".join(val)
             row.append(v)
         fragment_size = int(row[mapper2pos["fragment_size"]])
@@ -1796,6 +1791,7 @@ class SicerPeakcaller(Peakcaller):
 
 #############################################
 # IDR Functions
+
 
 @cluster_runnable
 def makePairsForIDR(infiles, outfile, useoracle, df):
@@ -2256,7 +2252,7 @@ def doIDRQC(infile, outfile):
     N1 and N2 are the number of peaks passing IDR for the self-consistency
     test (comparing two pseudo replicates) for replicate 1 and replicate 2
     respectively.
-    
+
     rescue ratio - this is calculated for each combination of tissue and
     condition as max(Np, Nt) / min(Np, Nt) where
     Np is the number of peaks passing the pooled consistency IDR (comparing
@@ -2435,12 +2431,14 @@ def doIDRQC(infile, outfile):
 
 #############################################
 # QC Functions
+#############################################
+
 
 def runCHIPQC(infile, outfiles, rdir):
     '''
     Runs the R package ChIPQC to plot and record various quality control
     statistics on peaks.
-    
+
     Parameters
     ----------
     infile: str
@@ -2453,7 +2451,7 @@ def runCHIPQC(infile, outfiles, rdir):
     rdir: str
        path to directory in which to place the output files
     '''
-    
+
     runCHIPQC_R = R('''
     function(samples, outdir, cwd){
         library("ChIPQC")

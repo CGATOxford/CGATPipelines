@@ -2,7 +2,7 @@
 pipeline_peakcalling.py - Produce Peaklist from Bam Files
 ===================================================
 
-:Author: Katy Brown & Charlie George
+:Author: Katy Brown, Charlie George & Adam Cribbs
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -137,12 +137,12 @@ software to be in the path:
 |picard   |>=1.42      |duplication stats. The .jar files need to be in |
 |         |            | your CLASSPATH environment variable.           |
 +---------+------------+------------------------------------------------+
-|macs2	  |>=2.1.1.	   |peakcalling                               	    |
+|macs2	  |>=2.1.1.    |peakcalling                               	|
 +---------+------------+------------------------------------------------+
-|Conda	  |			   |		?????????????							|
+|Conda	  |	       |		?????????????			|
 +---------+------------+------------------------------------------------+
-|python   |>= 3.0	   |run IDR analysis - currently set up in a        |
-|         | 		   |conda enviroment that the pipeline calls		|
+|python   |>= 3.0      |run IDR analysis - currently set up in a        |
+|         | 	       |conda enviroment that the pipeline calls	|
 +---------+------------+------------------------------------------------+
 |IDR      |>= 2.0.2    |IDR analysis of peaks (bed files)               |
 |         |            |from: (https://github.com/nboley/idr)           |
@@ -164,10 +164,6 @@ Usage
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general
 information how to use CGAT pipelines.
 
-Configuration
--------------
-
-What is this section??
 
 IDR
 
@@ -218,24 +214,24 @@ stages of the pipeline
     IDR_inputs.dir
     This directory contains the files that are
 
-IDR_inputs.dir
+    IDR_inputs.dir
 
-macs2.dir/
+    macs2.dir/
 
-peakcalling_bams.dir/
+    peakcalling_bams.dir/
 
-peaks_for_IDR.dir/
+    peaks_for_IDR.dir/
 
-pooled_bams.dir/
-Peaksets:
+    pooled_bams.dir/
+    Peaksets:
 
-Conservative Peakset = Only obtained if IDR analysis run
-IDR analysis
-This analysis does a comparision on a pair of peak files to
+    Conservative Peakset = Only obtained if IDR analysis run
+    IDR analysis
+    This analysis does a comparision on a pair of peak files to
 
-Tables
-Contained in the database are several tables used for QC and
-analysis
+    Tables
+    Contained in the database are several tables used for QC and
+    analysis
 
 
 
@@ -549,6 +545,7 @@ else:
         Dummy task if IDR not requested.
         '''
         pass
+
     @active_if(PARAMS['input'] != 0)
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
                r'filtered_bams.dir/\1.bam')
@@ -773,6 +770,7 @@ def preprocessing(infile, outfile):
 #  Peakcalling Steps
 #################################################################
 
+
 @follows(mkdir('macs2.dir'))
 @transform(preprocessing,
            regex("peakcalling_bams.dir/(.*).bam"),
@@ -956,12 +954,8 @@ def callBroaderPeaksWithSicer(infiles, outfile):
 
 
 @follows(callNarrowerPeaksWithSicer, callBroaderPeaksWithSicer)
-def runSicer(infile, outfile):
+def runSicer():
     pass
-
-
-
-
 
 # list of peak callers to use
 PEAKCALLERS = []
@@ -1234,7 +1228,7 @@ def loadIDRQC(infile, outfile):
 @split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
 def findConservativePeaks(infile, outfiles):
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Conservative_Peak_List'] == True]
+    cps = tab[tab['Conservative_Peak_List'] == "True"]
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
@@ -1250,7 +1244,7 @@ def findConservativePeaks(infile, outfiles):
 @split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
 def findOptimalPeaks(infile, outfiles):
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Optimal_Peak_List'] == True]
+    cps = tab[tab['Optimal_Peak_List'] == "True"]
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
