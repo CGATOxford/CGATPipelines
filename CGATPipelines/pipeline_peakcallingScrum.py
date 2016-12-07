@@ -308,11 +308,11 @@ idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 
 # 2. A pandas dataframe, df, containing the information from the
 # design table
-df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
+df, inputD = PipelinePeakcalling.readDesignTable("%s/design.tsv" %
+                                                 os.path.splitext(__file__)[0],
                                                  PARAMS['IDR_poolinputs'])
 
 
-print inputD
 # INPUTBAMS - list of control (input) bam files
 # CHIPBAMS - list of experimental bam files on which to call peaks and perform
 # IDR
