@@ -1339,7 +1339,10 @@ def getDESeqNormExp(infiles, outfiles):
     transcripts_inf, genes_inf = infiles
     transcripts_outf, genes_outf = outfiles
 
-    normalisation_method = "deseq-size-factors"
+    if PARAMS["quantifiers"] != "featurecounts":
+        normalisation_method = "total-column"
+    else:
+        normalisation_method = "deseq-size-factors"
 
     PipelineRnaseq.normaliseCounts(
         transcripts_inf, transcripts_outf, normalisation_method)
