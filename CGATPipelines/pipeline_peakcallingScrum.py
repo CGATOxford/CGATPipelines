@@ -310,27 +310,36 @@ idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 # design table
 
 
-try:
-    os.path.exists("%s/design.tsv" %
-                   os.path.splitext(__file__)[0])
+
+
+################################################################################
+# Check for design file                                                        #
+################################################################################
+
+# This function checks for  design file in the directory and if it isnt there
+# will set the input and chip bams to empty list. This gets round the import
+# tests
+
+if os.path.exists("%s/design.tsv" %
+                  os.path.splitext(__file__)[0]):
     design = "%s/design.tsv" % os.path.splitext(__file__)[0]
-except:
+    df, inputD = PipelinePeakcalling.readDesignTable(design,
+                                                     PARAMS['IDR_poolinputs'])
+    INPUTBAMS = list(set(df['bamControl'].values))
+    CHIPBAMS = list(set(df['bamReads'].values))
+
+else:
     E.warn("design.tsv is not located within the folder")
-    design = None
-
-
-df, inputD = PipelinePeakcalling.readDesignTable(design,
-                                                 PARAMS['IDR_poolinputs'])
+    INPUTBAMS = []
+    CHIPBAMS = []
 
 # INPUTBAMS - list of control (input) bam files
 # CHIPBAMS - list of experimental bam files on which to call peaks and perform
 # IDR
-INPUTBAMS = list(set(df['bamControl'].values))
-CHIPBAMS = list(set(df['bamReads'].values))
 
 ###############################################################################
 # Check if reads are paired end
-if Bamtools.isPaired(CHIPBAMS[0]) is True:
+if CHIPBAMS and Bamtools.isPaired(CHIPBAMS[0]) is True:
     PARAMS['paired_end'] = True
 else:
     PARAMS['paired_end'] = False
