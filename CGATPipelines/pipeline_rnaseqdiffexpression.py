@@ -1134,9 +1134,19 @@ def runDESeq2(infiles, outfiles, design_name):
     gene_prefix = P.snip(gene_out, ".tsv")
     gene_log = gene_prefix + ".log"
 
-    model = PARAMS['deseq2_model%s' % design_name]
-    contrast = PARAMS['deseq2_contrast%s' % design_name]
-    refgroup = PARAMS['deseq2_refgroup%s' % design_name]
+    model = PARAMS.get('deseq2_model%s' % design_name, None)
+    contrast = PARAMS.get('deseq2_contrast%s' % design_name, None)
+    refgroup = PARAMS.get('deseq2_refgroup%s' % design_name, None)
+
+    if model is None:
+        raise ValueError("deseq2_model{} is not specified".format(
+            design_name))
+    if contrast is None:
+        raise ValueError("deseq2_contrast{} is not specified".format(
+            design_name))
+    if refgroup is None:
+        raise ValueError("deseq2_refgroup{} is not specified".format(
+            design_name))
 
     statement = '''
     cgat counts2table
@@ -1197,9 +1207,19 @@ def runEdgeR(infiles, outfiles, design_name):
     gene_prefix = P.snip(gene_out, ".tsv")
     gene_log = gene_prefix + ".log"
 
-    model = PARAMS['edger_model%s' % design_name]
-    contrast = PARAMS['edger_contrast%s' % design_name]
-    refgroup = PARAMS['edger_refgroup%s' % design_name]
+    model = PARAMS.get('edger_model%s' % design_name, None)
+    contrast = PARAMS.get('edger_contrast%s' % design_name, None)
+    refgroup = PARAMS.get('edger_refgroup%s' % design_name, None)
+
+    if model is None:
+        raise ValueError("edger_model{} is not specified".format(
+            design_name))
+    if contrast is None:
+        raise ValueError("edger_contrast{} is not specified".format(
+            design_name))
+    if refgroup is None:
+        raise ValueError("edger_refgroup{} is not specified".format(
+            design_name))
 
     statement = '''
     cgat counts2table
