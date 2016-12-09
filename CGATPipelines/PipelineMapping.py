@@ -846,6 +846,7 @@ class SequenceCollectionProcessor(object):
 
                 format = Fastq.guessFormat(
                     IOTools.openFile(infile), raises=False)
+
                 if 'sanger' not in format:
                     statement.append("""gunzip < %(infile)s
                     | cgat fastq2fastq
