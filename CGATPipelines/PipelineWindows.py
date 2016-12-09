@@ -69,6 +69,7 @@ def convertReadsToIntervals(bamfile,
     is_paired = BamTools.isPaired(bamfile)
     current_file = bamfile
     tmpdir = P.getTempFilename()
+    os.rmdir(tmpdir)
     statement = ["mkdir %(tmpdir)s"]
     nfiles = 0
 
@@ -77,7 +78,7 @@ def convertReadsToIntervals(bamfile,
         statement.append('''samtools view
         -q %(filtering_quality)i -b
         %(current_file)s
-        2>> %%(bedfile)s.log
+        2>> %%(bedfile)s.quality.log
         > %(next_file)s ''' % locals())
 
         nfiles += 1
@@ -90,7 +91,7 @@ def convertReadsToIntervals(bamfile,
         | cgat bam2bam
         --method=filter
         --filter-method=unique,mapped
-        --log=%%(bedfile)s.log
+        --log=%%(bedfile)s.nonunique.log
         > %(next_file)s ''' % locals())
 
         nfiles += 1
@@ -111,7 +112,7 @@ def convertReadsToIntervals(bamfile,
             METRICS_FILE=%(bedfile)s.duplicate_metrics
             REMOVE_DUPLICATES=TRUE
             VALIDATION_STRINGENCY=SILENT
-            2>> %%(bedfile)s.log ''' % locals())
+            2>> %%(bedfile)s.markdup.log ''' % locals())
 
         nfiles += 1
         current_file = next_file
@@ -122,31 +123,31 @@ def convertReadsToIntervals(bamfile,
               --merge-pairs
               --min-insert-size=%(filtering_min_insert_size)i
               --max-insert-size=%(filtering_max_insert_size)i
-              --log=%(bedfile)s.log
+              --log=%(bedfile)s.bam2bed.log
               -
             | cgat bed2bed
               --method=sanitize-genome
               --genome-file=%(genome_dir)s/%(genome)s
-              --log=%(bedfile)s.log
+              --log=%(bedfile)s.sanitize.log
             | cut -f 1,2,3,4
             | sort -k1,1 -k2,2n
             | bgzip > %(bedfile)s''')
     else:
         statement.append('''cat %(current_file)s
             | cgat bam2bed
-              --log=%(bedfile)s.log
+              --log=%(bedfile)s.bam2bed.log
               -
             | cgat bed2bed
               --method=sanitize-genome
               --genome-file=%(genome_dir)s/%(genome)s
-              --log=%(bedfile)s.log
+              --log=%(bedfile)s.sanitize.log
             | cut -f 1,2,3,4
             | sort -k1,1 -k2,2n
             | bgzip > %(bedfile)s''')
 
     statement.append("tabix -p bed %(bedfile)s")
     statement.append("rm -rf %(tmpdir)s")
-    statement = " ; ".join(statement)
+    statement = " ; checkpoint; ".join(statement)
     P.run()
 
 

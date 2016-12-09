@@ -5,7 +5,7 @@ import types
 import itertools
 import math
 
-from .IntervalReport import *
+from IntervalReport import *
 
 ##########################################################################
 ##########################################################################

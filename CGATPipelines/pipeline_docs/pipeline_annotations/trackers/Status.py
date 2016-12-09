@@ -1,4 +1,4 @@
-from .AnnotationReport import *
+from AnnotationReport import *
 
 import CGAT.Pipeline as P
 import CGAT.IOTools as IOTools

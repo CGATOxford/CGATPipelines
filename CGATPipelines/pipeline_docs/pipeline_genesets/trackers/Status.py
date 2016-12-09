@@ -1,4 +1,4 @@
-from .GeneSetsReport import *
+from GeneSetsReport import *
 
 import CGAT.Pipeline as P
 import CGAT.IOTools as IOTools

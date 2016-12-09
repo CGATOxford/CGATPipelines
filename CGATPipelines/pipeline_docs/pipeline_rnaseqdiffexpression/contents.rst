@@ -1,24 +1,21 @@
-.. Test documentation master file, created by
-   sphinx-quickstart on Mon Mar 23 15:27:57 2009.
 
-.. _rnaseqdiffexpressionpipeline:
+.. _transcriptdiffexpressionpipeline:
 
-=======================================
-RNASeq Differential Expression pipeline
-=======================================
+Welcome to the CGAT pipeline for transcript isoform differential expression
 
-Table of Contents
+The table of contents below lists the pipeline results.  See `CGAT
+Pipelines`_ for an overview of using CGAT pipelines. The documentation
+for the pipeline is at the bottom of this page.
+
+========
+Contents
+========
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
 
-   pipeline/Methods.rst
-   pipeline/Status.rst
-   pipeline/GeneExpression.rst
-   pipeline/TagCounting.rst
-   pipeline/DifferentialGeneExpression.rst
-   pipeline/Genelists.rst
-
+   pipeline.rst
+ 
 ===================
 Errors and Warnings
 ===================
@@ -41,17 +38,16 @@ Pipeline Status
 Pipeline Documentation
 ======================
 
-.. automodule:: pipeline_rnaseqdiffexpression
+.. automodule:: pipeline_transcriptdiffexpression
    :members:
    :inherited-members:
    :show-inheritance:
+  
+==================
+Indices and tables
+==================
 
-====================
- Indices and tables
-====================
- 
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
 

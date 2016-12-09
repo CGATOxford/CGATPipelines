@@ -412,10 +412,12 @@ def run(**kwargs):
         # (shellquote(statement), shellfile) )
         # module list outputs to stderr, so merge stderr and stdout
 
-        script = '''#!/bin/bash\n
+        script = '''#!/bin/bash -e \n
                     echo "%(job_name)s : START -> ${0}" >> %(shellfile)s
                     set | sed 's/^/%(job_name)s : /' &>> %(shellfile)s
+                    set +o errexit
                     module list 2>&1 | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
+                    set -o errexit
                     hostname | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
                     cat /proc/meminfo | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
                     echo "%(job_name)s : END -> ${0}" >> %(shellfile)s

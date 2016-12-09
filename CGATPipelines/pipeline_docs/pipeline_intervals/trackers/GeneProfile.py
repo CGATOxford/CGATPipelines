@@ -4,9 +4,9 @@ import re
 import types
 import itertools
 
-from .IntervalReport import *
+from IntervalReport import *
 
-from . import Annotations
+import Annotations
 
 ##########################################################################
 ##########################################################################
