@@ -502,7 +502,8 @@ class SequenceCollectionProcessor(object):
             List of :term:`fastq` formatted files that will
             be created by `statement`.
         '''
-
+        # explicitly assign qual_format to use in string formatting
+        qual_format = self.qual_format
         assert len(infiles) > 0, "no input files for processing"
 
         tmpdir_fastq = P.getTempDir(shared=True)
@@ -761,7 +762,7 @@ class SequenceCollectionProcessor(object):
                     statement.append("""gunzip < %(infile)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
-                    --guess-format=phred64
+                    --guess-format=%(qual_format)s
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.fastq%(extension)s""" %
@@ -847,18 +848,18 @@ class SequenceCollectionProcessor(object):
                 format = Fastq.guessFormat(
                     IOTools.openFile(infile), raises=False)
 
-                if 'sanger' not in format:
+                if 'sanger' not in format and qual_format != 'phred64':
                     statement.append("""gunzip < %(infile)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
-                    --guess-format=phred64
+                    --guess-format=%(qual_format)s
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.1.fastq%(extension)s;
                     gunzip < %(infile2)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
-                    --guess-format=phred64
+                    --guess-format=%(qual_format)s
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.2.fastq%(extension)s
@@ -867,6 +868,25 @@ class SequenceCollectionProcessor(object):
                         ("%s/%s.1.fastq%s" % (tmpdir_fastq, track, extension),
                          "%s/%s.2.fastq%s" % (tmpdir_fastq, track, extension)))
 
+                elif 'sanger' not in format and qual_format == 'phred64':
+                    statement.append("""gunzip < %(infile)s
+                    | cgat fastq2fastq
+                    --method=change-format --target-format=sanger
+                    --guess-format=%(qual_format)s
+                    --log=%(outfile)s.log
+                    %(compress_cmd)s
+                    > %(tmpdir_fastq)s/%(track)s.1.fastq%(extension)s;
+                    gunzip < %(infile2)s
+                    | cgat fastq2fastq
+                    --method=change-format --target-format=sanger
+                    --guess-format=%(qual_format)s
+                    --log=%(outfile)s.log
+                    %(compress_cmd)s
+                    > %(tmpdir_fastq)s/%(track)s.2.fastq%(extension)s
+                    """ % locals())
+                    fastqfiles.append(
+                        ("%s/%s.1.fastq%s" % (tmpdir_fastq, track, extension),
+                         "%s/%s.2.fastq%s" % (tmpdir_fastq, track, extension)))
                 else:
                     E.debug("%s: assuming quality score format %s" %
                             (infile, format))
@@ -1027,6 +1047,7 @@ class FastQc(Mapper):
     def __init__(self,
                  outdir=".",
                  contaminants=None,
+                 qual_format='phred64',
                  *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.outdir = outdir
@@ -1034,6 +1055,7 @@ class FastQc(Mapper):
             self.contaminants = self.parse_contaminants(contaminants)
         else:
             self.contaminants = None
+        self.qual_format = qual_format
 
     def parse_contaminants(self, contaminants):
         '''remove misplaced tabs from contaminants file.

@@ -262,7 +262,8 @@ if PARAMS.get("preprocessors", None):
         m = PipelinePreprocess.MasterProcessor(
             save=PARAMS["save"],
             summarize=PARAMS["summarize"],
-            threads=PARAMS["threads"])
+            threads=PARAMS["threads"],
+            qual_format=PARAMS['qual_format'])
 
         for tool in P.asList(PARAMS["preprocessors"]):
 
@@ -354,10 +355,13 @@ def runFastqc(infiles, outfile):
     if PARAMS['add_contaminants']:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc",
-                                   contaminants=PARAMS['contaminants'])
+                                   contaminants=PARAMS['contaminants'],
+                                   qual_format=PARAMS['qual_format'])
     else:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                   outdir=PARAMS["exportdir"] + "/fastqc")
+                                   outdir=PARAMS["exportdir"] + "/fastqc",
+                                   qual_format=PARAMS['qual_format'])
+
     if PARAMS["general_reconcile"] == 1:
         infiles = infiles.replace("processed.dir/trimmed",
                                   "reconciled.dir/trimmed")
