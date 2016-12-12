@@ -69,7 +69,7 @@ def convertReadsToIntervals(bamfile,
     is_paired = BamTools.isPaired(bamfile)
     current_file = bamfile
     tmpdir = P.getTempFilename()
-    os.rmdir(tmpdir)
+    os.unlink(tmpdir)
     statement = ["mkdir %(tmpdir)s"]
     nfiles = 0
 
