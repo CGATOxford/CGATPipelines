@@ -2451,7 +2451,7 @@ class Hisat(Mapper):
     # hisat can work of compressed files
     compress = True
 
-    executable = "hisat"
+    executable = "hisat2"
 
     def __init__(self, remove_non_unique=False, strip_sequence=False,
                  stranded=False, *args, **kwargs):
