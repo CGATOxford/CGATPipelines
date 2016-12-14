@@ -2398,6 +2398,7 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
+@active_if(SPLICED_MAPPING)
 @transform(MAPPINGTARGETS,
            suffix(".bam"),
            add_inputs(buildCodingExons),
