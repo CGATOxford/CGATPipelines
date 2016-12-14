@@ -522,7 +522,6 @@ def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadTranscript2Gene(infile, outfile)
 
 
-@active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset.dir/coding_exons.gtf.gz")
@@ -2398,7 +2397,6 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
-@active_if(SPLICED_MAPPING)
 @transform(MAPPINGTARGETS,
            suffix(".bam"),
            add_inputs(buildCodingExons),
