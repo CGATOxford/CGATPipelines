@@ -649,7 +649,7 @@ def runDE(design_file,
     # and adds a new qvalue column after recomputing
     # over all windows.
     statement += '''
-    | perl %(scriptsdir)s/randomize_lines.pl -h
+    | cgat randomize_lines --keep-header=1
     | %(cmd-farm)s
     --input-header
     --output-header
