@@ -705,7 +705,8 @@ class Pandaseq(ProcessTool):
         infile1, infile2 = infiles
         outfile = outfiles[0]
 
-        cmd = '''pandaseq -f %(infile1)s -r %(infile2)s
+        cmd = '''mkdir %(outfile)s.dir; 
+        pandaseq -f %(infile1)s -r %(infile2)s
         %(processing_options)s
         -T %(threads)i
         -U >(gzip > %(outfile)s.unpaired.gz)
@@ -714,6 +715,7 @@ class Pandaseq(ProcessTool):
         -G %(output_prefix)s-pandaseq.log.bgz;
         >& %(output_prefix)s-pandaseq.log;
         checkpoint;
+        mv %(outfile)s.unpaired.gz %(outfile)s.dir/;
         ''' % locals()
 
         return cmd
