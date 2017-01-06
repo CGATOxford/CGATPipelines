@@ -714,8 +714,6 @@ class Pandaseq(ProcessTool):
         -G %(output_prefix)s-pandaseq.log.bgz;
         >& %(output_prefix)s-pandaseq.log;
         checkpoint;
-        gzip %(outdir)s/*;
-        checkpoint;
         ''' % locals()
 
         return cmd
