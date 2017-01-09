@@ -276,6 +276,7 @@ P.getParameters(
      "../pipeline.ini",
      "pipeline.ini"])
 
+
 PARAMS = P.PARAMS
 
 # add parameters from annotations pipeline.ini
@@ -318,19 +319,31 @@ idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 # will set the input and chip bams to empty list. This gets round the import
 # tests
 
-if os.path.exists("%s/design.tsv" %
-                  os.path.splitext(__file__)[0]):
-    design = "%s/design.tsv" % os.path.splitext(__file__)[0]
-    df, inputD = PipelinePeakcalling.readDesignTable(design,
+if os.path.exists("design.tsv"):
+    df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
                                                      PARAMS['IDR_poolinputs'])
     INPUTBAMS = list(set(df['bamControl'].values))
     CHIPBAMS = list(set(df['bamReads'].values))
+
+#this filepath should be to example_Design file in config foldermacs2 
+#elif os.path.exists("%s/design.tsv" %
+#                 os.path.splitext(__file__)[0]):
+#  E.warn("""design.tsv is not located within the folder using default from 
+#          config folder""")
+#  design = "%s/design.tsv" % os.path.splitext(__file__)[0]
+
+
+#    df, inputD = PipelinePeakcalling.readDesignTable(design,
+ #                                                    PARAMS['IDR_poolinputs'])
+#    INPUTBAMS = list(set(df['bamControl'].values))
+#    CHIPBAMS = list(set(df['bamReads'].values))
 
 else:
     E.warn("design.tsv is not located within the folder")
     INPUTBAMS = []
     CHIPBAMS = []
 
+print(CHIPBAMS)
 # INPUTBAMS - list of control (input) bam files
 # CHIPBAMS - list of experimental bam files on which to call peaks and perform
 # IDR
@@ -379,6 +392,7 @@ def filterInputBAMs(infile, outfiles):
     '''
     Applies various filters specified in the pipeline.ini to the bam file
     Currently implemented are filtering:
+        unwanted contigs based on partial name matching
         unmapped reads
         unpaired reads
         duplicate reads
@@ -396,6 +410,7 @@ def filterInputBAMs(infile, outfiles):
                                    PARAMS['paired_end'],
                                    PARAMS['filters_strip'],
                                    PARAMS['filters_qual'],
+                                   PARAMS['filters_contigs_to_remove'],
                                    PARAMS['filters_keepint'])
 
 
@@ -416,11 +431,14 @@ def filterChipBAMs(infile, outfiles):
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
     blthresh = PARAMS['filters_blacklistthresh']
+    if blthresh != "":
+        blthresh = float(blthresh)
     PipelinePeakcalling.filterBams(infile, outfiles, filters, bedfiles,
                                    float(blthresh),
                                    PARAMS['paired_end'],
                                    PARAMS['filters_strip'],
                                    PARAMS['filters_qual'],
+                                   PARAMS['filters_contigs_to_remove'],
                                    PARAMS['filters_keepint'])
 
 
@@ -434,6 +452,7 @@ def mergeFilteringStats(infiles, outfile):
     unmapped: unmapped reads
     lowqual: low quality reads
     blacklist xxx: reads in the blacklist file xxx
+    contigs: removal of contigs that match patterns specified in ini file
     '''
 
     counts = [i[1] for i in infiles]
@@ -483,6 +502,18 @@ def loadFragmentLengthDistributions(infiles, outfile):
         P.load(infile, outfile)
     else:
         os.system("touch %s" % outfile)
+
+
+@follows(loadFragmentLengthDistributions)
+def filtering():
+    ''' dummy task to allow all the filtering of bams & collection of stats'''
+    pass
+
+################################################################################
+#
+# IDR
+#
+################################################################################
 
 
 # These steps are required for IDR and are only run if IDR is requested
