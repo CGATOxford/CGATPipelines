@@ -90,7 +90,7 @@ class CDSCountsVariants(VariantsTracker):
         statement = '''SELECT %(select)s FROM %(track)s_effects_translation''' % locals(
         )
 
-        return odict(zip(columns, self.getFirstRow(statement)))
+        return odict(list(zip(columns, self.getFirstRow(statement))))
 
 #####################################################
 #####################################################
@@ -148,7 +148,7 @@ class VariantsCDSEffectCodesPerPosition(VariantsTracker):
 
         result = self.getFirstRow(statement % locals())
 
-        r = odict(zip(("all", "X", "N", "S"), result))
+        r = odict(list(zip(("all", "X", "N", "S"), result)))
         r["ambiguous"] = result[0] - sum(result[1:])
         del r["all"]
         return r
@@ -162,7 +162,7 @@ class VariantsCDSVariantCodes(TrackerVariants):
     def process(self, data):
         '''quote `+` and `-`.'''
         result = odict()
-        for key, counts in data.iteritems():
+        for key, counts in data.items():
             result["``%s``" % key] = counts
         return result
 
@@ -186,7 +186,7 @@ class VariantsCDSVariantTypes(TrackerVariants):
     def process(self, data):
         '''symmetrize counts.'''
         result = collections.defaultdict(int)
-        for key, counts in data.iteritems():
+        for key, counts in data.items():
             try:
                 if "," in key:
                     key = ",".join(sorted(key.split(",")))

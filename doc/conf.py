@@ -69,8 +69,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'CGATPipelines'
-copyright = u'2011, 2012, 2013, 2014, 2015 Andreas Heger'
+project = 'CGATPipelines'
+copyright = '2011, 2012, 2013, 2014, 2015 Andreas Heger'
 
 
 # Included at the end of each rst file
@@ -244,8 +244,8 @@ htmlhelp_basename = 'Gpipedoc'
 # [howto/manual]).
 latex_documents = [(
     'index', 'Gpipe.tex',
-    ur'Gpipe Documentation',
-    ur'Andreas Heger',
+    r'Gpipe Documentation',
+    r'Andreas Heger',
     'manual'),
 ]
 

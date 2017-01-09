@@ -477,7 +477,7 @@ def buildContigSummary(infiles, outfile):
     # connect to database
     dbh = connect()
     cc = dbh.cursor()
-    for dirname in stats.keys():
+    for dirname in list(stats.keys()):
         outfname = os.path.join(dirname, "contig.summary.tsv")
         outf = open(outfname, "w")
         outf.write("track\tnscaffolds\tscaffold_length\tN%i\tmean_length\tmedian_length\tmax_length\n" % N)

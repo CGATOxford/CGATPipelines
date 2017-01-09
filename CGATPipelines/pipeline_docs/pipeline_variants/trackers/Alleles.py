@@ -122,7 +122,7 @@ class GenesNMDKnockouts(TrackerAlleles):
                                        annotations.transcript_info AS i
                                WHERE g.gene_id = i.gene_id AND g.is_nmd_knockout''' % self.members(locals()))
 
-        return odict(zip(headers, zip(*data)))
+        return odict(list(zip(headers, list(zip(*data)))))
 
 
 class GenesNMDKnockoutsOverview(VariantsTracker):
@@ -143,7 +143,7 @@ class GenesNMDKnockoutsOverview(VariantsTracker):
         cols = ",".join(columns)
         data = self.get( '''SELECT %(cols)s 
                                FROM summary_alleles_genes_%(track)s WHERE total > 0''' % self.members(locals()) )
-        d = zip(columns, zip(*data))
+        d = list(zip(columns, list(zip(*data))))
         return odict(d)
 
 
@@ -191,7 +191,7 @@ class GenesSingleExonKnockouts(TrackerAlleles):
                                      s.nval = 1 AND
                                      g.is_truncated''' % self.members(locals()))
 
-        return odict(zip(headers, zip(*data)))
+        return odict(list(zip(headers, list(zip(*data)))))
 
 
 class GenesNMDKnockoutsSummary(VariantsTracker):
@@ -222,7 +222,7 @@ class GenesNMDKnockoutsSummary(VariantsTracker):
             return None
 
         d = odict(
-            zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns + info, zip(*data)))
+            list(zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns + info, list(zip(*data)))))
 
         c = []
         for x in range(len(d["gene_id"])):
@@ -280,7 +280,7 @@ class GenesNMDKnockoutsWithOMIM(VariantsTracker):
             return None
 
         d = odict(
-            zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns + info, zip(*data)))
+            list(zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns + info, list(zip(*data)))))
 
         d["omim_gene_id"] = ["`%s <%s>`_" %
                              (x, self.url_omim % x) for x in d["omim_gene_id"]]
@@ -323,4 +323,4 @@ class GenesSpliceTruncated(TrackerAlleles):
                                        annotations.transcript_info AS i
                                WHERE g.gene_id = i.gene_id AND g.is_splice_truncated''' % self.members(locals()))
 
-        return odict(zip(headers, zip(*data)))
+        return odict(list(zip(headers, list(zip(*data)))))

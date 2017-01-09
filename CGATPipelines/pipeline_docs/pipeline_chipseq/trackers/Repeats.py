@@ -20,7 +20,7 @@ class RepeatOverlap(Annotations.AnnotationsAssociated):
         statement = self.getStatement(track, slice)
         if not statement:
             return []
-        return odict(zip(("with", "without"), self.getFirstRow(statement)))
+        return odict(list(zip(("with", "without"), self.getFirstRow(statement))))
 
 ###########################################################################
 ###########################################################################
@@ -46,4 +46,4 @@ class RepeatsMastEValueVersusPeakValueAndDistance(Motifs.Mast):
         data = [(x[2], x[1], math.log(x[0]))
                 for x in self.get(statement % locals())]
 
-        return odict(zip(("evalue", field, "log(distance)"), zip(*data)))
+        return odict(list(zip(("evalue", field, "log(distance)"), list(zip(*data)))))

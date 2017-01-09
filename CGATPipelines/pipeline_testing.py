@@ -299,6 +299,27 @@ def runTests(infile, outfile):
 
 @transform(runTests,
            suffix(".log"),
+           ".report")
+def runReports(infile, outfile):
+    '''run a pipeline report.'''
+
+    track = P.snip(outfile, ".report")
+
+    pipeline_name = PARAMS.get(
+        "%s_pipeline" % track,
+        "pipeline_" + track[len("test_"):])
+
+    statement = '''
+    (cd %(track)s.dir; python %(pipelinedir)s/%(pipeline_name)s.py
+    %(pipeline_options)s make build_report) >& %(outfile)s
+    '''
+
+    P.run(ignore_errors=True)
+
+
+@follows(runReports)
+@transform(runTests,
+           suffix(".log"),
            ".md5")
 def buildCheckSums(infile, outfile):
     '''build checksums for files in the build directory.
@@ -319,11 +340,14 @@ def buildCheckSums(infile, outfile):
     regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
     regex_pattern = pipes.quote(regex_pattern)
 
-    # ignore log files as time stamps will
-    # be different
+    # ignore log files as time stamps will be different
+    # send stder to /dev/null to suppress:
+    # find: `test_annotations.dir/report': No such file or directory
     statement = '''find %(track)s.dir
     -type f
     -not -regex ".*.log"
+    -not -regex ".*/report"
+    -not -regex ".*/_*"
     -regex %(regex_pattern)s
     -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
     | perl -p -e "s/ +/\\t/g"
@@ -497,27 +521,12 @@ def loadReference(infile, outfile):
     P.load(infile, outfile, options="--add-index=file")
 
 
-@transform(runTests,
-           suffix(".log"),
-           ".report")
-def runReports(infile, outfile):
-    '''run a pipeline report.'''
-
-    track = P.snip(outfile, ".report")
-
-    pipeline_name = PARAMS.get(
-        "%s_pipeline" % track,
-        "pipeline_" + track[len("test_"):])
-
-    statement = '''
-    (cd %(track)s.dir; python %(pipelinedir)s/%(pipeline_name)s.py
-    %(pipeline_options)s make build_report) >& %(outfile)s
-    '''
-
-    P.run(ignore_errors=True)
+@follows(runTests, runReports)
+def run_components():
+    pass
 
 
-@follows(runTests, runReports, loadComparison, loadResults, loadReference)
+@follows(run_components, loadComparison, loadResults, loadReference)
 def full():
     pass
 

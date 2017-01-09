@@ -49,7 +49,7 @@ class DefaultSlicer:
     The option *subset* returns a group of slices. The available
     groups are
        * default: only default slices ("all", "known", "unknown")
-       * complete: all slices 
+       * complete: all slices
        * derived: only derived slices %s, see conf.py
        * "track": only the derived slices for a "track", see conf.py
        * mixture: combination of default slices and derived slices
@@ -58,29 +58,29 @@ class DefaultSlicer:
 
     def getSlices(self, subset="default"):
 
-        if type(subset) in (types.ListType, types.TupleType):
+        if type(subset) in (list, tuple):
             if len(subset) > 1:
                 return subset
             else:
                 subset = subset[0]
 
-        all_slices = trackers_default_slices + trackers_derived_slices.keys()
+        all_slices = trackers_default_slices + list(trackers_derived_slices.keys())
         if subset is None or subset == "default":
             return trackers_default_slices
         elif subset == "complete":
             return all_slices
         elif subset == "derived":
-            return trackers_derived_slices.keys()
+            return list(trackers_derived_slices.keys())
         elif subset == "mixture":
             slices = []
             for x in trackers_default_slices:
-                for y in trackers_derived_slices.keys():
+                for y in list(trackers_derived_slices.keys()):
                     slices.append("%s.%s" % (x, y))
             return slices
         elif "." in subset:
             slices = []
             set1, track = subset.split(".")
-            for y in [x[0] for x in trackers_derived_slices.items() if x[1] == track]:
+            for y in [x[0] for x in list(trackers_derived_slices.items()) if x[1] == track]:
                 slices.append("%s.%s" % (set1, y))
             return slices
         elif subset in all_slices:
@@ -88,7 +88,7 @@ class DefaultSlicer:
             return [subset, ]
         else:
             # slices by track
-            return [x[0] for x in trackers_derived_slices.items() if x[1] == subset]
+            return [x[0] for x in list(trackers_derived_slices.items()) if x[1] == subset]
 
 
 class AnnotationsAssociated(DefaultSlicer, TrackerSQL):
@@ -173,7 +173,7 @@ class Annotations(DefaultSlicer, TrackerSQL):
 
     """Base class for trackers getting info from the annotations tables.
 
-    Derived Trackers should define the two attributes :attr:`mSelect` and 
+    Derived Trackers should define the two attributes :attr:`mSelect` and
     :attr:`mColumns`.
     """
     pattern = "(.*)_annotation$"
@@ -191,8 +191,8 @@ class Annotations(DefaultSlicer, TrackerSQL):
 
         if slice in trackers_derived_slices:
             if track == trackers_derived_slices[slice]:
-                data = self.getFirstRow( """%(select)s
-                        FROM %(track)s_annotation AS a, %(track)s_%(slice)s AS s WHERE %(where)s AND a.gene_id = s.gene_id""" % locals() )
+                data = self.getFirstRow("""%(select)s
+                        FROM %(track)s_annotation AS a, %(track)s_%(slice)s AS s WHERE %(where)s AND a.gene_id = s.gene_id""" % locals())
             else:
                 return []
         elif slice == "all" or slice is None:
@@ -202,7 +202,7 @@ class Annotations(DefaultSlicer, TrackerSQL):
             data = self.getFirstRow(
                 "%(select)s FROM %(track)s_annotation WHERE %(where)s AND is_%(slice)s" % locals())
 
-        return odict(zip(self.mColumns, data))
+        return odict(list(zip(self.mColumns, data)))
 
 
 class AllAnnotations(Annotations):
@@ -215,43 +215,43 @@ class AllAnnotations(Annotations):
                 "unclassified_known",
                 "unclassified_unknown"]
 
-    mSelect = """SELECT count(*) AS total, 
-			sum(is_known) AS known, 
-                        sum(is_unknown) AS unknown, 
-                        sum(is_ambiguous) AS ambiguous, 
-			sum( is_pc) AS pc,
-                        sum( is_pseudo) AS pseudo, 
-                        sum( is_npc) AS npc, 
-                        sum(is_utr) AS utr, 
-			sum(is_intronic) AS intronic, 
-                        sum(is_assoc) AS associated, 
-                        sum(is_intergenic) AS intergenic, 
-			count(*) - (sum(is_known)+sum(is_unknown)+sum(is_ambiguous)) as unclassified, 
-			sum(is_known) - (sum(is_pc)+sum(is_pseudo)+sum(is_npc)+sum(is_utr)) AS unclassified_known, 
-			sum(is_unknown) - (sum(is_intronic)+sum(is_intergenic)+sum(is_assoc)) AS unclassified_unknown"""
+    mSelect = """SELECT count(*) AS total,
+    sum(is_known) AS known,
+    sum(is_unknown) AS unknown,
+    sum(is_ambiguous) AS ambiguous,
+    sum(is_pc) AS pc,
+    sum(is_pseudo) AS pseudo,
+    sum(is_npc) AS npc,
+    sum(is_utr) AS utr,
+    sum(is_intronic) AS intronic,
+    sum(is_assoc) AS associated,
+    sum(is_intergenic) AS intergenic,
+    count(*) - (sum(is_known)+sum(is_unknown)+sum(is_ambiguous)) as unclassified,
+    sum(is_known) - (sum(is_pc)+sum(is_pseudo)+sum(is_npc)+sum(is_utr)) AS unclassified_known,
+    sum(is_unknown) - (sum(is_intronic)+sum(is_intergenic)+sum(is_assoc)) AS unclassified_unknown"""
 
 
 class KnownAnnotations(Annotations):
 
     """Annotations of known transcript models."""
     mColumns = ["pc", "pseudo", "npc", "utr", "unclassified"]
-    mSelect = """SELECT 
-		 sum( is_pc) AS pc,
-                 sum( is_pseudo) AS pseudo, 
-                 sum( is_npc) AS npc, 
-                 sum( is_utr) as utr,
-		 sum(is_known) - (sum(is_pc)+sum(is_pseudo)+sum(is_npc)+sum(is_utr)) AS unclassified """
+    mSelect = """SELECT
+    sum(is_pc) AS pc,
+    sum(is_pseudo) AS pseudo,
+    sum(is_npc) AS npc,
+    sum(is_utr) as utr,
+    sum(is_known) - (sum(is_pc)+sum(is_pseudo)+sum(is_npc)+sum(is_utr)) AS unclassified """
 
 
 class UnknownAnnotations(Annotations):
 
     """Annotations of unknown transcript models."""
     mColumns = ["intronic", "associated", "intergenic", "unclassified"]
-    mSelect = """SELECT 
-			sum(is_intronic) AS intronic, 
-                        sum(is_assoc) AS associated, 
-                        sum(is_intergenic) AS intergenic,
-			sum(is_unknown) - (sum(is_intronic)+sum(is_intergenic)+sum(is_assoc)) AS unclassified"""
+    mSelect = """SELECT
+    sum(is_intronic) AS intronic,
+    sum(is_assoc) AS associated,
+    sum(is_intergenic) AS intergenic,
+    sum(is_unknown) - (sum(is_intronic)+sum(is_intergenic)+sum(is_assoc)) AS unclassified"""
 
 
 class BasicAnnotations(Annotations):
@@ -264,24 +264,24 @@ class BasicAnnotations(Annotations):
     unclassified: transcript models in none of the categories above.
     """
     mColumns = ["known", "ambiguous", "novel", "unclassified"]
-    mSelect = """SELECT sum(is_known) AS known, 
-                        sum(is_ambiguous) AS ambiguous, 
-                        sum(is_unknown) AS novel, 
-			count(*) - (sum(is_known)+sum(is_unknown)+sum(is_ambiguous)) as unclassified"""
+    mSelect = """SELECT sum(is_known) AS known,
+    sum(is_ambiguous) AS ambiguous,
+    sum(is_unknown) AS novel,
+    count(*) - (sum(is_known)+sum(is_unknown)+sum(is_ambiguous)) as unclassified"""
 
 
 class AnnotationsBases(Annotations):
 
     """Annotations of known transcript models as bases."""
     mColumns = ["total", "CDS", "UTR", "flank", "intronic", "intergenic"]
-    mSelect = """SELECT 
-                 sum( exons_sum) AS total,
-		 sum( nover_CDS ) AS cds,
-                 sum( nover_UTR + nover_UTR3 + nover_UTR5 ) AS utr, 
-                 sum( nover_flank + nover_3flank + nover_5flank ) AS flank, 
-                 sum( nover_intronic) AS intronic,
-                 sum( nover_intergenic) AS intergenic
-                 """
+    mSelect = """SELECT
+    sum(exons_sum) AS total,
+    sum(nover_CDS) AS cds,
+    sum(nover_UTR + nover_UTR3 + nover_UTR5) AS utr,
+    sum(nover_flank + nover_3flank + nover_5flank) AS flank,
+    sum(nover_intronic) AS intronic,
+    sum(nover_intergenic) AS intergenic
+    """
 
 ##########################################################################
 ##########################################################################
@@ -325,8 +325,8 @@ class SpliceSites(Annotations):
     """
     pattern = "(.*)_annotation$"
     mColumns = ("total", "with_motif")
-    mSelect = """SELECT 
-                 SUM(introns_nval) AS total_transcripts, 
+    mSelect = """SELECT
+                 SUM(introns_nval) AS total_transcripts,
                  SUM(U12_AT_AC+U2_GT_AG+U2_nc_GC_AG) AS with_motif"""
 
 
@@ -342,9 +342,9 @@ class SpliceMotifs(Annotations):
     """
     mPattern = "_annotation$"
     mColumns = ("total", "U2_GT/AG", "U12_AT/AC", "U2_nc_GC/AG,", "unknown")
-    mSelect = """SELECT SUM(introns_nval) AS total,                         
-                        SUM(U2_GT_AG) AS U2_GT_AG, 
-                        SUM(U12_AT_AC) AS U12_AT_AC, 
+    mSelect = """SELECT SUM(introns_nval) AS total,
+                        SUM(U2_GT_AG) AS U2_GT_AG,
+                        SUM(U12_AT_AC) AS U12_AT_AC,
                         SUM(U2_nc_GC_AG) AS U2_nc_GC_AG,
                         SUM(introns_nval) - SUM(U12_AT_AC+U2_GT_AG+U2_nc_GC_AG) AS unknown"""
 
@@ -356,8 +356,8 @@ class IntronBoundaries(Annotations):
     The columns are:
 
        total: introns in transcript models
-       found: introns in transcript models present also in reference gene set 
-       missed: introns in transcript models not present in reference gene set 
+       found: introns in transcript models present also in reference gene set
+       missed: introns in transcript models not present in reference gene set
        both: both intron boundaries match
        one:  only one intron boundary matches
        none: no intron boundary matches
@@ -366,10 +366,10 @@ class IntronBoundaries(Annotations):
     pattern = "(.*)_annotation$"
     mColumns = (
         "total", "found", "missed", "both", "one", "none", "exon_skipping")
-    mSelect = """SELECT SUM(splice_total) AS total, 
-                        SUM(splice_found) AS match, 
-                        SUM(splice_missed) AS missed, 
-                        SUM(splice_perfect) as both, 
+    mSelect = """SELECT SUM(splice_total) AS total,
+                        SUM(splice_found) AS match,
+                        SUM(splice_missed) AS missed,
+                        SUM(splice_perfect) as both,
                         SUM(splice_partial) as one,
                         SUM(splice_incomplete) as none,
                         SUM(splice_exon_skipping) as exon_skipping"""
@@ -392,7 +392,7 @@ class IntronOverrunLengths(TrackerSQL):
 
     def __call__(self, track, slice=None):
         data = self.getValues(
-            """SELECT nover_intronic from %s_overrun WHERE nover_exonic > 0""" % (track,) )
+            """SELECT nover_intronic from %s_overrun WHERE nover_exonic > 0""" % (track,))
         return odict((("overrun", data),))
 
 
@@ -407,12 +407,12 @@ class IntronOverrunCounts(TrackerSQL):
 
     def __call__(self, track, slice=None):
         data = []
-        data.append( ("total", self.getValue( """SELECT COUNT(*)
-         FROM %s_overrun WHERE nover_exonic > 0""" % (track,)) ) )
-        data.append( ("overrun > 0", self.getValue( """SELECT COUNT(*)
-         FROM %s_overrun WHERE nover_intronic > 0 AND nover_exonic > 0""" % (track,)) ) )
-        data.append( ("overrun > 10", self.getValue( """SELECT COUNT(*)
-         FROM %s_overrun WHERE nover_intronic >= 10 AND nover_exonic > 0""" % (track,)) ) )
+        data.append(("total", self.getValue("""SELECT COUNT(*)
+         FROM %s_overrun WHERE nover_exonic > 0""" % (track,))))
+        data.append(("overrun > 0", self.getValue("""SELECT COUNT(*)
+         FROM %s_overrun WHERE nover_intronic > 0 AND nover_exonic > 0""" % (track,))))
+        data.append(("overrun > 10", self.getValue("""SELECT COUNT(*)
+         FROM %s_overrun WHERE nover_intronic >= 10 AND nover_exonic > 0""" % (track,))))
         return odict(data)
 
 
@@ -426,8 +426,8 @@ class IntronOverrunBases(TrackerSQL):
         return []
 
     def __call__(self, track, slice=None):
-        data = self.getValues( '''
-             SELECT cast (nover_intronic as float) / length  
+        data = self.getValues('''
+             SELECT cast (nover_intronic as float) / length
              FROM %s_overrun where nover_exonic > 0''' % (track,))
         return odict((("overrun", data),))
 
@@ -476,13 +476,17 @@ class RatesKi(RatesKs):
 
 class RatesKsKa(RatesKs):
 
-    """Evolutionary constraint in transcript models. The constraint is computed as the ratio of the substitution rate in the transcript model divided by the median substitution model in ancestral repeats."""
+    """Evolutionary constraint in transcript models. The constraint is
+    computed as the ratio of the substitution rate in the transcript model
+    divided by the median substitution model in ancestral repeats."""
     mColumns = "kska"
 
 
 class RatesKsKi(RatesKs):
 
-    """Evolutionary constraint in transcript models. The constraint is computed as the ratio of the substitution rate in the transcript model divided by the substitution rate in introns."""
+    """Evolutionary constraint in transcript models. The constraint is
+    computed as the ratio of the substitution rate in the transcript model
+    divided by the substitution rate in introns."""
     mColumn = "kski"
 
 
@@ -499,16 +503,19 @@ class RatesKsVsKa(DefaultSlicer, TrackerSQL):
 
     def __call__(self, track, slice=None):
         if not slice or slice == "all":
-            data = list( self.execute( """SELECT %s,%s FROM %s_evol WHERE %s IS NOT NULL AND %s IS NOT NULL AND %s""" %
-                                       (self.mRate1, self.mRate2, track, self.mRate1, self.mRate2, self.mWhere)))
+            data = list(self.execute(
+                """SELECT %s,%s FROM %s_evol WHERE %s IS NOT NULL AND %s IS NOT NULL AND %s""" %
+                (self.mRate1, self.mRate2, track, self.mRate1, self.mRate2, self.mWhere)))
         elif slice == "linc":
-            data = list( self.execute( """SELECT %s,%s FROM %s_evol AS e, %s_%s AS s WHERE s.gene_id = e.gene_id AND %s IS NOT NULL AND %s IS NOT NULL AND %s""" %
-                                       (self.mRate1, self.mRate2, track, track, slice, self.mRate1, self.mRate2, self.mWhere)))
+            data = list(self.execute(
+                """SELECT %s,%s FROM %s_evol AS e, %s_%s AS s WHERE s.gene_id = e.gene_id AND %s IS NOT NULL AND %s IS NOT NULL AND %s""" %
+                (self.mRate1, self.mRate2, track, track, slice, self.mRate1, self.mRate2, self.mWhere)))
         else:
-            data = list( self.execute( """SELECT %s,%s FROM %s_evol AS e, %s_annotation AS a WHERE a.gene_id = e.gene_id AND is_%s AND %s IS NOT NULL AND %s IS NOT NULL AND %s""" %
-                                       (self.mRate1, self.mRate2, track, track, slice, self.mRate1, self.mRate2, self.mWhere)))
+            data = list(self.execute(
+                """SELECT %s,%s FROM %s_evol AS e, %s_annotation AS a WHERE a.gene_id = e.gene_id AND is_%s AND %s IS NOT NULL AND %s IS NOT NULL AND %s""" %
+                (self.mRate1, self.mRate2, track, track, slice, self.mRate1, self.mRate2, self.mWhere)))
 
-        return odict(zip((self.mRate1, self.mRate2), zip(*data)))
+        return odict(list(zip((self.mRate1, self.mRate2), list(zip(*data)))))
 
 
 class RatesKsVsGC(RatesKsVsKa):
@@ -569,15 +576,17 @@ class RatesAll(DefaultSlicer, TrackerSQL):
 
         if not slice or slice == "all":
             data = list(
-                self.execute( """SELECT %s FROM %s_evol AS e""" % (",".join( columns), track,)) )
+                self.execute("""SELECT %s FROM %s_evol AS e""" % (",".join(columns), track,)))
         elif slice == "linc":
-            data = list( self.execute( """SELECT e.%s FROM %s_evol AS e, %s_%s AS s WHERE s.gene_id = e.gene_id""" %
-                                       (",e.".join(columns), track, track, slice)))
+            data = list(self.execute(
+                """SELECT e.%s FROM %s_evol AS e, %s_%s AS s WHERE s.gene_id = e.gene_id""" %
+                (",e.".join(columns), track, track, slice)))
         else:
-            data = list( self.execute( """SELECT e.%s FROM %s_evol AS e, %s_annotation AS a WHERE a.gene_id = e.gene_id AND is_%s """ %
-                                       (",e.".join(columns), track, track, slice)))
+            data = list(self.execute(
+                """SELECT e.%s FROM %s_evol AS e, %s_annotation AS a WHERE a.gene_id = e.gene_id AND is_%s """ %
+                (",e.".join(columns), track, track, slice)))
 
-        return odict(zip(columns, zip(*data)))
+        return odict(list(zip(columns, list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -607,13 +616,15 @@ class ClosestDistance(DefaultSlicer, TrackerSQL):
         column, where = self.mColumn, self.mWhere
         if not slice or slice == "all":
             data = self.getValues(
-                """SELECT %(column)s FROM %(track)s_distances AS d WHERE %(where)s""" % locals() )
+                """SELECT %(column)s FROM %(track)s_distances AS d WHERE %(where)s""" % locals())
         elif slice == "linc":
-            data = self.getValues( """SELECT %(column)s FROM %(track)s_distances AS d, %(track)s_%(slice)s as s 
-                                      WHERE s.gene_id = d.gene_id AND %(where)s""" % locals() )
+            data = self.getValues(
+                """SELECT %(column)s FROM %(track)s_distances AS d, %(track)s_%(slice)s as s
+                WHERE s.gene_id = d.gene_id AND %(where)s""" % locals())
         else:
-            data = self.getValues( """SELECT %(column)s FROM %(track)s_distances AS d, %(track)s_annotation as a 
-                                      WHERE d.gene_id = a.gene_id AND a.is_%(slice)s AND %(where)s""" % locals() )
+            data = self.getValues(
+                """SELECT %(column)s FROM %(track)s_distances AS d, %(track)s_annotation as a
+                WHERE d.gene_id = a.gene_id AND a.is_%(slice)s AND %(where)s""" % locals())
         return odict(((column, data),))
 
 
@@ -647,25 +658,25 @@ class TranscriptionDensity(DefaultSlicer, TrackerSQL):
         reference = self.mReference
 
         if not slice or slice == "all":
-            statement = """SELECT g.start, g.end, e.exons_start, e.exons_end 
-                                      FROM %(track)s_distances AS d, 
+            statement = """SELECT g.start, g.end, e.exons_start, e.exons_end
+                                      FROM %(track)s_distances AS d,
                                       %(track)s_gtf AS g,
                                       %(reference)s_annotation AS e
                                       WHERE %(where)s AND g.gene_id = d.gene_id AND e.gene_id = d.closest_id""" % locals()
 
         elif slice == "linc":
-            statement = """SELECT g.start, g.end, e.exons_start, e.exons_end 
-                                   FROM %(track)s_distances AS d, 
+            statement = """SELECT g.start, g.end, e.exons_start, e.exons_end
+                                   FROM %(track)s_distances AS d,
                                    %(track)s_gtf AS g,
                                    %(reference)s_annotation AS e,
-                                   %(track)s_%(slice)s as s 
+                                   %(track)s_%(slice)s as s
                                    WHERE %(where)s AND g.gene_id = d.gene_id AND e.gene_id = d.closest_id
                                    AND s.gene_id = d.gene_id""" % locals()
         else:
-            statement = """SELECT g.start, g.end, e.exons_start, e.exons_end 
-                                   FROM %(track)s_distances AS d, 
+            statement = """SELECT g.start, g.end, e.exons_start, e.exons_end
+                                   FROM %(track)s_distances AS d,
                                    %(track)s_gtf AS g,
-                                   %(track)s_annotation as a, 
+                                   %(track)s_annotation as a,
                                    %(reference)s_annotation AS e
                                    WHERE %(where)s AND g.gene_id = d.gene_id AND e.gene_id = d.closest_id
                                    AND d.gene_id = a.gene_id AND a.is_%(slice)s""" % locals()
@@ -681,9 +692,9 @@ class TranscriptionDensity(DefaultSlicer, TrackerSQL):
             l = seg_end - seg_start
             counts[d:min(d + l, m)] += 1
 
-        return odict(zip(("distance", "counts"),
-                         (numpy.array(xrange(0, self.mMaxSize))[counts > 0],
-                          counts[counts > 0])))
+        return odict(list(zip(("distance", "counts"),
+                              (numpy.array(list(range(0, self.mMaxSize)))[counts > 0],
+                               counts[counts > 0]))))
 
 ##########################################################################
 ##########################################################################
@@ -712,11 +723,11 @@ class TranscriptionDirectionIntergenic(TrackerSQL):
         column = self.mColumns
         where = self.mWhere
 
-        statement = """SELECT %(column)s 
-                           FROM 
-                             %(track)s_%(table)s AS d, 
-                             %(track)s_annotation as a 
-                           WHERE a.gene_id = d.gene_id AND 
+        statement = """SELECT %(column)s
+                           FROM
+                             %(track)s_%(table)s AS d,
+                             %(track)s_annotation as a
+                           WHERE a.gene_id = d.gene_id AND
                                  a.is_intergenic AND %(where)s"""
 
         data = self.get(statement)
@@ -728,14 +739,14 @@ class TranscriptionDirectionIntergenic(TrackerSQL):
                    "same-3": 0, "different-3": 0,
                    "unknown": 0}
 
-        for key, val in counts.iteritems():
+        for key, val in counts.items():
             if "." in key:
                 k = "unknown"
             elif key[0] == key[1]:
                 k = "same-%s" % key[2]
             else:
                 k = "different-%s" % key[2]
-            print key, val
+            print(key, val)
             counts2[k] += val
 
         return odict(list(sorted(counts2.items())))
@@ -768,22 +779,22 @@ class TranscriptionDirectionIntronic(TrackerSQL):
         reference = self.mReference
 
         if slice == "linc":
-            statement = """SELECT %(column)s 
-                            FROM %(track)s_annotation AS a, 
-                                 %(reference)s_annotation AS r, 
-                                 %(reference)s_vs_%(track)s_geneovl AS ovl, 
-                                 %(track)s_%(slice)s as s 
-                            WHERE a.gene_id = ovl.gene_id2 AND 
-                                  r.gene_id = ovl.gene_id1 AND 
-                                  a.is_intronic AND 
+            statement = """SELECT %(column)s
+                            FROM %(track)s_annotation AS a,
+                                 %(reference)s_annotation AS r,
+                                 %(reference)s_vs_%(track)s_geneovl AS ovl,
+                                 %(track)s_%(slice)s as s
+                            WHERE a.gene_id = ovl.gene_id2 AND
+                                  r.gene_id = ovl.gene_id1 AND
+                                  a.is_intronic AND
                                   s.gene_id = a.gene_id AND %(where)s"""
         else:
-            statement = """SELECT %(column)s 
-                            FROM %(track)s_annotation as a, 
-                                    %(reference)s_annotation AS r, 
+            statement = """SELECT %(column)s
+                            FROM %(track)s_annotation as a,
+                                    %(reference)s_annotation AS r,
                                     %(reference)s_vs_%(track)s_geneovl AS ovl
-                            WHERE a.gene_id = ovl.gene_id2 AND 
-                                  r.gene_id = ovl.gene_id1 AND 
+                            WHERE a.gene_id = ovl.gene_id2 AND
+                                  r.gene_id = ovl.gene_id1 AND
                                   a.is_intronic AND %(where)s"""
 
         data = self.getAll(statement % locals())
@@ -796,7 +807,7 @@ class TranscriptionDirectionIntronic(TrackerSQL):
                    "different": 0,
                    "unknown": 0}
 
-        for key, val in counts.iteritems():
+        for key, val in counts.items():
             if "." in key:
                 k = "unknown"
             elif key[0] == key[1]:
@@ -831,13 +842,13 @@ class Segments(TrackerSQL):
         column = self.mColumn
         if not slice or slice == "all":
             data = self.getValues(
-                """SELECT d.%(column)s FROM %(track)s%(table)s AS d""" % (locals()) )
+                """SELECT d.%(column)s FROM %(track)s%(table)s AS d""" % (locals()))
         elif slice == "linc":
             data = self.getValues(
-                """SELECT d.%(column)s FROM %(track)s%(table)s AS d, %(track)s_%(slice)s as s WHERE s.gene_id = d.gene_id""" % (locals()) )
+                """SELECT d.%(column)s FROM %(track)s%(table)s AS d, %(track)s_%(slice)s as s WHERE s.gene_id = d.gene_id""" % (locals()))
         else:
             data = self.getValues(
-                """SELECT d.%(column)s FROM %(track)s%(table)s AS d, %(track)s_annotation as a WHERE d.gene_id = a.gene_id and a.is_%(slice)s""" % (locals()) )
+                """SELECT d.%(column)s FROM %(track)s%(table)s AS d, %(track)s_annotation as a WHERE d.gene_id = a.gene_id and a.is_%(slice)s""" % (locals()))
         return odict(((column, data),))
 
 
@@ -906,13 +917,13 @@ class IntronsPerTranscript(DefaultSlicer, TrackerSQL):
     def __call__(self, track, slice=None):
         if not slice or slice == "all":
             data = self.getValues(
-                """SELECT introns_nval FROM %s_annotation AS a""" % (track,) )
+                """SELECT introns_nval FROM %s_annotation AS a""" % (track,))
         elif slice == "linc":
             data = self.getValues(
-                """SELECT introns_nval FROM %s_annotation AS a, %s_%s as s WHERE s.gene_id = a.gene_id""" % (track, track, slice) )
+                """SELECT introns_nval FROM %s_annotation AS a, %s_%s as s WHERE s.gene_id = a.gene_id""" % (track, track, slice))
         else:
             data = self.getValues(
-                """SELECT introns_nval FROM %s_annotation AS a WHERE a.is_%s""" % (track, slice) )
+                """SELECT introns_nval FROM %s_annotation AS a WHERE a.is_%s""" % (track, slice))
 
         return odict((("introns_nval", data),))
 
@@ -934,7 +945,7 @@ class CodingPotential(AnnotationsAssociated):
         statement = self.getStatement(track, slice)
         if not statement:
             return []
-        return odict(zip(("coding", "non-coding"), self.getFirstRow(statement)))
+        return odict(list(zip(("coding", "non-coding"), self.getFirstRow(statement))))
 
 ##########################################################################
 ##########################################################################
@@ -954,7 +965,7 @@ class RepeatOverlap(AnnotationsAssociated):
         statement = self.getStatement(track, slice)
         if not statement:
             return []
-        return odict(zip(("with", "without"), self.getFirstRow(statement)))
+        return odict(list(zip(("with", "without"), self.getFirstRow(statement))))
 
 ##########################################################################
 ##########################################################################
@@ -967,15 +978,15 @@ class Overlaps(TrackerSQL):
 
     """Overlap between sets.
 
-    This tracker returns the overlap between a track and 
-    all other tracks. Only one attribute is returned 
+    This tracker returns the overlap between a track and
+    all other tracks. Only one attribute is returned
     given by :attr:`mColumn`. As the table is not symmetrized,
-    the mColumn attribute should be specified without the 
+    the mColumn attribute should be specified without the
     suffix, i.e. ('nbases_unique' instead of 'nbases_unique1').
 
     Possible values for mColumn are combinations of 'A_B'.
 
-    A is one of ('nbases', 'nexons', 'ngenes', 'pbases', 'pexons', 'pgenes') 
+    A is one of ('nbases', 'nexons', 'ngenes', 'pbases', 'pexons', 'pgenes')
     where the prefix ''n'' or ''p'' denote the counts or the percent, respectively.
 
     B is one of ('total', 'uniq', 'ovl')
@@ -994,7 +1005,7 @@ class Overlaps(TrackerSQL):
         if self.mColumn is None:
             raise NotImplementedError("mColumn not set in derived class.")
         column = self.mColumn
-        data = self.get( "SELECT set2, %(column)s1 FROM %(tablename)s WHERE set1 = '%(track)s'" ) +\
+        data = self.get("SELECT set2, %(column)s1 FROM %(tablename)s WHERE set1 = '%(track)s'") +\
             self.get(
                 "SELECT set1, %(column)s2 FROM %(tablename)s WHERE set2 = '%(track)s'")
         return odict(data)
@@ -1094,90 +1105,90 @@ class SharedGenes(TrackerSQL):
 # ########################################################################
 # generic implementations of Annotator results
 # ########################################################################
-# class Annotator( TrackerSQL ):
+# class Annotator(TrackerSQL):
 #     pattern = "(.*)_annotation"
 #     mTableName = None
 #     mSelect = "SELECT CASE over WHEN '+' THEN 'over' ELSE 'under' END, category, fold, pvalue, observed, expected FROM %s WHERE fdr "
 #     mColumns = ("over", "category", "fold", "pvalue", "observed", "expected")
 #     mOrder = "pvalue"
-#     def __init__(self, *args, **kwargs ):
+#     def __init__(self, *args, **kwargs):
 #         TrackerSQL.__init__(self, *args, **kwargs)
 
-#     def getTracks( self, subset = None ):
+#     def getTracks(self, subset = None):
 #         if not self.mTableName: raise NotImplementedError("table not specified")
-# return self.getValues( "SELECT DISTINCT track FROM %s" % self.mTableName
+# return self.getValues("SELECT DISTINCT track FROM %s" % self.mTableName
 # )
 
-#     def getSlices( self, subset = None ):
+#     def getSlices(self, subset = None):
 #         if not self.mTableName: raise NotImplementedError("table not specified")
-# return self.getValues( "SELECT DISTINCT slice || ':' || subset || ':' ||
-# workspace FROM %s" % self.mTableName )
+# return self.getValues("SELECT DISTINCT slice || ':' || subset || ':' ||
+# workspace FROM %s" % self.mTableName)
 
-#     def __call__(self, track, slice = None ):
+#     def __call__(self, track, slice = None):
 
 #         if not self.mTableName: raise NotImplementedError("table not specified")
 
 #         select = self.mSelect % self.mTableName
 #         order = self.mOrder
 #         if slice == "all" or slice is None:
-#             data = list( self.execute( """%s AND track = '%s' ORDER BY %s""" % (select, track, order)).fetchone() )
+#             data = list(self.execute("""%s AND track = '%s' ORDER BY %s""" % (select, track, order)).fetchone())
 #         else:
 #             slice, subset, workspace = slice.split(":")
-#             data = self.getAll( """%(select)s AND track = '%(track)s' AND slice = '%(slice)s'
+#             data = self.getAll("""%(select)s AND track = '%(track)s' AND slice = '%(slice)s'
 # AND subset='%(subset)s' AND workspace = '%(workspace)s' ORDER BY
 # %(order)s""" % locals())
 
-#         return odict( zip(self.mColumns, zip(*data) ) )
+#         return odict(zip(self.mColumns, zip(*data)))
 
-# class AnnotatorSummary( Annotator ):
-#     mSelect = "SELECT COUNT(*), SUM( CASE over WHEN '+' THEN 1 ELSE 0 END) FROM %s WHERE fdr "
-#     mColumns = ("total", "over", "under" )
+# class AnnotatorSummary(Annotator):
+#     mSelect = "SELECT COUNT(*), SUM(CASE over WHEN '+' THEN 1 ELSE 0 END) FROM %s WHERE fdr "
+#     mColumns = ("total", "over", "under")
 
-#     def __call__(self, track, slice = None ):
+#     def __call__(self, track, slice = None):
 
 #         if not self.mTableName: raise NotImplementedError("table not specified")
 
 #         select = self.mSelect % self.mTableName
 
 #         if slice == "all" or slice is None:
-#             data = self.getFirstRow( """%s AND track = '%s'""" % (select, track, order))
+#             data = self.getFirstRow("""%s AND track = '%s'""" % (select, track, order))
 #         else:
 #             slice, subset, workspace = slice.split(":")
-#             data = self.getFirstRow( """%(select)s AND track = '%(track)s' AND slice = '%(slice)s'
+#             data = self.getFirstRow("""%(select)s AND track = '%(track)s' AND slice = '%(slice)s'
 # AND subset='%(subset)s' AND workspace = '%(workspace)s'""" % locals())
 
-#         data.append( data[0] - data[1] )
-#         return odict( zip(self.mColumns, data) )
+#         data.append(data[0] - data[1])
+#         return odict(zip(self.mColumns, data))
 
-# class AnnotatorEnrichment( Annotator):
+# class AnnotatorEnrichment(Annotator):
 #     mSelect = "SELECT category, 100.0 * (fold - 1), pvalue FROM %s WHERE fdr AND over = '+' "
-#     mColumns = ("category", "enrichment/%", "pvalue" )
+#     mColumns = ("category", "enrichment/%", "pvalue")
 #     mOrder = "fold DESC"
 
-# class AnnotatorDepletion( Annotator ):
+# class AnnotatorDepletion(Annotator):
 #     mSelect = "SELECT category, 100.0 * (1 - fold), pvalue FROM %s WHERE fdr AND over = '-' "
-#     mColumns = ("category", "depletion/%", "pvalue" )
+#     mColumns = ("category", "depletion/%", "pvalue")
 #     mOrder = "fold"
 
-# class AnnotatorPower( TrackerSQL ):
+# class AnnotatorPower(TrackerSQL):
 #     pattern = "(.*)_annotation"
 #     mTableName = None
 
-#     def __init__(self, *args, **kwargs ):
+#     def __init__(self, *args, **kwargs):
 #         TrackerSQL.__init__(self, *args, **kwargs)
 
-#     def getTracks( self, subset = None ):
+#     def getTracks(self, subset = None):
 #         if not self.mTableName: raise NotImplementedError("table not specified")
-# return self.getValues( "SELECT DISTINCT track || ':' || slice || ':' ||
+# return self.getValues("SELECT DISTINCT track || ':' || slice || ':' ||
 # subset || ':' || workspace FROM %s ORDER BY
-# track,slice,subset,workspace" % self.mTableName )
+# track,slice,subset,workspace" % self.mTableName)
 
-#     def getSlices( self, subset = None ):
+#     def getSlices(self, subset = None):
 #         if not self.mTableName: raise NotImplementedError("table not specified")
 #         if not subset: return []
-#         return [",".join( subset ) ]
+#         return [",".join(subset) ]
 
-#     def __call__(self, track, slice = None ):
+#     def __call__(self, track, slice = None):
 
 #         if not self.mTableName: raise NotImplementedError("table not specified")
 #         if not self.mSelect: raise NotImplementedError("invalid use of base class - only use derived classes")
@@ -1189,29 +1200,29 @@ class SharedGenes(TrackerSQL):
 #                         AND subset='%(subset)s' AND workspace = '%(workspace)s'
 #                         ORDER BY category""" % locals()
 
-#         data = self.getValues( stmt )
+#         data = self.getValues(stmt)
 
-#         return odict( (("power", data),))
+#         return odict((("power", data),))
 
-# class AnnotatorPowerEnrichment( AnnotatorPower ):
+# class AnnotatorPowerEnrichment(AnnotatorPower):
 #     """display power of go analyses.
 
 #     Show are the fold enrichment (in %) that could be detected
 #     given the setup of the test (size of sample and size of workspace).
 #     """
-#     mSelect = "SELECT 100.0 * ( (ci95high / expected) - 1) FROM %s WHERE 1"
+#     mSelect = "SELECT 100.0 * ((ci95high / expected) - 1) FROM %s WHERE 1"
 #     mXLabel = "Power : fold enrichment / %"
 
-# class AnnotatorPowerDepletion( AnnotatorPower ):
+# class AnnotatorPowerDepletion(AnnotatorPower):
 #     """display power of go analyses.
 
 #     Show are the fold depletion (in %) that could be detected
 #     given the setup of the test (size of sample and size of workspace).
 #     """
-#     mSelect = "SELECT 100.0 * ( 1 - (ci95low / expected)) FROM %s WHERE 1"
+#     mSelect = "SELECT 100.0 * (1 - (ci95low / expected)) FROM %s WHERE 1"
 #     mXLabel = "Power : fold depletion / %"
 
-# class AnnotatorMatrix( TrackerSQL ):
+# class AnnotatorMatrix(TrackerSQL):
 #     """Display GO Annotator results in a matrix.
 
 #     Slicing is possible using a keyword:value syntax. Keyword
@@ -1223,24 +1234,24 @@ class SharedGenes(TrackerSQL):
 #     """
 
 #     mTableName = None
-#     mSelect = "SELECT category, CASE over WHEN '+' THEN (100.0 * (fold - 1)) ELSE - (100.0 * (1-fold) ) END FROM %s WHERE fdr"
+#     mSelect = "SELECT category, CASE over WHEN '+' THEN (100.0 * (fold - 1)) ELSE - (100.0 * (1-fold)) END FROM %s WHERE fdr"
 #     mColumns = ("enrichment", "pvalue")
 
-#     def __init__(self, *args, **kwargs ):
+#     def __init__(self, *args, **kwargs):
 #         TrackerSQL.__init__(self, *args, **kwargs)
 
-#     def getTracks( self, subset = None ):
+#     def getTracks(self, subset = None):
 #         if not self.mTableName: raise NotImplementedError("table not specified")
-# return self.getValues( "SELECT DISTINCT track || ':' || slice || ':' ||
+# return self.getValues("SELECT DISTINCT track || ':' || slice || ':' ||
 # subset || ':' || workspace FROM %s ORDER BY
-# track,slice,subset,workspace" % self.mTableName )
+# track,slice,subset,workspace" % self.mTableName)
 
-#     def getSlices( self, subset = None ):
+#     def getSlices(self, subset = None):
 #         if not self.mTableName: raise NotImplementedError("table not specified")
 #         if not subset: return []
-#         return [",".join( subset ) ]
+#         return [",".join(subset) ]
 
-#     def __call__(self, track, slice = None ):
+#     def __call__(self, track, slice = None):
 
 #         if not self.mTableName: raise NotImplementedError("table not specified")
 
@@ -1248,7 +1259,7 @@ class SharedGenes(TrackerSQL):
 #         xtrack, xslice, subset, workspace = track.split(":")
 
 #         if slice:
-#             o = collections.defaultdict( list )
+#             o = collections.defaultdict(list)
 #             pairs = slice.split(",")
 #             for pair in pairs:
 #                 key,value = pair.split(":")
@@ -1264,7 +1275,7 @@ class SharedGenes(TrackerSQL):
 #                         AND subset='%(subset)s' AND workspace = '%(workspace)s'
 #                         ORDER BY category""" % locals()
 
-#         data = self.getAll( stmt )
+#         data = self.getAll(stmt)
 #         return odict(data)
 
 # =================================================================
@@ -1326,7 +1337,7 @@ class SharedGenes(TrackerSQL):
 # for a, aa in _annotator_analysis.items():
 #     for b, bb in _annotator_territories.items():
 #         n = "Annotator%s%s" % (a,b)
-#         globals()[n] = type( n, (bb,aa), {})
+#         globals()[n] = type(n, (bb,aa), {})
 
 ##########################################################################
 ##########################################################################
@@ -1362,17 +1373,17 @@ class GO(TrackerSQL):
         order = self.mOrder
         if slice == "all" or slice is None:
             data = list(self.execute(
-                """%s AND track = '%s' ORDER BY %s""" % (select, track, order)).fetchone() )
+                """%s AND track = '%s' ORDER BY %s""" % (select, track, order)).fetchone())
         else:
             slice, subset, background = slice.split(":")
-            data = self.getAll( """%(select)s AND track = '%(track)s' AND slice = '%(slice)s' 
+            data = self.getAll("""%(select)s AND track = '%(track)s' AND slice = '%(slice)s'
                         AND subset='%(subset)s' AND background = '%(background)s' ORDER BY %(order)s""" % locals())
 
-        return odict(zip(self.mColumns, zip(*data)))
+        return odict(list(zip(self.mColumns, list(zip(*data)))))
 
 
 class GOSummary(GO):
-    mSelect = "SELECT COUNT(*), SUM( CASE code WHEN '+' THEN 1 ELSE 0 END) FROM %s WHERE passed AND code != '?'"
+    mSelect = "SELECT COUNT(*), SUM(CASE code WHEN '+' THEN 1 ELSE 0 END) FROM %s WHERE passed AND code != '?'"
     mColumns = ("total", "over", "under")
 
     def __call__(self, track, slice=None):
@@ -1387,11 +1398,11 @@ class GOSummary(GO):
                 """%s AND track = '%s'""" % (select, track, order))
         else:
             slice, subset, background = slice.split(":")
-            data = self.getFirstRow( """%(select)s AND track = '%(track)s' AND slice = '%(slice)s' 
+            data = self.getFirstRow("""%(select)s AND track = '%(track)s' AND slice = '%(slice)s'
                         AND subset='%(subset)s' AND background = '%(background)s'""" % locals())
 
         data.append(data[0] - data[1])
-        return odict(zip(self.mColumns, data))
+        return odict(list(zip(self.mColumns, data)))
 
 
 class GOEnrichment(GO):
@@ -1436,7 +1447,7 @@ class GOPower(TrackerSQL):
         select = self.mSelect % self.mTableName
         xtrack, xslice, subset, background = track.split(":")
 
-        stmt = """%(select)s AND track = '%(xtrack)s' AND slice = '%(xslice)s' 
+        stmt = """%(select)s AND track = '%(xtrack)s' AND slice = '%(xslice)s'
                         AND subset='%(subset)s' AND background = '%(background)s'
                         AND code != '?'
                         ORDER BY category""" % locals()
@@ -1453,7 +1464,7 @@ class GOPowerEnrichment(GOPower):
     Show are the fold enrichment (in %) that could be detected
     given the setup of the test (size of sample and size of background).
     """
-    mSelect = "SELECT 100.0 * ( (ci95upper / mean) - 1) FROM %s WHERE 1"
+    mSelect = "SELECT 100.0 * ((ci95upper / mean) - 1) FROM %s WHERE 1"
     mXLabel = "Power : fold enrichment / %"
 
 
@@ -1464,7 +1475,7 @@ class GOPowerDepletion(GOPower):
     Show are the fold depletion (in %) that could be detected
     given the setup of the test (size of sample and size of background).
     """
-    mSelect = "SELECT 100.0 * ( 1 - (ci95lower / mean)) FROM %s WHERE 1"
+    mSelect = "SELECT 100.0 * (1 - (ci95lower / mean)) FROM %s WHERE 1"
     mXLabel = "Power : fold depletion / %"
 
 
@@ -1478,7 +1489,7 @@ class GOMatrix(TrackerSQL):
     results where background is ensembl and slice is unknown.
     """
     mTableName = "goslim_goanalysisresults"
-    mSelect = "SELECT description, CASE code WHEN '+' THEN (100.0 * (ratio -1)) ELSE - (100.0 * (1-ratio) ) END FROM %s WHERE 1 AND code != '?' "
+    mSelect = "SELECT description, CASE code WHEN '+' THEN (100.0 * (ratio -1)) ELSE - (100.0 * (1-ratio)) END FROM %s WHERE 1 AND code != '?' "
 
     def __init__(self, *args, **kwargs):
         TrackerSQL.__init__(self, *args, **kwargs)
@@ -1517,12 +1528,12 @@ class GOMatrix(TrackerSQL):
             if "track" in o and xtrack not in o["track"]:
                 return []
 
-        stmt = """%(select)s 
-                        AND track = '%(xtrack)s' 
-                        AND slice = '%(xslice)s' 
-                        AND subset='%(subset)s' 
+        stmt = """%(select)s
+                        AND track = '%(xtrack)s'
+                        AND slice = '%(xslice)s'
+                        AND subset='%(subset)s'
                         AND background='%(background)s'
-                        AND passed 
+                        AND passed
                         AND code != '?'
                         ORDER BY category""" % locals()
 
@@ -1567,8 +1578,8 @@ _go_territories = {"GOGenes": GOGenes,
 
 # the order of the base classes is important
 # also: make sure that these are new-style classes
-for a, aa in _go_analysis.items():
-    for b, bb in _go_territories.items():
+for a, aa in list(_go_analysis.items()):
+    for b, bb in list(_go_territories.items()):
         n = "GO%s%s" % (a, b)
         globals()[n] = type(n, (bb, aa), {})
 

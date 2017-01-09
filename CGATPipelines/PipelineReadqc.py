@@ -13,7 +13,7 @@ import os
 import re
 import glob
 import collections
-import cStringIO
+from six import StringIO
 import pandas as pd
 import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
@@ -140,14 +140,14 @@ def loadFastqc(filename,
 
             options.tablename = prefix + "_" + re.sub(" ", "_", name)
 
-            inf = cStringIO.StringIO("\n".join([header] + data) + "\n")
+            inf = StringIO("\n".join([header] + data) + "\n")
             CSV2DB.run(inf, options)
             results.append((name, status))
 
         # load status table
         options.tablename = prefix + "_status"
 
-        inf = cStringIO.StringIO(
+        inf = StringIO(
             "\n".join(["name\tstatus"] +
                       ["\t".join(x) for x in results]) + "\n")
         CSV2DB.run(inf, options)
@@ -184,7 +184,7 @@ def buildFastQCSummaryStatus(infiles, outfile, datadir):
                 stats[name] = status
 
             results.append((track, fn, stats))
-            names.update(stats.keys())
+            names.update(list(stats.keys()))
 
     names = list(names)
     outf.write("track\tfilename\t%s\n" % "\t".join(names))
@@ -248,7 +248,7 @@ def buildExperimentReadQuality(infiles, outfile, datadir):
 
     for track, status, header, rows in data:
         T = track
-        rows = [map(float, x.split("\t")) for x in rows]
+        rows = [list(map(float, x.split("\t"))) for x in rows]
         header = header.split("\t")
         if first:
             first = False

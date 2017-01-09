@@ -156,7 +156,7 @@ class MastFDR(Mast):
         if bin_edges is None:
             return odict()
         bin_edges = [-x for x in bin_edges]
-        print len(bin_edges), len(fdrs)
+        print(len(bin_edges), len(fdrs))
 
         return odict((("score", bin_edges),
                       ("fdr", fdrs)))
@@ -173,7 +173,7 @@ class MastSummary(Mast):
     """return summary of mast results.
 
     Return for each track the number of intervals in total,
-    the number of intervals submitted to mast, 
+    the number of intervals submitted to mast,
 
     The evalue used as a MAST curve cutoff, the number and % explained using the Mast cutoff.
 
@@ -198,7 +198,7 @@ class MastSummary(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict((("msg", msg),))
 
         if len(explained) == 0:
@@ -209,10 +209,10 @@ class MastSummary(Mast):
 
         intervals_and_peakvals = \
             self.get("""
-                              SELECT peakval, evalue
-                              FROM %(track)s_mast AS m, %(track)s_intervals AS i
-                              WHERE i.interval_id = m.id AND motif = '%(slice)s'
-                              ORDER BY peakval""" % locals() )
+            SELECT peakval, evalue
+            FROM %(track)s_mast AS m, %(track)s_intervals AS i
+            WHERE i.interval_id = m.id AND motif = '%(slice)s'
+            ORDER BY peakval""" % locals())
 
         intervals_with_motifs = len(
             [x for x in intervals_and_peakvals if x[1] <= evalue])
@@ -267,10 +267,10 @@ class MastSummary(Mast):
 
         intervals_and_peakvals = \
             self.get("""
-                               SELECT peakval, nmatches
-                               FROM %(track)s_mast AS m, %(track)s_intervals AS i
-                               WHERE i.interval_id = m.id AND motif = '%(slice)s'
-                               ORDER BY peakval""" % locals() )
+            SELECT peakval, nmatches
+            FROM %(track)s_mast AS m, %(track)s_intervals AS i
+            WHERE i.interval_id = m.id AND motif = '%(slice)s'
+            ORDER BY peakval""" % locals())
 
         intervals_with_motifs = len(
             [x for x in intervals_and_peakvals if x[1] > 0])
@@ -313,8 +313,8 @@ class MastAllCorrelations(Mast):
         WHERE i.interval_id = m.id AND motif = '%(slice)s'
         ORDER BY i.%(field)s DESC"""
                         % locals())
-        return odict(zip(("evalue", "nmatches", "length", "peakval", "avgval"),
-                         zip(*data)))
+        return odict(list(zip(("evalue", "nmatches", "length", "peakval", "avgval"),
+                              list(zip(*data)))))
 
 
 class MastPairwiseCorrelation(Mast):
@@ -330,7 +330,7 @@ class MastPairwiseCorrelation(Mast):
         WHERE i.interval_id = m.id AND motif = '%(slice)s'"""
                         % locals())
 
-        return odict(zip((field1, field2), zip(*data)))
+        return odict(list(zip((field1, field2), list(zip(*data)))))
 
 
 class MastEvalueVersusLength(MastPairwiseCorrelation):
@@ -411,9 +411,9 @@ class MastMotifLocationMiddle(Mast):
         #
         # only take single matches (multiple matches need not be centered)
         data = self.getValues(
-            """SELECT ((i.start + i.length / 2) - (m.start + (m.end - m.start) / 2)) 
+            """SELECT ((i.start + i.length / 2) - (m.start + (m.end - m.start) / 2))
             / ((CAST(i.length AS FLOAT) - (m.end - m.start))/2)
-            FROM %(track)s_mast as m, %(track)s_intervals as i 
+            FROM %(track)s_mast as m, %(track)s_intervals as i
             WHERE i.interval_id = m.id AND motif = '%(slice)s'
             AND m.nmatches = 1"""
             % locals())
@@ -457,7 +457,7 @@ class MastCurve(Mast):
             return odict()
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict()
 
         data = odict()
@@ -494,7 +494,7 @@ class MastROC(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict()
 
         # determine the e-value cutoff as the maximum of "explained"
@@ -505,7 +505,7 @@ class MastROC(Mast):
 
         for field in self.mFields:
 
-            values = self.get("""SELECT i.%(field)s, m.evalue 
+            values = self.get("""SELECT i.%(field)s, m.evalue
             FROM %(track)s_mast as m, %(track)s_intervals as i
             WHERE i.interval_id = m.id AND motif = '%(slice)s'
             ORDER BY i.%(field)s DESC"""
@@ -514,11 +514,11 @@ class MastROC(Mast):
             try:
                 roc = Stats.computeROC(
                     [(x[0], x[1] <= cutoff) for x in values])
-            except ValueError, msg:
+            except ValueError as msg:
                 # ignore results where there are no positives among values.
                 continue
 
-            result[field] = odict(zip(("FPR", "TPR"), zip(*roc)))
+            result[field] = odict(list(zip(("FPR", "TPR"), list(zip(*roc)))))
         return result
 
 
@@ -551,11 +551,11 @@ class MastROCNMatches(Mast):
 
             try:
                 roc = Stats.computeROC([(x[0], x[1] > 0) for x in values])
-            except ValueError, msg:
+            except ValueError as msg:
                 # ignore results where there are no positives among values.
                 continue
 
-            result[field] = odict(zip(("FPR", "TPR"), zip(*roc)))
+            result[field] = odict(list(zip(("FPR", "TPR"), list(zip(*roc)))))
 
         return result
 
@@ -575,7 +575,7 @@ class MastAUC(MastROC):
     def __call__(self, track, slice=None):
 
         data = MastROC.__call__(self, track, slice)
-        for k, d in data.iteritems():
+        for k, d in data.items():
             data[k] = Stats.getAreaUnderCurve(d['FPR'], d['TPR'])
         return data
 
@@ -613,7 +613,7 @@ class MastPeakValWithMotif(Mast):
         result = Stats.getSensitivityRecall(
             [(int(x[0]), x[1] > 0) for x in data])
 
-        return odict(zip(("peakval", "proportion with motif", "recall"), zip(*result)))
+        return odict(list(zip(("peakval", "proportion with motif", "recall"), list(zip(*result)))))
 
 
 class MastPeakValWithMotifEvalue(Mast):
@@ -635,7 +635,7 @@ class MastPeakValWithMotifEvalue(Mast):
 
         try:
             bin_edges, with_motifs, explained = computeMastCurve(evalues)
-        except ValueError, msg:
+        except ValueError as msg:
             return odict()
 
         # determine the e-value cutoff as the maximum of "explained"
@@ -651,7 +651,7 @@ class MastPeakValWithMotifEvalue(Mast):
         result = Stats.getSensitivityRecall(
             [(int(x[0]), x[1] < cutoff) for x in data])
 
-        return odict(zip(("peakval", "proportion with motif", "recall"), zip(*result)))
+        return odict(list(zip(("peakval", "proportion with motif", "recall"), list(zip(*result)))))
 
 
 class MemeInputSequenceComposition(DefaultTracker):
@@ -748,7 +748,7 @@ class TomTomResults(DefaultTracker):
 
         result = odict()
         for x, y in enumerate(data):
-            result[str(x)] = odict(zip(headers, y))
+            result[str(x)] = odict(list(zip(headers, y)))
         return result
 
 
@@ -802,7 +802,7 @@ class AnnotationsMotifs(AnnotationsMatrix):
     def getStatement(self, slice=None):
 
         statement = '''
-        SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous, 
+        SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous,
           CASE WHEN m.nmatches > 0 THEN motif || '+' ELSE motif || '-' END
         FROM %(track)s_intervals AS i,
         %(track)s_annotations AS a ON a.gene_id = i.interval_id,

@@ -33,10 +33,10 @@ class MacsSummary(cpgTracker):
         f = ",".join(fields)
         data = self.getFirstRow(
             '''SELECT %(f)s FROM macs_summary WHERE track="%(track)s"''' % locals())
-        result = odict(zip(fields, data))
+        result = odict(list(zip(fields, data)))
 
         if os.path.exists(resultsdir):
-            print resultsdir
+            print(resultsdir)
             result[
                 "link"] = "`pdf <%(resultsdir)s/%(track)s.macs_model.pdf>`_" % locals()
         return result
@@ -61,10 +61,10 @@ class MacsSoloSummary(cpgTracker):
         f = ",".join(fields)
         data = self.getFirstRow(
             '''SELECT %(f)s FROM macs_solo_summary WHERE track="%(track)s"''' % locals())
-        result = odict(zip(fields, data))
+        result = odict(list(zip(fields, data)))
 
         if os.path.exists(resultsdir):
-            print resultsdir
+            print(resultsdir)
             result[
                 "link"] = "`pdf <%(resultsdir)s/%(track)s.macs_model.pdf>`_" % locals()
         return result
@@ -81,7 +81,7 @@ class MacsIntervalsSummary(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*), round(AVG(length),0), round(AVG(nprobes),0)  FROM %(track)s_macs_intervals" % locals())
-        return odict(zip(("intervals_count", "mean_interval_length", "mean_reads_per_interval"), data))
+        return odict(list(zip(("intervals_count", "mean_interval_length", "mean_reads_per_interval"), data)))
 
 ##########################################################################
 
@@ -96,7 +96,7 @@ class FoldChangeThreshold(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT threshold, intervals FROM %(track)s_foldchange" % locals())
-        return odict(zip(("Threshold", "Intervals"), zip(*data)))
+        return odict(list(zip(("Threshold", "Intervals"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -112,7 +112,7 @@ class BackgroundSummary(cpgTracker):
                                     round(((in_peaks+0.00)/(out_peaks+in_peaks+0.00))*100,1) as ratio,
                                     round(((out_peaks+0.00)/(out_peaks+in_peaks+0.00))*100,1) as ratio2 
                                     from %(track)s_background;''' % locals() )
-        return odict(zip(("Reads Overlapping intervals", "Reads Outwith Intervals", "Total Reads", "Percent in Intervals", "Percent Background"), data))
+        return odict(list(zip(("Reads Overlapping intervals", "Reads Outwith Intervals", "Total Reads", "Percent in Intervals", "Percent Background"), data)))
 
 ##########################################################################
 
@@ -132,8 +132,8 @@ class MacsDiagnostics(cpgTracker):
         for fc, npeaks, p20, p30, p40, p50, p60, p70, p80, p90 in data:
             result[fc] = odict()
             result[fc]["npeaks"] = npeaks
-            result[fc]["proportion of reads"] = range(20, 100, 10)
-            result[fc]["proportion of peaks"] = map(
-                float, (p20, p30, p40, p50, p60, p70, p80, p90))
+            result[fc]["proportion of reads"] = list(range(20, 100, 10))
+            result[fc]["proportion of peaks"] = list(map(
+                float, (p20, p30, p40, p50, p60, p70, p80, p90)))
 
         return result

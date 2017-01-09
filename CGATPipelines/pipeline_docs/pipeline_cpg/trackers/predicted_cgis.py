@@ -43,7 +43,7 @@ class cgiAnnotations(cpgTracker):
                     "flank",
                     "ambiguous"]
 
-        return odict(zip(mColumns, data))
+        return odict(list(zip(mColumns, data)))
 
 ##########################################################################
 
