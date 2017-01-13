@@ -397,8 +397,8 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
         ensembldict = self.dataset['ensembl']
 
         # store the relationships between various gene ids as lists of tuples
-        entrez2ensembl = []
-        ensembl2entrez = []
+        sym2ensembl = []
+        ensembl2sym = []
         g2t = []
         t2g = []
         g2p = []
@@ -425,12 +425,12 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                     # more than one value, most of the following is to deal
                     # with this
                     if type(L['gene']) is list:
-                        entrez2ensembl += [q] * len(L['gene'])
-                        ensembl2entrez += L['gene']
+                        sym2ensembl += [q] * len(L['gene'])
+                        ensembl2sym += L['gene']
                         glist = L['gene']
                     else:
-                        entrez2ensembl.append(q)
-                        ensembl2entrez.append(L['gene'])
+                        sym2ensembl.append(q)
+                        ensembl2sym.append(L['gene'])
                         glist = [L['gene']]
                     for gene in glist:
                         if 'transcript' in L:
@@ -450,9 +450,10 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
         # load everything into the self.resultsz dictionary so that
         # self.loadZippedTables will put it into the database
         self.resultsz['ensemblg2symbol_%s$geneid' % self.ohost] = [list(
-            zip(ensembl2entrez, entrez2ensembl)), ['ensemblg',
-                                                   'symbol_%s' % self.ohost],
-                                                  ['int', 'varchar(25)']]
+            zip(ensembl2sym,
+                sym2ensembl)), ['ensemblg',
+                                'symbol_%s' % self.ohost],
+                                ['int', 'varchar(25)']]
 
         self.resultsz['ensemblg2ensemblt$other'] = [list(zip(g2t, t2g)),
                                                     ['ensemblg', 'ensemblt'],
@@ -463,10 +464,23 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                                                     ['varchar(25)',
                                                      'varchar(25)']]
         # store the entrez to ensemblg translation for later
-        self.storeTranslation(ensembl2entrez,
-                              entrez2ensembl, ['ensemblg',
-                                               'symbol_%s' % self.ohost],
+        self.storeTranslation(ensembl2sym,
+                              sym2ensembl, ['ensemblg',
+                                            'symbol_%s' % self.ohost],
                               'ensemblg2symbol_%s.tsv' % self.ohost)
+        ens2symdf = pd.DataFrame(zip(ensembl2sym, sym2ensembl),
+                                 columns=['ensemblg',
+                                          'symbol_%s' % self.ohost])
+        res = self.translate(ens2symdf, 'symbol_%s' % self.ohost,
+                             "entrez")
+        self.storeTranslation(res['ensemblg'], res['entrez'],
+                              ['ensemblg', 'entrez'], "ensemblg2entrez.tsv")
+
+        self.resultsz['ensemblg2entrez$geneid'] = [list(zip(res['ensemblg'],
+                                                            res['entrez'])),
+                                                   ['ensemblg', 'entrez'],
+                                                   ['varchar(25)',
+                                                    'varchar(25)']]
 
 
 class GoAnnotation(MyGeneInfoAnnotation):
@@ -909,8 +923,8 @@ class MGIAnnotation(DataMineAnnotation):
                  "ontologyAnnotations.ontologyTerm.namespace",
                  "ontologyAnnotations.ontologyTerm.identifier"]
         constraints = [
-            ("Gene.ontologyAnnotations.ontologyTerm.namespace\
-            =MPheno.ontology")]
+            ("Gene.ontologyAnnotations.ontologyTerm.namespace=\
+            MPheno.ontology")]
         hostid = 'M. musculus'
         DataMineAnnotation.__init__(self, prefix, source, outdb,
                                     chost, ind, views, constraints, hostid,
