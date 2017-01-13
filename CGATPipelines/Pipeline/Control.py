@@ -56,7 +56,11 @@ except ImportError:
 from multiprocessing.pool import ThreadPool
 
 # talking to mercurial
-import hgapi
+try:
+    import hgapi
+    HAS_MERCURIAL = True
+except ImportError:
+    HAS_MERCURIAL = False
 
 # talking to RabbitMQ
 try:
@@ -807,7 +811,8 @@ def main(args=sys.argv):
 
     version = None
 
-    try:
+    if HAS_MERCURIAL:
+
         # this is for backwards compatibility
         # get mercurial version
         repo = hgapi.Repo(PARAMS["pipeline_scriptsdir"])
@@ -823,7 +828,8 @@ def main(args=sys.argv):
             else:
                 E.warn("uncommitted changes in code repository - ignored ")
         version = version[:-1]
-    except:
+
+    else
         # try git:
         try:
             stdout, stderr = execute(
@@ -831,6 +837,7 @@ def main(args=sys.argv):
         except:
             stdout = "NA"
         version = stdout
+
 
     if args:
         options.pipeline_action = args[0]
