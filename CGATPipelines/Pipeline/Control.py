@@ -829,7 +829,7 @@ def main(args=sys.argv):
                 E.warn("uncommitted changes in code repository - ignored ")
         version = version[:-1]
 
-    else
+    else:
         # try git:
         try:
             stdout, stderr = execute(
