@@ -1588,6 +1588,7 @@ else:
         --indiv-missing=%(gwas_mind)s
         --output-file-pattern=%(out_pattern)s
         --memory=%(mem)s
+        --subset-filter=%(gwas_filter)s
         -v 5
         %(plink_files)s
         > %(outfile)s.plink.log
@@ -1672,6 +1673,7 @@ def pcAdjustedAssociation(infiles, outfile):
     --indiv-missing=%(gwas_mind)s
     --output-file-pattern=%(out_pattern)s
     --memory=%(mem)s
+    --subset-filter=%(gwas_filter)s
     -v 5
     %(plink_files)s
     > %(outfile)s.plink.log
