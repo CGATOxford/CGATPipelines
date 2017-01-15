@@ -503,7 +503,12 @@ class SequenceCollectionProcessor(object):
             be created by `statement`.
         '''
         # explicitly assign qual_format to use in string formatting
-        qual_format = self.qual_format
+        try:
+            assert self.qual_format
+            qual_format = self.qual_format
+        except AttributeError:
+            qual_format = 'illumina-1.8'
+
         assert len(infiles) > 0, "no input files for processing"
 
         tmpdir_fastq = P.getTempDir(shared=True)
