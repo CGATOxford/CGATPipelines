@@ -80,7 +80,7 @@ def main(argv=None):
     E.info("outputting directory state to %s" % filename)
     with IOTools.openFile(filename, "w") as outf:
         outf.write("##contents of cwd on %s\n\n" % st)
-        for directory, files in dir2files.iteritems():
+        for directory, files in dir2files.items():
             for file in files:
                 path = os.path.join(directory, file)
                 outf.write(path + "\n")

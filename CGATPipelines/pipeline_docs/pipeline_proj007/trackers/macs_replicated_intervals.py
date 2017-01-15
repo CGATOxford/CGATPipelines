@@ -128,7 +128,7 @@ class replicatedIntervalCpGDensity(cpgTracker):
             "SELECT pCpG FROM %(track)s_replicated_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT pCpG FROM %(track)s_replicated_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))
 
 ##########################################################################
 
@@ -145,7 +145,7 @@ class replicatedIntervalCpGObsExp1(cpgTracker):
             "SELECT CpG_ObsExp1 FROM %(track)s_replicated_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT CpG_ObsExp1 FROM %(track)s_replicated_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))
 
 ##########################################################################
 
@@ -162,7 +162,7 @@ class replicatedIntervalCpGObsExp2(cpgTracker):
             "SELECT CpG_ObsExp FROM %(track)s_replicated_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT CpG_ObsExp FROM %(track)s_replicated_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))
 
 ##########################################################################
 
@@ -179,7 +179,7 @@ class replicatedIntervalGCContent(cpgTracker):
             "SELECT pGC FROM %(track)s_replicated_composition_flanking5" % locals())
         data4 = self.getValues(
             "SELECT pGC FROM %(track)s_replicated_composition_flanking3" % locals())
-        return odict(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4)))
+        return odict(list(zip(("CAPseq composition", "Control composition", "5` Flank Composition", "3` Flank Composition"), (data1, data2, data3, data4))))
 
 ##########################################################################
 ##########################################################################
@@ -208,6 +208,6 @@ class replicatedIntervalsPerContig(cpgTracker):
         n = odict()
         for d in data:
             contig = d[:1]
-            n[str(contig)] = odict(zip(headers,  d[2:]))
+            n[str(contig)] = odict(list(zip(headers,  d[2:])))
 
         return data

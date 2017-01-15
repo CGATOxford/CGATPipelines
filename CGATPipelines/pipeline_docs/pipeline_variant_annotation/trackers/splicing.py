@@ -45,11 +45,11 @@ class FrameShiftCorrection(VariantsTracker):
     mPattern = "_effects_splicing$"
 
     def __call__(self, track, slice=None):
-        result = odict(zip(
+        result = odict(list(zip(
             ("nframeshifts", "nunchanged", "ncorrected", "nuncorrected"),
             self.getFirstRow(
                 '''SELECT SUM(nframeshifts), SUM(nunchanged_frames), SUM(ncorrected_frames), SUM(nuncorrected_frames)
-            FROM %(track)s_effects_splicing''' % locals() )))
+            FROM %(track)s_effects_splicing''' % locals() ))))
         return result
 
 #####################################################
@@ -95,4 +95,4 @@ class VariantSplicingTranscripts(VariantsTracker):
         AND e.splice_genotype is not null
         ORDER BY i.gene_id''' % locals()
         # return odict( self.get(statement) )
-        return odict(zip(headers, zip(*self.get(statement))))
+        return odict(list(zip(headers, list(zip(*self.get(statement))))))

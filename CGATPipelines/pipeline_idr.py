@@ -209,8 +209,8 @@ TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 def printTracks(infile, outfile):
     P.warn("\n\n\n\nprinting tracks:")
     for track in EXPERIMENTS:
-        print "\t"
-        print track
+        print("\t")
+        print(track)
 
 
 def get_peak_caller_parameters(peak_caller_id):
@@ -220,7 +220,7 @@ def get_peak_caller_parameters(peak_caller_id):
     """
     caller_parameters = {}
     caller_prefix = peak_caller_id + "_options"
-    for key, value in PARAMS.iteritems():
+    for key, value in PARAMS.items():
         if re.match(caller_prefix, key):
             caller_parameters[key] = value
 
@@ -270,7 +270,7 @@ def filterBamfiles(infile, sentinel):
     statement = ["samtools sort -O BAM -o @OUT@.bam @IN@ ", ]
 
     # remove unmapped reads
-    statement.append("python %(scriptsdir)s/bam2bam.py"
+    statement.append("cgat bam2bam"
                      " --method=filter --filter-method=mapped"
                      " --log=%(outfile)s.log"
                      " < @IN@.bam"
@@ -278,7 +278,7 @@ def filterBamfiles(infile, sentinel):
 
     # remove non-uniquely mapping reads, if requested
     if PARAMS["filter_remove_non_unique"]:
-        statement.append("python %(scriptsdir)s/bam2bam.py"
+        statement.append("cgat bam2bam"
                          " --method=filter --filter-method=unique"
                          " --log=%(outfile)s.log"
                          " < @IN@"
@@ -713,7 +713,7 @@ def combineIDROnIndividualReplicates(infiles, outfile):
     tables = " ".join(tables)
 
     to_cluster = False
-    statement = ("python %(scriptsdir)s/combine_tables.py"
+    statement = ("cgat combine_tables"
                  " --columns=1"
                  " --skip-titles"
                  " --header-names=%(headers)s"
@@ -740,7 +740,7 @@ def combineIDROnPseudoreplicates(infiles, outfile):
     tables = " ".join(infiles)
 
     to_cluster = False
-    statement = ("python %(scriptsdir)s/combine_tables.py"
+    statement = ("cgat combine_tables"
                  " --columns=1"
                  " --skip-titles"
                  " --header-names=%(headers)s"
@@ -767,7 +767,7 @@ def combineIDROnPooledPseudoreplicates(infiles, outfile):
     tables = " ".join(infiles)
 
     to_cluster = False
-    statement = ("python %(scriptsdir)s/combine_tables.py"
+    statement = ("cgat combine_tables"
                  " --columns=1"
                  " --skip-titles"
                  " --header-names=%(headers)s"

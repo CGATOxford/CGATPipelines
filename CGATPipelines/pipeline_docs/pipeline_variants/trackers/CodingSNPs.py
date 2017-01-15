@@ -25,7 +25,7 @@ class ExonEssentiality(VariantsTracker):
         codes = "','".join(coding_codes)
         data = self.get(
             "SELECT exons_nused, exons_ntranscripts FROM %(track)s_annotations WHERE code IN ('%(codes)s')" % locals())
-        return odict((("used", "ntranscript"), zip(*data)))
+        return odict((("used", "ntranscript"), list(zip(*data))))
 
 
 ##########################################################################
@@ -55,4 +55,4 @@ class EffectCounts(VariantsTracker):
                          "SELECT COUNT(*) FROM %(track)s_annotations WHERE variant_type = 'S' AND reference_aa != consensus_aa" % locals())
                      ))
 
-        return odict((("used", "ntranscript"), zip(*data)))
+        return odict((("used", "ntranscript"), list(zip(*data))))

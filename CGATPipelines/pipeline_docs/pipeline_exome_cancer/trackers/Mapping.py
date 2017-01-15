@@ -65,7 +65,7 @@ class PicardTargetStats(ExomeTracker):
         PCT_TARGET_BASES_20X AS pct_20X, PCT_TARGET_BASES_30X AS pct_30X,
         PCT_TARGET_BASES_40X AS pct_40X, PCT_TARGET_BASES_50X AS pct_50X,
         PCT_TARGET_BASES_100X AS pct_100X FROM %(table)s;''' % locals()
-        print statement
+        print(statement)
         return self.getAll(statement)
 
 

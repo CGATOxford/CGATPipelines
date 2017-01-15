@@ -307,7 +307,7 @@ def summariseOverBins(coverages, bins):
         if i == 0:
             hits = coverages <= bins[i]
         else:
-            hits = (coverages <= bins[i]) & (coverages > bins[i-1])
+            hits = (coverages <= bins[i]) & (coverages > bins[i - 1])
 
         freqs[i] = len(coverages[hits])
 
@@ -348,7 +348,7 @@ def getModelCoverage(db, table_regex, model_type="transcript"):
 
     # pull out counts for each cell and compute coverages
 
-    bins = range(0, 101)
+    bins = list(range(0, 101))
     cov_dict = {}
     for tab in table_list:
         covs = extractTranscriptCounts(dbh, tab)
@@ -358,7 +358,8 @@ def getModelCoverage(db, table_regex, model_type="transcript"):
     coverage_df = pd.DataFrame(cov_dict).T
     # create a regex group to remove superfluous characters
     # from the track names
-    ix_re = re.compile("_(?P<run>\d+)_(?P<plate>\d+)_(?P<well>\d+)_(?P<mapper>\S+)_transcript_counts")
+    ix_re = re.compile(
+        "_(?P<run>\d+)_(?P<plate>\d+)_(?P<well>\d+)_(?P<mapper>\S+)_transcript_counts")
     re_matches = [re.match(ix_re, ix) for ix in coverage_df.index]
     indx = ["%s_%s-%s.%s" % rm.group(1, 2, 3, 4) for rm in re_matches]
     coverage_df.index = indx

@@ -100,7 +100,7 @@ class Annotator(AnnotatorSlicer, TrackerSQL):
         statement = self.addFilter(statement, track, slice)
 
         data = self.get(statement)
-        return odict(zip(self.columns, zip(*data)))
+        return odict(list(zip(self.columns, list(zip(*data)))))
 
 
 class AnnotatorTable(Annotator):
@@ -137,7 +137,7 @@ class AnnotatorSummary(Annotator):
 
         data = self.getFirstRow(statement)
         data.append(data[0] - data[1])
-        return odict(zip(self.columns, data))
+        return odict(list(zip(self.columns, data)))
 
 
 class AnnotatorEnrichment(Annotator):
@@ -458,7 +458,7 @@ _annotator_territories = {
 
 # the order of the base classes is important
 # also: make sure that these are new-style classes
-for a, aa in _annotator_analysis.items():
-    for b, bb in _annotator_territories.items():
+for a, aa in list(_annotator_analysis.items()):
+    for b, bb in list(_annotator_territories.items()):
         n = "Annotator%s%s" % (a, b)
         globals()[n] = type(n, (bb, aa), {})

@@ -230,28 +230,28 @@ def buildIntervalsFasta(infile, outfile):
     if infile.endswith(".gtf.gz"):
         statement = (
             "zcat %(infile)s |"
-            " python %(scriptsdir)s/gtf2gtf.py"
+            " cgat gtf2gtf"
             "  --method=sort"
             "  --sort-order=gene+transcript"
             "  --log=%(outfile)s.log |"
-            " python %(scriptsdir)s/gtf2gtf.py"
+            " cgat gtf2gtf"
             "  --method=merge-transcripts"  # doesn't explicitly account for UTR
             "  --log=%(outfile)s.log |"
-            " python %(scriptsdir)s/gtf2gff.py"
+            " cgat gtf2gff"
             "  --method=regulons"
             "  --genome-file=%(genome_dir)s/%(genome)s"
             "  --upstream-extension=%(upstream)s"
             "  --downstream-extension=%(downstream)s"
             "  --log=%(outfile)s.log |"
-            " python %(scriptsdir)s/gff2bed.py"
+            " cgat gff2bed"
             "  --is-gtf"
             "  --set-name=gene_id"
             "  --log=%(outfile)s.log |"
-            " python %(scriptsdir)s/bed2fasta.py"
+            " cgat bed2fasta"
             "  --genome=%(genomedir)s/%(genome)s")
     elif infile.endswith(".bed.gz"):
         statement = ("zcat %(infile)s |"
-                     " python %(scriptsdir)s/bed2fasta.py"
+                     " cgat bed2fasta"
                      "  --genome=%(genomedir)s/%(genome)s")
     else:
         raise Exception("Interval file must either be *.bed.gz or *.gtf.gz")
@@ -523,7 +523,7 @@ if PARAMS['sig_testing_method'] == "fisher":
             job_options = "-l mem_free=1G"
 
             statement = '''
-            python %(scriptsdir)s/tfbs2enrichment.py
+            cgat tfbs2enrichment
             --foreground=%(foreground)s
             --background=%(background)s
             --database=%(database)s
@@ -712,14 +712,14 @@ def collateEnrichmentOfTFBS(infiles, outfile):
                 # qvalue not contained in df
                 pass
             # adding column for geneset_id
-            geneset_id = [geneset_id, ]*len(df.index)
+            geneset_id = [geneset_id, ] * len(df.index)
             df["geneset_id"] = geneset_id
             continue
 
         # append successive dataframes
         df_n = _fetch(table_name)
         df_n.drop("qvalue", axis=1, inplace=True)
-        geneset_id = [geneset_id, ]*len(df_n.index)
+        geneset_id = [geneset_id, ] * len(df_n.index)
         df_n["geneset_id"] = geneset_id
         df = df.append(df_n)
 

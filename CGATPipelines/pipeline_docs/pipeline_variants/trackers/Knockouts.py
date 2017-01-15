@@ -108,11 +108,11 @@ class GeneListTruncatedStopsMin(TrackerEffects):
             annotations.transcript_info AS i
         WHERE i.transcript_id = e.transcript_id
         GROUP BY i.gene_id
-        HAVING m >= %(min_truncated)i 
+        HAVING m >= %(min_truncated)i
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                              list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -173,12 +173,12 @@ class TranscriptListTruncatedStopsMin(TrackerEffects):
             %(track)s_effects AS e,
             annotations.transcript_info AS i
         WHERE i.transcript_id = e.transcript_id AND
-              m > %(min_truncated)i 
+              m > %(min_truncated)i
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                              list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -206,12 +206,12 @@ class TranscriptListTruncatedStopsMax(TrackerEffects):
             %(track)s_effects AS e,
             annotations.transcript_info AS i
         WHERE i.transcript_id = e.transcript_id AND
-              m > %(min_truncated)i 
+              m > %(min_truncated)i
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                              list(zip(*self.get(statement))))))
 
 
 #####################################################
@@ -230,9 +230,9 @@ class TranscriptsNMDMin(TrackerEffects):
 
         statement = '''
         SELECT COUNT(*)
-        FROM %(track)s_effects WHERE 
-        %(field_where)s > 0 AND 
-        %(field_select)s > 0 AND 
+        FROM %(track)s_effects WHERE
+        %(field_where)s > 0 AND
+        %(field_select)s > 0 AND
         cds_len - %(field_select)s * 3 < last_exon_start''' % \
             self.members(locals())
 
@@ -255,9 +255,9 @@ class TranscriptsNMDMax(TrackerEffects):
 
         statement = '''
         SELECT COUNT(*)
-        FROM %(track)s_effects WHERE 
-        %(field_where)s > 0 AND 
-        %(field_select)s > 0 AND 
+        FROM %(track)s_effects WHERE
+        %(field_where)s > 0 AND
+        %(field_select)s > 0 AND
         cds_len - %(field_select)s * 3 < last_exon_start''' % \
             self.members(locals())
 
@@ -291,13 +291,13 @@ class TranscriptListNMDMin(TrackerEffects):
             %(track)s_effects AS e,
             annotations.transcript_info AS i
         WHERE i.transcript_id = e.transcript_id AND
-              m > 0 AND 
+              m > 0 AND
               cds_len - m * 3 < last_exon_start
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                              list(zip(*self.get(statement))))))
 
 #####################################################
 #####################################################
@@ -327,10 +327,10 @@ class TranscriptListNMDMax(TrackerEffects):
             %(track)s_effects AS e,
             annotations.transcript_info AS i
         WHERE i.transcript_id = e.transcript_id AND
-              m > 0 AND 
+              m > 0 AND
               cds_len - m * 3 < last_exon_start
         ORDER BY i.gene_id
         ''' % self.members(locals())
 
-        return odict(zip(headers,
-                         zip(*self.get(statement))))
+        return odict(list(zip(headers,
+                              list(zip(*self.get(statement))))))

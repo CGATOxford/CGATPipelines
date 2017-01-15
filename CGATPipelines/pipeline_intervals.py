@@ -183,9 +183,9 @@ import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.MatrixTools as MatrixTools
-import PipelinePeakcalling as PipelinePeakcalling
-import PipelineMotifs as PipelineMotifs
-import PipelineWindows as PipelineWindows
+import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
+import CGATPipelines.PipelineMotifs as PipelineMotifs
+import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 
@@ -295,13 +295,13 @@ def getAssociatedBAMFiles(track):
 
     offsets = []
     if "offsets_%s" % fn.lower() in PARAMS:
-        offsets = map(int, P.asList(PARAMS["offsets_%s" % fn.lower()]))
+        offsets = list(map(int, P.asList(PARAMS["offsets_%s" % fn.lower()])))
     else:
         for pattern, value in P.CONFIG.items("offsets"):
             if "%" in pattern:
                 p = re.sub("%", "\S+", pattern)
                 if re.search(p, fn):
-                    offsets.extend(map(int, value.split(",")))
+                    offsets.extend(list(map(int, value.split(","))))
 
     if offsets == []:
         offsets = [0] * len(bamfiles)
@@ -544,7 +544,7 @@ def prepareGTFsByOverlapWithIntervals(infile, outfiles):
     # do not checkpoint, as some files might be empty
     statement = '''
     intersectBed -u -a %(geneset)s -b %(track)s.bed.gz
-    | python %(scriptsdir)s/gff2bed.py --is-gtf -v 0
+    | cgat gff2bed --is-gtf -v 0
     | cut -f4
     | sort
     | uniq > %(track)s_overlapping_genes;
@@ -602,7 +602,7 @@ def annotateIntervals(infile, outfile):
 
     statement = """
     zcat < %(infile)s
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --output-bed-headers=contig,start,end
     --counter=classifier-chipseq
     --counter=length
@@ -631,11 +631,11 @@ def annotateBinding(infile, outfile):
 
     statement = """
     zcat < %(geneset)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
     --counter=position
     --counter=binding-pattern
     --log=%(outfile)s.log
@@ -659,8 +659,8 @@ def annotateTSS(infile, outfile):
 
     statement = """
     zcat < %(infile)s
-    | python %(scriptsdir)s/bed2gff.py --as-gtf
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat bed2gff --as-gtf
+    | cgat gtf2table
     --counter=distance-tss
     --log=%(outfile)s.log
     --gff-file=%(annotation_file)s
@@ -685,8 +685,8 @@ def annotateRepeats(infile, outfile):
 
     statement = """
     zcat < %(infile)s
-    | python %(scriptsdir)s/bed2gff.py --as-gtf
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat bed2gff --as-gtf
+    | cgat gtf2table
     --counter=overlap
     --log=%(outfile)s.log
     --gff-file=%(annotation_file)s
@@ -709,8 +709,8 @@ def annotateComposition(infile, outfile):
     # start of the pipeline and assign unique identifiers.
     statement = '''zcat %(infile)s
     | cut -f 1,2,3
-    | python %(scriptsdir)s/bed2gff.py --as-gtf
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat bed2gff --as-gtf
+    | cgat gtf2table
     --counter=composition-cpg
     --genome-file=%(genome_dir)s/%(genome)s
     | gzip
@@ -728,8 +728,8 @@ def annotateTSSComposition(infile, outfile):
 
     statement = '''zcat %(infile)s
     | slopBed -b 50 -g %(annotations_interface_contigs_tsv)s
-    | python %(scriptsdir)s/bed2gff.py --as-gtf
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat bed2gff --as-gtf
+    | cgat gtf2table
     --counter=position
     --counter=composition-cpg
     --genome-file=%(genome_dir)s/%(genome)s
@@ -767,7 +767,7 @@ def buildIntervalProfileOfTranscripts(infiles, outfile):
 
     bedfile, gtffile = infiles
 
-    statement = '''python %(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
     --output-filename-pattern="%(outfile)s.%%s"
     --force-output
     --reporter=transcript
@@ -815,7 +815,7 @@ def buildTranscriptsByIntervalsProfiles(infile, outfile):
     outpat = outfile[:-len(".tsv.gz")]
 
     statement = '''
-    python %(scriptsdir)s/bam2geneprofile.py
+    cgat bam2geneprofile
     --output-filename-pattern="%(outpat)s.%%s"
     --force-output
     --reporter=transcript
@@ -877,7 +877,7 @@ def buildPeakShapeTable(infile, outfile):
     if shift:
         E.info("applying read shift %i for track %s" % (shift, track))
 
-    statement = '''python %(scriptsdir)s/bam2peakshape.py
+    statement = '''cgat bam2peakshape
                       --window-size=%(peakshape_window_size)i
                       --bin-size=%(peakshape_bin_size)i
                       --output-filename-pattern="%(outfile)s.%%s"
@@ -918,7 +918,7 @@ def buildOverlap(infiles, outfile):
 
     # note: need to quote track names
     statement = '''
-    python %(scriptsdir)s/diff_bed.py %(options)s %(infiles)s
+    cgat diff_bed %(options)s %(infiles)s
     | awk -v OFS="\\t" '!/^#/ { gsub( /-/,"_", $1); gsub(/-/,"_",$2); } {print}'
     > %(outfile)s
     '''
@@ -1061,7 +1061,7 @@ def loadMotifSequenceComposition(infile, outfile):
         P.toTable(outfile))
 
     statement = '''
-    python %(scriptsdir)s/fasta2table.py
+    cgat fasta2table
         --section=na
         --log=%(outfile)s
     < %(infile)s
@@ -1654,7 +1654,7 @@ def summarizeReadCounts(infile, outfile):
 
     prefix = P.snip(outfile, ".tsv")
     job_memory = "32G"
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
               --method=summary
               --tags-tsv-file=%(infile)s
               --output-filename-pattern=%(prefix)s_
