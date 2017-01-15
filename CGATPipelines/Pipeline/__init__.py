@@ -220,9 +220,11 @@ from CGATPipelines.Pipeline.Control import *
 from CGATPipelines.Pipeline.Database import *
 from CGATPipelines.Pipeline.Local import *
 from CGATPipelines.Pipeline.Files import *
+from CGATPipelines.Pipeline.Cluster import *
 from CGATPipelines.Pipeline.Execution import *
 from CGATPipelines.Pipeline.Utils import *
 from CGATPipelines.Pipeline.Parameters import *
+
 
 from CGAT import Experiment as E
 
@@ -232,12 +234,12 @@ from CGAT.IOTools import touchFile as touch
 from CGAT.IOTools import snip as snip
 
 # import submodules
-import Local as Local
-import Execution as Execution
-import Control as Control
-import Database as Database
-import Files as Files
-import Parameters as Parameters
+from . import Local as Local
+from . import Execution as Execution
+from . import Control as Control
+from . import Database as Database
+from . import Files as Files
+from . import Parameters as Parameters
 
 # broadcast parameters and config object, take from
 # Parameters.py
@@ -247,7 +249,6 @@ CONFIG = Parameters.CONFIG
 # and drop PARAMS/CONFIG variables into the submodules
 Local.CONFIG = CONFIG
 Local.PARAMS = PARAMS
-Database.PARAMS = PARAMS
 Control.PARAMS = PARAMS
 Execution.PARAMS = PARAMS
 Files.PARAMS = PARAMS

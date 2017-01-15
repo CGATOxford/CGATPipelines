@@ -131,7 +131,7 @@ def getRepeatsFromUCSC(dbhandle,
 
     statement = ['''cat %(tmpfilename)s
     | %(pipeline_scriptsdir)s/gff_sort pos
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
@@ -213,9 +213,9 @@ def getRefSeqFromUCSC(dbhandle, outfile, remove_duplicates=False):
         if r.transcript_id in duplicates:
             continue
 
-        starts = map(int, r.starts.split(",")[:-1])
-        ends = map(int, r.ends.split(",")[:-1])
-        frames = map(int, r.frames.split(",")[:-1])
+        starts = list(map(int, r.starts.split(",")[:-1]))
+        ends = list(map(int, r.ends.split(",")[:-1]))
+        frames = list(map(int, r.frames.split(",")[:-1]))
 
         gtf = GTF.Entry()
         gtf.contig = r.contig
@@ -383,6 +383,9 @@ def readTrackFile(infile):
                 track = value
                 continue
             block.append((key, value))
+        # T.S need to yield final block too
+        yield track, block
+
     return list(_yielder(data))
 
 

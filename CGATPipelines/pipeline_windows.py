@@ -272,7 +272,7 @@ def buildBackgroundWindows(infile, outfile):
     job_memory = "16G"
 
     statement = '''
-    python %(scriptsdir)s/wig2bed.py
+    cgat wig2bed
              --bigwig-file=%(infile)s
              --genome-file=%(genome_dir)s/%(genome)s
              --threshold=%(filtering_background_density)f
@@ -360,7 +360,7 @@ def buildCpGAnnotation(infiles, outfile):
     '''
     cpg_bed, context_bed = infiles
     statement = '''
-    python %(scriptsdir)s/bam_vs_bed.py
+    cgat bam_vs_bed
            --min-overlap=0.5 %(cpg_bed)s %(context_bed)s
     | gzip
     > %(outfile)s'''
@@ -411,7 +411,7 @@ def buildCoverageBed(infile, outfile):
     statement = '''
     zcat %(infile)s
     | cut -f 1,2,3
-    | python %(scriptsdir)s/bed2bed.py
+    | cgat bed2bed
           --method=merge
           --merge-distance=%(medips_extension)i
           --log=%(outfile)s.log
@@ -446,7 +446,7 @@ def buildCpGComposition(infile, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --counter=composition-cpg
     --genome-file=%(genome_dir)s/%(genome)s
     | gzip
@@ -501,7 +501,7 @@ def buildReferenceCpGComposition(infiles, outfile):
                       -g %(contig_sizes)s
                       -excl %(gaps_bed)s
                       -chromFirst
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
           --counter=composition-cpg
           --genome-file=%(genome_dir)s/%(genome)s
     | gzip
@@ -530,8 +530,8 @@ def histogramCpGComposition(infile, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/csv_cut.py pCpG
-    | python %(scriptsdir)s/data2histogram.py --bin-size=0.01
+    | cgat csv_cut pCpG
+    | cgat data2histogram --bin-size=0.01
     | gzip
     > %(outfile)s
     '''
@@ -610,7 +610,7 @@ def buildCpGCoverage(infiles, outfile):
     zcat %(infile)s
     | bedtools coverage -a stdin -b %(cpg_file)s -counts
     | cut -f 6
-    | python %(scriptsdir)s/data2histogram.py
+    | cgat data2histogram
     | gzip
     > %(outfile)s
      '''
@@ -672,7 +672,7 @@ def buildWindows(infiles, outfile):
         statement = '''
         zcat %(coverage_bed)s
         | sort -k1,1 -k2,2n
-        | python %(scriptsdir)s/bed2bed.py
+        | cgat bed2bed
               --method=merge
               --merge-distance=0
               --log=%(outfile)s.log
@@ -680,7 +680,7 @@ def buildWindows(infiles, outfile):
 
     elif tiling_method == "fixwidth_nooverlap":
 
-        statement = '''python %(scriptsdir)s/genome_bed.py
+        statement = '''cgat genome_bed
                       -g %(genome_dir)s/%(genome)s
                       --window=%(tiling_window_size)i
                       --shift-size=%(tiling_window_size)i
@@ -691,7 +691,7 @@ def buildWindows(infiles, outfile):
         assert PARAMS["tiling_window_size"] % 2 == 0
         shift = PARAMS["tiling_window_size"] // 2
 
-        statement = '''python %(scriptsdir)s/genome_bed.py
+        statement = '''cgat genome_bed
                       -g %(genome_dir)s/%(genome)s
                       --window=%(tiling_window_size)i
                       --shift-size=%(shift)i
@@ -700,7 +700,7 @@ def buildWindows(infiles, outfile):
     elif tiling_method == "cpg":
 
         statement = '''cat %(genome_dir)s/%(genome)s.fasta
-                       | python %(scriptsdir)s/fasta2bed.py
+                       | cgat fasta2bed
                       --method=windows-cpg
                       --window-size=%(tiling_window_size)i
                       --min-cpg=%(tiling_min_cpg)i
@@ -740,7 +740,7 @@ def buildWindowStats(infile, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gff2histogram.py
+    | cgat gff2histogram
                    --force-output
                    --format=bed
                    --output-section=size
@@ -787,7 +787,7 @@ def buildWindowComposition(infile, outfile):
     '''
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --log=%(outfile)s.log
     --counter=length
     --counter=composition-cpg
@@ -1049,7 +1049,7 @@ def getInput(track):
                 pattern = re.sub("%", "\S+", pattern)
             if re.search(pattern, fn):
                 input_files.extend(P.asList(value))
-
+    input_files = [re.sub('[^0-9a-zA-Z]+', '_', i) for i in input_files]
     return input_files
 
 
@@ -1072,8 +1072,8 @@ def mapTrack2Input(tracks):
 
         try:
             t = Sample(tablename=track)
-        except ValueError, msg:
-            print msg
+        except ValueError as msg:
+            print(msg)
             continue
 
         input_files = getInput(t)
@@ -1114,13 +1114,13 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     data = cc.fetchall()
 
     # transpose, remove interval_id column
-    data = zip(*data)
+    data = list(zip(*data))
     columns = [x[0] for x in cc.description]
 
     map_track2input = mapTrack2Input(columns)
     take_tracks = [x for x, y in enumerate(columns) if y in map_track2input]
     take_input = [x for x, y in enumerate(
-        columns) if y in map_track2input.values() and y is not None]
+        columns) if y in list(map_track2input.values()) and y is not None]
 
     # build data frame
     dataframe = pandas.DataFrame(
@@ -1186,7 +1186,7 @@ def buildWindowsFoldChangesPerMedian(infile, outfile):
     data = cc.fetchall()
 
     # transpose, remove interval_id column
-    data = zip(*data)
+    data = list(zip(*data))
     columns = [x[0] for x in cc.description]
 
     take_tracks = [x for x, y in enumerate(columns) if y != "interval_id"]
@@ -1245,7 +1245,7 @@ def summarizeAllWindowsTagCounts(infile, outfile):
     prefix = P.snip(outfile, ".tsv")
     job_memory = "32G"
 
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
     --method=summary
     --tags-tsv-file=%(infile)s
     --output-filename-pattern=%(prefix)s_
@@ -1276,7 +1276,7 @@ def summarizeWindowsTagCounts(infiles, outfile):
 
     design_file, counts_file = infiles
     prefix = P.snip(outfile, ".tsv")
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
     --method=summary
     --design-tsv-file=%(design_file)s
     --tags-tsv-file=%(counts_file)s
@@ -1310,7 +1310,7 @@ def dumpWindowsTagCounts(infiles, outfile):
     '''
     design_file, counts_file = infiles
 
-    statement = '''python %(scriptsdir)s/runExpression.py
+    statement = '''cgat runExpression
               --method=dump
               --design-tsv-file=%(design_file)s
               --tags-tsv-file=%(counts_file)s
@@ -1460,7 +1460,7 @@ def plotHilbertCurves(infile, outfile):
     outfile: str
         filename of hilbert plot
     '''
-    statement = '''python %(scriptsdir)s/bigwig2hilbert.py -v 0
+    statement = '''cgat bigwig2hilbert -v 0
                           --log=%(infile)s.log
                           --images-dir=images.dir
                           %(infile)s'''
@@ -1738,7 +1738,7 @@ def buildSpikeIns(infiles, outfile):
     design = P.snip(design_file, ".tsv")
     statement = '''
     zcat %(counts_file)s
-    | python %(scriptsdir)s/runExpression.py
+    | cgat runExpression
             --log=%(outfile)s.log
             --design-tsv-file=%(design_file)s
             --tags-tsv-file=-
@@ -1945,7 +1945,7 @@ def computeWindowComposition(infile, outfile):
     zcat %(infile)s
     | grep -v "^spike"
     | perl -p -e "s/:/\\t/; s/-/\\t/; s/test_id/contig\\tstart\\tend/"
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --counter=composition-cpg
     --genome-file=%(genome_dir)s/%(genome)s
     --has-header
@@ -2035,7 +2035,7 @@ def mergeDMRWindows(infile, outfile):
     statement = '''
     zcat %(infile)s
     | grep -v "^spike"
-    | python %(scriptsdir)s/medip_merge_intervals.py
+    | cgat medip_merge_intervals
     --log=%(outfile)s.log
     --invert
     --output-filename-pattern=%(prefix)s.%%s.bed.gz
@@ -2228,7 +2228,7 @@ def buildDMRWindowStats(infile, outfile):
     statement = '''
     zcat %(infile)s
     | grep -v 'contig'
-    | python %(scriptsdir)s/gff2histogram.py
+    | cgat gff2histogram
                    --force-output
                    --format=bed
                    --output-section=size
@@ -2296,7 +2296,7 @@ def loadDMRStats(infiles, outfile):
 
 # note: need to quote track names
 #     statement = '''
-#         python %(scriptsdir)s/diff_bed.py
+#         cgat diff_bed
 #               --pattern-identifier=".*/(.*).dmr.bed.gz"
 #               --log=%(outfile)s.log
 #               %(options)s %(infiles)s
@@ -2369,7 +2369,7 @@ def buildOverlapByMethod(infiles, outfile):
 
     # note: need to quote track names
     statement = '''
-    python %(scriptsdir)s/diff_bed.py %(options)s %(infiles)s
+    cgat diff_bed %(options)s %(infiles)s
     | awk -v OFS="\\t"
     '!/^#/ { gsub( /-/,"_", $1); gsub(/-/,"_",$2); } {print}'
     > %(outfile)s
@@ -2407,7 +2407,7 @@ def buildOverlapWithinMethod(infiles, outfile):
 
     # note: need to quote track names
     statement = '''
-    python %(scriptsdir)s/diff_bed.py %(options)s %(infiles)s
+    cgat diff_bed %(options)s %(infiles)s
     | awk -v OFS="\\t"
     '!/^#/ { gsub( /-/,"_", $1); gsub(/-/,"_",$2); } {print}'
     > %(outfile)s
@@ -2655,8 +2655,8 @@ def buildTranscriptProfiles(infiles, outfile):
     track = P.snip(os.path.basename(outfile), '.transcriptprofile.tsv.gz')
     try:
         t = Sample(filename=track)
-    except ValueError, msg:
-        print msg
+    except ValueError as msg:
+        print(msg)
         return
 
     job_memory = "8G"
@@ -2674,11 +2674,11 @@ def buildTranscriptProfiles(infiles, outfile):
     #         (os.path.join( os.path.dirname( bedfile ),
     #                        input_files[0] + '.bed.gz') )
     statement = '''zcat %(gtffile)s
-                   | python %(scriptsdir)s/gtf2gtf.py
+                   | cgat gtf2gtf
                      --method=filter
                      --filter-method=representative-transcript
                      --log=%(outfile)s.log
-                   | python %(scriptsdir)s/bam2geneprofile.py
+                   | cgat bam2geneprofile
                       --output-filename-pattern="%(outfile)s.%%s"
                       --force
                       --reporter=transcript

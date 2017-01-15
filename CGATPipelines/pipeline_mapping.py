@@ -2,7 +2,6 @@
 Read mapping pipeline
 =====================
 
-:Author: Andreas Heger
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -129,6 +128,9 @@ software to be in the path:
 +---------+------------+------------------------------------------------+
 |hisat    |>0.1.5      |read mapping                                    |
 +---------+------------+------------------------------------------------+
+|shortstack|>3.4       |read mapping                                    |
++---------+------------+------------------------------------------------+
+
 
 Merging bam files
 -----------------
@@ -183,6 +185,9 @@ Glossary
    butter
       butter_ - a read mapper for small RNA data (bowtie wrapper)
 
+   shortstack - a read mapper for small RNA data (bowtie wrapper)
+                that is an improvement on butter
+
 .. _tophat: http://tophat.cbcb.umd.edu/
 .. _bowtie: http://bowtie-bio.sourceforge.net/index.shtml
 .. _gsnap: http://research-pub.gene.com/gmap/
@@ -191,6 +196,8 @@ Glossary
 .. _bismark: http://www.bioinformatics.babraham.ac.uk/projects/bismark/
 .. _butter: https://github.com/MikeAxtell/butter
 .. _hisat: http://ccb.jhu.edu/software/hisat/manual.shtml
+.. _shortstack: https://github.com/MikeAxtell/ShortStack
+
 
 Code
 ====
@@ -381,6 +388,25 @@ def identifyProteinCodingGenes(outfile):
 @active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
+           "refflat.txt")
+def buildRefFlat(infile, outfile):
+    '''build flat geneset for Picard RnaSeqMetrics.
+    '''
+
+    tmpflat = P.getTempFilename(".")
+
+    statement = '''
+    gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s %(tmpflat)s;
+    paste <(cut -f 12 %(tmpflat)s) <(cut -f 1-10 %(tmpflat)s)
+    > %(outfile)s
+    '''
+    P.run()
+    os.unlink(tmpflat)
+
+
+@active_if(SPLICED_MAPPING)
+@transform(buildReferenceGeneSet,
+           suffix("reference.gtf.gz"),
            add_inputs(identifyProteinCodingGenes),
            "refcoding.gtf.gz")
 def buildCodingGeneSet(infiles, outfile):
@@ -409,7 +435,7 @@ def buildCodingGeneSet(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=gene
     --map-tsv-file=%(genes_tsv)s
@@ -461,23 +487,23 @@ def buildIntronGeneModels(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --map-tsv-file=%(genes_tsv)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort
     --sort-order=gene
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=exons2introns
     --intron-min-length=100
     --intron-border=10
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=crop
     --crop-gff-file=%(filename_exons)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=set-transcript-to-gene
     --log=%(outfile)s.log
     | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
@@ -496,7 +522,6 @@ def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadTranscript2Gene(infile, outfile)
 
 
-@active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset.dir/coding_exons.gtf.gz")
@@ -518,12 +543,12 @@ def buildCodingExons(infile, outfile):
     statement = '''
     zcat %(infile)s
     | awk '$3 == "CDS"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=proteincoding
     --log=%(outfile)s.log
     | awk -v OFS="\\t" -v FS="\\t" '{$3="exon"; print}'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --log=%(outfile)s.log
     | gzip
@@ -693,13 +718,14 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     "*.export.txt.gz",
                     "*.csfasta.gz",
                     "*.csfasta.F3.gz",
+                    "*.remote",
                     )
 
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                      for suffix_name in SEQUENCESUFFIXES])
+                       for suffix_name in SEQUENCESUFFIXES])
 
 SEQUENCEFILES_REGEX = regex(
-    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz)")
+    r".*/(\S+).(fastq.1.gz|fastq.gz|fa.gz|sra|csfasta.gz|csfasta.F3.gz|export.txt.gz|remote)")
 
 ###################################################################
 ###################################################################
@@ -768,10 +794,11 @@ def mapReadsWithTophat(infiles, outfile):
         :term:`PARAMS`
         path to tophat executable
 
-    tophat_library_type
+    strandness
         :term:`PARAMS`
-        fr-unstranded, fr-firststrand or fr-secondstrand see
-        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+        FR, RF, F or R or empty see
+        http://www.ccb.jhu.edu/software/hisat/manual.shtml#options
+        will be converted to tophat specific option
 
     tophat_include_reference_transcriptome: bool
         :term:`PARAMS`
@@ -801,6 +828,14 @@ def mapReadsWithTophat(infiles, outfile):
 
     job_threads = PARAMS["tophat_threads"]
 
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        tophat_library_type = "fr-firststrand"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        tophat_library_type = "fr-secondstrand"
+    else:
+        tophat_library_type = "fr-unstranded"
+
     if "--butterfly-search" in PARAMS["tophat_options"]:
         # for butterfly search - require insane amount of
         # RAM.
@@ -810,7 +845,8 @@ def mapReadsWithTophat(infiles, outfile):
 
     m = PipelineMapping.Tophat(
         executable=P.substituteParameters(**locals())["tophat_executable"],
-        strip_sequence=PARAMS["strip_sequence"])
+        strip_sequence=PARAMS["strip_sequence"],
+        tool_options=PARAMS["tophat_options"])
     infile, reffile, transcriptfile = infiles
     tophat_options = PARAMS["tophat_options"] + \
         " --raw-juncs %(reffile)s " % locals()
@@ -869,10 +905,11 @@ def mapReadsWithTophat2(infiles, outfile):
         :term:`PARAMS`
         path to tophat2 executable
 
-    tophat2_library_type
+    strandness
         :term:`PARAMS`
-        fr-unstranded, fr-firststrand or fr-secondstrand see
-        https://ccb.jhu.edu/software/tophat/manual.shtml#toph
+        FR, RF, F or R or empty see
+        http://www.ccb.jhu.edu/software/hisat/manual.shtml#options
+        will be converted to tophat specific option
 
     tophat2_include_reference_transcriptome: bool
         :term:`PARAMS`
@@ -905,6 +942,14 @@ def mapReadsWithTophat2(infiles, outfile):
     '''
     job_threads = PARAMS["tophat2_threads"]
 
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        tophat2_library_type = "fr-firststrand"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        tophat2_library_type = "fr-secondstrand"
+    else:
+        tophat2_library_type = "fr-unstranded"
+
     if "--butterfly-search" in PARAMS["tophat2_options"]:
         # for butterfly search - require insane amount of
         # RAM.
@@ -914,10 +959,12 @@ def mapReadsWithTophat2(infiles, outfile):
 
     m = PipelineMapping.Tophat2(
         executable=P.substituteParameters(**locals())["tophat2_executable"],
-        strip_sequence=PARAMS["strip_sequence"])
+        strip_sequence=PARAMS["strip_sequence"],
+        tool_options=PARAMS["tophat2_options"])
 
     infile, reffile, transcriptfile = infiles
-    tophat2_options = PARAMS["tophat2_options"] + " --raw-juncs %(reffile)s " % locals()
+    tophat2_options = PARAMS["tophat2_options"] + \
+        " --raw-juncs %(reffile)s" % locals()
 
     # Nick - added the option to map to the reference transcriptome first
     # (built within the pipeline)
@@ -969,7 +1016,7 @@ def mapReadsWithHisat(infiles, outfile):
         :term:`PARAMS`
         path to hisat executable
 
-    hisat_library_type: str
+    strandness: str
         :term:`PARAMS`
         hisat rna-strandess parameter, see
         https://ccb.jhu.edu/software/hisat/manual.shtml#command-line
@@ -1003,7 +1050,8 @@ def mapReadsWithHisat(infiles, outfile):
 
     m = PipelineMapping.Hisat(
         executable=P.substituteParameters(**locals())["hisat_executable"],
-        strip_sequence=PARAMS["strip_sequence"])
+        strip_sequence=PARAMS["strip_sequence"],
+        stranded=PARAMS["strandness"])
 
     infile, junctions = infiles
 
@@ -1078,8 +1126,8 @@ def buildTophatStats(infiles, outfile):
 
         fn = os.path.join(indir, "prep_reads.log")
         lines = open(fn).readlines()
-        reads_removed, reads_in = map(
-            int, _select(lines, "(\d+) out of (\d+) reads have been filtered out"))
+        reads_removed, reads_in = list(map(
+            int, _select(lines, "(\d+) out of (\d+) reads have been filtered out")))
         reads_out = reads_in - reads_removed
         prep_reads_version = _select(lines, "prep_reads (.*)$")
 
@@ -1298,7 +1346,7 @@ def buildSTARStats(infiles, outfile):
             header = re.sub("%", "percent", header)
             data[header.strip()].append(value.strip())
 
-    keys = data.keys()
+    keys = list(data.keys())
     outf = IOTools.openFile(outfile, "w")
     outf.write("track\t%s\n" % "\t".join(keys))
     for x, infile in enumerate(infiles):
@@ -1606,7 +1654,6 @@ def mapReadsWithBWA(infile, outfile):
            SEQUENCEFILES_REGEX,
            r"stampy.dir/\1.stampy.bam")
 def mapReadsWithStampy(infile, outfile):
-
     '''
     Map reads with stampy
 
@@ -1719,6 +1766,74 @@ def mapReadsWithButter(infile, outfile):
     m = PipelineMapping.Butter(
         strip_sequence=PARAMS["strip_sequence"],
         set_nh=PARAMS["butter_set_nh"])
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+###################################################################
+###################################################################
+###################################################################
+# Map reads with shortstack
+###################################################################
+
+
+@follows(mkdir("shortstack.dir"))
+@transform(SEQUENCEFILES,
+           SEQUENCEFILES_REGEX,
+           r"shortstack.dir/\1.shortstack.bam")
+def mapReadsWithShortstack(infile, outfile):
+    '''
+    Map reads with shortstack
+
+    Parameters
+    ----------
+    infile: str
+        filename of reads file
+        can be :term:`fastq`, :term:`sra`, csfasta
+
+    shortstack_threads: int
+        :term:`PARAMS`
+        number of threads with which to run shortstack
+
+    shortstack_memory: str
+        :term:`PARAMS`
+        memory required for shortstack job
+
+    shortstack_options: str
+        :term:`PARAMS`
+        string containing command line options to pass to Shortstack -
+        refer to https://github.com/MikeAxtell/ShortStack
+
+    shortstack_index_dir: str
+        :term:`PARAMS`
+        path to directory containing shortstack indices
+
+    strip_sequence: bool
+        :term:`PARAMS`
+        if set, strip read sequence and quality information
+
+    outfile: str
+        :term:`bam` filename to write the mapped reads in bam format.
+    '''
+
+    # easier to check whether infiles are paired reads here
+    if infile.endswith(".sra"):
+        outdir = P.getTempDir()
+        f = Sra.sneak(infile, outdir)
+        shutil.rmtree(outdir)
+        assert len(f) == 1, NotImplementedError('''The sra archive contains
+        paired end data,shortstack does not support paired end reads''')
+
+    elif infile.endswith(".csfasta.F3.gz") or infile.endswith(".fastq.1.gz"):
+        raise NotImplementedError('''infiles are paired end: %(infile)s,
+        shortstack does not support paired end reads''' % locals())
+
+    job_threads = PARAMS["shortstack_threads"]
+    job_memory = PARAMS["shortstack_memory"]
+
+    m = PipelineMapping.Shortstack(
+        strip_sequence=PARAMS["strip_sequence"])
+    statement = m.build((infile,), outfile)
 
     P.run()
 
@@ -1727,6 +1842,7 @@ def mapReadsWithButter(infile, outfile):
 ###################################################################
 # Create map reads tasks
 ###################################################################
+
 
 MAPPINGTARGETS = []
 mapToMappingTargets = {'tophat': (mapReadsWithTophat, loadTophatStats),
@@ -1740,6 +1856,7 @@ mapToMappingTargets = {'tophat': (mapReadsWithTophat, loadTophatStats),
                        'gsnap': (mapReadsWithGSNAP,),
                        'star': (mapReadsWithSTAR, loadSTARStats),
                        'butter': (mapReadsWithButter,),
+                       'shortstack': (mapReadsWithShortstack,),
                        'hisat': (mapReadsWithHisat,)
                        }
 
@@ -1849,31 +1966,6 @@ else:
 # QC targets
 ###################################################################
 
-###################################################################
-###################################################################
-###################################################################
-#
-# This is not a pipelined task - remove?
-#
-# @active_if( SPLICED_MAPPING )
-# @transform( MAPPINGTARGETS,
-#             suffix(".bam" ),
-#             ".picard_inserts")
-# def buildPicardTranscriptomeInsertSize( infiles, outfile ):
-#     '''build alignment stats using picard.
-
-#     Note that picards counts reads but they are in fact alignments.
-#     '''
-#     infile, reffile = infiles
-
-#     PipelineMappingQC.buildPicardAlignmentStats( infile,
-#                                                  outfile,
-#                                                  reffile )
-
-############################################################
-###########################################################
-############################################################
-
 
 @P.add_doc(PipelineMappingQC.buildPicardAlignmentStats)
 @transform(MAPPINGTARGETS,
@@ -1949,7 +2041,7 @@ def buildBAMStats(infiles, outfile):
 
     rna_file = PARAMS["annotations_interface_rna_gff"]
 
-    job_memory = "16G"
+    job_memory = "32G"
 
     bamfile, readsfile = infiles
 
@@ -1970,8 +2062,8 @@ def buildBAMStats(infiles, outfile):
     else:
         fastq_option = ""
 
-    statement = '''python
-    %(scriptsdir)s/bam2stats.py
+    statement = '''
+    cgat bam2stats
          %(fastq_option)s
          --force-output
          --mask-bed-file=%(rna_file)s
@@ -2018,8 +2110,6 @@ def loadContextStats(infiles, outfile):
 ###################################################################
 # QC specific to spliced mapping
 ###################################################################
-###################################################################
-###################################################################
 
 
 @active_if(SPLICED_MAPPING)
@@ -2047,7 +2137,7 @@ def buildExonValidation(infiles, outfile):
 
     infile, exons = infiles
     statement = '''cat %(infile)s
-    | python %(scriptsdir)s/bam_vs_gtf.py
+    | cgat bam_vs_gtf
          --exons-file=%(exons)s
          --force-output
          --log=%(outfile)s.log
@@ -2125,7 +2215,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(geneset)s
-    | python %%(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
     --reporter=transcripts
     --bam-file=%(infile)s
     --counter=length
@@ -2169,10 +2259,8 @@ def loadTranscriptLevelReadCounts(infile, outfile):
            ".intron_counts.tsv.gz")
 def buildIntronLevelReadCounts(infiles, outfile):
     '''count reads in gene models
-
     Count the reads from a :term:`bam` file which overlap the
     positions of introns in a :term:`gtf` format transcripts file.
-
     Parameters
     ----------
     infiles : list of str
@@ -2182,12 +2270,10 @@ def buildIntronLevelReadCounts(infiles, outfile):
           Input filename in :term:`gtf` format
     outfile : str
        Output filename in :term:`tsv` format
-
     .. note::
        In paired-end data sets each mate will be counted. Thus
        the actual read counts are approximately twice the fragment
        counts.
-
     '''
     infile, exons = infiles
 
@@ -2199,7 +2285,7 @@ def buildIntronLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(exons)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=genes
           --bam-file=%(infile)s
           --counter=length
@@ -2296,7 +2382,7 @@ def buildTranscriptProfiles(infiles, outfile):
 
     job_memory = "8G"
 
-    statement = '''python %(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
     --output-filename-pattern="%(outfile)s.%%s"
     --force-output
     --reporter=transcript
@@ -2311,10 +2397,79 @@ def buildTranscriptProfiles(infiles, outfile):
     P.run()
 
 
+@transform(MAPPINGTARGETS,
+           suffix(".bam"),
+           add_inputs(buildCodingExons),
+           ".geneprofile.gz")
+def buildGeneProfiles(infiles, outfile):
+    '''build gene coverage profiles
+
+    Gene coverage plots are useful to determine mapping location
+    for a number of genomic techniques.
+
+    In addition to the outfile specified by the task, plots will be
+    saved with full and focus views of the meta-profile
+
+    Parameters
+    ----------
+    infiles : list of str
+    infiles[0] : str
+       Input filename in :term:`bam` format
+    infiles[1] : str`
+       Input filename in :term:`gtf` format
+
+    outfile : str
+       Output filename in :term:`tsv` format
+    '''
+
+    bamfile, gtffile = infiles
+    job_memory = "8G"
+
+    statement = '''cgat bam2geneprofile
+                --method=geneprofilewithintrons
+                --bam-file=%(bamfile)s
+                --gtf-file=%(gtffile)s
+                --normalize-transcript=total-sum
+                --normalize-profile=area
+                --log=%(outfile)s.log
+                --output-filename-pattern=%(outfile)s.%%s
+                > %(outfile)s '''
+    P.run()
+
+
+@active_if(SPLICED_MAPPING)
+@P.add_doc(PipelineMappingQC.buildPicardRnaSeqMetrics)
+@transform(MAPPINGTARGETS,
+           suffix(".bam"),
+           add_inputs(buildRefFlat),
+           ".picard_rna_metrics")
+def buildPicardRnaSeqMetrics(infiles, outfile):
+    '''Get duplicate stats from picard RNASeqMetrics '''
+    # convert strandness to tophat-style library type
+    if PARAMS["strandness"] == ("RF" or "R"):
+        strand = "SECOND_READ_TRANSCRIPTION_STRAND"
+    elif PARAMS["strandness"] == ("FR" or "F"):
+        strand = "FIRST_READ_TRANSCRIPTION_STRAND"
+    else:
+        strand = "NONE"
+    PipelineMappingQC.buildPicardRnaSeqMetrics(infiles, strand, outfile)
+
+
+@P.add_doc(PipelineMappingQC.loadPicardRnaSeqMetrics)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildPicardRnaSeqMetrics, ["picard_rna_metrics.load",
+                                  "picard_rna_histogram.load"])
+def loadPicardRnaSeqMetrics(infiles, outfiles):
+    '''merge alignment stats into single tables.'''
+    PipelineMappingQC.loadPicardRnaSeqMetrics(infiles, outfiles)
+
+###################################################################
 ###################################################################
 ###################################################################
 # various export functions
 ###################################################################
+
+
 @transform(MAPPINGTARGETS,
            regex(".bam"),
            ".bw")
@@ -2360,7 +2515,7 @@ def buildBigWig(infile, outfile):
     else:
         # wigToBigWig observed to use 16G
         job_memory = "16G"
-        statement = '''python %(scriptsdir)s/bam2wiggle.py
+        statement = '''cgat bam2wiggle
         --output-format=bigwig
         %(bigwig_options)s
         %(infile)s
@@ -2395,14 +2550,14 @@ def loadBigWigStats(infiles, outfile):
         P.toTable(outfile),
         options="--add-index=track")
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
     --header-names=%(headers)s
     --skip-titles
     --missing-value=0
     --ignore-empty
     %(data)s
     | perl -p -e "s/bin/track/"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s
     '''
@@ -2426,7 +2581,7 @@ def buildBed(infile, outfile):
 
     statement = '''
     cat %(infile)s
-    | python %(scriptsdir)s/bam2bed.py
+    | cgat bam2bed
           %(bed_options)s
           --log=%(outfile)s.log
           -
@@ -2467,6 +2622,7 @@ def buildIGVSampleInformation(infiles, outfile):
 @follows(loadReadCounts,
          loadPicardStats,
          loadBAMStats,
+         buildGeneProfiles,
          loadContextStats)
 def general_qc():
     pass
@@ -2477,7 +2633,8 @@ def general_qc():
          loadGeneInformation,
          loadTranscriptLevelReadCounts,
          loadIntronLevelReadCounts,
-         buildTranscriptProfiles)
+         buildTranscriptProfiles,
+         loadPicardRnaSeqMetrics)
 def spliced_qc():
     pass
 
@@ -2564,6 +2721,17 @@ def publish():
         "bamfiles": glob.glob("*/*.bam") + glob.glob("*/*.bam.bai"),
         "bigwigfiles": glob.glob("*/*.bw"),
     }
+
+    if PARAMS['ucsc_exclude']:
+        for filetype, files in export_files.items():
+            new_files = set(files)
+            for f in files:
+                for regex in P.asList(PARAMS['ucsc_exclude']):
+                    if re.match(regex, f):
+                        new_files.remove(f)
+                        break
+
+            export_files[filetype] = list(new_files)
 
     # publish web pages
     E.info("publishing report")

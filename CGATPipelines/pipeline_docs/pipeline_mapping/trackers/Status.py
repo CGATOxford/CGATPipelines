@@ -1,3 +1,4 @@
+from MappingReport import MappingTracker
 from CGATReport.Tracker import Status, SQLError
 
 
@@ -30,6 +31,9 @@ class MappingStatus(MappingTracker, Status):
             status = "WARNING"
         else:
             status = "FAIL"
+
+        if value is None:
+            value = 0
 
         return status, "%5.2f%%" % (100.0 * value)
 

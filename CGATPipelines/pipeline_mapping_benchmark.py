@@ -59,7 +59,7 @@ USECLUSTER = True
 # Pipeline configuration
 ###################################################
 P.getParameters(["%s/pipeline.ini" %
-                os.path.splitext(__file__)[0],  "../pipeline.ini", "pipeline.ini"])
+                 os.path.splitext(__file__)[0],  "../pipeline.ini", "pipeline.ini"])
 PARAMS = P.PARAMS
 
 bowtie_options = {'n0m1': "-n 0 -a --best --strata -m 1 -3 1", 'n1m1': "-n 1 -a --best --strata -m 1 -3 1", 'n2m1': "-n 2 -a --best --strata -m 1 -3 1", 'n3m1': "-n 3 -a --best --strata -m 1 -3 1",
@@ -79,7 +79,7 @@ bowtie_options = {'n0m1': "-n 0 -a --best --strata -m 1 -3 1", 'n1m1': "-n 1 -a 
 # MAP READS
 
 
-@files([(PARAMS["test_file"], "%s.bam" % x, bowtie_options.get(x)) for x in bowtie_options.keys()])
+@files([(PARAMS["test_file"], "%s.bam" % x, bowtie_options.get(x)) for x in list(bowtie_options.keys())])
 def buildBAM(infile, outfile, options):
     '''map reads with bowtie'''
     job_threads = PARAMS["bowtie_threads"]
@@ -183,7 +183,7 @@ def loadPicardDuplicateStats(infiles, outfile):
     tmpfilename = outf.name
 
     statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s
@@ -200,7 +200,7 @@ def buildBAMStats(infile, outfile):
     '''Count number of reads mapped, duplicates, etc. '''
     to_cluster = USECLUSTER
     scriptsdir = PARAMS["general_scriptsdir"]
-    statement = '''python %(scriptsdir)s/bam2stats.py --force-output 
+    statement = '''cgat bam2stats --force-output 
                    --output-filename-pattern=%(outfile)s.%%s < %(infile)s > %(outfile)s'''
     P.run()
 
@@ -213,19 +213,19 @@ def loadBAMStats(infiles, outfile):
 
     scriptsdir = PARAMS["general_scriptsdir"]
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
     E.info("loading bam stats - summary")
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
                       --header-names=%(header)s
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/track/"
                 | perl -p -e "s/unique/unique_alignments/"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
+                | cgat table2table --transpose
+                | cgat csv2db
                       --allow-empty-file
                       --add-index=track
                       --table=%(tablename)s 
@@ -237,14 +237,14 @@ def loadBAMStats(infiles, outfile):
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
         tname = "%s_%s" % (tablename, suffix)
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
                       --header-names=%(header)s
                       --skip-titles
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --table=%(tname)s 
                       --allow-empty-file
                 >> %(outfile)s """
@@ -292,7 +292,7 @@ def loadPicardAlignStats(infiles, outfile):
     tmpfilename = outf.name
 
     statement = '''cat %(tmpfilename)s
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s

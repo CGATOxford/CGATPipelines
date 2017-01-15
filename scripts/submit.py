@@ -183,7 +183,7 @@ def main(argv=None):
                         "# ERROR: failed to execute %s\n" % cmd)
                 nerrors += 1
                 continue
-        except OSError, e:
+        except OSError as e:
             if options.loglevel >= 1:
                 options.stdlog.write(
                     "# ERROR: failed to execute %s with msg %s\n" % (cmd, e))

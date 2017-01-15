@@ -324,7 +324,7 @@ def loadHypergeometricAnalysis(infile, outfile):
             tablename=tablename)
 
         statement = '''
-        python %(scriptsdir)s/combine_tables.py
+        cgat combine_tables
         --cat=track
         --regex-filename="hypergeometric.dir/%(track)s.tsv.dir/(\S+).%(section)s"
         hypergeometric.dir/%(track)s.tsv.dir/*.%(section)s
@@ -382,7 +382,7 @@ def plotGOResults(infiles, outfile):
 
     statement = '''
     cat %(infiles)s
-    | python %(scriptsdir)s/revigo.py
+    | cgat revigo
       --go-tsv-file=%(annotations_filename_go)s
       --output-filename-pattern=%(track)s.%%s
       --ontology=all

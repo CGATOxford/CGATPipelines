@@ -377,7 +377,7 @@ def getControl(track, suffix='.genome.bam'):
     if control is not None:
         if not os.path.exists(control + suffix):
             raise ValueError("control file %s does not exist for %s" %
-                             (fn+suffix,
+                             (fn + suffix,
                               track))
         controls = [Sample(filename=control)]
         return controls
@@ -449,7 +449,7 @@ def getBamFiles(infile, suffix):
 
     controls = getControl(Sample(track))
     controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    if not os.path.exists(controlfile):
+    if not os.path.exists(str(controlfile)):
         L.warn("no controlfile '%s' for track '%s' not found " %
                (controlfile, track))
         controlfile = None
@@ -484,7 +484,7 @@ def connect():
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ############################################################
 ############################################################
@@ -534,9 +534,10 @@ def prepareBAMForPeakCalling(infile, outfile):
 
     '''
     if PARAMS["calling_filter_regions"]:
+
+        mask = PARAMS["calling_filter_regions"]
         if not os.path.exists(mask):
             raise IOError("filter file '%s' does not exist")
-        mask = PARAMS["calling_filter_regions"]
     else:
         mask = None
 
@@ -631,8 +632,8 @@ def buildBAMStats(infile, outfile):
 
     job_memory = "4G"
 
-    statement = '''python
-    %(scriptsdir)s/bam2stats.py
+    statement = '''
+    cgat bam2stats
          --force-output
          --output-filename-pattern=%(outfile)s.%%s
     < %(infile)s
@@ -662,7 +663,7 @@ def buildBackgroundWindows(infile, outfile):
     job_options = "-l mem_free=16G"
 
     statement = '''
-    python %(scriptsdir)s/wig2bed.py
+    cgat wig2bed
              --bigwig-file=%(infile)s
              --genome-file=%(genome_dir)s/%(genome)s
              --threshold=%(calling_background_density)f
@@ -804,7 +805,7 @@ def predictFragmentSize(infile, outfile):
 def buildFragmentSizeTable(infiles, outfile):
     '''build a table with fragment sizes.'''
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --cat=track
     --regex-filename=".*/(\\S+).fragment_size"
     fragment_size.dir/*.fragment_size
@@ -903,7 +904,7 @@ def cleanMACS(infiles, outfiles):
             statement = '''
         zcat %(indir)s/*.wig.gz
         | awk '/track/ { if (skip) {next} skip=1; } { print }'
-        | python %(scriptsdir)s/wig2wig.py
+        | cgat wig2wig
                 --method=sanitize-genome
                 --log=%(outfile)s.log
                 --genome=%(genome_dir)s/%(genome)s
@@ -961,9 +962,9 @@ def callPeaksWithMACS2(infile, outfile):
     contigsfile = os.path.join(PARAMS["annotations_dir"],
                                PARAMS["annotations_interface_contigs"])
 
-    print "annoatations.dir", PARAMS["annotations_dir"]
-    print "interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"]
-    print "contigsfile: ", contigsfile
+    print("annoatations.dir", PARAMS["annotations_dir"])
+    print("interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"])
+    print("contigsfile: ", contigsfile)
 
     PipelinePeakcalling.runMACS2(
         infile,
@@ -1468,7 +1469,7 @@ def applyIDR(infiles, outfile):
         control2 = getControl(Sample(track2)).asFile()
 
         statement = '''
-          python %(scriptsdir)s/WrapperIDR.py
+          cgat WrapperIDR
                  --action=run
                  --output-prefix=%(track1)s_vs_%(track2)s.idr
                  --chromosome-table=%(chromosome_table)s
@@ -1492,7 +1493,7 @@ def plotIDR(infile, outfile):
     output_prefix = os.path.join(
         PARAMS["exportdir"], "idr", os.path.basename(track))
     statement = '''
-    python %(scriptsdir)s/WrapperIDR.py
+    cgat WrapperIDR
                --action=plot
                --output-prefix=%(output_prefix)s
                %(files)s
@@ -1720,7 +1721,7 @@ def buildPeakShapeTable(infile, outfile):
         options.append("--control-bam-file=%s" % controlfile)
     options = " ".join(options)
 
-    statement = '''python %(scriptsdir)s/bam2peakshape.py
+    statement = '''cgat bam2peakshape
                       --window-size=%(peakshape_window_size)i
                       --bin-size=%(peakshape_bin_size)i
                       --output-filename-pattern="%(outfile)s.%%s"

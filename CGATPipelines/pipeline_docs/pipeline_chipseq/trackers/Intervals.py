@@ -29,7 +29,7 @@ class IntervalsSummary(DefaultTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*), AVG(length), SUM(nprobes)  FROM %(track)s_intervals" % locals())
-        return odict(zip(("nintervals", "<length>", "nprobes"), data))
+        return odict(list(zip(("nintervals", "<length>", "nprobes"), data)))
 
 ##########################################################################
 ##########################################################################
@@ -158,7 +158,7 @@ class IntervalLengthVsAverageValue(DefaultTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT length, avgval FROM %(track)s_intervals" % locals())
-        return odict(zip(("length", "avgval"), zip(*data)))
+        return odict(list(zip(("length", "avgval"), list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -177,7 +177,7 @@ class IntervalLengthVsPeakValue(DefaultTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT length, peakval FROM %(track)s_intervals" % locals())
-        return odict(zip(("length", "peakval"), zip(*data)))
+        return odict(list(zip(("length", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
@@ -254,7 +254,7 @@ class IntervalList(DefaultTracker):
             pos = "`%(contig)s:%(start)i..%(end)i <http://genome.ucsc.edu/cgi-bin/hgTracks?db=%(ucsc_genome)s&position=%(contig)s:%(start)i..%(end)i>`_" \
                 % locals()
             n[str(id)] = odict(
-                zip(self.mColumnsFixed + self.mColumnsVariable, (pos, end - start,) + d[4:]))
+                list(zip(self.mColumnsFixed + self.mColumnsVariable, (pos, end - start,) + d[4:])))
 
         return n
 
@@ -285,9 +285,9 @@ class IntervalListFull(DefaultTracker):
           ORDER BY i.peakval DESC''' % locals()
 
         data = self.get(statement)
-        return odict(zip(
+        return odict(list(zip(
             ("contig", "start", "end", "peakval", "avgval"),
-            zip(*data)))
+            list(zip(*data)))))
 
 ##########################################################################
 ##########################################################################
