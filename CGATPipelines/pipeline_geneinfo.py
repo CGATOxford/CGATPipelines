@@ -259,7 +259,7 @@ def AnnotateWithMousePathway(infile, outfile):
                                   mouse pathway ID
     mousepathway$details - mouse pathway ID to mouse pathway details
     '''
-    genelist = PipelineGeneInfo.getSymbols(infile)
+    genelist = list(set(PipelineGeneInfo.getSymbols(infile)))
     MP = PipelineGeneInfo.MousePathwayAnnotation(
         PARAMS['homologues_mousemine'],
         PARAMS['db_name'], ohost=PARAMS['entrez_host'])
@@ -278,7 +278,7 @@ def AnnotateWithMGI(infile, outfile):
     ensemblg2mgi$annot - original host ensemblg to mouse phenotype ID
     mgi$details - mouse phenotype ID to mouse phenotype details
     '''
-    genelist = PipelineGeneInfo.getSymbols(infile)
+    genelist = list(set(PipelineGeneInfo.getSymbols(infile)))
     MGI = PipelineGeneInfo.MGIAnnotation(
         PARAMS['homologues_mousemine'],
         PARAMS['db_name'], ohost=PARAMS['entrez_host'])
@@ -297,7 +297,7 @@ def AnnotateWithHPO(infile, outfile):
     ensemblg2hpo$annot - original host ensemblg to human phenotype ID
     hpo$details - human phenotype ID to human phenotype details
     '''
-    genelist = PipelineGeneInfo.getSymbols(infile)
+    genelist = list(set(PipelineGeneInfo.getSymbols(infile)))
     HPO = PipelineGeneInfo.HPOAnnotation(
         PARAMS['homologues_humanmine'],
         PARAMS['db_name'], PARAMS['entrez_host'])
