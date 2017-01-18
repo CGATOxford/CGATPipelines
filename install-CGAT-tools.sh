@@ -178,6 +178,7 @@ else
 fi # if travis install
 
 CONDA_INSTALL_DIR=$CGAT_HOME/conda-install
+CONDA_INSTALL_ENV=$(echo $CONDA_INSTALL_TYPE | md5sum | cut -c1-9)
 
 } # get_cgat_env
 
@@ -244,11 +245,11 @@ conda info -a
 # keep rpy2-2.4 for production scripts
 if [ "$CONDA_INSTALL_TYPE" == "cgat-scripts" ] ; then
 
-   conda create -q -n $CONDA_INSTALL_TYPE $CONDA_INSTALL_TYPE gcc=4.8.3 rpy2=2.4 --override-channels --channel https://conda.binstar.org/cgat --channel defaults --channel https://conda.binstar.org/r --yes
+   conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE gcc=4.8.3 rpy2=2.4 --override-channels --channel https://conda.binstar.org/cgat --channel defaults --channel https://conda.binstar.org/r --yes
 
 else
 
-   conda create -q -n cgat-env $CONDA_INSTALL_TYPE --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
+   conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
 
 fi
 
@@ -272,7 +273,7 @@ if [ "$OS" != "travis" ] ; then
       fi
 
       # activate cgat environment
-      source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
+      source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 
       # Set up other environment variables
       setup_env_vars
@@ -324,7 +325,7 @@ if [ "$OS" != "travis" ] ; then
       echo " The CGAT code was successfully installed!"
       echo
       echo " To activate the CGAT environment type: "
-      echo " $ source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE"
+      echo " $ source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV"
       [ $INSTALL_SCRIPTS ] && echo " cgat --help"
       echo
       echo " To deactivate the environment, use:"
@@ -349,7 +350,7 @@ setup_env_vars
 if [ $TRAVIS_INSTALL ] ; then
 
    # enable Conda env
-   source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
+   source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 
    # need to install the CGAT Code Collection as well
    git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
@@ -385,7 +386,7 @@ else
       echo
    elif [ "$CONDA_INSTALL_TYPE" == "cgat-devel-lite" ] || [ "$CONDA_INSTALL_TYPE" == "cgat-devel" ] ; then
       # prepare environment
-      source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
+      source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 
       if [ $INSTALL_ZIP ] ; then
          cd $CGAT_HOME/cgat-master
@@ -459,7 +460,7 @@ conda_update() {
 # get environment variables: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE
 get_cgat_env
 
-source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_TYPE
+source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 conda update --all
 
 if [ ! $? -eq 0 ] ; then
