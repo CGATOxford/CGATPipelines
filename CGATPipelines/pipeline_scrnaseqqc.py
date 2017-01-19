@@ -382,7 +382,6 @@ else:
         P.run()
 
 
-
 @follows(quantifyWithSailfish)
 @transform(quantifyWithSailfish,
            regex("tpm.dir/(.+)/quant.genes.sf"),
@@ -726,6 +725,7 @@ if PARAMS['paired']:
 else:
     def getPicardInsertStats():
         pass
+
 
 @originate("stats.dir/duplication_stats.tsv")
 def getDuplicationStats(outfile):
