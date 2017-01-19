@@ -39,10 +39,8 @@ import os
 import pickle
 import pipes
 import re
-import stat
 import subprocess
 import sys
-import time
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
