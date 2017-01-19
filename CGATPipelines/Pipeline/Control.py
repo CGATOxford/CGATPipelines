@@ -55,13 +55,6 @@ except ImportError:
 
 from multiprocessing.pool import ThreadPool
 
-# talking to mercurial
-try:
-    import hgapi
-    HAS_MERCURIAL = True
-except ImportError:
-    HAS_MERCURIAL = False
-
 # talking to RabbitMQ
 try:
     import pika
@@ -809,35 +802,6 @@ def main(args=sys.argv):
         variable, value = variables.split("=")
         PARAMS[variable.strip()] = IOTools.str2val(value.strip())
 
-    version = None
-
-    if HAS_MERCURIAL:
-
-        # this is for backwards compatibility
-        # get mercurial version
-        repo = hgapi.Repo(PARAMS["pipeline_scriptsdir"])
-        version = repo.hg_id()
-
-        status = repo.hg_status()
-        if status["M"] or status["A"]:
-            if not options.force:
-                raise ValueError(
-                    ("uncommitted change in code "
-                     "repository at '%s'. Either commit or "
-                     "use --force-output") % PARAMS["pipeline_scriptsdir"])
-            else:
-                E.warn("uncommitted changes in code repository - ignored ")
-        version = version[:-1]
-
-    else:
-        # try git:
-        try:
-            stdout, stderr = execute(
-                "git rev-parse HEAD", cwd=PARAMS["pipeline_scriptsdir"])
-        except:
-            stdout = "NA"
-        version = stdout
-
 
     if args:
         options.pipeline_action = args[0]
@@ -914,7 +878,6 @@ def main(args=sys.argv):
                 # session_mutex = manager.Lock()
                 E.info(E.GetHeader())
                 E.info("code location: %s" % PARAMS["pipeline_scriptsdir"])
-                E.info("code version: %s" % version)
                 E.info("Working directory is: %s" % PARAMS["workingdir"])
 
                 pipeline_run(
