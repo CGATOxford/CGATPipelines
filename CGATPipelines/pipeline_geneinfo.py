@@ -101,6 +101,8 @@ import os
 import sys
 import CGATPipelines.PipelineGeneInfo as PipelineGeneInfo
 import CGAT.IOTools as IOTools
+import pandas as pd
+
 
 PARAMS = P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
@@ -111,6 +113,11 @@ PARAMS = P.getParameters(
 example_pw = PARAMS['my_gene_info_pathway'].split(",")[0]
 if example_pw == "all":
     example_pw = 'kegg'
+example_homolo = str(PARAMS['my_gene_info_homologene']).split(",")
+if len(example_homolo) == 0 or example_homolo[0] == 'all':
+    example_homolo = 10090
+else:
+    example_homolo = example_homolo[0]
 
 # get the list of annotations to be downloaded from my gene info
 mgiannotations = PARAMS['my_gene_info_annotations'].split(",")
@@ -135,25 +142,33 @@ def GetAndTranslateAllGenes(outfile):
     '''
     GeneAnnot = PipelineGeneInfo.EntrezGeneAnnotation(
         PARAMS['db_name'], PARAMS['entrez_email'])
-    genelist = GeneAnnot.download_all(PARAMS['entrez_host'])
-
-    # Generate an EnsemblAnnotation object
-    Ens = PipelineGeneInfo.EnsemblAnnotation(PARAMS['my_gene_info_source'],
-                                             PARAMS['db_name'])
-    # Get Ensembl annotations
-    PipelineGeneInfo.runall(Ens, genelist, ['ensembl'], submit=True)
+    entrezgenelist = GeneAnnot.download_all(PARAMS['entrez_host'])
 
     # Generate a SymbolAnnotation object
     Sym = PipelineGeneInfo.SymbolAnnotation(PARAMS['my_gene_info_source'],
                                             PARAMS['db_name'],
                                             PARAMS['entrez_host'],
                                             PARAMS['entrez_sciname'])
+
     # Get Symbol Annotations
-    PipelineGeneInfo.runall(Sym, genelist, ['symbol'], submit=True)
+    PipelineGeneInfo.runall(Sym, entrezgenelist, ['symbol'],
+                            scope='entrezgene', species=PARAMS['entrez_host'],
+                            submit=True)
+
+    genesymbols = list(pd.read_csv("entrez2symbol_%s.tsv" % PARAMS[
+        'entrez_host'], sep="\t")['symbol_%s' % PARAMS['entrez_host']])
+
+    # Generate an EnsemblAnnotation object
+    Ens = PipelineGeneInfo.EnsemblAnnotation(PARAMS['my_gene_info_source'],
+                                             PARAMS['db_name'],
+                                             PARAMS['entrez_host'])
+    # Get Ensembl annotations
+    PipelineGeneInfo.runall(Ens, genesymbols, ['ensembl'], scope="symbol",
+                            species=PARAMS['entrez_host'], submit=True)
 
     # Make output gene list
     outf = IOTools.openFile(outfile, "w")
-    for gene in genelist:
+    for gene in genesymbols:
         outf.write("%s\n" % gene)
     outf.close()
 
@@ -174,14 +189,17 @@ def AnnotateWithGO(infile, outfile):
     # Generate a GoAnnotation object with details from mygene.info
     GO = PipelineGeneInfo.GoAnnotation(PARAMS['my_gene_info_source'],
                                        PARAMS['db_name'],
-                                       PARAMS['my_gene_info_go'])
-    PipelineGeneInfo.runall(GO, genelist, ['go'], submit=True)
+                                       PARAMS['my_gene_info_go'],
+                                       PARAMS['entrez_host'])
+    PipelineGeneInfo.runall(GO, genelist, ['go'],
+                            species=PARAMS['entrez_host'], submit=True)
 
     # Get the GO hierarcical ontology from OBO foundry
     ont = PipelineGeneInfo.OntologyAnnotation('go',
                                               PARAMS['my_gene_info_goont'],
                                               PARAMS['db_name'])
-    PipelineGeneInfo.runall(ont, genelist, submit=True)
+    PipelineGeneInfo.runall(ont, genelist, species=PARAMS['entrez_host'],
+                            submit=True)
 
 
 @active_if('pathway' in mgiannotations)
@@ -199,13 +217,16 @@ def AnnotateWithPathway(infile, outfile):
     genelist = PipelineGeneInfo.readGeneList(infile)
     PW = PipelineGeneInfo.PathwayAnnotation(PARAMS['my_gene_info_source'],
                                             PARAMS['db_name'],
-                                            PARAMS['my_gene_info_pathway'])
-    PipelineGeneInfo.runall(PW, genelist, ['pathway'], submit=True)
+                                            PARAMS['my_gene_info_pathway'],
+                                            PARAMS['entrez_host'])
+    PipelineGeneInfo.runall(PW, genelist,
+                            ['pathway'], species=PARAMS['entrez_host'],
+                            submit=True)
 
 
 @active_if('homologene' in mgiannotations)
 @transform(GetAndTranslateAllGenes, suffix(".tsv"),
-           'ensemblg2symbol_Homo_sapiens\$annot.load')
+           'ensemblg2symbol_%s\$annot.load' % example_homolo)
 def AnnotateWithHomologene(infile, outfile):
     '''
     Annotates all genes in allgenes.tsv with homologous gene symbols from
@@ -221,12 +242,13 @@ def AnnotateWithHomologene(infile, outfile):
                                                    'my_gene_info_homologene'],
                                                PARAMS['entrez_host'],
                                                PARAMS['entrez_email'])
-    PipelineGeneInfo.runall(HG, genelist, ['homologene'], submit=True)
+    PipelineGeneInfo.runall(HG, genelist, ['homologene'],
+                            species=PARAMS['entrez_host'], submit=True)
 
 
 @follows(AnnotateWithHomologene)
-@active_if(int(PARAMS['homologues_mgi']) == 1)
-@transform('ensemblg2symbol_Mus_musculus$geneid.load', suffix(".load"),
+@active_if(int(PARAMS['homologues_mousepathway']) == 1)
+@transform('ensemblg2symbol_10090$geneid.load', suffix(".load"),
            'ensemblg2mousepathway\$annot.load')
 def AnnotateWithMousePathway(infile, outfile):
     '''
@@ -237,16 +259,16 @@ def AnnotateWithMousePathway(infile, outfile):
                                   mouse pathway ID
     mousepathway$details - mouse pathway ID to mouse pathway details
     '''
-    genelist = PipelineGeneInfo.getSymbols(infile)
+    genelist = list(set(PipelineGeneInfo.getSymbols(infile)))
     MP = PipelineGeneInfo.MousePathwayAnnotation(
         PARAMS['homologues_mousemine'],
-        PARAMS['db_name'])
+        PARAMS['db_name'], ohost=PARAMS['entrez_host'])
     PipelineGeneInfo.runall(MP, genelist, submit=True)
 
 
 @follows(AnnotateWithHomologene)
-@active_if(int(PARAMS['homologues_mousepathway']) == 1)
-@transform('ensemblg2symbol_Mus_musculus$geneid.load', suffix(".load"),
+@active_if(int(PARAMS['homologues_mgi']) == 1)
+@transform('ensemblg2symbol_10090$geneid.load', suffix(".load"),
            'ensemblg2mgi\$annot.load')
 def AnnotateWithMGI(infile, outfile):
     '''
@@ -256,16 +278,16 @@ def AnnotateWithMGI(infile, outfile):
     ensemblg2mgi$annot - original host ensemblg to mouse phenotype ID
     mgi$details - mouse phenotype ID to mouse phenotype details
     '''
-    genelist = PipelineGeneInfo.getSymbols(infile)
+    genelist = list(set(PipelineGeneInfo.getSymbols(infile)))
     MGI = PipelineGeneInfo.MGIAnnotation(
         PARAMS['homologues_mousemine'],
-        PARAMS['db_name'])
+        PARAMS['db_name'], ohost=PARAMS['entrez_host'])
     PipelineGeneInfo.runall(MGI, genelist, submit=True)
 
 
 @follows(AnnotateWithHomologene)
 @active_if(int(PARAMS['homologues_hpo']) == 1)
-@transform('ensemblg2symbol_Homo_sapiens$geneid.load', suffix(".load"),
+@transform('ensemblg2symbol_9606$geneid.load', suffix(".load"),
            'ensemblg2hpo\$annot.load')
 def AnnotateWithHPO(infile, outfile):
     '''
@@ -275,15 +297,16 @@ def AnnotateWithHPO(infile, outfile):
     ensemblg2hpo$annot - original host ensemblg to human phenotype ID
     hpo$details - human phenotype ID to human phenotype details
     '''
-    genelist = PipelineGeneInfo.getSymbols(infile)
+    genelist = list(set(PipelineGeneInfo.getSymbols(infile)))
     HPO = PipelineGeneInfo.HPOAnnotation(
         PARAMS['homologues_humanmine'],
-        PARAMS['db_name'])
+        PARAMS['db_name'], PARAMS['entrez_host'])
     PipelineGeneInfo.runall(HPO, genelist, submit=True)
     ont = PipelineGeneInfo.OntologyAnnotation('hpo',
                                               PARAMS['homologues_hpoont'],
                                               PARAMS['db_name'])
-    ont.runall(genelist)
+    PipelineGeneInfo.runall(ont, genelist, species=PARAMS['entrez_host'],
+                            submit=True)
 
 
 @follows(AnnotateWithGO)
