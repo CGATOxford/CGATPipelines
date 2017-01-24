@@ -1639,7 +1639,9 @@ class SicerPeakcaller(Peakcaller):
                  window_size=None,
                  gap_size=None,
                  genome=None,
-                 redundancy_threshold=None):
+                 redundancy_threshold=None,
+                 minfragsize=None,
+                 maxfragsize=None):
         super(SicerPeakcaller, self).__init__(threads, tool_options)
         self.fragment_size = fragment_size
         self.effective_genome_fraction = effective_genome_fraction
@@ -1649,6 +1651,8 @@ class SicerPeakcaller(Peakcaller):
         self.gap_size = gap_size
         self.genome = genome
         self.redundancy_threshold = redundancy_threshold
+        self.minfragsize = minfragsize
+        self.maxfragsize = maxfragsize
 
     def callPeaks(self, infile, outfile, controlfile=None):
         '''
@@ -1663,31 +1667,40 @@ class SicerPeakcaller(Peakcaller):
 
         .control-1-removed.bed: redundancy-removed control bed file
 
-        .test-W200.graph: summary graph file for test-1-removed.bed with window size 200, in
-        bedGraph format.
+        .test-W200.graph: summary graph file for test-1-removed.bed with window
+        size 200, in bedGraph format.
 
-        .test-W200-normalized.wig: the above file normalized by library size per million and
-        converted into wig format. This file can be uploaded to the UCSC genome browser
+        .test-W200-normalized.wig: the above file normalized by library size
+        per million and converted into wig format.
+        This file can be uploaded to the UCSC genome browser
 
         .test-W200-G600.scoreisland: an intermediate file for debugging usage.
 
-        .test-W200-G600-islands-summary: summary of all candidate islands with their
+        .test-W200-G600-islands-summary: summary of all candidate islands with
+        their
         statistical significance. It has the format:
-        chrom, start, end, ChIP_island_read_count, CONTROL_island_read_count, p_value,
+        chrom, start, end, ChIP_island_read_count, CONTROL_island_read_count,
+        p_value,
         fold_change, FDR_threshold
 
-        .test-W200-G600-islands-summary-FDR.01: summary file of significant islands with
+        .test-W200-G600-islands-summary-FDR.01: summary file of significant
+        islands with
         requirement of FDR=0.01.
 
-        .test-W200-G600-FDR.01-island.bed: delineation of significant islands in "chrom start
+        .test-W200-G600-FDR.01-island.bed: delineation of significant islands
+        in "chrom start
         end read-count-from-redundancy-removed-test.bed" format
 
-        .test-W200-G600-FDR.01-islandfiltered.bed: library of raw redundancy-removed reads
+        .test-W200-G600-FDR.01-islandfiltered.bed: library of raw
+        redundancy-removed reads
         on significant islands.
 
-        .test-W200-G600-FDR.01-islandfiltered-normalized.wig: wig file for the island-filtered
-        redundancy-removed reads. This file can be uploaded to the UCSC genome browser
-        and be compared with the track for test-W200-normalized.wig for visual examination of
+        .test-W200-G600-FDR.01-islandfiltered-normalized.wig: wig file for
+        the island-filtered
+        redundancy-removed reads. This file can be uploaded to the UCSC
+        genome browser
+        and be compared with the track for test-W200-normalized.wig for
+        visual examination of
         parameter choices and SICER performance.
 
         Parameters
@@ -1714,16 +1727,19 @@ class SicerPeakcaller(Peakcaller):
 
         if BamTools.isPaired(infile):
             # output strand as well
+            minfragsize = self.minfragsize
+            maxfragsize = self.maxfragsize
             statement = ['''cat %(infile)s
             | cgat bam2bed
             --merge-pairs
-            --min-insert-size=%(calling_min_insert_size)i
-            --max-insert-size=%(calling_max_insert_size)i
+            --min-insert-size=%(minfragsize)i
+            --max-insert-size=%(maxfragsize)i
             --log=%(outfile)s.log
             --bed-format=6
             > %(workdir)s/foreground.bed''' % locals()]
         else:
-            statement = ["bamToBed -i %(infile)s > %(workdir)s/foreground.bed" % locals()]
+            statement = ["bamToBed -i %(infile)s\
+            > %(workdir)s/foreground.bed" % locals()]
 
         outfile = os.path.basename(outfile)
 
@@ -1737,9 +1753,11 @@ class SicerPeakcaller(Peakcaller):
 
         if controlfile:
             statement.append(
-                'bamToBed -i %(controlfile)s > %(workdir)s/control.bed' % locals())
+                'bamToBed -i %(controlfile)s \
+                > %(workdir)s/control.bed' % locals())
             statement.append("cd %(workdir)s" % locals())
-            statement.append('''SICER.sh . foreground.bed control.bed . %(genome)s
+            statement.append('''SICER.sh . foreground.bed control.bed \
+            . %(genome)s
             %(redundancy_threshold)s
             %(window_size)s
             %(fragment_size)s
@@ -1764,16 +1782,17 @@ class SicerPeakcaller(Peakcaller):
 
         return outfile, statement
 
-    def loadData(infile, outfile, bamfile, controlfile=None, mode="narrow",
+    def loadData(self, infile, outfile, bamfile, controlfile=None,
+                 mode="narrow",
                  fragment_size=None):
         '''load Sicer results.'''
 
         # build filename of input bedfile
         track = P.snip(os.path.basename(infile), ".sicer")
         sicerdir = infile + ".dir"
-        window = PARAMS["sicer_" + mode + "_window_size"]
-        gap = PARAMS["sicer_" + mode + "_gap_size"]
-        fdr = "%8.6f" % PARAMS["sicer_fdr_threshold"]
+        window = self.window_size
+        gap = self.gap_size
+        fdr = "%8.6f" % self.fdr_threshold
         offset = fragment_size
 
         # taking the file islands-summary-FDR, which contains
@@ -1787,7 +1806,8 @@ class SicerPeakcaller(Peakcaller):
         assert os.path.exists(bedfile)
 
         if controlfile:
-            control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
+            control = "--control-bam-file=%(controlfile)s\
+            --control-offset=%(offset)i" % locals()
 
         tablename = P.toTable(outfile) + "_regions"
         load_statement = P.build_load_statement(
@@ -1796,7 +1816,8 @@ class SicerPeakcaller(Peakcaller):
             "--add-index=interval_id "
             "--allow-empty-file")
 
-        headers = "contig,start,end,interval_id,chip_reads,control_reads,pvalue,fold,fdr"
+        headers = "contig,start,end,interval_id,chip_reads,\
+        control_reads,pvalue,fold,fdr"
 
         # add new interval id at fourth column
         statement = '''cat < %(bedfile)
@@ -1886,7 +1907,8 @@ class SicerPeakcaller(Peakcaller):
                 c = len(mapper_header[key])
 
                 if c >= 1:
-                    assert len(val) == c, "key=%s, expected=%i, got=%i, val=%s, c=%s" %\
+                    assert len(val) == c, "key=%s, expected=%i, got=%i,\
+                    val=%s,c=%s" %\
                         (key, len(val), c, str(val), mapper_header[key])
                 v = "\t".join(val)
             row.append(v)

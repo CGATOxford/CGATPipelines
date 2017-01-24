@@ -327,6 +327,12 @@ if os.path.exists("design.tsv"):
     INPUTBAMS = list(set(df['bamControl'].values))
     CHIPBAMS = list(set(df['bamReads'].values))
 
+elif os.path.exists("design.tsv"):
+    df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
+                                                     PARAMS['IDR_poolinputs'])
+    INPUTBAMS = list(set(df['bamControl'].values))
+    CHIPBAMS = list(set(df['bamReads'].values))
+
 else:
     E.warn("design.tsv is not located within the folder")
     INPUTBAMS = []
@@ -883,10 +889,13 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
     bam = infiles[0]
     snip_bam = P.snip(bam)
     bam_name = snip_bam + "_insertsize.tsv"
+    fragment_size = PipelinePeakcallingScrum.getFragment
+
     insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
                                      PARAMS["database_name"])
-    fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)]['fragmentsize_mean']
-    fragment_size = fragment_size.tolist()[0]
+    fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)][
+        'fragmentsize_mean']
+    fragment_size = int(fragment_size.tolist()[0])
 
     window_size = PARAMS["sicer_narrow_window_size"]
     gap_size = PARAMS["sicer_narrow_gap_size"]
@@ -894,6 +903,8 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
     genome = PARAMS["genome"]
     redundancy_threshold = PARAMS["sicer_redundancy_threshold"]
     effective_genome_fraction = PARAMS['sicer_effective_genome_fraction']
+    minfragsize = PARAMS['sicer_min_insert_size']
+    maxfragsize = PARAMS['sicer_max_insert_size']
 
     # If there are no inputs
     if PARAMS['input'] == 0:
@@ -910,7 +921,9 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
         fdr_threshold=fdr_threshold,
         effective_genome_fraction=effective_genome_fraction,
         genome=genome,
-        redundancy_threshold=redundancy_threshold)
+        redundancy_threshold=redundancy_threshold,
+        minfragsize=minfragsize,
+        maxfragsize=maxfragsize)
 
     statement = peakcaller.build(bam,
                                  outfile,
@@ -952,8 +965,9 @@ def callBroaderPeaksWithSicer(infiles, outfile):
     bam_name = snip_bam + "_insertsize"
     insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
                                      PARAMS["database_name"])
-    fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)]['fragmentsize_mean']
-    fragment_size = fragment_size.tolist()[0]
+    fragment_size = insert_size[insert_size[
+        'filename'].str.contains(bam_name)]['fragmentsize_mean']
+    fragment_size = int(fragment_size.tolist()[0])
 
     window_size = PARAMS["sicer_broad_window_size"]
     gap_size = PARAMS["sicer_broad_gap_size"]
@@ -961,6 +975,9 @@ def callBroaderPeaksWithSicer(infiles, outfile):
     genome = PARAMS["genome"]
     redundancy_threshold = PARAMS["sicer_redundancy_threshold"]
     effective_genome_fraction = PARAMS['sicer_effective_genome_fraction']
+
+    minfragsize = PARAMS['sicer_min_insert_size']
+    maxfragsize = PARAMS['sicer_max_insert_size']
 
     # If there are no inputs
     if PARAMS['input'] == 0:
@@ -977,7 +994,9 @@ def callBroaderPeaksWithSicer(infiles, outfile):
         fdr_threshold=fdr_threshold,
         effective_genome_fraction=effective_genome_fraction,
         genome=genome,
-        redundancy_threshold=redundancy_threshold)
+        redundancy_threshold=redundancy_threshold,
+        minfragsize=minfragsize,
+        maxfragsize=maxfragsize)
 
     statement = peakcaller.build(bam,
                                  outfile,
