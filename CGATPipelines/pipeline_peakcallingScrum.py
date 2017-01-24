@@ -318,6 +318,8 @@ idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 # This function checks for  design file in the directory and if it isnt there
 # will set the input and chip bams to empty list. This gets round the import
 # tests
+# INPUTBAMS - list of control (input) bam files
+# CHIPBAMS - list of experimental bam files on which to call peaks on
 
 if os.path.exists("design.tsv"):
     df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
@@ -325,28 +327,14 @@ if os.path.exists("design.tsv"):
     INPUTBAMS = list(set(df['bamControl'].values))
     CHIPBAMS = list(set(df['bamReads'].values))
 
-#this filepath should be to example_Design file in config foldermacs2 
-#elif os.path.exists("%s/design.tsv" %
-#                 os.path.splitext(__file__)[0]):
-#  E.warn("""design.tsv is not located within the folder using default from 
-#          config folder""")
-#  design = "%s/design.tsv" % os.path.splitext(__file__)[0]
-
-
-#    df, inputD = PipelinePeakcalling.readDesignTable(design,
- #                                                    PARAMS['IDR_poolinputs'])
-#    INPUTBAMS = list(set(df['bamControl'].values))
-#    CHIPBAMS = list(set(df['bamReads'].values))
-
 else:
     E.warn("design.tsv is not located within the folder")
     INPUTBAMS = []
     CHIPBAMS = []
 
-print(CHIPBAMS)
-# INPUTBAMS - list of control (input) bam files
-# CHIPBAMS - list of experimental bam files on which to call peaks and perform
-# IDR
+#TODO we need to add code to pick up empty input and chipbams list and cause
+#pipeline to throw an error 
+
 
 ###############################################################################
 # Check if reads are paired end
@@ -356,11 +344,8 @@ else:
     PARAMS['paired_end'] = False
 ###############################################################################
 # Make database
-
-
 def connect():
     '''connect to database.
-
     This method also attaches to helper databases.
     '''
 
@@ -376,8 +361,6 @@ def connect():
 ###############################################################################
 # Preprocessing Steps - Filter bam files
 ###############################################################################
-
-
 @transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
     P.load(infile, outfile)
@@ -493,10 +476,13 @@ def mergeFilteringChecks(infiles, outfile):
 def loadFilteringChecks(infile, outfile):
     P.load(infile, outfile)
 
-
+@active_if(PARAMS['paired_end'])
 @transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
            "_fraglengths.load")
 def loadFragmentLengthDistributions(infiles, outfile):
+    '''loads fragment length distributions into database - fragment length can
+    only be computed if sample is paired-end if samples are not this function
+    is not run''' 
     infile = infiles[0].replace(".bam", ".fraglengths")
     if len(IOTools.openFile(infile).readlines()) != 0:
         P.load(infile, outfile)
@@ -504,7 +490,7 @@ def loadFragmentLengthDistributions(infiles, outfile):
         os.system("touch %s" % outfile)
 
 
-@follows(loadFragmentLengthDistributions)
+@follows(mergeFilteringChecks,loadFragmentLengthDistributions)
 def filtering():
     ''' dummy task to allow all the filtering of bams & collection of stats'''
     pass
@@ -849,11 +835,16 @@ def callMacs2peaks(infiles, outfile):
         inputf = D[bam]
     insertsizef = "%s_insertsize.tsv" % (P.snip(bam))
 
+    if PARAMS['macs2_tag_size'] == 0:
+        tag_size=None
+    else:
+        tag_size = PARAMS['macs2_tag_size']
+
     peakcaller = PipelinePeakcalling.Macs2Peakcaller(
         threads=1,
         paired_end=PARAMS['paired_end'],
         tool_options=PARAMS['macs2_options'],
-        tagsize=None)
+        tagsize=tag_size)
 
     statement = peakcaller.build(bam, outfile,
                                  PARAMS['macs2_contigsfile'],
@@ -1043,7 +1034,12 @@ def peakcalling():
 # IDR Steps
 ################################################################
 
+if PARAMS['IDR_run']:
+    IDR_ON = True
+else:
+    IDR_ON= False
 
+@active_if(IDR_ON)
 @follows(peakcalling)
 @follows(mkdir("peaks_for_IDR.dir"))
 @transform(mapToPeakCallers[PARAMS['peakcalling_idrpeakcaller']],
@@ -1067,6 +1063,7 @@ def getIDRInputs(infile, outfile):
     shutil.copy(IDRpeaks, outfile)
 
 
+@active_if(IDR_ON)
 @merge(getIDRInputs, "IDR_pairs.tsv")
 def makeIDRPairs(infiles, outfile):
     '''
@@ -1087,12 +1084,13 @@ def makeIDRPairs(infiles, outfile):
                                         PARAMS['IDR_useoracle'],
                                         df, submit=True)
 
-
+@active_if(IDR_ON)
 @transform(makeIDRPairs, suffix(".tsv"), ".load")
 def loadIDRPairs(infile, outfile):
     P.load(infile, outfile)
 
 
+@active_if(IDR_ON)
 @follows(mkdir("IDR.dir"))
 @split(makeIDRPairs, "IDR.dir/*.dummy")
 def splitForIDR(infile, outfiles):
@@ -1119,6 +1117,7 @@ def splitForIDR(infile, outfiles):
         out.close()
 
 
+@active_if(IDR_ON)
 @transform(splitForIDR, suffix(".dummy"), ".tsv")
 def runIDR(infile, outfile):
     ''' takes the  "IDR_pairs.tsv" detailing the files to be compared
@@ -1183,6 +1182,7 @@ def runIDR(infile, outfile):
         out.close()
 
 
+@active_if(IDR_ON)
 @transform(runIDR, suffix(".tsv"), ["_filtered.tsv",
                                     "_table.tsv"])
 def filterIDR(infile, outfiles):
@@ -1245,6 +1245,7 @@ def filterIDR(infile, outfiles):
     out.write("%s\n" % "\t".join([str(t) for t in T]))
 
 
+@active_if(IDR_ON)
 @merge((filterIDR, makeIDRPairs), "IDR_results.tsv")
 def summariseIDR(infiles, outfile):
     '''
@@ -1256,21 +1257,22 @@ def summariseIDR(infiles, outfile):
     PipelinePeakcalling.summariseIDR(infiles, outfile, pooledc, selfc, repc)
 
 
+@active_if(IDR_ON)
 @transform(summariseIDR, suffix(".tsv"), ".load")
 def loadIDRsummary(infile, outfile):
     P.load(infile, outfile)
 
-
+@active_if(IDR_ON)
 @transform(summariseIDR, suffix("results.tsv"), "QC.tsv")
 def runIDRQC(infile, outfile):
     PipelinePeakcalling.doIDRQC(infile, outfile)
 
-
+@active_if(IDR_ON)
 @transform(runIDRQC, suffix(".tsv"), ".load")
 def loadIDRQC(infile, outfile):
     P.load(infile, outfile)
 
-
+@active_if(IDR_ON)
 @follows(mkdir("conservative_peaks.dir"))
 @split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
 def findConservativePeaks(infile, outfiles):
@@ -1286,7 +1288,7 @@ def findConservativePeaks(infile, outfiles):
         PipelinePeakcalling.makeLink(peakfile, outnam)
         i += 1
 
-
+@active_if(IDR_ON)
 @follows(mkdir("optimal_peaks.dir"))
 @split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
 def findOptimalPeaks(infile, outfiles):
@@ -1304,6 +1306,7 @@ def findOptimalPeaks(infile, outfiles):
         i += 1
 
 
+@active_if(IDR_ON)
 @follows(loadIDRPairs)
 @follows(loadIDRsummary)
 @follows(loadIDRQC)
@@ -1353,6 +1356,7 @@ def makeCHIPQCInputTables(infiles, outfiles):
 # def runCHIPQC(infiles, outfiles):
 #    R('''''')
 
+@follows(filtering,peakcalling,IDR)
 def full():
     ''' runs entire pipeline '''
     pass
@@ -1387,7 +1391,7 @@ def publish():
     # directory : files
 
     # publish web pages
-    P.publish_report(export_files=export_files)
+    #P.publish_report(export_files=export_files)
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

@@ -404,7 +404,7 @@ def buildRefFlat(infile, outfile):
     os.unlink(tmpflat)
 
 
-@active_if(SPLICED_MAPPING)
+#@active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
            add_inputs(identifyProteinCodingGenes),
@@ -522,7 +522,7 @@ def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadTranscript2Gene(infile, outfile)
 
 
-@active_if(SPLICED_MAPPING)
+#@active_if(SPLICED_MAPPING)
 @follows(mkdir("geneset.dir"))
 @merge(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset.dir/coding_exons.gtf.gz")
