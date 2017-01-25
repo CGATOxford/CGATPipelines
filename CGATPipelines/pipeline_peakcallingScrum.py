@@ -72,7 +72,7 @@ analysis. If you want to run IDR analysis on the output of multiple peakcallers
 you will need first run IDR with one peakcaller then clone the pipeline, modify
 pipeline.ini file and delete the appripriate files to rerun the IDR analysis on
 the output from a different peakcaller. Bewarned that IDR analysis generates
-a large number of peakfiles and it is best to decide on your prefered peakcaller
+a large number of peakfiles and it's best to decide on your prefered peakcaller
 before running the IDR analysis.
 
 
@@ -311,9 +311,9 @@ idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 # design table
 
 
-################################################################################
-# Check for design file                                                        #
-################################################################################
+###############################################################################
+# Check for design file                                                       #
+###############################################################################
 
 # This function checks for  design file in the directory and if it isnt there
 # will set the input and chip bams to empty list. This gets round the import
@@ -338,8 +338,8 @@ else:
     INPUTBAMS = []
     CHIPBAMS = []
 
-#TODO we need to add code to pick up empty input and chipbams list and cause
-#pipeline to throw an error 
+# TODO we need to add code to pick up empty input and chipbams list and cause
+# pipeline to throw an error
 
 
 ###############################################################################
@@ -350,6 +350,8 @@ else:
     PARAMS['paired_end'] = False
 ###############################################################################
 # Make database
+
+
 def connect():
     '''connect to database.
     This method also attaches to helper databases.
@@ -367,6 +369,8 @@ def connect():
 ###############################################################################
 # Preprocessing Steps - Filter bam files
 ###############################################################################
+
+
 @transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
     P.load(infile, outfile)
@@ -482,13 +486,14 @@ def mergeFilteringChecks(infiles, outfile):
 def loadFilteringChecks(infile, outfile):
     P.load(infile, outfile)
 
+
 @active_if(PARAMS['paired_end'])
 @transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
            "_fraglengths.load")
 def loadFragmentLengthDistributions(infiles, outfile):
     '''loads fragment length distributions into database - fragment length can
     only be computed if sample is paired-end if samples are not this function
-    is not run''' 
+    is not run'''
     infile = infiles[0].replace(".bam", ".fraglengths")
     if len(IOTools.openFile(infile).readlines()) != 0:
         P.load(infile, outfile)
@@ -496,16 +501,16 @@ def loadFragmentLengthDistributions(infiles, outfile):
         os.system("touch %s" % outfile)
 
 
-@follows(mergeFilteringChecks,loadFragmentLengthDistributions)
+@follows(mergeFilteringChecks, loadFragmentLengthDistributions)
 def filtering():
     ''' dummy task to allow all the filtering of bams & collection of stats'''
     pass
 
-################################################################################
+###############################################################################
 #
 # IDR
 #
-################################################################################
+###############################################################################
 
 
 # These steps are required for IDR and are only run if IDR is requested
@@ -842,7 +847,7 @@ def callMacs2peaks(infiles, outfile):
     insertsizef = "%s_insertsize.tsv" % (P.snip(bam))
 
     if PARAMS['macs2_tag_size'] == 0:
-        tag_size=None
+        tag_size = None
     else:
         tag_size = PARAMS['macs2_tag_size']
 
@@ -1056,7 +1061,8 @@ def peakcalling():
 if PARAMS['IDR_run']:
     IDR_ON = True
 else:
-    IDR_ON= False
+    IDR_ON = False
+
 
 @active_if(IDR_ON)
 @follows(peakcalling)
@@ -1102,6 +1108,7 @@ def makeIDRPairs(infiles, outfile):
     PipelinePeakcalling.makePairsForIDR(infiles, outfile,
                                         PARAMS['IDR_useoracle'],
                                         df, submit=True)
+
 
 @active_if(IDR_ON)
 @transform(makeIDRPairs, suffix(".tsv"), ".load")
@@ -1281,15 +1288,18 @@ def summariseIDR(infiles, outfile):
 def loadIDRsummary(infile, outfile):
     P.load(infile, outfile)
 
+
 @active_if(IDR_ON)
 @transform(summariseIDR, suffix("results.tsv"), "QC.tsv")
 def runIDRQC(infile, outfile):
     PipelinePeakcalling.doIDRQC(infile, outfile)
 
+
 @active_if(IDR_ON)
 @transform(runIDRQC, suffix(".tsv"), ".load")
 def loadIDRQC(infile, outfile):
     P.load(infile, outfile)
+
 
 @active_if(IDR_ON)
 @follows(mkdir("conservative_peaks.dir"))
@@ -1306,6 +1316,7 @@ def findConservativePeaks(infile, outfiles):
         outnam = "conservative_peaks.dir/%s.tsv" % experiments[i]
         PipelinePeakcalling.makeLink(peakfile, outnam)
         i += 1
+
 
 @active_if(IDR_ON)
 @follows(mkdir("optimal_peaks.dir"))
@@ -1375,10 +1386,12 @@ def makeCHIPQCInputTables(infiles, outfiles):
 # def runCHIPQC(infiles, outfiles):
 #    R('''''')
 
-@follows(filtering,peakcalling,IDR)
+
+@follows(filtering, peakcalling, IDR)
 def full():
     ''' runs entire pipeline '''
     pass
+
 
 ###############################################################
 # Report functions
@@ -1410,7 +1423,7 @@ def publish():
     # directory : files
 
     # publish web pages
-    #P.publish_report(export_files=export_files)
+    # P.publish_report(export_files=export_files)
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
