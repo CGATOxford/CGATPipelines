@@ -148,5 +148,3 @@ def checkScripts(filenames):
 
     if missing:
         raise ValueError("missing scripts: %s" % ",".join(missing))
-
-
