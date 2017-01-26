@@ -186,27 +186,27 @@ def mergeTranscripts(infile, outfile):
         PARAMS["genome_dir"], PARAMS["%s_genome" % track])
 
     statement = """
-        gunzip < %(infile)s 
-        | awk '/psLayout/ { x = 4; next; } x > 0 { --x; next} { print; }' 
-        | sort -k 14,14 -k 16,16n
-	| %(cmd-farm)s 
-		--split-at-column=14 
-		--output-header 
-		--renumber="%%06i" 
-		--renumber-column=":id" 
-		--log=%(outfile)s.log 
-		--subdirs \
+    gunzip < %(infile)s 
+    | awk '/psLayout/ { x = 4; next; } x > 0 { --x; next} { print; }' 
+    | sort -k 14,14 -k 16,16n
+    | %(cmd-farm)s 
+    --split-at-column=14 
+    --output-header 
+    --renumber="%%06i" 
+    --renumber-column=":id" 
+    --log=%(outfile)s.log 
+    --subdirs \
         "cgat psl2assembly 
                --staggered=all 
                --method=region
                --method=transcript
                 --threshold-merge-distance=0 
                 --threshold-merge-overlap=3
-		--genome=%(genomefile)s
-		--mali-output-format=fasta 
-		--log=%(outfile)s.log 
-		--output-filename-pattern=%%DIR%%%(outfile)s.%%s" 
-	> %(outfile)s"""
+    --genome=%(genomefile)s
+    --mali-output-format=fasta 
+    --log=%(outfile)s.log 
+    --output-filename-pattern=%%DIR%%%(outfile)s.%%s" 
+    > %(outfile)s"""
 
     P.run()
 

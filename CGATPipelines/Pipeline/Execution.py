@@ -46,6 +46,11 @@ import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 from CGAT.IOTools import snip as snip
 
+from CGATPipelines.Pipeline.Utils import getCallerLocals
+from CGATPipelines.Pipeline.Parameters import substituteParameters
+from CGATPipelines.Pipeline.Files import getTempFilename, getTempFile
+from CGATPipelines.Pipeline.Cluster import *
+
 # talking to a cluster
 try:
     import drmaa
@@ -55,11 +60,6 @@ except RuntimeError:
 
 # Set from Pipeline.py
 PARAMS = {}
-
-from CGATPipelines.Pipeline.Utils import getCallerLocals
-from CGATPipelines.Pipeline.Parameters import substituteParameters
-from CGATPipelines.Pipeline.Files import getTempFilename, getTempFile
-from CGATPipelines.Pipeline.Cluster import *
 
 # global drmaa session
 GLOBAL_SESSION = None
@@ -285,8 +285,8 @@ def getJobMemory(options=False, PARAMS=False):
     if options and 'job_memory' in options:
         job_memory = options['job_memory']
 
-    elif options and "mem_free" in options["cluster_options"] and \
-        PARAMS.get("cluster_memory_resource", False):
+    elif (options and "mem_free" in options["cluster_options"] and
+          PARAMS.get("cluster_memory_resource", False)):
 
         E.warn("use of mem_free in job options is deprecated, please"
                " set job_memory local var instead")
@@ -519,11 +519,11 @@ def run(**kwargs):
                                                 filenames):
                 job_path, stdout_path, stderr_path = paths
                 collectSingleJobFromCluster(session, job_id,
-                                             statement,
-                                             stdout_path,
-                                             stderr_path,
-                                             job_path,
-                                             ignore_errors=ignore_errors)
+                                            statement,
+                                            stdout_path,
+                                            stderr_path,
+                                            job_path,
+                                            ignore_errors=ignore_errors)
 
             session.deleteJobTemplate(jt)
 
@@ -562,11 +562,11 @@ def run(**kwargs):
                 E.debug("job has been submitted with job_id %s" % str(job_id))
 
                 collectSingleJobFromCluster(session, job_id,
-                                             statement,
-                                             stdout_path,
-                                             stderr_path,
-                                             job_path,
-                                             ignore_errors=ignore_errors)
+                                            statement,
+                                            stdout_path,
+                                            stderr_path,
+                                            job_path,
+                                            ignore_errors=ignore_errors)
 
             session.deleteJobTemplate(jt)
     else:

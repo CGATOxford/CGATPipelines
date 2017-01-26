@@ -818,7 +818,6 @@ def main(args=sys.argv):
         variable, value = variables.split("=")
         PARAMS[variable.strip()] = IOTools.str2val(value.strip())
 
-
     if args:
         options.pipeline_action = args[0]
         if len(args) > 1:
@@ -1018,5 +1017,3 @@ def main(args=sys.argv):
                          options.pipeline_action)
 
     E.Stop()
-
-
