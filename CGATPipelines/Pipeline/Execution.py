@@ -386,31 +386,31 @@ def run(**kwargs):
     options.update(list(getCallerLocals().items()))
     options.update(list(kwargs.items()))
 
-    # enforce highest priority for cluster options in command-line
-    if "cmd_cluster_memory_default" in PARAMS:
-        options["cluster_memory_default"] = PARAMS["cmd_cluster_memory_default"]
-    if "cmd_cluster_memory_resource" in PARAMS:
-        options["cluster_memory_resource"] = PARAMS["cmd_cluster_memory_resource"]
-    if "cmd_cluster_num_jobs" in PARAMS:
-       options["cluster_num_jobs"] = PARAMS["cmd_cluster_num_jobs"]
-    if "cmd_cluster_options" in PARAMS:
-        options["cluster_options"] = PARAMS["cmd_cluster_options"]
-    if "cmd_cluster_parallel_environment" in PARAMS:
-        options["cluster_parallel_environment"] = PARAMS["cmd_cluster_parallel_environment"]
-    if "cmd_cluster_priority" in PARAMS:
-        options["cluster_priority"] = PARAMS["cmd_cluster_priority"]
-    if "cmd_cluster_queue" in PARAMS:
-        options["cluster_queue"] = PARAMS["cmd_cluster_queue"]
-    if "cmd_cluster_queue_manager" in PARAMS:
-        options["cluster_queue_manager"] = PARAMS["cmd_cluster_queue_manager"]
-
     # insert legacy synonyms
     getParallelEnvironment(options)
 
+    # enforce highest priority for cluster options in command-line
+    if "cli_cluster_memory_default" in PARAMS:
+        options["cluster_memory_default"] = PARAMS["cli_cluster_memory_default"]
+    if "cli_cluster_memory_resource" in PARAMS:
+        options["cluster_memory_resource"] = PARAMS["cli_cluster_memory_resource"]
+    if "cli_cluster_num_jobs" in PARAMS:
+       options["cluster_num_jobs"] = PARAMS["cli_cluster_num_jobs"]
+    if "cli_cluster_options" in PARAMS:
+        options["cluster_options"] = PARAMS["cli_cluster_options"]
+    if "cli_cluster_parallel_environment" in PARAMS:
+        options["cluster_parallel_environment"] = PARAMS["cli_cluster_parallel_environment"]
+    if "cli_cluster_priority" in PARAMS:
+        options["cluster_priority"] = PARAMS["cli_cluster_priority"]
+    if "cli_cluster_queue" in PARAMS:
+        options["cluster_queue"] = PARAMS["cli_cluster_queue"]
+    if "cli_cluster_queue_manager" in PARAMS:
+        options["cluster_queue_manager"] = PARAMS["cli_cluster_queue_manager"]
+
+    # if the command-line has not been used
+    # get information from the legacy job_options
     if options["cluster_options"] == "":
         options["cluster_options"] = options.get("job_options", options["cluster_options"])
-
-    options['without_cluster'] = options.get('without_cluster')
 
     # get the memory requirement for the job
     job_memory = getJobMemory(options, PARAMS)
