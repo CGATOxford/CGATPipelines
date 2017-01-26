@@ -31,19 +31,19 @@ for command line help.
 Documentation
 -------------
 
-The input on stdin is split for embarrasingly parallel jobs.
-The ``--split-at`` options describe how standard input is to
-be split. A temporary directory is created in the current
-directory. This directory has be visible on the cluster nodes
-and accessible under the same name.
+The input on stdin is split for embarrasingly parallel jobs.  The
+``--split-at`` options describe how standard input is to be split. A
+temporary directory is created in the current directory. This
+directory has be visible on the cluster nodes and accessible under the
+same name.
 
 The output is written to stdout. Results are returned in the same
 order as they are submitted. The script implements a few generic ways
 to combine tabular output, for example to avoid duplicating header
 lines. The script is also able to handle multiple outputs for jobs.
 
-On error, error messages are echoed and nothing is returned.
-The temporary directory is not deleted to allow manual recovery.
+On error, error messages are echoed and nothing is returned.  The
+temporary directory is not deleted to allow manual recovery.
 
 Examples
 --------
@@ -82,8 +82,7 @@ import tempfile
 import shutil
 import stat
 
-import threadpool
-import multiprocessing
+from multiprocessing.pool import Pool, ThreadPool
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
@@ -168,7 +167,7 @@ def chunk_iterator_column(infile, args, prefix, use_header=False):
 
         files.write("%s/%s.in" % (prefix, key), line)
 
-    for filename, count in files.items():
+    for filename, count in list(files.items()):
         E.info("created file %s with %i items" % (filename, count))
         yield filename
 
@@ -246,7 +245,6 @@ def chunk_iterator_regex_split(infile, args, prefix, use_header=False):
 
         if line[0] == "#":
             continue
-
         if rex.search(line[:-1]):
             if n > 0 and (n % chunk_size == 0 or
                           (max_lines and nlines > max_lines)):
@@ -279,7 +277,7 @@ def chunk_iterator_psl_overlap(infile, args, prefix, use_header=False):
     filename = None
     while 1:
 
-        match = iterator.next()
+        match = next(iterator)
 
         if match is None:
             break
@@ -584,7 +582,6 @@ def runCommand(data):
                                                    cmd)
 
     iteration = 0
-
     while 1:
 
         iteration += 1
@@ -701,8 +698,10 @@ def runDRMAA(data, environment):
 
         if options.job_memory:
             job_memory = options.job_memory
-        else:
+        elif options.cluster_memory_default:
             job_memory = options.cluster_memory_default
+        else:
+            job_memory = "2G"
 
         jt = Cluster.setupDrmaaJobTemplate(session, options_dict,
                                            job_name, job_memory)
@@ -749,7 +748,7 @@ def runDRMAA(data, environment):
 
         try:
             retval = session.wait(jobid, drmaa.Session.TIMEOUT_WAIT_FOREVER)
-        except Exception, msg:
+        except Exception as msg:
             # ignore message 24 in PBS
             # code 24: drmaa: Job finished but resource usage information
             # and/or termination status could not be provided.":
@@ -923,7 +922,7 @@ def getOptionParser():
         split_at_regex=None,
         group_by_regex=None,
         split_at_tag=None,
-        chunksize=None,
+        chunksize=100,
         cluster_cmd='qrsh -cwd -now n',
         bashrc="~/.bashrc",
         input_header=False,
@@ -1001,8 +1000,10 @@ def main(argv=None):
             args = (options.split_at_column - 1, options.max_files)
         elif options.split_at_regex:
             chunk_iterator = chunk_iterator_regex_split
-            args = (re.compile(options.split_at_regex), 0,
-                    options.chunksize, options.max_lines)
+            args = (re.compile(options.split_at_regex),
+                    0,
+                    options.chunksize,
+                    options.max_lines)
         elif options.group_by_regex:
             chunk_iterator = chunk_iterator_regex_group
             args = (re.compile(options.group_by_regex), 0, options.chunksize)
@@ -1024,36 +1025,14 @@ def main(argv=None):
             sys.exit(0)
 
         if options.method == "multiprocessing":
-            pool = multiprocessing.Pool(options.cluster_num_jobs)
+            pool = Pool(options.cluster_num_jobs)
             results = pool.map(runCommand, data, chunksize=1)
         elif options.method == "drmaa":
             results = []
             runDRMAA(data, environment=options.environment)
-        elif options.method == "threading":
-            results = []
-
-            def reportError(request, exc_info):
-                """report errors.
-                """
-                E.warn("exception occured in request #%s: %s" %
-                       (request.requestID, exc_info[1]))
-                options.stdlog.flush()
-
-            def saveResult(request, result):
-                """save result.
-                """
-                results.append(result)
-
-            pool = threadpool.ThreadPool(options.cluster_num_jobs)
-            for a in data:
-                request = threadpool.WorkRequest(
-                    runCommand,
-                    args=(a,),
-                    callback=saveResult,
-                    exc_callback=reportError)
-
-                pool.putRequest(request)
-            pool.wait()
+        elif options.method == "threads":
+            pool = ThreadPool(options.cluster_num_jobs)
+            results = pool.map(runCommand, data, chunksize=1)
 
         niterations = 0
         for retcode, filename, cmd, logfile, iterations in results:

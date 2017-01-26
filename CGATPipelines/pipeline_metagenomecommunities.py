@@ -302,7 +302,7 @@ def loadReadCounts(infiles, outfile):
     inname = outf.name
 
     tablename = P.toTable(outfile)
-    statement = '''python %(scriptsdir)s/csv2db.py -t %(tablename)s --log=%(outfile)s.log
+    statement = '''cgat csv2db -t %(tablename)s --log=%(outfile)s.log
                   < %(inname)s > %(outfile)s'''
     P.run()
     os.unlink(outf.name)
@@ -341,7 +341,7 @@ def preprocessReads(infile, outfile):
         assert os.path.exists(read2), "file does not exist %s" % read2
 
         log = infile.replace("fastq.", "")
-        statement = '''python %(scriptsdir)s/fastqs2fasta.py
+        statement = '''cgat fastqs2fasta
                    -a %(infile)s
                    -b %(read2)s
                    --log=%(log)s.log
@@ -404,7 +404,7 @@ def buildMetaphlanReadmap(infile, outfile):
     '''
     statement = '''metaphlan.py -t reads_map
                    --input_type bowtie2out %(infile)s
-                   | python %(scriptsdir)s/metaphlan2table.py
+                   | cgat metaphlan2table
                      -t read_map
                     --log=%(outfile)s.log
                     > %(outfile)s; checkpoint
@@ -465,7 +465,7 @@ def buildMetaphlanRelativeAbundance(infile, outfile):
     blastn searching
     '''
     statement = '''metaphlan.py -t rel_ab --input_type bowtie2out %(infile)s
-                   | python %(scriptsdir)s/metaphlan2table.py -t rel_ab
+                   | cgat metaphlan2table -t rel_ab
                     --log=%(outfile)s.log
                     > %(outfile)s; checkpoint
                     ; sed -i 's/order/_order/g' %(outfile)s'''
@@ -574,7 +574,7 @@ def buildKrakenCounts(infile, outfile):
                    <(zcat %(infile)s)
                    > %(temp)s;
                    cat %(temp)s
-                  | python %(scriptsdir)s/metaphlan2table.py
+                  | cgat metaphlan2table
                   -t rel_ab
                   --log=%(outfile)s.log
                   | sed 's/rel_abundance/count/g'
@@ -675,7 +675,7 @@ def mergeKrakenCountsAcrossSamples(infiles, outfiles):
         outname = os.path.join(
             "counts.dir", level + ".kraken.aggregated.counts.tsv.gz")
 
-        statement = '''python %(scriptsdir)s/combine_tables.py
+        statement = '''cgat combine_tables
                        --missing=0
                        --columns=1
                        --take=count
@@ -795,7 +795,7 @@ def buildTaxaMap(infile, outfile):
     analysis
     '''
     statement = '''zcat %(infile)s
-                   | python %(scriptsdir)s/lca2table.py
+                   | cgat lca2table
                    --output-map
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -837,7 +837,7 @@ def buildLCA(infile, outfile):
     tabulate LCA output into nice format. Per read assignment
     '''
     statement = '''zcat %(infile)s
-                   | python %(scriptsdir)s/lca2table.py
+                   | cgat lca2table
                      --summarise=individual
                      --log=%(outfile)s.log
                    | sed -e 's/order/_order/g'
@@ -856,7 +856,7 @@ def countLcaPerLevelTaxa(infile, outfile):
     '''
     job_memory = "20G"
     statement = '''zcat %(infile)s |
-                   python %(scriptsdir)s/lca2table.py
+                   cgat lca2table
                    --summarise=level-counts
                    --log=%(outfile)s.log
                    > %(outfile)s'''
@@ -886,7 +886,7 @@ def buildLcaCounts(infile, outfile):
     '''
     job_memory = "20G"
     statement = '''zcat %(infile)s |
-                   python %(scriptsdir)s/lca2table.py
+                   cgat lca2table
                    --summarise=taxa-counts
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -985,7 +985,7 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
         outname = os.path.join(
             "counts.dir", level + ".diamond.aggregated.counts.tsv.gz")
 
-        statement = '''python %(scriptsdir)s/combine_tables.py
+        statement = '''cgat combine_tables
                        --missing=0
                        --columns=1
                        --take=count
@@ -1311,7 +1311,7 @@ def buildDiamondGeneCounts(infile, outfile):
     job_memory = PARAMS.get("genes_memory")
     options = PARAMS.get("genes_count_options")
     statement = '''zcat %(infile)s |
-                   python %(scriptsdir)s/diamond2counts.py
+                   cgat diamond2counts
                    %(options)s
                    --log=%(outfile)s.log
                    | gzip > %(outfile)s'''
@@ -1349,7 +1349,7 @@ def mergeDiamondGeneCounts(infiles, outfile):
         for x in glob.glob("genes.dir/*.genes.counts.tsv.gz")]
     prefixes = ",".join(prefixes)
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
                    --missing=0
                    --columns=1
                    --take=count
@@ -1523,7 +1523,7 @@ def countAlignments(infiles, outfile):
     outf.write("total_reads\taligned_reads\tpaligned_reads\n")
     outf.write("\t".join(
         map(str,
-            [nreads, alignments, (float(alignments)/nreads)*100])) + "\n")
+            [nreads, alignments, (float(alignments) / nreads) * 100])) + "\n")
     outf.close()
 
 
@@ -1547,7 +1547,7 @@ def aggregateAlignmentStats(infiles, outfile):
     outf.write("sample\tlevel\ttool\tnreads\tnassigned\tpassigned\n")
     for s, l, t in zip(samples, levels, tools):
         inf = IOTools.openFile(
-            "alignment_stats.dir/"+s+"."+l+"."+t+"."+"stats")
+            "alignment_stats.dir/" + s + "." + l + "." + t + "." + "stats")
         inf.readline()
         result = inf.readline()
         outf.write("\t".join([s, l, t]) + "\t" + result)
@@ -1589,7 +1589,7 @@ def Alignment_stats():
 ###################################################################
 ###################################################################
 # Differential abundance analysis of taxa and genes. We use
-# metagenomeSeq here to assess differential abundance
+# metagenomeSeq and DESeq2 here to assess differential abundance
 ###################################################################
 ###################################################################
 ###################################################################
@@ -1662,14 +1662,60 @@ def runMetagenomeSeq(infile, outfile):
 
     P.run()
 
+###################################################################
+###################################################################
+###################################################################
+
+
+@follows(mkdir("deseq2.dir"))
+@transform(CLASSIFIER_TARGETS + [mergeDiamondGeneCounts],
+           regex("(\S+)/(\S+).tsv.gz"),
+           r"deseq2.dir/\2.diff.tsv")
+def runDESeq2(infile, outfile):
+    '''
+    run DESeq2 - a tool for calculating significance
+    based on gene counts
+    '''
+    # build design as a temporary file
+    design = P.getTempFile(".")
+    design.write("track\tgroup\tinclude\tpair\n")
+    samples = IOTools.openFile(infile).readline()[:-1].split("\t")
+    samples = samples[1:]
+    conditions = [x.split("-")[1] for x in samples]
+    for i in range(len(samples)):
+        design.write("%s\t%s\t1\t0\n" % (samples[i], conditions[i]))
+    design.close()
+    d = design.name
+
+    # run DESeq2
+    outpattern = P.snip(outfile, ".diff.tsv") + "_"
+    fdr = PARAMS.get("deseq2_fdr")
+    min_rowcounts = PARAMS.get("deseq2_filter_min_counts_per_row")
+    min_samplecounts = PARAMS.get("deseq2_filter_min_counts_per_sample")
+    percentile_rowsums = PARAMS.get("deseq2_filter_percentile_rowsums")
+    statement = '''cgat runExpression
+                   --method=deseq2
+                   --outfile=%(outfile)s
+                   --output-filename-pattern=%(outpattern)s
+                   --fdr=%(fdr)s
+                   --tags-tsv-file=%(infile)s
+                   --design-tsv-file=%(d)s
+                   --filter-min-counts-per-row=%(min_rowcounts)s
+                   --filter-min-counts-per-sample=%(min_samplecounts)s
+                   --filter-percentile-rowsums=%(percentile_rowsums)s
+                   --log=%(outfile)s.log'''
+
+    P.run()
+
+    os.unlink(design.name)
 
 ###################################################################
 ###################################################################
 ###################################################################
 
 
-@subdivide(runMetagenomeSeq,
-           regex("(\S+)/(\S+).diff.tsv"),
+@subdivide([runMetagenomeSeq, runDESeq2],
+           regex("(\S+)/(\S+).diff.tsv*"),
            add_inputs(aggregateTaxaMaps),
            r"\1/*.\2.diff.tsv")
 def splitResultsByKingdom(infiles, outfiles):
@@ -1680,14 +1726,21 @@ def splitResultsByKingdom(infiles, outfiles):
     P.submit
     '''
     result, mapfile = infiles
-    matrix = P.snip(result, ".diff.tsv") + ".norm.matrix"
+
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in .rlog.tsv.gz
+    if os.path.dirname(infiles[0]) == "deseq2.dir":
+        matrix = P.snip(infiles[0], ".diff.tsv") + "_rlog.tsv.gz"
+    else:
+        matrix = P.snip(infiles[0], ".diff.tsv") + ".norm.matrix"
+
     hierarchy = PipelineMetagenomeCommunities.readHierarchy(mapfile)
 
     # need to do it for both the results
     # table and the normalised matrix file
     for inf in [result, matrix]:
         header = IOTools.openFile(inf).readline()
-        for kingdom, taxa in hierarchy.iteritems():
+        for kingdom, taxa in hierarchy.items():
             if kingdom == "NA":
                 kingdom = "other"
             else:
@@ -1700,6 +1753,9 @@ def splitResultsByKingdom(infiles, outfiles):
                 suffix = ".norm.matrix"
                 # last column in the matrix file
                 taxon_ind = -1
+            elif inf.endswith("_rlog.tsv.gz"):
+                suffix = "_rlog.tsv.gz"
+                taxon_ind = 0
             else:
                 suffix = None
                 taxon_ind = 8
@@ -1721,7 +1777,7 @@ def splitResultsByKingdom(infiles, outfiles):
 ###################################################################
 
 
-@transform([runMetagenomeSeq, splitResultsByKingdom],
+@transform([runMetagenomeSeq, runDESeq2, splitResultsByKingdom],
            suffix(".tsv"), ".load")
 def loadDifferentialAbundance(infile, outfile):
     '''
@@ -1768,7 +1824,7 @@ def buildForegroundGeneset(infile, outfile):
         groups.add(group)
 
     for group in groups:
-        result[group[0]+"_vs_"+group[1]] = {}
+        result[group[0] + "_vs_" + group[1]] = {}
 
     p_type = PARAMS.get("metagenomeseq_taxa_threshold_option")
     logfc = PARAMS.get("metagenomeseq_taxa_fc_threshold")
@@ -1788,9 +1844,9 @@ def buildForegroundGeneset(infile, outfile):
                group2 == '%(group2)s'""" % locals()).fetchall():
             gene_id, pval, logFC = data
             if pval < p and abs(logFC) > logfc:
-                result[group[0]+"_vs_"+group[1]][gene_id] = 1
+                result[group[0] + "_vs_" + group[1]][gene_id] = 1
             else:
-                result[group[0]+"_vs_"+group[1]][gene_id] = 0
+                result[group[0] + "_vs_" + group[1]][gene_id] = 0
 
     df = pandas.DataFrame(result)
     df.to_csv(outfile, sep="\t", index_label="gene_id")
@@ -1834,7 +1890,7 @@ def runPathwaysAnalysis(infiles, outfiles):
     run pathways analysis
     '''
     genes, background, gene2pathway = infiles
-    statement = '''python %(scriptsdir)s/runGO.py \
+    statement = '''cgat runGO \
                    --background=%(background)s
                    --genes=%(genes)s \
                    --filename-input=%(gene2pathway)s \
@@ -1852,22 +1908,27 @@ def runPathwaysAnalysis(infiles, outfiles):
 
 
 @jobs_limit(1, "R")
-@transform([runMetagenomeSeq, splitResultsByKingdom],
+@transform([runMetagenomeSeq, runDESeq2, splitResultsByKingdom],
            suffix(".diff.tsv"),
            ".pca.tsv")
 def runPCA(infile, outfile):
     '''
     run principle components analysis
     '''
-    # the infile is a separate file output by
-    # run_metagenomeseq = normalised counts
-    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in .rlog.tsv.gz
+    if os.path.dirname(infile) == "deseq2.dir":
+        inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
+        rownames = 1
+    else:
+        inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+        rownames = len(open(inf).readline().strip("\n").split("\t"))
     if len(IOTools.openFile(inf).readlines()) <= 2:
         E.warn("Empty matrix %s: Check this is correct" % inf)
         P.touch(outfile)
         P.touch(outfile.replace(".tsv", ".ve.tsv"))
     else:
-        PipelineMetagenomeCommunities.runPCA(inf, outfile)
+        PipelineMetagenomeCommunities.runPCA(inf, outfile, rownames=rownames)
 
 ###################################################################
 ###################################################################
@@ -1897,14 +1958,17 @@ def plotPCA(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform(runMetagenomeSeq, suffix(".diff.tsv"), ".mds.pdf")
+@transform([runMetagenomeSeq, runDESeq2], suffix(".diff.tsv"), ".mds.pdf")
 def runMDS(infile, outfile):
     '''
     run MDS analysis
     '''
-    # the infile is a separate file output by
-    # run_metagenomeseq = normalised counts
-    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in _rlog.tsv.gz
+    if os.path.dirname(infile) == "deseq2.dir":
+        inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
+    else:
+        inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
     PipelineMetagenomeCommunities.plotMDS(inf, outfile)
 
 ###################################################################
@@ -1913,23 +1977,31 @@ def runMDS(infile, outfile):
 
 
 @jobs_limit(1, "R")
-@transform([runMetagenomeSeq, splitResultsByKingdom],
+@transform([runMetagenomeSeq, runDESeq2, splitResultsByKingdom],
            suffix(".diff.tsv"),
            ".mds.sig")
 def runPermanova(infile, outfile):
     '''
     run permanova on euclidean distances
     '''
-    # the infile is a separate file output by
-    # run_metagenomeseq = normalised counts
-    inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+    # metagenomeseq normalised values are in .norm.matrix
+    # and deseq2 normalised values are in _rlog.tsv.gz
+    if os.path.dirname(infile) == "deseq2.dir":
+        inf = P.snip(infile, ".diff.tsv") + "_rlog.tsv.gz"
+        rownames = 1
+    else:
+        inf = P.snip(infile, ".diff.tsv") + ".norm.matrix"
+        rownames = len(open(inf).readline().strip("\n").split("\t"))
 
     # only run if the file is not empty
     if len(IOTools.openFile(inf).readlines()) == 1:
         E.warn("Empty matrix %s: Check this is correct" % inf)
         P.touch(outfile)
     else:
-        PipelineMetagenomeCommunities.testDistSignificance(inf, outfile)
+        PipelineMetagenomeCommunities.testDistSignificance(inf,
+                                                           outfile,
+                                                           rownames=rownames,
+                                                           method="adonis")
 
 ###################################################################
 ###################################################################
@@ -2137,7 +2209,7 @@ def Differential_abundance():
 #     based on the file that was downloaded with mtools (D.Huson)
 #     '''
 #     keggtre, keggmap = infiles
-#     statement = '''python %(scriptsdir)s/keggtre2table.py
+#     statement = '''cgat keggtre2table
 #                    --kegg-tre=%(keggtre)s
 #                    --map=%(keggmap)s
 #                    --log=%(outfile)s.log
@@ -2171,7 +2243,7 @@ def Differential_abundance():
 #     kegg_table = infiles[1]
 #     level = PARAMS.get("kegg_level")
 #     statement = '''zcat %(infile)s |
-#                    python %(scriptsdir)s/lcakegg2counts.py
+#                    cgat lcakegg2counts
 #                    --kegg-table=%(kegg_table)s
 #                    --level=%(level)s
 #                    --method=proportion
@@ -2206,7 +2278,7 @@ def Differential_abundance():
 #     kegg_table = infiles[1]
 #     level = PARAMS.get("kegg_level")
 #     statement = '''zcat %(infile)s |
-#                    python %(scriptsdir)s/lcakegg2counts.py
+#                    cgat lcakegg2counts
 #                    --kegg-table=%(kegg_table)s
 #                    --level=D
 #                    --method=proportion

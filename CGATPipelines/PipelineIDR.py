@@ -73,7 +73,7 @@ def mergeBams(infile_list, outfile):
     out_stub = P.snip(outfile, ".bam")
     job_options = "-l mem_free=5G"
     statement = ("samtools merge - %(infile_list)s"
-                 " | samtools sort - %(out_stub)s"
+                 " | samtools sort - -O BAM -o %(out_stub)s.bam"
                  " 2>%(outfile)s.log;"
                  " checkpoint;"
                  " samtools index %(outfile)s"
@@ -195,7 +195,7 @@ class callerIDRPeaks(object):
         statement = self.getRunStatement(infile, outfile, controlfile)
         # check run statement
         # print ("\nRun statement for sample %s :\n %s" % (infile, statement))
-        job_options = "-l mem_free=10G"
+        job_options = "-l mem_free=15G"
         P.run()
 
         # post process peakcalling results
@@ -381,8 +381,10 @@ class sppIDRPeaks(callerIDRPeaks):
         statement.append(self.PARAMS_PEAKCALLER["spp_options_parameters"])
 
         # specify outfile
+        # MM: this was hard-coded to a non-existent directory
+        # changed to stats directory
         statement.append(" -rf"
-                         " -out=/stats/phantomPeakStatsReps.tab"
+                         " -out=./stats/phantomPeakStatsReps.tab"
                          " >& %(outfile)s")
 
         statement = (" ".join(statement) % locals())

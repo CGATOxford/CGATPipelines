@@ -62,7 +62,7 @@ def MakeSNPFreqDict(infiles, outfiles, rs):
         thischromsnps = set.intersection(*snpidsets)
         snpdict[chrom] = thischromsnps
 
-    vals = snpdict.values()
+    vals = list(snpdict.values())
     # set of all the SNPs genotyped in all ancestries on all chroms
     pooled = set.union(*vals)
     # take a random sample of snps from this set
@@ -211,7 +211,7 @@ def CalculateAncestry(infile, calledsnps, snpdict, outfiles):
     s = IOTools.openFile(snpdict)
     snpdict = json.load(s)
     s.close()
-    ancs = snpdict.keys()
+    ancs = list(snpdict.keys())
 
     # Build a table of the frequency of the genotype in this sample
     # in each of the hapmap ancestries
@@ -391,12 +391,12 @@ def CalculateSex(infiles, outfile):
 
         # is the value with 3 SDs of the mean for this sex
         if sex == "male":
-            if ((3*std) - abs(dist) >= 0 or dist >= 0):
+            if ((3 * std) - abs(dist) >= 0 or dist >= 0):
                 sig = "*"
             else:
                 sig = "-"
         else:
-            if ((3*std) - abs(dist) >= 0 or dist <= 0):
+            if ((3 * std) - abs(dist) >= 0 or dist <= 0):
                 sig = "*"
             else:
                 sig = "-"
@@ -410,7 +410,7 @@ def CalculateSex(infiles, outfile):
     a = p.add_subplot('111')
 
     a.axis([0, len(infiles),
-            (min([min(s1), min(s2)])-0.1), (max([max(s1), max(s2)]) + 0.1)])
+            (min([min(s1), min(s2)]) - 0.1), (max([max(s1), max(s2)]) + 0.1)])
 
     dist1 = np.linspace(0, len(infiles), len(s1))
     dist2 = np.linspace(0, len(infiles), len(s2))
@@ -461,12 +461,12 @@ def PlotAncestry(infile):
     a.axis([-5, len(ancestry) + 5, ymin, ymax])
 
     # plot best scoring ancestry
-    a.scatter(range(len(ancestry)),
+    a.scatter(list(range(len(ancestry))),
               ancestry[2], c=colours[ancestry[5].values],
               s=500, marker='D', edgecolors='None')
 
     # plot second best scoring ancestry
-    a.scatter(range(len(ancestry)),
+    a.scatter(list(range(len(ancestry))),
               ancestry[4], c=colours[ancestry[6].values],
               s=150, marker="^", edgecolors='None')
     sancs = set(ancestry[1])

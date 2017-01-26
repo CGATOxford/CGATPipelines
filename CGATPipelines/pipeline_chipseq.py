@@ -193,8 +193,8 @@ import CGAT.Bed as Bed
 import pysam
 import numpy
 
-import PipelineChipseq as PipelineChipseq
-import PipelineMotifs as PipelineMotifs
+import CGATPipelines.PipelineChipseq as PipelineChipseq
+import CGATPipelines.PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
 
@@ -281,7 +281,7 @@ def getUnsubtracted(track):
 # if conf.py exists: execute to change the above assignmentsn
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -296,7 +296,7 @@ CONDITIONS = PipelineTracks.Aggregate(TRACKS, labels=("condition",))
 TISSUES = PipelineTracks.Aggregate(TRACKS, labels=("tissue",))
 
 # compound targets : all experiments
-TRACKS_MASTER = EXPERIMENTS.keys() + CONDITIONS.keys()
+TRACKS_MASTER = list(EXPERIMENTS.keys()) + list(CONDITIONS.keys())
 
 # tracks for subtraction of unstim condition
 if "tracks_subtract" in PARAMS and PARAMS["tracks_subtract"]:
@@ -585,7 +585,7 @@ def makeReadCorrelation(infiles, outfile):
     infiles = " ".join(infiles)
 
     statement = '''
-    python %(scriptsdir)s/bams2correlation.py 
+    cgat bams2correlation 
            --log=%(outfile)s.log 
            --genome=%(genome_dir)s/%(genome)s 
            %(infiles)s 
@@ -616,7 +616,7 @@ def makeReadCorrelationTable(infiles, outfile):
         correlation_cutoff = 5
         for line in infile:
             try:
-                data = map(int, line[:-1].split("\t")[2:])
+                data = list(map(int, line[:-1].split("\t")[2:]))
             except ValueError:
                 continue
 
@@ -663,7 +663,7 @@ def buildBAMStats(infile, outfile):
     to_cluster = True
 
     statement = '''python
-    %(scriptsdir)s/bam2stats.py
+    cgat bam2stats
          --force-output
          --output-filename-pattern=%(outfile)s.%%s
     < %(infile)s
@@ -685,15 +685,15 @@ def loadBAMStats(infiles, outfile):
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
     E.info("loading bam stats - summary")
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
                       --header-names=%(header)s
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/track/"
                 | perl -p -e "s/unique/unique_alignments/"
-                | python %(scriptsdir)s/table2table.py --transpose
-                | python %(scriptsdir)s/csv2db.py
+                | cgat table2table --transpose
+                | cgat csv2db
                       --add-index=track
                       --table=%(tablename)s 
                 > %(outfile)s
@@ -705,14 +705,14 @@ def loadBAMStats(infiles, outfile):
         filenames = " ".join(["%s.%s" % (x, suffix) for x in infiles])
         tname = "%s_%s" % (tablename, suffix)
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
                       --header-names=%(header)s
                       --skip-titles
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
                 | perl -p -e "s/bin/%(suffix)s/"
-                | python %(scriptsdir)s/csv2db.py
+                | cgat csv2db
                       --allow-empty-file
                       --table=%(tname)s 
                 >> %(outfile)s
@@ -1062,7 +1062,7 @@ def loadIntervalsFromBed(infile, outfile):
     tablename = "%s_intervals" % track.asTable()
 
     statement = '''
-    python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    cgat csv2db %(csv2db_options)s
               --allow-empty-file
               --add-index=interval_id 
               --table=%(tablename)s
@@ -1130,7 +1130,7 @@ def buildReadProfileOfTranscripts(infiles, outfile):
     bamfile, gtffile = infiles
     track = P.snip(bamfile, '.call.bam')
 
-    statement = '''python %(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
                       --output-filename-pattern="%(outfile)s.%%s"
                       --reporter=transcript
                       --method=geneprofile 
@@ -1158,7 +1158,7 @@ def buildIntervalProfileOfTranscripts(infiles, outfile):
     bedfile, gtffile = infiles
     track = P.snip(bedfile, '.bed.gz')
 
-    statement = '''python %(scriptsdir)s/bam2geneprofile.py
+    statement = '''cgat bam2geneprofile
                       --output-filename-pattern="%(outfile)s.%%s"
                       --force-output
                       --reporter=transcript
@@ -1198,7 +1198,7 @@ def buildPeakShapeTable(infile, outfile):
 
     E.info("applying shift %i for track %s" % (shift, track))
 
-    statement = '''python %(scriptsdir)s/bam2peakshape.py
+    statement = '''cgat bam2peakshape
                       --window-size=%(calling_peakshape_window_size)i
                       --bin-size=%(calling_peakshape_bin_size)i
                       --output-filename-pattern="%(outfile)s.%%s"
@@ -1265,12 +1265,12 @@ def buildReadCoverageTable(infiles, outfile):
         for j in range(len(beds)):
             table[i][j] = data[bams[i], beds[j]]
 
-    table = zip(bams, table)
+    table = list(zip(bams, table))
 
     out.write("track" + "\t" + "\t".join(beds) + "\n")
     for i in range(len(bams)):
         out.write(
-            table[i][0] + "\t" + "\t".join((map(str, table[i][1]))) + "\n")
+            table[i][0] + "\t" + "\t".join((list(map(str, table[i][1])))) + "\n")
 
 
 @transform(buildReadCoverageTable, suffix(".tsv"), ".load")
@@ -1310,7 +1310,7 @@ def exportBigwig(infile, outfile):
         shift /= 2
         extend = shift
 
-    statement = '''python %(scriptsdir)s/bam2wiggle.py 
+    statement = '''cgat bam2wiggle 
                       --output-format=bigwig 
                       --output-filename-pattern=%(outfile)s 
                       --shift-size=%(shift)i
@@ -1335,9 +1335,9 @@ def buildBigwigInfo(infiles, outfile):
 
     p = " ".join([pattern % infile for infile in infiles])
     headers = ",".join([P.snip(os.path.basename(x), ".bigwig")
-                       for x in infiles])
+                        for x in infiles])
 
-    statement = '''python %(scriptsdir)s/combine_tables.py
+    statement = '''cgat combine_tables
                    --header-names=%(headers)s
                          %(p)s
                 > %(outfile)s
@@ -1361,7 +1361,7 @@ def exportMotifSequences(infile, outfile):
     '''
     to_cluster = True
     statement = '''zcat %(infile)s 
-    | python %(scriptsdir)s/bed2fasta.py 
+    | cgat bed2fasta 
               --genome-file=%(genome_dir)s/%(genome)s 
               --masker=%(motifs_masker)s
               --mode=intervals
@@ -1389,7 +1389,7 @@ def exportMotifControlSequences(infile, outfile):
 
     to_cluster = True
     statement = '''zcat %(infile)s 
-    | python %(scriptsdir)s/bed2fasta.py 
+    | cgat bed2fasta 
               --genome-file=%(genome_dir)s/%(genome)s 
               --masker=%(motifs_masker)s
               --mode=leftright
@@ -1423,7 +1423,7 @@ def buildOverlap(infiles, outfile):
 
     # note: need to quote track names
     statement = '''
-        python %(scriptsdir)s/diff_bed.py %(options)s %(infiles)s 
+        cgat diff_bed %(options)s %(infiles)s 
         | awk -v OFS="\\t" '!/^#/ { gsub( /-/,"_", $1); gsub(/-/,"_",$2); } {print}'
         > %(outfile)s
         '''
@@ -1443,7 +1443,7 @@ def loadOverlap(infile, outfile):
     tablename = "overlap"
 
     statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+   cgat csv2db %(csv2db_options)s 
               --add-index=set1 
               --add-index=set2 
               --table=%(tablename)s 
@@ -1475,7 +1475,7 @@ if 0:
 
         infiles = " ".join(infiles)
         statement = '''
-            python %(scriptsdir)s/diff_bed.py --tracks %(options)s %(infiles)s > %(outfile)s
+            cgat diff_bed --tracks %(options)s %(infiles)s > %(outfile)s
             '''
 
         P.run()
@@ -1491,7 +1491,7 @@ if 0:
         tablename = "ucsc_overlap"
 
         statement = '''
-       python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
+       cgat csv2db %(csv2db_options)s \
                   --add-index=set1 \
                   --add-index=set2 \
                   --table=%(tablename)s \
@@ -1795,7 +1795,7 @@ if PARAMS["tomtom_master_motif"] != "":
         tablename = P.toTable(outfile)
 
         statement = '''
-        python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+        cgat csv2db %(csv2db_options)s 
                   --allow-empty-file 
                   --table=%(tablename)s 
         < %(tmpname)s 
@@ -1899,11 +1899,11 @@ def loadMotifSequenceComposition(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-    python %(scriptsdir)s/fasta2table.py 
+    cgat fasta2table 
         --section=na
         --log=%(outfile)s.log
     < %(infile)s
-    | python %(scriptsdir)s/csv2db.py
+    | cgat csv2db
         %(csv2db_options)s
         --table=%(tablename)s
     > %(outfile)s'''
@@ -2030,7 +2030,7 @@ def annotateIntervals(infile, outfile):
 
     statement = """
     zcat < %(infile)s
-    | python %(scriptsdir)s/bed2table.py
+    | cgat bed2table
     --counter=classifier-chipseq
     --counter=length
     --log=%(outfile)s.log
@@ -2056,8 +2056,8 @@ def annotateTSS(infile, outfile):
 
     statement = """
     zcat < %(infile)s
-    | python %(scriptsdir)s/bed2gff.py --as-gtf
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat bed2gff --as-gtf
+    | cgat gtf2table
     --counter=distance-tss
     --log=%(outfile)s.log
     --gff-file=%(annotation_file)s
@@ -2083,8 +2083,8 @@ def annotateRepeats(infile, outfile):
 
     statement = """
     zcat < %(infile)s |\
-    python %(scriptsdir)s/bed2gff.py --as-gtf |\
-    python %(scriptsdir)s/gtf2table.py \
+    cgat bed2gff --as-gtf |\
+    cgat gtf2table \
     --counter=overlap \
     --log=%(outfile)s.log \
     --gff-file=%(annotation_file)s \
@@ -2439,7 +2439,7 @@ def publish():
 
     bams = []
 
-    for targetdir, filenames in exportfiles.iteritems():
+    for targetdir, filenames in exportfiles.items():
         for src in filenames:
             dest = "%s/%s/%s" % (web_dir, targetdir, src)
             if dest.endswith(".bam"):
@@ -2452,7 +2452,7 @@ def publish():
     for bam in bams:
         filename = os.path.basename(bam)
         track = P.snip(filename, ".bam")
-        print """track type=bam name="%(track)s" bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/bamfiles/%(filename)s""" % locals()
+        print("""track type=bam name="%(track)s" bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/bamfiles/%(filename)s""" % locals())
 
 if __name__ == "__main__":
 

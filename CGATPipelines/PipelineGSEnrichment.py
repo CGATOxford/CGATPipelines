@@ -219,6 +219,7 @@ class AnnotationSet(object):
     - Regenerated from this format (unstow, unstowSetDict, unstowDetails)
     - Reformatted (translateIDs, ontologise)
     '''
+
     def __init__(self, prefix):
         self.prefix = prefix
         self.GenesToTerms = dict()
@@ -274,7 +275,7 @@ class AnnotationSet(object):
         out = IOTools.openFile(outfile, "w")
         out.write("%s\n" % ("\t".join(cnames)))
 
-        for id1, id2 in adict.items():
+        for id1, id2 in list(adict.items()):
             out.write("%s\t%s\n" % (removeNonAscii(id1),
                                     removeNonAscii(",".join(id2))))
         out.close()
@@ -289,10 +290,10 @@ class AnnotationSet(object):
         '''
         out = IOTools.openFile(outfile, "w")
         out.write("%s\n" % ("\t".join(cnames)))
-        for nam, val in adict.items():
-                tval = removeNonAscii("\t".join(val))
-                out.write("%s\t%s\n" % (removeNonAscii(nam),
-                                        tval))
+        for nam, val in list(adict.items()):
+            tval = removeNonAscii("\t".join(val))
+            out.write("%s\t%s\n" % (removeNonAscii(nam),
+                                    tval))
         out.close()
 
     def unstowSetDict(self, infile):
@@ -354,7 +355,7 @@ class AnnotationSet(object):
         T = tabpd.merge(df, left_on=mergeon, right_index=True)
         T = T.drop(mergeon, 1)
         T.columns = ['ensemblg', 'terms']
-        g2t = dict(zip(T['ensemblg'], T['terms']))
+        g2t = dict(list(zip(T['ensemblg'], T['terms'])))
         for key in g2t:
             g2t[key] = g2t[key].split(",")
         #  Replace the GenesToTerms and TermsToGenes dictionaries
@@ -426,6 +427,7 @@ class AnnotationParser(object):
     Base class for parsing an existing set of annotations into an
     AnnotationSet object
     '''
+
     def __init__(self, infile, prefix, options):
         self.infile = infile
         self.options = options
@@ -456,6 +458,7 @@ class DBTableParser(AnnotationParser):
     prefix_termstoont.tsv
     prefix_termstodetails.tsv
     '''
+
     def __init__(self, infile, prefix, options):
         AnnotationParser.__init__(self, infile, prefix, options)
         self.annot = options['annot']
@@ -551,6 +554,7 @@ class FlatFileParser(AnnotationParser):
     and parse them with the annotations from the database.
     Allows the user to add custom annotations.
     '''
+
     def __init__(self, instring):
         '''
         Reads options strings as specfied in self.readOptions()
@@ -706,7 +710,7 @@ class FlatFileParser(AnnotationParser):
                         detaildict[term] = w
         # add default column names if none in the file
         if isd is True:
-            cnames = tuple(["c_%s" % j for j in range(len(line)-1)])
+            cnames = tuple(["c_%s" % j for j in range(len(line) - 1)])
         return D, detaildict, cnames
 
     def readOntFile(self):
@@ -740,6 +744,7 @@ class EnrichmentTester(object):
     which are mapped to one or more genes in the foreground list.
     Outputs these results to a file in a standard format.
     '''
+
     def __init__(self, foreground, background, AS, runtype,
                  testtype, correction, thresh, outfile, outfile2,
                  idtype, dbname):
@@ -748,16 +753,16 @@ class EnrichmentTester(object):
         #  read the list of background genes, remove genes not in the
         #  AnnotationSet
         self.background = (set([line.strip()
-                               for line in
-                               IOTools.openFile(background).readlines()]) &
+                                for line in
+                                IOTools.openFile(background).readlines()]) &
                            allgenes)
 
         # read the list of background genes, remove genes not in the
         # AnnotationSet and genes not in the background (all genes in
         # the foreground should also be in the background)
         self.foreground = (set([line.strip()
-                               for line in
-                               IOTools.openFile(foreground).readlines()]) &
+                                for line in
+                                IOTools.openFile(foreground).readlines()]) &
                            allgenes) & self.background
 
         original_fg = set([line.strip() for line in
@@ -847,21 +852,21 @@ class EnrichmentTester(object):
             terms = df2['term_id'][0: ngenes]
             if len(terms) > 0:
                 for term in terms:
-                        fg = outfile.replace(".tsv", "_fg_genes_%s.tsv"
-                                             % (term.replace(":", "_")))
-                        fgo = IOTools.openFile(fg, "w")
-                        bg = outfile.replace(".tsv", "_bg_genes_%s.tsv"
-                                             % (term.replace(":", "_")))
-                        bgo = IOTools.openFile(bg, "w")
-                        fggenes = tdict_fg[term]
-                        bggenes = tdict_bg[term]
+                    fg = outfile.replace(".tsv", "_fg_genes_%s.tsv"
+                                         % (term.replace(":", "_")))
+                    fgo = IOTools.openFile(fg, "w")
+                    bg = outfile.replace(".tsv", "_bg_genes_%s.tsv"
+                                         % (term.replace(":", "_")))
+                    bgo = IOTools.openFile(bg, "w")
+                    fggenes = tdict_fg[term]
+                    bggenes = tdict_bg[term]
 
-                        for gene in fggenes:
-                            fgo.write("%s\n" % gene)
-                        for gene in bggenes:
-                            bgo.write("%s\n" % gene)
-                        fgo.close()
-                        bgo.close()
+                    for gene in fggenes:
+                        fgo.write("%s\n" % gene)
+                    for gene in bggenes:
+                        bgo.write("%s\n" % gene)
+                    fgo.close()
+                    bgo.close()
 
 
 class TermByTermET(EnrichmentTester):
@@ -869,6 +874,7 @@ class TermByTermET(EnrichmentTester):
     Standard method to look for enrichment - test each term
     individually.
     '''
+
     def __init__(self, foreground, background, AS, runtype,
                  testtype, correction, thresh, outfile, outfile2, idtype,
                  dbname):
@@ -911,6 +917,7 @@ class EliminateET(EnrichmentTester):
     in a geneset, its ancestors are eliminated from the analysis
     as these will also be enrihced but are less informative.
     '''
+
     def __init__(self, foreground, background, AS, runtype, testtype,
                  correction, thresh, outfile, outfile2, idtype, dbname):
         EnrichmentTester.__init__(self, foreground, background, AS, runtype,
@@ -930,6 +937,13 @@ class EliminateET(EnrichmentTester):
         for s in sortedL:
             if s in self.terms:
                 p_sortedL.append(s)
+
+        # if no terms associated with foreground function output is empty
+        if not p_sortedL:
+            results = dict()
+            self.writeStats(results, self.outfile, self.outfile2,
+                            writegenes, host, ngenes)
+            return
 
         # find the "level" of each gene in the ontology - the number of
         # steps in the longest path from the node to the root
@@ -1006,6 +1020,7 @@ class StatsTest(object):
     Container for StatsTest objects corresponding to different types
     of statistical test for enrichment.
     '''
+
     def __init__(self, term, foreground, background, GenesWith, GenesWithout,
                  correction, thresh, ntests, idtype, dbname, ofg, obg):
         self.term = term
@@ -1027,21 +1042,25 @@ class StatsTest(object):
     def collapse(self):
         # collapses the lists of genes back to the original id type
         # as different types of ID do not have a 1:1 relationship
-        db = sqlite3.connect(self.dbname)
-        tab = pd.read_sql_query(
-            "SELECT * FROM ensemblg2%s$geneid" % self.idtype, db)
-        id = list(tab.columns)
-        id.remove('ensemblg')
-        id = id[0]
-        self.GenesWith = set(tab[id][tab['ensemblg'].isin(self.GenesWith)])
-        self.GenesWithout = set(
-            tab[id][tab['ensemblg'].isin(self.GenesWithout)])
-        self.foreground = set(tab[id][tab['ensemblg'].isin(self.foreground)])
-        self.background = set(tab[id][tab['ensemblg'].isin(self.background)])
+        # avoids this if idtype already ensemblg
+        if self.idtype != "ensemblg":
+            db = sqlite3.connect(self.dbname)
+            tab = pd.read_sql_query(
+                "SELECT * FROM ensemblg2%s$geneid" % self.idtype, db)
+            id = list(tab.columns)
+            id.remove('ensemblg')
+            id = id[0]
+            self.GenesWith = set(tab[id][tab['ensemblg'].isin(self.GenesWith)])
+            self.GenesWithout = set(
+                tab[id][tab['ensemblg'].isin(self.GenesWithout)])
+            self.foreground = set(
+                tab[id][tab['ensemblg'].isin(self.foreground)])
+            self.background = set(
+                tab[id][tab['ensemblg'].isin(self.background)])
 
-        self.foreground = self.foreground & self.ofg
-        if self.obg is not None:
-            self.background = self.background & self.obg
+            self.foreground = self.foreground & self.ofg
+            if self.obg is not None:
+                self.background = self.background & self.obg
 
     def correct(self, pvalue):
         '''
@@ -1070,6 +1089,7 @@ class FisherExactTest(StatsTest):
     D - Genes in background not annotated to term
 
     '''
+
     def __init___(self, term, foreground, background, GenesWith, GenesWithout,
                   correction, thresh, ntests, idtype, dbname):
         StatsTest.__init__(self, term, foreground, background, GenesWith,

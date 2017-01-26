@@ -44,9 +44,9 @@ class MultiProfilePlot(Annotations.AnnotationSlicer, IntervalTracker):
             withd = withdata[column1] + withdata[column2] + withdata[column3]
             witho = woutdata[column1] + woutdata[column2] + woutdata[column3]
             wd = odict(
-                (("position", range(0, len(withd))), ("density", withd)))
+                (("position", list(range(0, len(withd)))), ("density", withd)))
             wo = odict(
-                (("position", range(0, len(witho))), ("density", witho)))
+                (("position", list(range(0, len(witho)))), ("density", witho)))
 
             data = odict((("with_overlap", wd), ("without_overlap", wo)))
 

@@ -469,7 +469,7 @@ def drawVennDiagram(deg_dict, header, out_dir):
     possible using R package:: VennDiagram.
     '''
 
-    keys = deg_dict.keys()
+    keys = list(deg_dict.keys())
     # try and extract key information from input if filenames, else use as-is
     try:
         keys = sorted(keys, key=lambda x: int(x.split("_")[1].rstrip("-time")))
@@ -781,9 +781,9 @@ def temporalCorrelate(series1, series2):
     sum_prod = []
     sum_usq = []
     sum_vsq = []
-    for i in range(len(series1)-1):
-        u = float(series1[i+1]) - float(series1[i])
-        v = float(series2[i+1]) - float(series2[i])
+    for i in range(len(series1) - 1):
+        u = float(series1[i + 1]) - float(series1[i])
+        v = float(series2[i + 1]) - float(series2[i])
         prod = u * v
         sum_prod.append(prod)
         sq_u = u**2
@@ -795,7 +795,7 @@ def temporalCorrelate(series1, series2):
     denom = math.sqrt(sum(sum_usq)) * math.sqrt(sum(sum_vsq))
 
     if denom != 0:
-        return(nume/float(denom))
+        return(nume / float(denom))
     else:
         return 0
 
@@ -814,8 +814,8 @@ def crossCorrelate(t, s, lag=0):
     s_std = np.std(s)
     len_t = len(t)
 
-    t_norm = [((x - t_mean)/(t_std * len_t)) for x in t]
-    s_norm = [((y - s_mean)/s_std) for y in s]
+    t_norm = [((x - t_mean) / (t_std * len_t)) for x in t]
+    s_norm = [((y - s_mean) / s_std) for y in s]
 
     if lag == 0:
         xcorr = np.correlate(t_norm, s_norm)
@@ -833,7 +833,7 @@ def adaptiveTune(value, k):
     if k == 0:
         return 1.0
     else:
-        return (2/(1 + math.exp(k*abs(value))))
+        return (2 / (1 + math.exp(k * abs(value))))
 
 
 def dtwWrapper(data, rows, columns, k):
@@ -921,14 +921,14 @@ def splitFiles(infile, nchunks, out_dir):
     # small n bad for large input size, large n bad for small input size
     # set min/max chunk size, e.g. 100 genes minimum, 500 maximum?
 
-    if total/nchunks < 100:
+    if total / nchunks < 100:
         step = 100
         E.warn("too few genes in each chunk, resetting to 100 genes per chunk")
-    elif total/nchunks > 500:
+    elif total / nchunks > 500:
         step = 500
         E.warn("too many genes per chunk, resetting to 500 genes per chunk")
     else:
-        step = total/nchunks
+        step = total / nchunks
         E.info("chunking input file into %i chunks" % step)
 
     file_pattern = infile.split("/")[1].rstrip("-expression.tsv")
@@ -1130,7 +1130,7 @@ def clusterAgreement(infile):
 
     # calculate the proportion of co-occurences
 
-    prob = lambda x: x/float(len(reps))
+    prob = lambda x: x / float(len(reps))
 
     probs_df = dmat.applymap(prob)
 
@@ -1242,7 +1242,7 @@ def make_mapped_matrix(map_dict, input_frame):
     matrix_idx = [h for h, g in enumerate(frame_index)]
     for idx in matrix_idx:
         for col in range(ncols):
-            mod = input_frame.iloc[idx][col+1]
+            mod = input_frame.iloc[idx][col + 1]
             integer_matrix[idx][col] = map_dict[mod]
 
     return integer_matrix
@@ -1285,7 +1285,7 @@ def unravel_arrays(metric_array):
     dim = metric_array.shape[0]
     flat_array = []
 
-    for indx in itertools.combinations(range(0, dim), r=2):
+    for indx in itertools.combinations(list(range(0, dim)), r=2):
         if indx[0] != indx[1]:
             flat_array.append(metric_array[indx[1], indx[0]])
         else:
@@ -1313,8 +1313,8 @@ def clusterConcordia(data1, data2, complete_pairs):
     stotal = set()
 
     # iterate over each pair-wise combination of cluster assignments
-    for key in itertools.product(data1.keys(),
-                                 data2.keys()):
+    for key in itertools.product(list(data1.keys()),
+                                 list(data2.keys())):
         set1 = data1[key[0]]
         set2 = data2[key[1]]
         sa.update(set2.intersection(set1))
@@ -1345,19 +1345,21 @@ def concordanceMetric(concord_dict):
     d = concord_dict['d']
 
     Rand = (a + b) / float(a + b + c + d)
-    AdjRand = 2 * ((a*b) - (c+d)) / float(((a+d)*(d+b)) + ((a+c)*(c+b)))
+    AdjRand = 2 * ((a * b) - (c + d)) / \
+        float(((a + d) * (d + b)) + ((a + c) * (c + b)))
     try:
-        pos = a/float(a+c)
+        pos = a / float(a + c)
     except ZeroDivisionError:
         pos = 0
 
     try:
-        recall = a/float(a+d)
+        recall = a / float(a + d)
     except ZeroDivisionError:
         recall = 0
     beta = 1
     try:
-        Fstat = ((beta**2 + 1)*(pos*recall)) / float(((beta**2)*pos) + recall)
+        Fstat = ((beta**2 + 1) * (pos * recall)) / \
+            float(((beta**2) * pos) + recall)
     except ZeroDivisionError:
         Fstat = 0.0
     Jaccard = a / float(a + c + d)
@@ -1411,10 +1413,11 @@ def contingency(cluster1, cluster2):
     is the number of clusters in clustering1 and m is the
     number of clusters in clustering2.  Return an np array.
     '''
-    cont = pd.DataFrame(columns=cluster1.keys(), index=cluster2.keys())
+    cont = pd.DataFrame(columns=list(cluster1.keys()),
+                        index=list(cluster2.keys()))
     cont = cont.fillna(0.0)
 
-    for x in itertools.product(cluster1.keys(), cluster2.keys()):
+    for x in itertools.product(list(cluster1.keys()), list(cluster2.keys())):
         set1 = cluster1[x[0]]
         set2 = cluster2[x[1]]
         intersect = len(set1.intersection(set2))
@@ -1436,7 +1439,8 @@ def entropy(cluster_labels):
     else:
         pass
 
-    cluster_prob = [len(cluster_labels[x]) for x in cluster_labels.keys()]
+    cluster_prob = [len(cluster_labels[x])
+                    for x in list(cluster_labels.keys())]
     pi = np.array(cluster_prob).astype(np.float)
     pi = pi[pi > 0]
     pi_sum = np.sum(pi)
@@ -1462,7 +1466,7 @@ def adjustedMutualInformation(cluster1, cluster2):
 
     cont = contingency(cluster1, cluster2)
     mi = mutualInformation(cluster1, cluster2)
-    sample_size = float(sum([len(cluster1[x]) for x in cluster1.keys()]))
+    sample_size = float(sum([len(cluster1[x]) for x in list(cluster1.keys())]))
 
     # Given the number of samples, what is the expected number
     # of overlaps that would occur by chance?

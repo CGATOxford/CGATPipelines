@@ -44,7 +44,7 @@ class RelativeAbundance(TrackerSQL):
         '''
         result = {"phylum": {}, "class": {}, "order": {},
                   "family": {}, "genus": {}, "species": {}}
-        for taxon in result.keys():
+        for taxon in list(result.keys()):
             statement = """SELECT taxon, rel_abundance FROM %s_relab
                            WHERE taxon_level == '%s' AND rel_abundance > 1""" % (track, taxon)
             for tax, rel in self.execute(statement).fetchall():

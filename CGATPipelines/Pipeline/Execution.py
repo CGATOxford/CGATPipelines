@@ -39,10 +39,8 @@ import os
 import pickle
 import pipes
 import re
-import stat
 import subprocess
 import sys
-import time
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
@@ -143,7 +141,7 @@ def execute(statement, **kwargs):
     if not kwargs:
         kwargs = getCallerLocals()
 
-    kwargs = dict(PARAMS.items() + kwargs.items())
+    kwargs = dict(list(PARAMS.items()) + list(kwargs.items()))
 
     E.debug("running %s" % (statement % kwargs))
 
@@ -215,11 +213,11 @@ def buildStatement(**kwargs):
     # build the statement
     try:
         statement = kwargs.get("statement") % local_params
-    except KeyError, msg:
+    except KeyError as msg:
         raise KeyError(
             "Error when creating command: could not "
             "find %s in dictionaries" % msg)
-    except ValueError, msg:
+    except ValueError as msg:
         raise ValueError("Error when creating command: %s, statement = %s" % (
             msg, kwargs.get("statement")))
 
@@ -384,9 +382,9 @@ def run(**kwargs):
     """
 
     # combine options using correct preference
-    options = dict(PARAMS.items())
-    options.update(getCallerLocals().items())
-    options.update(kwargs.items())
+    options = dict(list(PARAMS.items()))
+    options.update(list(getCallerLocals().items()))
+    options.update(list(kwargs.items()))
 
     # enforce highest priority for cluster options in command-line
     if "cmd_cluster_memory_default" in PARAMS:
@@ -452,10 +450,12 @@ def run(**kwargs):
         # (shellquote(statement), shellfile) )
         # module list outputs to stderr, so merge stderr and stdout
 
-        script = '''#!/bin/bash\n
+        script = '''#!/bin/bash -e \n
                     echo "%(job_name)s : START -> ${0}" >> %(shellfile)s
                     set | sed 's/^/%(job_name)s : /' &>> %(shellfile)s
+                    set +o errexit
                     module list 2>&1 | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
+                    set -o errexit
                     hostname | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
                     cat /proc/meminfo | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
                     echo "%(job_name)s : END -> ${0}" >> %(shellfile)s

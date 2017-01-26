@@ -403,7 +403,7 @@ def renameTranscriptsInPreviousSets(infile, outfile):
     for gtf in GTF.iterator(inf):
         if gtf.gene_id.find("ENSG") != -1:
             statement = '''zcat %(infile)s | grep -v "#"
-                        | python %(scriptsdir)s/gtf2gtf.py
+                        | cgat gtf2gtf
                         --method=sort --sort-order=gene
                         --log=%(outfile)s.log
                         | gzip > %(outfile)s'''
@@ -412,13 +412,13 @@ def renameTranscriptsInPreviousSets(infile, outfile):
             transcript_pattern = gene_pattern.replace("GEN",
                                                       "TRAN")
             statement = '''
-            zcat %(infile)s | python %(scriptsdir)s/gtf2gtf.py
+            zcat %(infile)s | cgat gtf2gtf
             --method=renumber-genes
             --pattern-identifier=%(gene_pattern)s%%i
-            | python %(scriptsdir)s/gtf2gtf.py
+            | cgat gtf2gtf
             --method=renumber-transcripts
             --pattern-identifier=%(transcript_pattern)s%%i
-            | python %(scriptsdir)s/gtf2gtf.py
+            | cgat gtf2gtf
             --method=sort --sort-order=gene
             --log=%(outfile)s.log
             | gzip > %(outfile)s'''
@@ -521,7 +521,7 @@ def buildLncRNAFasta(infile, outfile):
     genome = os.path.join(
         PARAMS["general_genomedir"], PARAMS["genome"] + ".fasta")
     statement = ("zcat %(infile)s |"
-                 " python %(scriptsdir)s/gff2fasta.py"
+                 " cgat gff2fasta"
                  "  --genome-file=%(genome)s"
                  "  --log=%(outfile)s.log"
                  "  --is-gtf"
@@ -620,20 +620,20 @@ def buildLncRNAGeneSetStats(infile, outfile):
                           "no_multi_exon_genes"]) + "\n")
 
     # For pep8 purposes
-    x = map(str, [PipelineLncRNA.CounterTranscripts(infile).count(),
-                  PipelineLncRNA.CounterGenes(infile).count(),
-                  PipelineLncRNA.CounterExonsPerTranscript(
-                      infile).count(),
-                  PipelineLncRNA.CounterExonsPerGene(
-                      infile).count(),
-                  PipelineLncRNA.CounterSingleExonTranscripts(
-                      infile).count(),
-                  PipelineLncRNA.CounterMultiExonTranscripts(
-                      infile).count(),
-                  PipelineLncRNA.CounterSingleExonGenes(
-                      infile).count(),
-                  PipelineLncRNA.CounterMultiExonGenes(
-                      infile).count()])
+    x = list(map(str, [PipelineLncRNA.CounterTranscripts(infile).count(),
+                       PipelineLncRNA.CounterGenes(infile).count(),
+                       PipelineLncRNA.CounterExonsPerTranscript(
+        infile).count(),
+        PipelineLncRNA.CounterExonsPerGene(
+        infile).count(),
+        PipelineLncRNA.CounterSingleExonTranscripts(
+        infile).count(),
+        PipelineLncRNA.CounterMultiExonTranscripts(
+        infile).count(),
+        PipelineLncRNA.CounterSingleExonGenes(
+        infile).count(),
+        PipelineLncRNA.CounterMultiExonGenes(
+        infile).count()]))
     outf.write("\t".join(x))
 
 
@@ -769,7 +769,7 @@ def buildFullGeneSet(infiles, outfile):
     infs = " ".join(infiles)
     statement = ("zcat %(infs)s |"
                  " sed 's/Cufflinks/protein_coding/g' |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=sort --sort-order=gene"
                  "  --log=%(outfile)s.log |"
                  " gzip  > %(outfile)s")
@@ -932,7 +932,7 @@ def runLncRNAPhyloCSF(infile, outfile):
 def mergeLncRNAPhyloCSF(infiles, outfile):
     file_name = " ".join([x for x in infiles])
     statement = '''
-    python %(scriptsdir)s/combine_tables.py
+    cgat combine_tables
     --no-titles
     --cat=CAT
     --missing-value=0
@@ -972,7 +972,7 @@ def extractEnsemblLincRNA(infile, outfile):
     tmpf = tmpf.name
 
     statement = ("cat %(tmpf)s |"
-                 " python %(scriptsdir)s/gtf2gtf.py"
+                 " cgat gtf2gtf"
                  "  --method=sort --sort-order=gene"
                  "  --log=%(outfile)s.log |"
                  " gzip > %(outfile)s")
@@ -1073,7 +1073,7 @@ def runControlLncRNAPhyloCSF(infile, outfile):
 def mergeControlLncRNAPhyloCSF(infiles, outfile):
     file_names = " ".join([x for x in infiles])
     statement = '''
-                python %(scriptsdir)s/combine_tables.py
+                cgat combine_tables
                  --no-titles
                  --cat=CAT
                  --missing-value=0
@@ -1111,7 +1111,7 @@ def buildControlFasta(infile, outfile):
     genome = os.path.join(PARAMS["general_genomedir"],
                           PARAMS["genome"] + ".fasta")
     statement = ("zcat %(infile)s |"
-                 " python %(scriptsdir)s/gff2fasta.py"
+                 " cgat gff2fasta"
                  "  --genome-file=%(genome)s"
                  "  --log=%(outfile)s.log"
                  "  --is-gtf"
@@ -1124,7 +1124,8 @@ def buildControlFasta(infile, outfile):
            r"\1/cpc/control_cpc.result")
 def runControlCPC(infile, outfile):
     # farm.py is called from within cpc.sh
-    assert IOTools.which("farm.py"), "farm.py needs to be in $PATH for cpc to run"
+    assert IOTools.which(
+        "farm.py"), "farm.py needs to be in $PATH for cpc to run"
     # Default cpc parameters don't work with later versions of blast
     E.info("Running cpc with blast version:%s" % IOTools.which("blastx"))
 

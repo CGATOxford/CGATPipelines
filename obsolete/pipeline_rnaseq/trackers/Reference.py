@@ -77,7 +77,7 @@ class CoverageVsLengthByReadDepth(ReferenceData):
 
         data = [(math.log(x[0], 10), x[1], math.log(x[2], 10))
                 for x in self.get(statement)]
-        r = odict(zip(("log(fpkm)", "coverage", "log(length)"), zip(*data)))
+        r = odict(list(zip(("log(fpkm)", "coverage", "log(length)"), list(zip(*data)))))
         return r
 
 ######################################################################
@@ -132,7 +132,7 @@ class MeanVsMaxReadDepth(ReferenceData):
         )
         data = [(x[0], x[1], math.log(x[2]))
                 for x in self.get(statement) if x[2] > 0]
-        return odict(zip(("mean coverage", "max coverage", "length"), zip(*data)))
+        return odict(list(zip(("mean coverage", "max coverage", "length"), list(zip(*data)))))
 
 
 class MeanVsMedianReadDepth(ReferenceData):
@@ -149,7 +149,7 @@ class MeanVsMedianReadDepth(ReferenceData):
         )
         data = [(x[0], x[1], math.log(x[2]))
                 for x in self.get(statement) if x[2] > 0]
-        return odict(zip(("mean coverage", "median coverage", "length"), zip(*data)))
+        return odict(list(zip(("mean coverage", "median coverage", "length"), list(zip(*data)))))
 
 # =================================================================
 # Directionality

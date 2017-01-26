@@ -36,7 +36,7 @@ class mergedIntervalEnsemblTranscriptOverlap(cpgReport.cpgTracker):
                                order by feature_class asc""" % locals() )
 
         result = odict(
-            zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+            list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))
         return result
 
 ##########################################################################
@@ -62,7 +62,7 @@ class mergedIntervalEnsemblGeneOverlap(cpgReport.cpgTracker):
                                order by feature_class asc""" % locals() )
 
         result = odict(
-            zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+            list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))
         return result
 
 ##########################################################################
@@ -76,4 +76,4 @@ class RepeatOverlap(cpgReport.cpgTracker):
     def __call__(self, track, slice=None):
         statement = '''SELECT SUM(CASE WHEN nover>0 THEN 1 ELSE 0 END) as with, SUM(CASE WHEN nover=0 THEN 1 ELSE 0 END) AS without
                        FROM %(track)s_merged_repeats '''
-        return odict(zip(("with", "without"), self.getFirstRow(statement)))
+        return odict(list(zip(("with", "without"), self.getFirstRow(statement))))

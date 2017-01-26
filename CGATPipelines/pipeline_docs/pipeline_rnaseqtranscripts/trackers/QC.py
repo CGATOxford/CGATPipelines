@@ -20,8 +20,8 @@ class ContaminationCoverage(AnnotationsAssociated):
         if not statement:
             return []
         data = self.getFirstRow(statement)
-        return odict(zip(("nmatches > 1", "nmatches = 1"),
-                         (data[1], data[0] - data[1])))
+        return odict(list(zip(("nmatches > 1", "nmatches = 1"),
+                              (data[1], data[0] - data[1]))))
 
 
 class PolyATailCounts(AnnotationsAssociated):
@@ -36,8 +36,8 @@ class PolyATailCounts(AnnotationsAssociated):
         if not statement:
             return []
         data = self.getFirstRow(statement)
-        return odict(zip(("no tail", "with motif", "without motif"),
-                         (data[0] - data[2], data[1], data[2] - data[1])))
+        return odict(list(zip(("no tail", "with motif", "without motif"),
+                              (data[0] - data[2], data[1], data[2] - data[1]))))
 
 
 class ContaminationRepeats(TrackerSQL):

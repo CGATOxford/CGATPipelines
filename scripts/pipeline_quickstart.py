@@ -237,7 +237,7 @@ def main(argv=sys.argv):
 
     name = options.name
 
-    print """
+    print("""
 Welcome to your new %(name)s CGAT pipeline.
 
 All files have been successfully copied to `%(destination_dir)s`. In
@@ -257,7 +257,7 @@ The report will be in file:/%(absdest)s/report/report/html/index.html.
 
 The source code for the pipeline is in %(destination_dir)s/src.
 
-""" % locals()
+""" % locals())
 
     E.Stop()
 

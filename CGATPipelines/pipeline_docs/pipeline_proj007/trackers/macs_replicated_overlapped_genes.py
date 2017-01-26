@@ -29,7 +29,7 @@ class genesCoveredByNMI(cpgTracker):
                    and o.gene_id=i.gene_id
                    and o.length > 1000
                    order by length desc '''
-        print query
+        print(query)
         data = self.getAll(query)
         return data
 
@@ -164,7 +164,7 @@ class polycombGAT(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT track, annotation, round(expected,0) as expected, observed, round(fold,1) as fold, pvalue FROM overlapped_genes_gat_results ")
-        return odict(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), zip(*data)))
+        return odict(list(zip(("Dataset1", "Dataset2", "Expected overlap", "Observed overlap", "Fold Enrichment", "P-value"), list(zip(*data)))))
 
 ##########################################################################
 

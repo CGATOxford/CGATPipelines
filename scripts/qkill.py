@@ -40,7 +40,7 @@ import re
 import subprocess
 import CGAT.Experiment as E
 import xml.etree.ElementTree
-import cStringIO as StringIO
+import io as StringIO
 
 
 def main(argv=None):
