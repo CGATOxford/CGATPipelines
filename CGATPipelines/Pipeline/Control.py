@@ -115,6 +115,28 @@ def writeConfigFiles(pipeline_path, general_path):
                 (config_files, paths))
 
 
+def printConfigFiles():
+    '''
+        Print the list of .ini files used to configure the pipeline
+        along with their associated priorities.
+        Priority 1 is the highest.
+    '''
+
+    filenames = PARAMS['pipeline_ini']
+    print ("\n List of .ini files used to configure the pipeline")
+    s = len(filenames)
+    if s == 0:
+        print (" No ini files passed!")
+    elif s >= 1:
+        print (" %-11s: %s " % ("Priority", "File"))
+        for f in filenames:
+            if s == 1:
+                print (" (highest) %s: %s\n" % (s, f))
+            else:
+                print (" %-11s: %s " % (s, f))
+            s -= 1
+
+
 def clonePipeline(srcdir, destdir=None):
     '''clone a pipeline.
 
@@ -1000,6 +1022,7 @@ def main(args=sys.argv):
         print("Printing out pipeline parameters: ")
         for k in sorted(PARAMS):
             print(k, "=", PARAMS[k])
+        printConfigFiles()
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)

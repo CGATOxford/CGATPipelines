@@ -229,34 +229,13 @@ def configToDictionary(config):
     return p
 
 
-def printIniFiles(filenames=[]):
-    ''' 
-        Print a list of .ini files passed as argument in stdout
-        along with their associated priorities. 
-        Priority 1 is the highest.
-
-    '''
-
-    s = len(filenames)
-    if s == 0:
-        print "No ini files passed!"
-    elif s >= 1:
-        print " %-11s: %s " % ("Priority", "File")
-        for f in filenames:
-            if s == 1:
-                print " (highest) %s: %s " % (s, f)
-            else:
-                print " %-11s: %s " % (s, f)
-            s -= 1
-
 
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
                   site_ini=True,
                   user_ini=True,
                   default_ini=True,
-                  only_import=None,
-                  print_ini=False):
+                  only_import=None):
     '''read a config file and return as a dictionary.
 
     Sections and keys are combined with an underscore. If a key
@@ -349,6 +328,14 @@ def getParameters(filenames=["pipeline.ini", ],
         # turn on default dictionary
         TriggeredDefaultFactory.with_default = True
 
+    # Clear up ini files on the list that do not exist.
+    # Please note the use of list(filenames) to create
+    # a clone to iterate over as we remove items from
+    # the original list (to avoid unexpected results)
+    for fn in list(filenames):
+        if not os.path.exists(fn):
+            filenames.remove(fn)
+
     if site_ini:
         # read configuration from /etc/cgat/pipeline.ini
         fn = "/etc/cgat/pipeline.ini"
@@ -362,12 +349,6 @@ def getParameters(filenames=["pipeline.ini", ],
         if os.path.exists(fn):
             filenames.insert(0, fn)
 
-    # IMS: Several legacy scripts call this with a sting as input
-    # rather than a list. Check for this and correct
-
-    if isinstance(filenames, str):
-        filenames = [filenames]
-
     if default_ini:
         # The link between CGATPipelines and Pipeline.py
         # needs to severed at one point.
@@ -378,12 +359,13 @@ def getParameters(filenames=["pipeline.ini", ],
                                       'configuration',
                                       'pipeline.ini'))
 
-    # E.debug is not working currently because:
-    # 1. you need to call E.Start before E.debug
-    # 2. if you refactor Experiment.py to solve it,
-    #    options.loglevel is not propagated here anyway.
-    if print_ini:
-        printIniFiles(filenames)
+    # IMS: Several legacy scripts call this with a string as input
+    # rather than a list. Check for this and correct
+
+    if isinstance(filenames, str):
+        filenames = [filenames]
+
+    PARAMS['pipeline_ini'] = filenames
 
     CONFIG.read(filenames)
 
