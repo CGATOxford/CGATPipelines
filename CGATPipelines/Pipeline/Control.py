@@ -755,7 +755,7 @@ def main(args=sys.argv):
 
     parser.add_option("-s", "--set", dest="variables_to_set",
                       type="string", action="append",
-                      help="explicitely set paramater values "
+                      help="explicitly set paramater values "
                       "[default=%default].")
 
     parser.add_option("-c", "--checksums", dest="ruffus_checksums_level",
@@ -807,7 +807,7 @@ def main(args=sys.argv):
 
     PARAMS["dryrun"] = options.dry_run
 
-    # use cmd_cluster_* keys in PARAMS to ensure highest priority
+    # use cli_cluster_* keys in PARAMS to ensure highest priority
     # of cluster_* options passed with the command-line
     if options.cluster_memory_default is not None:
         PARAMS["cli_cluster_memory_default"] = options.cluster_memory_default

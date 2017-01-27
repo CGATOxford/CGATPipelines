@@ -387,6 +387,7 @@ def run(**kwargs):
     options.update(list(kwargs.items()))
 
     # insert legacy synonyms
+    options['without_cluster'] = options.get('without_cluster')
     getParallelEnvironment(options)
 
     # enforce highest priority for cluster options in command-line
