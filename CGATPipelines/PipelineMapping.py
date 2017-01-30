@@ -313,7 +313,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
         new_exons.sort(key=lambda x: (x.start, x.gene_id, x.transcript_id))
 
         for e in new_exons:
-            outf.write("%s\n" % str(e))
+            outf.write(("%s\n" % str(e)).encode())
             c.exons += 1
 
         c.output += 1

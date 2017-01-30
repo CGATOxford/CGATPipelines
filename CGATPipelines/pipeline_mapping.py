@@ -2337,12 +2337,12 @@ def loadReadCounts(infiles, outfile):
     '''
 
     outf = P.getTempFile(".")
-    outf.write("track\ttotal_reads\n")
+    outf.write("track\ttotal_reads\n".encode('utf-8'))
     for infile in infiles:
         track = P.snip(infile, ".nreads")
         lines = IOTools.openFile(infile).readlines()
         nreads = int(lines[0][:-1].split("\t")[1])
-        outf.write("%s\t%i\n" % (track, nreads))
+        outf.write(("%s\t%i\n" % (track, nreads)).encode('utf-8'))
     outf.close()
 
     P.load(outf.name, outfile)

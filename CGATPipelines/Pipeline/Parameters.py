@@ -31,6 +31,7 @@ Reference
 import re
 import collections
 import os
+
 try:
     import configparser
 except ImportError:
@@ -74,7 +75,7 @@ if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
     PIPELINE_SCRIPTS_DIR = os.path.join(sys.exec_prefix, "bin")
 
 # Global variable for configuration file data
-CONFIG = configparser.ConfigParser()
+CONFIG = configparser.RawConfigParser()
 
 
 class TriggeredDefaultFactory:
@@ -399,7 +400,7 @@ def loadParameters(filenames):
        A configuration dictionary.
 
     '''
-    config = configparser.ConfigParser()
+    config = configparser.RawConfigParser()
     config.read(filenames)
 
     p = configToDictionary(config)
