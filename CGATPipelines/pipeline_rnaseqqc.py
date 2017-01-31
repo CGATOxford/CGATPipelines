@@ -953,7 +953,7 @@ def runSailfish(infiles, outfile):
     sailfish_bootstrap = 1
     sailfish_libtype = PARAMS["sailfish_libtype"]
     sailfish_options = PARAMS["sailfish_options"]
-    sailfish_options += "--geneMap %s" % transcript_map
+    sailfish_options += " --geneMap %s" % transcript_map
 
     m = PipelineMapping.Sailfish()
 
