@@ -818,10 +818,6 @@ def buildMaskGtf(infile, outfile):
     geneset = IOTools.openFile(infile)
     outf = open(outfile, "wb")
     for entry in GTF.iterator(geneset):
-	#if "rRNA" in entry.asDict["gene_biotype"]:
-	#dvt = entry.asDict()	
-	#print dvt["gene_biotype"] #this works 
-	#print dvt
         if re.findall("rRNA",
                       entry.source) or re.findall("chrM",
                                                   entry.contig):
@@ -835,20 +831,20 @@ def buildMaskGtf(infile, outfile):
                                             entry.strand,
                                             ".",
                                             "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
-	#CG : I added this in to expand the mask file - change as see fit
-        elif re.findall("snRNA",
-                      entry.source) or re.findall("snoRNA",
-                                                  entry.source):
-			outf.write("\t".join((map(str, [entry.contig,
-		                                        entry.source,
-		                                        entry.feature,
-		                                        entry.start,
-		                                        entry.end,
-		                                        ".",
-		                                        entry.strand,
-		                                        ".",
-		                                        "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
 
+    # CG: I added this in to expand the mask file - change as see fit
+        elif re.findall("snRNA",
+                        entry.source) or re.findall("snoRNA",
+                                                    entry.source):
+            outf.write("\t".join((map(str, [entry.contig,
+                                            entry.source,
+                                            entry.feature,
+                                            entry.start,
+                                            entry.end,
+                                            ".",
+                                            entry.strand,
+                                            ".",
+                                            "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
 
     outf.close()
 
@@ -1085,38 +1081,33 @@ def mergeUsingCuffmerge(infiles, outfile):
            suffix(".cuffcompare"),
            "_cuffcompare.load")
 def loadTranscriptComparison(infile, outfile):
-    '''load data from transcript comparison. 
-    
-    
+    '''load data from transcript comparison.
+
     This task creates several tables in database for:
-		 experiment_condition_agg.cuffcompare tracks
-		 agg_agg_agg.cuffcompare tracksexir
+    experiment_condition_agg.cuffcompare tracks
+    agg_agg_agg.cuffcompare tracksexir
 
-    
-     CG:the tracking file produced from cuffcompare can contain multiple 
-	transcripts per transfrag for each sample
-	the <track>_fpkm table and <track>_transcripts table only record 
-	one transcript for each transfrag. If the transfrag has more then one
-	transcript associated with it the information will be lost and 
-        fpkm values etc could be misleading. 
-	
+    CG:the tracking file produced from cuffcompare can contain multiple
+    transcripts per transfrag for each sample
+    the <track>_fpkm table and <track>_transcripts table only record
+    one transcript for each transfrag. If the transfrag has more then one
+    transcript associated with it the information will be lost and
+    fpkm values etc could be misleading.
 
-    
-    <track>_benchmark:  summarise info from <track>.cuffcompare stats file
+    <track>_benchmark: summarise info from <track>.cuffcompare stats file
 
-    <track>_loci:	summarise info from <track>.cufffcompare.loci   
-  
-    <track>_fpkm:	summarise fpkm of samples being compared in track
-			NOTE: MAY NOT GIVE INFO FOR ALL TRANSCRIPTS! (See above)
+    <track>_loci: summarise info from <track>.cufffcompare.loci
 
-    <track>_transcripts:   contains transcripts details summarised from      
-    			   <track>.cuffcompare.tracking file  
-               
-    <track>_tracking:   summarises number of experiments transfrags are foun in 
-			Only present if multiple replicates 
-             
-    <track>_tracks:     list of samples compared/combined                
-    
+    <track>_fpkm: summarise fpkm of samples being compared in track
+    NOTE: MAY NOT GIVE INFO FOR ALL TRANSCRIPTS! (See above)
+
+    <track>_transcripts: contains transcripts details summarised from
+        <track>.cuffcompare.tracking file
+
+    <track>_tracking: summarises number of experiments transfrags are found in
+                        Only present if multiple replicate
+
+    <track>_tracks:     list of samples compared/combined
     '''
 
     tmpfile = P.getTempFilename(dir=".")
@@ -1228,20 +1219,15 @@ def loadTranscriptComparison(infile, outfile):
 
     if os.path.exists(fn):
         for transfrag in Tophat.iterate_tracking(IOTools.openFile(fn, "r")):
-        
-            #collect transcripts from each transfrag, 
-	    #filter out samples with no transcripts 
+            # collect transcripts from each transfrag,
+            # filter out samples with no transcripts
             numtranscripts = [x for x in transfrag.transcripts if x]
-            
-	    #count number of gene_ids containing q1 - qXX 
-	    #qXX = identifier of samples where transcript is found
-	    nexperiments = len([y for y in numtranscripts 
-					if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
-		
 
-	    #CG - THIS CALCS NUMBER OF TRANSCRIPTS NOT NUMBER OF EXPERIMENTS 
-            #nexperiments = len([x for x in transfrag.transcripts if x])
-		
+            # count number of gene_ids containing q1 - qXX
+            # qXX = identifier of samples where transcript is found
+            nexperiments = len([y for y in numtranscripts
+                               if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
+
             outf.write("%s\n" %
                        "\t".join((transfrag.transfrag_id,
                                   transfrag.locus_id,
@@ -1428,25 +1414,20 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
     if os.path.exists(fn):
         for transfrag in Tophat.iterate_tracking(IOTools.openFile(fn, "r")):
             if transfrag.transfrag_id in kept_transcripts:
-            	#collect transcripts from each transfrag, 
-	    	#filter out samples with no transcripts 
-            	numtranscripts = [x for x in transfrag.transcripts if x]
-            
-	    	#count number of gene_ids containing q1 - qXX 
-	    	#qXX = identifier of samples where transcript is found
-	    	nexperiments = len([y for y in numtranscripts 
-					if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
+                # collect transcripts from each transfrag,
+                # filter out samples with no transcripts
+                numtranscripts = [x for x in transfrag.transcripts if x]
 
-		#TO BE DELETED
-                #nexperiments = len([x for x in transfrag.transcripts if x])
+                #  number of gene_ids containing q1 - qXX
+                # qXX = identifier of samples where transcript is found
+                nexperiments = len([y for y in numtranscripts if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
 
-                outf.write("%s\n" %
-                           "\t".join((transfrag.transfrag_id,
-                                      transfrag.locus_id,
-                                      transfrag.ref_gene_id,
-                                      transfrag.ref_transcript_id,
-                                      transfrag.code,
-                                      str(nexperiments))))
+                outf.write("%s\n" % "\t".join((transfrag.transfrag_id,
+                                               transfrag.locus_id,
+                                               transfrag.ref_gene_id,
+                                               transfrag.ref_transcript_id,
+                                               transfrag.code,
+                                               str(nexperiments))))
 
                 outf3.write("%s" % transfrag.transfrag_id)
 
