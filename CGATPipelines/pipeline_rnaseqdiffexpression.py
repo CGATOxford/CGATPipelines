@@ -366,6 +366,7 @@ import CGAT.IOTools as IOTools
 from rpy2.robjects import r as R
 from rpy2.robjects.packages import importr
 import rpy2.robjects as ro
+from six import iteritems
 
 import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
@@ -493,6 +494,7 @@ def buildReferenceTranscriptome(infile, outfile):
     cgat gff2fasta
     --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
     --log=%(outfile)s.log > %(outfile)s;
+    checkpoint;
     samtools faidx %(outfile)s
     '''
 
@@ -620,7 +622,7 @@ def getTranscript2GeneMap(outfile):
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("transcript_id\tgene_id\n")
-        for key, value in transcript2gene_dict.iteritems():
+        for (key, value) in iteritems(transcript2gene_dict):
             outf.write("%s\t%s\n" % (key, value))
 
 
