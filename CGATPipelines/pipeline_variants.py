@@ -1585,18 +1585,18 @@ def buildMultipleAlignments(infile, outfile):
     to_cluster = True
 
     statement = '''
-	cgat align_transcripts \
-		--gtf-file=%(infile)s \
-		--cds-gtf-file=%(filename_cds)s \
-		--force-map \
-		--verbose=2 \
-		--output-filename-pattern=%(track)s_%%s.fasta \
-		--output-section=final_aa \
-		--output-section=final_na \
-		--output-section=aligned_aa \
-		--output-section=aligned_na \
-		--output-format="plain-fasta" \
-	< %(filename_pep)s > %(outfile)s
+    cgat align_transcripts \
+    --gtf-file=%(infile)s \
+    --cds-gtf-file=%(filename_cds)s \
+    --force-map \
+    --verbose=2 \
+    --output-filename-pattern=%(track)s_%%s.fasta \
+    --output-section=final_aa \
+    --output-section=final_na \
+    --output-section=aligned_aa \
+    --output-section=aligned_na \
+    --output-format="plain-fasta" \
+    < %(filename_pep)s > %(outfile)s
       '''
 
     P.run()
@@ -1613,18 +1613,18 @@ def buildMultipleAlignmentVariantColumns(infile, outfile):
     to_cluster = True
 
     statement = '''
-	cgat malis2mali \
-		--gtf-file=%(infile)s \
-		--cds-gtf-file=%(filename_cds)s \
-		--force-map \
-		--verbose=2 \
-		--output-filename-pattern=%(track)s_%%s.fasta \
-		--output-section=final_aa \
-		--output-section=final_na \
-		--output-section=aligned_aa \
-		--output-section=aligned_na \
-		--output-format="plain-fasta" \
-	< %(filename_pep)s > %(outfile)s
+    cgat malis2mali \
+    --gtf-file=%(infile)s \
+    --cds-gtf-file=%(filename_cds)s \
+    --force-map \
+    --verbose=2 \
+    --output-filename-pattern=%(track)s_%%s.fasta \
+    --output-section=final_aa \
+    --output-section=final_na \
+    --output-section=aligned_aa \
+    --output-section=aligned_na \
+    --output-format="plain-fasta" \
+    < %(filename_pep)s > %(outfile)s
       '''
 
     P.run()

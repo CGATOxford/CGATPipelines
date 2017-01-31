@@ -381,8 +381,10 @@ class sppIDRPeaks(callerIDRPeaks):
         statement.append(self.PARAMS_PEAKCALLER["spp_options_parameters"])
 
         # specify outfile
+        # MM: this was hard-coded to a non-existent directory
+        # changed to stats directory
         statement.append(" -rf"
-                         " -out=/stats/phantomPeakStatsReps.tab"
+                         " -out=./stats/phantomPeakStatsReps.tab"
                          " >& %(outfile)s")
 
         statement = (" ".join(statement) % locals())

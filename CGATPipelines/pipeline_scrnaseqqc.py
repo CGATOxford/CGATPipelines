@@ -166,14 +166,22 @@ else:
     else:
         DATADIR = PARAMS['data']
 
+USER = os.environ['USER']
+base_dir = "/ifs/devel"
+end_dir = "/cgat/scripts"
+PARAMS['cgat_scripts'] = "/".join([base_dir, USER,
+                                   end_dir])
+
 # --------------------------------------
 FASTQ_SUFFIXES = ("*.fastq.1.gz",
-                  "*.fastq.2.gz")
+                  "*.fastq.2.gz",
+                  "*.fastq.gz")
 FASTQ_DIR = PARAMS['fastq_dir']
 FASTQ_FILES = tuple([os.path.join(FASTQ_DIR, suffix_name)
                      for suffix_name in FASTQ_SUFFIXES])
 FASTQ_REGEX = regex(r"%s/(\S+).fastq.1.gz" % FASTQ_DIR)
 FASTQ_PAIR = r"%s/\1.fastq.2.gz" % FASTQ_DIR
+SE_REGEX = regex(r"%s/(\S+).fastq.gz" % FASTQ_DIR)
 GENESETS = [y for y in glob.glob(os.path.join("reference.dir/*.gtf.gz"))]
 
 
@@ -211,7 +219,7 @@ def makeSplicedCatalog(infile, outfile):
     '''
 
     statement = '''
-    cgat cgat_fasta2cDNA
+    python %(cgat_scripts)s/cgat_fasta2cDNA.py
     --log=%(outfile)s.log
     %(infile)s
     > %(outfile)s
@@ -279,7 +287,7 @@ def makeSailfishIndex(infile, outfile):
     outdir = "/".join(outfile.split("/")[:-1])
     job_threads = 8
     statement = '''
-    cgat fastq2tpm
+    python %(cgat_scripts)s/fastq2tpm.py
     --method=make_index
     --program=sailfish
     --index-fasta=%(infile)s
@@ -292,46 +300,86 @@ def makeSailfishIndex(infile, outfile):
     P.run()
 
 
-@follows(mkdir("tpm.dir"),
-         makeSailfishIndex,
-         addSpikeInTranscripts)
-@transform(FASTQ_FILES,
-           FASTQ_REGEX,
-           add_inputs([r"sailfish_index.dir",
-                       FASTQ_PAIR,
-                       addSpikeInTranscripts]),
-           r"tpm.dir/\1/quant.genes.sf")
-def quantifyWithSailfish(infiles, outfile):
-    '''
-    Quantify gene/transcript expression with sailfish
-    '''
+if PARAMS['paired']:
+    @follows(mkdir("tpm.dir"),
+             makeSailfishIndex,
+             addSpikeInTranscripts)
+    @transform(FASTQ_FILES,
+               FASTQ_REGEX,
+               add_inputs([r"sailfish_index.dir",
+                           FASTQ_PAIR,
+                           addSpikeInTranscripts]),
+               r"tpm.dir/\1/quant.genes.sf")
+    def quantifyWithSailfish(infiles, outfile):
+        '''
+        Quantify gene/transcript expression with sailfish
+        '''
 
-    fastq1 = infiles[0]
-    # need to check that fastq2 file exists
-    # if not, run as single-end
-    fastq2 = infiles[1][1]
-    geneset = infiles[1][2]
+        fastq1 = infiles[0]
+        # need to check that fastq2 file exists
+        # if not, run as single-end
+        fastq2 = infiles[1][1]
+        geneset = infiles[1][2]
 
-    index_dir = infiles[1][0]
-    out_dir = "/".join(outfile.split("/")[:-1])
-    job_threads = 6
-    fastqs = ",".join([fastq1, fastq2])
-    job_memory = "1.5G"
+        index_dir = infiles[1][0]
+        out_dir = "/".join(outfile.split("/")[:-1])
+        job_threads = 6
+        fastqs = ",".join([fastq1, fastq2])
+        job_memory = "1.5G"
 
-    statement = '''
-    cgat fastq2tpm
-    --log=%(out_dir)s.log
-    --program=sailfish
-    --method=quant
-    --paired-end
-    --gene-gtf=%(geneset)s
-    --index-file=%(index_dir)s
-    --output-directory=%(out_dir)s
-    --library-type=ISF
-    --threads=%(job_threads)s
-    %(fastqs)s'''
+        statement = '''
+        python %(cgat_scripts)s/fastq2tpm.py
+        --log=%(out_dir)s.log
+        --program=sailfish
+        --method=quant
+        --paired-end
+        --gene-gtf=%(geneset)s
+        --index-file=%(index_dir)s
+        --output-directory=%(out_dir)s
+        --library-type=%(sailfish_library)s
+        --threads=%(job_threads)s
+        %(fastqs)s'''
 
-    P.run()
+        P.run()
+
+else:
+    @follows(mkdir("tpm.dir"),
+             makeSailfishIndex)
+    @transform(FASTQ_FILES,
+               SE_REGEX,
+               add_inputs([makeSailfishIndex,
+                           addSpikeInTranscripts]),
+               r"tpm.dir/\1.tpm")
+    def quantifyWithSailfish(infiles, outfile):
+        '''
+        Quantify gene/transcript expression with sailfish
+        '''
+
+        fastqs = infiles[0]
+        geneset = infiles[1][1]
+        # need to check that fastq2 file exists
+        # if not, run as single-end
+        index_dir = "/".join(infiles[1][0].split("/")[:-1])
+        out_dir = ".".join(outfile.split(".")[:-1])
+        job_threads = 8
+        job_memory = "6G"
+
+        count_file = "/".join([out_dir, "quant.sf"])
+
+        statement = '''
+        python %(cgat_scripts)s/fastq2tpm.py
+        --log=%(outfile)s.log
+        --program=sailfish
+        --method=quant
+        --gene-gtf=%(geneset)s
+        --index-file=%(index_dir)s
+        --output-directory=%(out_dir)s
+        --library-type=%(sailfish_library)s
+        --threads=%(job_threads)s
+        %(fastqs)s;
+        '''
+
+        P.run()
 
 
 @follows(quantifyWithSailfish)
@@ -396,7 +444,7 @@ def loadSailfishTpm(infile, outfile):
 @follows(transformSailfishOutput,
          mergeSailfishRuns)
 @collate(transformSailfishOutput,
-         regex("tpm.dir/(.+)_(.+)_(.+).quant"),
+         regex("tpm.dir/(.+)-(.+)-(.+).quant"),
          r"tpm.dir/\1.counts")
 def mergeSailfishCounts(infiles, outfile):
     '''
@@ -438,8 +486,7 @@ def loadSailfishCounts(infile, outfile):
 
 BAMDIR = PARAMS['bam_dir']
 BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
-
-BAMREGEX = regex(r".*/(\S+)_([0-9]+)_([0-9]+).(\S+).bam$")
+BAMREGEX = regex(r".*/(.+)-(.+)-(.+).bam$")
 
 
 @follows(mkdir("dedup.dir"))
@@ -607,7 +654,7 @@ def getContextStats(outfile):
     '''
 
     statement = '''
-    cgat extract_stats
+    python %(cgat_scripts)s/extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -626,7 +673,7 @@ def getAlignmentStats(outfile):
     '''
 
     statement = '''
-    cgat extract_stats
+    python %(cgat_scripts)s/extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -645,7 +692,7 @@ def getPicardAlignStats(outfile):
     '''
 
     statement = '''
-    cgat extract_stats
+    python %(cgat_scripts)s/extract_stats.py
     --log=%(outfile)s.log
     --task=extract_table
     --database=%(mapping_db)s
@@ -656,23 +703,28 @@ def getPicardAlignStats(outfile):
     P.run()
 
 
-@originate("stats.dir/picard_insert_stats.tsv")
-def getPicardInsertStats(outfile):
-    '''
-    Grab the picard alignment stats table
-    from the mapping pipeline database
-    '''
+if PARAMS['paired']:
+    @originate("stats.dir/picard_insert_stats.tsv")
+    def getPicardInsertStats(outfile):
+        '''
+        Grab the picard alignment stats table
+        from the mapping pipeline database
+        '''
 
-    statement = '''
-    cgat extract_stats
-    --log=%(outfile)s.log
-    --task=extract_table
-    --database=%(mapping_db)s
-    --table-name=%(mapping_picard_inserts)s
-    > %(outfile)s
-    '''
+        statement = '''
+        python %(cgat_scripts)s/extract_stats.py
+        --log=%(outfile)s.log
+        --task=extract_table
+        --database=%(mapping_db)s
+        --table-name=%(mapping_picard_inserts)s
+        > %(outfile)s
+        '''
 
-    P.run()
+        P.run()
+
+else:
+    def getPicardInsertStats():
+        pass
 
 
 @originate("stats.dir/duplication_stats.tsv")
@@ -683,7 +735,7 @@ def getDuplicationStats(outfile):
     '''
 
     statement = '''
-    cgat extract_stats
+    python %(cgat_scripts)s/extract_stats.py
     --log=%(outfile)s.log
     --task=extract_table
     --database=%(mapping_db)s
@@ -706,7 +758,7 @@ def getCoverageStats(outfile):
     '''
 
     statement = '''
-    cgat extract_stats
+    python %(cgat_scripts)s/extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -765,7 +817,7 @@ def cleanQcTable(infile, outfile):
     '''
 
     statement = '''
-    cgat extract_stats
+    python %(cgat_scripts)s/extract_stats.py
     --task=clean_table
     --log=%(outfile)s.log
     %(infile)s

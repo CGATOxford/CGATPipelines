@@ -218,7 +218,7 @@ setup(
     package_dir=cgat_package_dirs,
     include_package_data=True,
     entry_points={
-        'console_scripts': ['cgat = CGATPipelines.cgat:main']
+        'console_scripts': ['cgatpipe = CGATPipelines.cgatpipe:main']
     },
     # dependencies
     install_requires=install_requires,

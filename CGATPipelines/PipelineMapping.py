@@ -183,7 +183,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
     ---------
     infile : string
        Input filename in :term:`gtf` format
-    outfile : string
+#    outfile : string
        Output filename in :term:`gtf` format
     logfile : string
        Output filename for logging information.
@@ -502,6 +502,12 @@ class SequenceCollectionProcessor(object):
             List of :term:`fastq` formatted files that will
             be created by `statement`.
         '''
+        # explicitly assign qual_format to use in string formatting
+        try:
+            assert self.qual_format
+            qual_format = self.qual_format
+        except AttributeError:
+            qual_format = 'illumina-1.8'
 
         assert len(infiles) > 0, "no input files for processing"
 
@@ -761,7 +767,7 @@ class SequenceCollectionProcessor(object):
                     statement.append("""gunzip < %(infile)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
-                    --guess-format=phred64
+                    --guess-format=%(qual_format)s
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.fastq%(extension)s""" %
@@ -846,18 +852,19 @@ class SequenceCollectionProcessor(object):
 
                 format = Fastq.guessFormat(
                     IOTools.openFile(infile), raises=False)
-                if 'sanger' not in format:
+
+                if 'sanger' not in format and qual_format != 'phred64':
                     statement.append("""gunzip < %(infile)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
-                    --guess-format=phred64
+                    --guess-format=%(qual_format)s
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.1.fastq%(extension)s;
                     gunzip < %(infile2)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
-                    --guess-format=phred64
+                    --guess-format=%(qual_format)s
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.2.fastq%(extension)s
@@ -866,6 +873,25 @@ class SequenceCollectionProcessor(object):
                         ("%s/%s.1.fastq%s" % (tmpdir_fastq, track, extension),
                          "%s/%s.2.fastq%s" % (tmpdir_fastq, track, extension)))
 
+                elif 'sanger' not in format and qual_format == 'phred64':
+                    statement.append("""gunzip < %(infile)s
+                    | cgat fastq2fastq
+                    --method=change-format --target-format=sanger
+                    --guess-format=%(qual_format)s
+                    --log=%(outfile)s.log
+                    %(compress_cmd)s
+                    > %(tmpdir_fastq)s/%(track)s.1.fastq%(extension)s;
+                    gunzip < %(infile2)s
+                    | cgat fastq2fastq
+                    --method=change-format --target-format=sanger
+                    --guess-format=%(qual_format)s
+                    --log=%(outfile)s.log
+                    %(compress_cmd)s
+                    > %(tmpdir_fastq)s/%(track)s.2.fastq%(extension)s
+                    """ % locals())
+                    fastqfiles.append(
+                        ("%s/%s.1.fastq%s" % (tmpdir_fastq, track, extension),
+                         "%s/%s.2.fastq%s" % (tmpdir_fastq, track, extension)))
                 else:
                     E.debug("%s: assuming quality score format %s" %
                             (infile, format))
@@ -1026,6 +1052,7 @@ class FastQc(Mapper):
     def __init__(self,
                  outdir=".",
                  contaminants=None,
+                 qual_format='phred64',
                  *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.outdir = outdir
@@ -1033,6 +1060,7 @@ class FastQc(Mapper):
             self.contaminants = self.parse_contaminants(contaminants)
         else:
             self.contaminants = None
+        self.qual_format = qual_format
 
     def parse_contaminants(self, contaminants):
         '''remove misplaced tabs from contaminants file.
@@ -1195,7 +1223,6 @@ class Salmon(Mapper):
                  *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.compress = compress
-        self.bias_correct = bias_correct
 
     def mapper(self, infiles, outfile):
 
@@ -1237,32 +1264,17 @@ class Salmon(Mapper):
 
         return statement
 
-    def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
-
-        # if using bias correct, need to rename the bias corrected outfile
-        if self.bias_correct:
-            bias_corrected = outfile.replace(".sf", "_bias_corrected.sf")
-
-            statement = '''
-            rm -rf %(outfile)s;
-            mv %(bias_corrected)s %(outfile)s;
-            ''' % locals()
-            return statement
-
-        else:
-            return ""
-
 
 class Kallisto(Mapper):
 
     '''run Kallisto to quantify transcript abundance from fastq files
     - set pseudobam to True to output a pseudobam along with the quantification'''
 
-    def __init__(self, pseudobam=False, *args, **kwargs):
+    def __init__(self, pseudobam=False, readable_suffix=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.pseudobam = pseudobam
+        self.readable_suffix = readable_suffix
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles'''
@@ -1320,6 +1332,14 @@ class Kallisto(Mapper):
         statement = ('''
         mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
+
+        if self.readable_suffix:
+
+            outfile_readable = outfile + self.readable_suffix
+            statement += ('''
+            kallisto h5dump -o %(tmpdir)s %(outfile)s;
+            mv %(tmpdir)s/abundance.tsv %(outfile_readable)s;
+            rm -rf %(tmpdir)s/bs_abundance_*.tsv;''' % locals())
 
         return statement
 
@@ -2459,7 +2479,7 @@ class Hisat(Mapper):
     # hisat can work of compressed files
     compress = True
 
-    executable = "hisat"
+    executable = "hisat2"
 
     def __init__(self, remove_non_unique=False, strip_sequence=False,
                  stranded=False, *args, **kwargs):

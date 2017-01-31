@@ -150,7 +150,7 @@ HARDCODED_PARAMS = {
     'local_tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
-    # queue manager (supported: sge, slurm)
+    # queue manager (supported: sge, slurm, torque, pbspro)
     'cluster_queue_manager': 'sge',
     # cluster queue to use
     'cluster_queue': 'all.q',

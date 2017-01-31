@@ -928,12 +928,12 @@ def runDE(infiles, outfile, method):
     outdir = os.path.join(
         PARAMS["exportdir"], "diff_methylation", "%s_%s_%s_" % (tiling, design, method))
 
-    statement = '''zcat %(infile)s 
-              | perl %(scriptsdir)s/randomize_lines.pl -h
+    statement = '''zcat %(infile)s
+              | cgat randomize_lines --keep-header=1
               | %(cmd-farm)s
-                  --input-header 
-                  --output-header 
-                  --split-at-lines=100000 
+                  --input-header
+                  --output-header
+                  --split-at-lines=100000
                   --cluster-options="-l mem_free=8G"
                   --log=%(outfile)s.log
                   --output-filename-pattern=%(outdir)s%%s
