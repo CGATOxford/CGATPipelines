@@ -22,15 +22,15 @@ pandas2ri.activate()
 ##############################################
 # Preprocessing Functions
 
-def getWantedContigs(unwanted_contigs,all_contigs):
-    '''takes a string of characters in unwanted contigs seperated by '|' and a 
-    list of all contigs present in the file - returns a string of space 
-    seperated contigs that want to be kept -does partial name matching 
-    
+def getWantedContigs(unwanted_contigs, all_contigs):
+    '''takes a string of characters in unwanted contigs seperated by '|' and a
+    list of all contigs present in the file - returns a string of space
+    seperated contigs that want to be kept -does partial name matching
+
     Parameters
     ----------
     unwanted_contigs: str
-        String of '|' separated contigs to remove from bam - specified in ini 
+        String of '|' separated contigs to remove from bam - specified in ini
     all_contigs: list
         list containing the names of contigs present in bam file to be filtered
 
@@ -48,11 +48,11 @@ def getWantedContigs(unwanted_contigs,all_contigs):
         for region in all_contigs:
             if c in region and region not in contigs_to_remove:
                 contigs_to_remove.append(region)
-	
-    wanted_contigs = (list(set(all_contigs) - set(contigs_to_remove))) 
+
+    wanted_contigs = (list(set(all_contigs) - set(contigs_to_remove)))
     contigs_string = " ".join(sorted(wanted_contigs))
-    
-    return (contigs_string,contigs_to_remove)
+
+    return (contigs_string, contigs_to_remove)
 
 
 def trackFilters(filtername, bamfile, tabout):
@@ -118,12 +118,9 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
         1 = paired end, 0 = single end
     outfile: str
         path to output file
-    contigs: str 
+    contigs: str
         string containing list of contigs to keep in the bam e.g. "chr1 chr2"
     '''
-
-
-
     i = 0
     j = 0
     string = ""
@@ -257,8 +254,6 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
         1 = paired end, 0 = single end
 
     '''
-
-
     outT = P.getTempFilename("./filtered_bams.dir")
     if pe is True:
         statement += """samtools sort -n %(inT)s.bam -o %(outT)s.bam;
@@ -290,11 +285,12 @@ def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
 
     return statement, outT
 
-def appendContigFilters(statement,inT, tabout, filters, pe,
-                        contigs_to_remove,all_contigs):
+
+def appendContigFilters(statement, inT, tabout, filters, pe,
+                        contigs_to_remove, all_contigs):
     '''
     Appends a fragment to an existing command line statement to
-    filter chromsome contigs (e.g. chrM or chrUN regions) from a bam file 
+    filter chromsome contigs (e.g. chrM or chrUN regions) from a bam file
     if the chromosome contigs have been in ini file.
 
     Example Fragment:
@@ -314,21 +310,21 @@ def appendContigFilters(statement,inT, tabout, filters, pe,
     pe: bool
         1 = paired end, 0 = single end
     contigs_to_remove: str
-        pipeseperated string of contigs to remove based on partial name matches 
+        pipeseperated string of contigs to remove based on partial name matches
         e.g '_hap|chrM'
     all_contigs: list
         list of contigs that are present in origional bam file
 
     '''
-    
+
     keep_contigs, remove_contigs = getWantedContigs(contigs_to_remove,
-                                                        all_contigs)
+                                                    all_contigs)
 
     outT = P.getTempFilename("./filtered_bams.dir")
-    
+
     statement += """samtools index %(inT)s.bam;
                     samtools view -b %(inT)s.bam %(keep_contigs)s > %(outT)s.bam;
-                    rm -f %(inT)s.bam; rm -f %(inT)s; 
+                    rm -f %(inT)s.bam; rm -f %(inT)s;
                     rm -f %(inT)s.bam.bai;""" % locals()
 
     statement += trackFilters('contigs', outT, tabout)
@@ -338,7 +334,7 @@ def appendContigFilters(statement,inT, tabout, filters, pe,
 
 @cluster_runnable
 def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
-               contigs_to_remove,keep_intermediates=False):
+               contigs_to_remove, keep_intermediates=False):
     '''
     Builds a statement which applies various filters to bam files.
 
@@ -397,7 +393,6 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
         os.mkdir("filtered_bams.dir")
     outT = P.getTempFilename("./filtered_bams.dir")
 
-
     statement = """samtools sort %(inT)s -o %(outT)s.bam; """ % locals()
     inT = outT
 
@@ -407,14 +402,13 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                                          bamout)
     statement, inT = appendSamtoolsFilters(statement, inT, tabout, filters,
                                            qual, pe)
-    
-    #get statement for filtering contigs
-    if "contigs" in filters and contigs_to_remove != None:
-        samfile = pysam.AlignmentFile(infile,'rb')
+
+    # get statement for filtering contigs
+    if "contigs" in filters and contigs_to_remove not None:
+        samfile = pysam.AlignmentFile(infile, 'rb')
         all_contigs = samfile.references
-        statement, inT = appendContigFilters(statement,inT, tabout, filters, pe,
-                                            contigs_to_remove,all_contigs)    
-    
+        statement, inT = appendContigFilters(statement, inT, tabout, filters, pe,
+                                             contigs_to_remove, all_contigs)
 
     if bedfiles != [""]:
         statement, inT = appendBlacklistFilter(statement, inT, tabout,
@@ -442,7 +436,7 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
 
     if int(keep_intermediates) == 1:
         statement = re.sub("rm -f \S+.bam;", "", statement)
-    
+
     P.run()
 
     # reformats the read counts into a table
@@ -479,7 +473,7 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
 
 
 @cluster_runnable
-def checkBams(infile, filters, qlim, pe, outfile,contigs_to_remove):
+def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
     '''
     Generates a table to ensure that post filtering bam files do not
     contain any of the reads which should have been filtered out.  This table
@@ -523,7 +517,7 @@ def checkBams(infile, filters, qlim, pe, outfile,contigs_to_remove):
     samfile = pysam.AlignmentFile(infile, 'rb')
     contigs_in_bam = samfile.references
     keep_contigs, remove_contigs = getWantedContigs(contigs_to_remove,
-                                                        contigs_in_bam)
+                                                    contigs_in_bam)
     sep = '.'
     logfile = sep.join([outfile, 'filteringlog'])
 
@@ -533,14 +527,13 @@ def checkBams(infile, filters, qlim, pe, outfile,contigs_to_remove):
 
     if "lowqual" not in filters:
         qlim = 0
-    
-    
+
     for item in remove_contigs:
         if item in contigs_in_bam:
             counter[item] = samfile.count(item)
         else:
             counter[item] = 0
-    
+
     counter['primary_alig'] = 0
     counter['secondary'] = 0
     counter['proper_pairs'] = 0
