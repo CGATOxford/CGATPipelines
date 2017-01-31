@@ -131,10 +131,10 @@ def getProjectDirectories(sections=None):
     }
 
     if sections:
-        result = dict([(x, y) for x, y in result.items()
+        result = dict([(x, y) for x, y in list(result.items())
                        if x in sections])
 
-    for x, y in result.items():
+    for x, y in list(result.items()):
         if not os.path.exists(y):
             raise ValueError(
                 "directory %s for %s does not exist" % (y, x))
@@ -391,7 +391,7 @@ def publish_report(prefix="",
     if export_files:
         bigwigs, bams, beds = [], [], []
 
-        for targetdir, filenames in export_files.items():
+        for targetdir, filenames in list(export_files.items()):
 
             targetdir = os.path.join(web_dir, targetdir)
             if not os.path.exists(targetdir):
@@ -409,7 +409,7 @@ def publish_report(prefix="",
                 if not os.path.exists(dest):
                     try:
                         os.symlink(os.path.abspath(src), dest)
-                    except OSError, msg:
+                    except OSError as msg:
                         E.warn("could not create symlink from %s to %s: %s" %
                                (os.path.abspath(src), dest, msg))
 
@@ -622,7 +622,7 @@ def publish_tracks(export_files,
         else:
             return None, None
 
-    for targetdir, filenames in export_files.items():
+    for targetdir, filenames in list(export_files.items()):
         for src in filenames:
             dest = os.path.join(trackdir, prefix + os.path.basename(src))
             dest = os.path.abspath(dest)
@@ -630,7 +630,7 @@ def publish_tracks(export_files,
             if not os.path.exists(dest):
                 try:
                     os.symlink(os.path.abspath(src), dest)
-                except OSError, msg:
+                except OSError as msg:
                     E.warn("could not create symlink from %s to %s: %s" %
                            (os.path.abspath(src), dest, msg))
             ucsctype, trackname = getName(os.path.basename(dest))
@@ -645,7 +645,7 @@ def publish_tracks(export_files,
     if UCSC_ini:
         UCSC_PARAMS = loadParameters(UCSC_ini)
 
-        for param, values in UCSC_PARAMS.iteritems():
+        for param, values in UCSC_PARAMS.items():
             children = []
 
             # find "parent" params
@@ -654,7 +654,7 @@ def publish_tracks(export_files,
                 name = param.replace("_values", "")
                 regex = UCSC_PARAMS[name + "_regex"]
 
-                for targetdir, filenames in export_files.items():
+                for targetdir, filenames in list(export_files.items()):
                     for src in filenames:
                         dest = prefix + os.path.basename(src)
                         if re.match(regex, dest):
@@ -665,7 +665,7 @@ def publish_tracks(export_files,
                 make_group = False
                 regex = UCSC_PARAMS[param]
                 name = param.replace("_regex", "")
-                for targetdir, filenames in export_files.items():
+                for targetdir, filenames in list(export_files.items()):
                     for src in filenames:
                         dest = prefix + os.path.basename(src)
                         if re.match(regex, dest):
@@ -673,14 +673,14 @@ def publish_tracks(export_files,
             else:
                 continue
 
-            if name + "_colour" in UCSC_PARAMS.keys():
+            if name + "_colour" in list(UCSC_PARAMS.keys()):
                 colour, colour_type = UCSC_PARAMS[name + "_colour"].split(",")
                 try:
                     colours = brewer2mpl.get_map(
                         colour, colour_type, max(3, len(children)))
                 except ValueError as error:
-                    print ("Could not set colours for %s. See error message"
-                           "%s" % (",".join(children), error))
+                    print(("Could not set colours for %s. See error message"
+                           "%s" % (",".join(children), error)))
                 colours = colours.colors
                 # make the colours a shade darker
                 colours = [[max(0, y - 25) for y in x] for x in colours]
@@ -710,7 +710,7 @@ def publish_tracks(export_files,
 
     E.info("writing to %s" % trackfile)
     with IOTools.openFile(trackfile, "w") as outfile:
-        PipelineUCSC.writeTrackFile(outfile, list(tracks.iteritems()))
+        PipelineUCSC.writeTrackFile(outfile, list(tracks.items()))
 
     E.info(
         "data hub has been created at http://www.cgat.org/downloads/%(project_id)s/ucsc/hub.txt" % locals())

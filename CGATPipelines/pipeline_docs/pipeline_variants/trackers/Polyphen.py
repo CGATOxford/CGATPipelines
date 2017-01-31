@@ -236,7 +236,7 @@ class PolyphenEffectAndLength(PolyphenTracker):
         GROUP BY i.gene_id
         ''' % self.members(locals() ) )
 
-        data = odict(zip(("length", "nsnps", "pdeleterious"), zip(*data)))
+        data = odict(list(zip(("length", "nsnps", "pdeleterious"), list(zip(*data)))))
         data["length"] = [math.log(x) for x in data["length"]]
         data["nsnps"] = [math.log(x) for x in data["nsnps"]]
 

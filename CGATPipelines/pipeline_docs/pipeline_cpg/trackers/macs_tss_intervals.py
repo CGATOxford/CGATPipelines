@@ -27,7 +27,7 @@ class tssIntervalSummary(cpgTracker):
             "SELECT COUNT(t.gene_id) as tss FROM %(track)s_replicated_intervals i, %(track)s_tss t WHERE i.interval_id=t.gene_id AND t.closest_dist <=1000" % locals())
         data2 = self.getFirstRow(
             "SELECT COUNT(t.gene_id) as tss FROM %(track)s_replicated_intervals i, %(track)s_tss t WHERE i.interval_id=t.gene_id AND t.closest_dist >1000" % locals())
-        return odict(zip(("TSS intervals", "Non TSS intervals"), data1 + data2))
+        return odict(list(zip(("TSS intervals", "Non TSS intervals"), data1 + data2)))
 
 ##########################################################################
 

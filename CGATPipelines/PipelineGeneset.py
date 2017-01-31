@@ -43,7 +43,7 @@ MAP_UCSC2ENSEMBL = {
     'rn': ENSEMBL_INFO._make(('Rattus_norvegicus',
                               'ENSRNOG',
                               'ENSRNOT')),
-    }
+}
 
 
 def mapUCSCToEnsembl(genome):
@@ -87,7 +87,7 @@ def annotateGenome(infile, outfile,
     method = "genome"
 
     if only_proteincoding:
-        filter_cmd = """python %(scriptsdir)s/gtf2gtf.py
+        filter_cmd = """cgat gtf2gtf
         --method=filter --filter-method=proteincoding""" % PARAMS
     else:
         filter_cmd = "cat"
@@ -96,20 +96,20 @@ def annotateGenome(infile, outfile,
     zcat %(infile)s
     | %(filter_cmd)s
     | grep "transcript_id"
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene+transcript
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=set-source-to-transcript_biotype
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --mark-utr
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=longest-gene
         --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=position
-    | python %(scriptsdir)s/gtf2gff.py
+    | cgat gtf2gff
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
     --flank-size=%(enrichment_genes_flank)s
@@ -153,7 +153,7 @@ def annotateGeneStructure(infile, outfile,
     """
 
     if only_proteincoding:
-        filter_cmd = """python %(scriptsdir)s/gtf2gtf.py
+        filter_cmd = """cgat gtf2gtf
         --method=filter --filter-method=proteincoding""" % PARAMS
     else:
         filter_cmd = "cat"
@@ -166,16 +166,16 @@ def annotateGeneStructure(infile, outfile,
     | %(filter_cmd)s
     | awk '$3 == "exon"'
     | grep "transcript_id"
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene+transcript
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=representative-transcript
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=longest-gene
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=position
-    | python %(scriptsdir)s/gtf2gff.py
+    | cgat gtf2gff
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
     --flank-size=%(enrichment_genestructures_flank)i
@@ -212,18 +212,18 @@ def buildFlatGeneSet(infile, outfile):
     < %(infile)s
     | awk '$3 == "exon"'
     | grep "transcript_id"
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort
     --sort-order=contig+gene
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --permit-duplicates
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=set-transcript-to-gene
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort
     --sort-order=position+gene
     --log=%(outfile)s.log
@@ -267,29 +267,29 @@ def buildProteinCodingGenes(infile, outfile):
     # --permit-duplicates is set so that these cases will be
     # assigned new merged gene ids.
     statement = """zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
         --method=filter
         --filter-method=proteincoding
     | grep "transcript_id"
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=contig+gene
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
     --genome-file=%(genome_dir)s/%(genome)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --permit-duplicates
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=longest-gene
     --log=%(outfile)s.log
     | awk '$3 == "exon"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=set-transcript-to-gene
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene+transcript
     | gzip
     > %(outfile)s
@@ -321,7 +321,7 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
     table = P.toTable(outfile)
 
     if only_proteincoding:
-        filter_cmd = """python %(scriptsdir)s/gtf2gtf.py
+        filter_cmd = """cgat gtf2gtf
         --method=filter --filter-method=proteincoding""" % PARAMS
     else:
         filter_cmd = "cat"
@@ -336,9 +336,9 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
     zcat %(infile)s
     | %(filter_cmd)s
     | grep "transcript_id"
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene+transcript
-    | python %(scriptsdir)s/gtf2tsv.py
+    | cgat gtf2tsv
     --attributes-as-columns --output-only-attributes -v 0
     | python %(toolsdir)s/csv_cut.py
     --remove exon_id transcript_id transcript_name protein_id exon_number
@@ -531,7 +531,7 @@ def loadTranscriptInformation(infile, outfile,
     table = P.toTable(outfile)
 
     if only_proteincoding:
-        filter_cmd = """python %(scriptsdir)s/gtf2gtf.py
+        filter_cmd = """cgat gtf2gtf
         --method=filter --filter-method=proteincoding""" % PARAMS
     else:
         filter_cmd = "cat"
@@ -547,9 +547,9 @@ def loadTranscriptInformation(infile, outfile,
     statement = '''zcat < %(infile)s
     | awk '$3 == "CDS"'
     | grep "transcript_id"
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene+transcript
-    | python %(scriptsdir)s/gtf2tsv.py
+    | cgat gtf2tsv
     --attributes-as-columns --output-only-attributes -v 0
     | python %(toolsdir)s/csv_cut.py --remove exon_id exon_number
     | %(pipeline_scriptsdir)s/hsort 1 | uniq
@@ -576,7 +576,7 @@ def buildCDNAFasta(infile, outfile):
     statement = '''gunzip
     < %(infile)s
     | perl -p -e 'if ("^>") { s/ .*//};'
-    | python %(scriptsdir)s/index_fasta.py
+    | cgat index_fasta
        --force-output
     %(dbname)s -
     > %(dbname)s.log
@@ -603,7 +603,7 @@ def buildPeptideFasta(infile, outfile):
     statement = '''gunzip
     < %(infile)s
     | perl -p -e 'if ("^>") { s/ .*//};'
-    | python %(scriptsdir)s/index_fasta.py
+    | cgat index_fasta
        --force-output
     %(dbname)s -
     > %(dbname)s.log
@@ -639,9 +639,9 @@ def loadPeptideSequences(infile, outfile):
     statement = '''gunzip
     < %(infile)s
     | perl -p -e 'if ("^>") { s/ .*//};'
-    | python %(scriptsdir)s/fasta2fasta.py --method=filter
+    | cgat fasta2fasta --method=filter
     --filter-method=min-length=1
-    | python %(scriptsdir)s/fasta2table.py --section=length
+    | cgat fasta2table --section=length
     --section=sequence
     | perl -p -e 's/id/protein_id/'
     | %(load_statement)s
@@ -673,10 +673,10 @@ def buildCDSFasta(infiles, outfile):
     dbname = outfile[:-len(".fasta")]
 
     statement = '''gunzip < %(infile_cdnas)s
-    | python %(scriptsdir)s/gff2fasta.py
+    | cgat gff2fasta
         --is-gtf
         --genome=%(genome_dir)s/%(genome)s
-    | python %(scriptsdir)s/index_fasta.py
+    | cgat index_fasta
     %(dbname)s --force-output -
     > %(dbname)s.log
     '''
@@ -699,13 +699,13 @@ def buildCDSFasta(infiles, outfile):
     tmpfilename = tmpfile.name
 
     statement = '''
-    python %(scriptsdir)s/peptides2cds.py
+    cgat peptides2cds
            --peptides-fasta-file=%(infile_peptides_fasta)s
            --cdnas=%(infile_cdnas)s
            --map=%(tmpfilename)s
            --output-format=fasta
            --log=%(outfile)s.log
-    | python %(scriptsdir)s/index_fasta.py
+    | cgat index_fasta
     %(dbname)s --force-output -
     > %(dbname)s.log
     '''
@@ -740,7 +740,7 @@ def loadGeneStats(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --log=%(outfile)s.log
           --genome=%(genome_dir)s/%(genome)s
           --counter=position
@@ -768,7 +768,7 @@ def buildExons(infile, outfile):
     statement = '''
     gunzip < %(infile)s
     | awk '$3 == "exon"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=remove-duplicates --duplicate-feature=gene
     --log=%(outfile)s.log
     | gzip > %(outfile)s
@@ -793,11 +793,11 @@ def buildCodingExons(infile, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=proteincoding
     --log=%(outfile)s.log
     | awk '$3 == "exon"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=remove-duplicates --duplicate-feature=gene
     --log=%(outfile)s.log
     | gzip > %(outfile)s
@@ -822,11 +822,11 @@ def buildNonCodingExons(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=proteincoding --invert-filter
     --log=%(outfile)s.log
     | awk '$3 == "exon"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=remove-duplicates --duplicate-feature=gene
     --log=%(outfile)s.log
     | gzip > %(outfile)s
@@ -851,11 +851,11 @@ def buildLincRNAExons(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=lincrna
     --log=%(outfile)s.log
     | awk '$3 == "exon"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=remove-duplicates --duplicate-feature=gene
     --log=%(outfile)s.log
     | gzip > %(outfile)s
@@ -882,11 +882,11 @@ def buildCDS(infile, outfile):
     '''
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter --filter-method=proteincoding
     --log=%(outfile)s.log
     | awk '$3 == "CDS"'
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=remove-duplicates --duplicate-feature=gene
     --log=%(outfile)s.log
     | gzip > %(outfile)s
@@ -915,7 +915,7 @@ def loadTranscripts(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2tsv.py
+    | cgat gtf2tsv
     | %(load_statement)s
     > %(outfile)s'''
     P.run()
@@ -934,9 +934,9 @@ def loadGeneCoordinates(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-transcripts
-    | python %(scriptsdir)s/gtf2tsv.py
+    | cgat gtf2tsv
     | %(load_statement)s
     > %(outfile)s'''
 
@@ -960,7 +960,7 @@ def loadTranscript2Gene(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2tsv.py --output-map=transcript2gene -v 0
+    | cgat gtf2tsv --output-map=transcript2gene -v 0
     | %(load_statement)s
     > %(outfile)s'''
     P.run()
@@ -991,7 +991,7 @@ def loadTranscriptStats(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s |\
-    python %(scriptsdir)s/gtf2table.py \
+    cgat gtf2table \
           --log=%(outfile)s.log \
           --genome=%(genome_dir)s/%(genome)s \
           --reporter=transcripts \
@@ -1032,10 +1032,10 @@ def loadProteinStats(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | python %(scriptsdir)s/fasta2fasta.py
+    | cgat fasta2fasta
     --method=filter
     --filter-method=min-length=1
-    | python %(scriptsdir)s/fasta2table.py
+    | cgat fasta2table
     --log=%(outfile)s
     --sequence-type=aa
     --section=length
@@ -1068,11 +1068,11 @@ def buildPromotorRegions(infile, outfile, promotor_size=1000):
 
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gff2gff.py --method=sanitize
+    | cgat gff2gff --method=sanitize
     --sanitize-method=genome
     --skip-missing --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py --method=promotors
+    | cgat gtf2gff --method=promotors
     --promotor-size=%(promotor_size)s \
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
@@ -1119,9 +1119,9 @@ def buildOverlapWithEnsembl(infile, outfile, filename_bed):
 
     statement = '''gunzip
         < %(infile)s
-        | python %(scriptsdir)s/gtf2gtf.py --method=merge-transcripts
-        | python %(scriptsdir)s/gff2bed.py --is-gtf
-        | python %(scriptsdir)s/bed2graph.py
+        | cgat gtf2gtf --method=merge-transcripts
+        | cgat gff2bed --is-gtf
+        | cgat bed2graph
             --output-section=name
             --log=%(outfile)s.log
             - %(filename_bed)s
@@ -1147,7 +1147,7 @@ def compareGeneSets(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-        python %(scriptsdir)s/diff_gtf.py
+        cgat diff_gtf
         %(infiles)s
     > %(outfile)s
     '''
@@ -1201,7 +1201,7 @@ def buildPseudogenes(infiles, outfile, dbhandle):
     statement = '''
     zcat %(infile_gtf)s
     | awk '$2 ~ /processed/'
-    | python %(scriptsdir)s/gff2fasta.py
+    | cgat gff2fasta
             --is-gtf
             --genome-file=%(genome_dir)s/%(genome)s
             --log=%(outfile)s.log
@@ -1314,7 +1314,7 @@ def buildNUMTs(infile, outfile):
     tmpfile_mito = P.getTempFilename(".")
 
     statement = '''
-    python %(scriptsdir)s/index_fasta.py
+    cgat index_fasta
            --extract=%(numts_mitochrom)s
            --log=%(outfile)s.log
            %(genome_dir)s/%(genome)s
@@ -1431,7 +1431,7 @@ def sortGTF(infile, outfile, order="contig+gene"):
     job_memory = "4G"
 
     statement = '''%(uncompress)s %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=%(order)s --log=%(outfile)s.log
     | %(compress)s > %(outfile)s'''
 
@@ -1501,7 +1501,7 @@ def buildGenomicFunctionalAnnotation(gtffile, dbh, outfiles):
 
     outf = IOTools.openFile(outfile_tsv, "w")
     outf.write("term\tdescription\n")
-    for term, description in term2description.iteritems():
+    for term, description in term2description.items():
         outf.write("%s\t%s\n" % (term, description))
     outf.close()
 
@@ -1551,15 +1551,15 @@ def buildGenomicContext(infiles, outfile, distance=10):
     # add ENSEMBL annotations
     statement = """
     zcat %(annotations_gtf)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=sort --sort-order=gene
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py
+    | cgat gff2bed
     --set-name=gene_biotype --is-gtf
     --log=%(outfile)s.log
     | sort -k 1,1 -k2,2n
-    | python %(scriptsdir)s/bed2bed.py --method=merge --merge-by-name
+    | cgat bed2bed --method=merge --merge-by-name
     --merge-distance=%(distance)i --log=%(outfile)s.log
     > %(tmpfile)s_0
     """
@@ -1568,9 +1568,9 @@ def buildGenomicContext(infiles, outfile, distance=10):
     # rna
     statement = '''
     zcat %(repeats_gff)s %(rna_gff)s
-    | python %(scriptsdir)s/gff2bed.py --set-name=family --is-gtf -v 0
+    | cgat gff2bed --set-name=family --is-gtf -v 0
     | sort -k1,1 -k2,2n
-    | python %(scriptsdir)s/bed2bed.py --method=merge --merge-by-name
+    | cgat bed2bed --method=merge --merge-by-name
     --merge-distance=%(distance)i --log=%(outfile)s.log
     > %(tmpfile)s_1'''
     P.run()
@@ -1578,10 +1578,10 @@ def buildGenomicContext(infiles, outfile, distance=10):
     # add aggregate intervals for repeats
     statement = '''
     zcat %(repeats_gff)s
-    | python %(scriptsdir)s/gff2bed.py --set-name=family --is-gtf -v 0
+    | cgat gff2bed --set-name=family --is-gtf -v 0
     | awk -v OFS="\\t" '{$4 = "repeats"; print}'
     | sort -k1,1 -k2,2n
-    | python %(scriptsdir)s/bed2bed.py --method=merge --merge-by-name
+    | cgat bed2bed --method=merge --merge-by-name
     --merge-distance=%(distance)i --log=%(outfile)s.log
     > %(tmpfile)s_2'''
     P.run()
@@ -1589,10 +1589,10 @@ def buildGenomicContext(infiles, outfile, distance=10):
     # add aggregate intervals for rna
     statement = '''
     zcat %(rna_gff)s
-    | python %(scriptsdir)s/gff2bed.py --set-name=family --is-gtf -v 0
+    | cgat gff2bed --set-name=family --is-gtf -v 0
     | awk -v OFS="\\t" '{$4 = "repetetive_rna"; print}'
     | sort -k1,1 -k2,2n
-    | python %(scriptsdir)s/bed2bed.py --method=merge --merge-by-name
+    | cgat bed2bed --method=merge --merge-by-name
     --merge-distance=%(distance)i --log=%(outfile)s.log
     > %(tmpfile)s_3 '''
     P.run()
@@ -1604,15 +1604,15 @@ def buildGenomicContext(infiles, outfile, distance=10):
 
     statement = '''
     zcat %(geneset_flat_gff)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --map-tsv-file=<(zcat %(go_tsv)s | grep %(patterns)s | cut -f 2 | sort | uniq)
     --method=filter --filter-method=gene
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2bed.py
+    | cgat gff2bed
     --log=%(outfile)s.log
     | awk -v OFS="\\t" '{$4 = "ribosomal_coding"; print}'
     | sort -k1,1 -k2,2n
-    | python %(scriptsdir)s/bed2bed.py --method=merge --merge-by-name
+    | cgat bed2bed --method=merge --merge-by-name
     --merge-distance=%(distance)i --log=%(outfile)s.log
     > %(tmpfile)s_4
     '''

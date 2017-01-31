@@ -49,7 +49,7 @@ class SampleOverlap(RnaseqqcTracker):
         sample_list = self.getValues(statement)
 
         # create a DataFrame to output results
-        df_range = range(1, len(sample_list)+1)
+        df_range = list(range(1, len(sample_list)+1))
         result_df = pd.DataFrame(0, index=df_range, columns=df_range)
 
         # get all data at once
@@ -165,9 +165,9 @@ class TranscriptQuantificationHeatmap(object):
 
         # select a random set of colours from the xkcd palette
         random.seed(5648546)
-        xkcd = random.sample(seaborn.xkcd_rgb.keys(),
+        xkcd = random.sample(list(seaborn.xkcd_rgb.keys()),
                              len(unique))
-        col_dict = dict(zip(unique, xkcd))
+        col_dict = dict(list(zip(unique, xkcd)))
         cols = []
         for i in range(0, len(factors.index)):
             cols.append(seaborn.xkcd_rgb[col_dict[factors.iloc[i, 0]]])
@@ -179,9 +179,9 @@ class TranscriptQuantificationHeatmap(object):
         colorbar, factors, unique, xkcd = self.getColorBar(data)
         n_samples = data.shape[0]
         data = data.iloc[:, :n_samples]
-        col_dict = dict(zip(unique, xkcd))
+        col_dict = dict(list(zip(unique, xkcd)))
 
-        print data.head()
+        print(data.head())
         seaborn.set(font_scale=.5)
         ax = seaborn.clustermap(data,
                                 row_colors=colorbar, col_colors=colorbar)
@@ -364,7 +364,7 @@ class SamplePCAVariance(SamplePCA):
 
         final_df = pd.DataFrame(
             {"variance": variance,
-             "PC": range(1, sklearn_pca.n_components_ + 1)})
+             "PC": list(range(1, sklearn_pca.n_components_ + 1))})
 
         return final_df
 
@@ -444,7 +444,7 @@ class ExpressionDistribution(RnaseqqcTracker):
         full_df = pd.merge(df, factor_df, left_on="sample_id",
                            right_on="sample_id")
 
-        print full_df.reset_index().set_index("factor").shape
+        print(full_df.reset_index().set_index("factor").shape)
         # trying to find the point at which the error occurs!
         return full_df.reset_index().set_index("factor").tail(10355125)
 
@@ -492,7 +492,7 @@ class SampleOverlapsExpress(RnaseqqcTracker):
             df.loc[s1, s2] = size
             df.loc[s2, s1] = size
 
-        print df.head()
+        print(df.head())
         return df
 
 

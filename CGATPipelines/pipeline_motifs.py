@@ -139,7 +139,7 @@ import xml.etree.ElementTree
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 
-import PipelineMotifs as PipelineMotifs
+import CGATPipelines.PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################
@@ -224,13 +224,13 @@ def getAssociatedBAMFiles(track):
 
     offsets = []
     if "offsets_%s" % fn.lower() in PARAMS:
-        offsets = map(int, P.asList(PARAMS["offsets_%s" % fn.lower()]))
+        offsets = list(map(int, P.asList(PARAMS["offsets_%s" % fn.lower()])))
     else:
         for pattern, value in P.CONFIG.items("offsets"):
             if "%" in pattern:
                 p = re.sub("%", "\S+", pattern)
                 if re.search(p, fn, re.IGNORECASE):
-                    offsets.extend(map(int, value.split(",")))
+                    offsets.extend(list(map(int, value.split(","))))
 
     if offsets == []:
         offsets = [0] * len(bamfiles)
@@ -300,7 +300,7 @@ def loadIntervals(infile, outfile):
 
     statement = '''zcat %(bedfile)s
                 | awk '{printf("%%s\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a)}'
-                | python %(scriptsdir)s/bed2table.py
+                | cgat bed2table
                            --counter=peaks
                            --bam-file=%(bamfile)s
                            --offset=%(offset)i
@@ -308,7 +308,7 @@ def loadIntervals(infile, outfile):
                            %(control)s
                            --output-all-fields
                            --log=%(outfile)s
-                | python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+                | cgat csv2db %(csv2db_options)s
                        --add-index=contig,start
                        --add-index=interval_id
                        --table=%(tablename)s
@@ -582,7 +582,7 @@ def filterTransfac(infile, outfile):
     '''filter the transfac matrices, here for vertebrate'''
 
     statement = '''cat %(infile)s
-    | python %(scriptsdir)s/transfac2transfac.py
+    | cgat transfac2transfac
     --method=filter --filter-method=V
     --log=%(outfile)s.log
     >  %(outfile)s
@@ -686,11 +686,11 @@ def loadMotifSequenceComposition(infile, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-    python %(scriptsdir)s/fasta2table.py
+    cgat fasta2table
         --section=na
         --log=%(outfile)s
     < %(infile)s
-    | python %(scriptsdir)s/csv2db.py
+    | cgat csv2db
         %(csv2db_options)s
         --table=%(tablename)s
     > %(outfile)s'''
@@ -883,7 +883,7 @@ def publish():
 
     bams = []
 
-    for targetdir, filenames in exportfiles.iteritems():
+    for targetdir, filenames in exportfiles.items():
         if len(filenames) == 0:
             E.warn("no files for target '%s'" % targetdir)
         for src in filenames:

@@ -1,7 +1,6 @@
 '''PipelineMapping.py - Utility functions for mapping short reads
 ==============================================================
 
-:Author: Andreas Heger
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -184,7 +183,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
     ---------
     infile : string
        Input filename in :term:`gtf` format
-    outfile : string
+#    outfile : string
        Output filename in :term:`gtf` format
     logfile : string
        Output filename for logging information.
@@ -556,18 +555,18 @@ class SequenceCollectionProcessor(object):
 
                         extracted_files = ["%s/%s" % (
                             tmpdir_fastq, os.path.basename(x))
-                                                for x in sorted(f)]
+                            for x in sorted(f)]
                         if not self.keep_sra:
                             statement.append(Sra.clean_cache(acc))
                         files.extend(extracted_files)
-                    
+
                     elif repo == "ENA":
                         filenames, dl_paths = Sra.fetch_ENA_files(acc)
                         for f in dl_paths:
                             statement.append(Sra.fetch_ENA(f, tmpdir_fastq))
                         files.extend([os.path.join(tmpdir_fastq, x) for x
                                       in filenames])
-                    
+
                     elif repo == "TCGA":
                         tar_name = line.strip().split("\t")[2]
                         token = glob.glob("gdc-user-token*")
@@ -582,8 +581,10 @@ class SequenceCollectionProcessor(object):
                                                               token,
                                                               tmpdir_fastq))
 
-                        files.append(os.path.join(tmpdir_fastq, acc + "_1.fastq.gz"))
-                        files.append(os.path.join(tmpdir_fastq, acc + "_2.fastq.gz"))
+                        files.append(os.path.join(
+                            tmpdir_fastq, acc + "_1.fastq.gz"))
+                        files.append(os.path.join(
+                            tmpdir_fastq, acc + "_2.fastq.gz"))
 
                     else:
                         raise ValueError("Unknown repository: %s" % repo)
@@ -609,9 +610,9 @@ class SequenceCollectionProcessor(object):
                 for old, new in zip(files, new_files):
                     if old != new:
                         statement.append("mv %s %s" % (old, new))
-                    
+
                 fastqfiles.append(new_files)
-                        
+
             elif infile.endswith(".sra"):
                 # sneak preview to determine if paired end or single end
                 outdir = P.getTempDir()
@@ -643,7 +644,7 @@ class SequenceCollectionProcessor(object):
                         if track.endswith("_1.fastq"):
                             track = track[:-8]
                         statement.append("""gunzip < %(infile)s
-                        | python %%(scriptsdir)s/fastq2fastq.py
+                        | cgat fastq2fastq
                         --method=change-format --target-format=sanger
                         --guess-format=phred64
                         --log=%(outfile)s.log
@@ -662,13 +663,13 @@ class SequenceCollectionProcessor(object):
                         track = os.path.splitext(os.path.basename(infile))[0]
 
                         statement.append("""gunzip < %(infile)s
-                        | python %%(scriptsdir)s/fastq2fastq.py
+                        | cgat fastq2fastq
                         --method=change-format --target-format=sanger
                         --guess-format=phred64
                         --log=%(outfile)s.log %(compress_cmd)s
                         > %(tmpdir_fastq)s/%(track)s_converted.1.fastq%(extension)s;
                         gunzip < %(infile2)s
-                        | python %%(scriptsdir)s/fastq2fastq.py
+                        | cgat fastq2fastq
                         --method=change-format --target-format=sanger
                         --guess-format=phred64
                         --log=%(outfile)s.log %(compress_cmd)s
@@ -702,8 +703,10 @@ class SequenceCollectionProcessor(object):
                     # record of qual files
                     elif self.datatype == "solid":
                         # single end SOLiD data
-                        infile = P.snip(infile, "_1.fastq.gz") + "_F3.csfasta.gz"
-                        quality = P.snip(infile, "_F3.csfasta.gz") + "_F3_QV.qual.gz"
+                        infile = P.snip(infile, "_1.fastq.gz") + \
+                            "_F3.csfasta.gz"
+                        quality = P.snip(
+                            infile, "_F3.csfasta.gz") + "_F3_QV.qual.gz"
 
                         # qual file does not exist as tmpdir from
                         # SRA.extract is removed
@@ -756,7 +759,7 @@ class SequenceCollectionProcessor(object):
                     IOTools.openFile(infile, "r"), raises=False)
                 if 'sanger' not in format and self.convert:
                     statement.append("""gunzip < %(infile)s
-                    | python %%(scriptsdir)s/fastq2fastq.py
+                    | cgat fastq2fastq
                     --method=change-format --target-format=sanger
                     --guess-format=phred64
                     --log=%(outfile)s.log
@@ -845,14 +848,14 @@ class SequenceCollectionProcessor(object):
                     IOTools.openFile(infile), raises=False)
                 if 'sanger' not in format:
                     statement.append("""gunzip < %(infile)s
-                    | python %%(scriptsdir)s/fastq2fastq.py
+                    | cgat fastq2fastq
                     --method=change-format --target-format=sanger
                     --guess-format=phred64
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.1.fastq%(extension)s;
                     gunzip < %(infile2)s
-                    | python %%(scriptsdir)s/fastq2fastq.py
+                    | cgat fastq2fastq
                     --method=change-format --target-format=sanger
                     --guess-format=phred64
                     --log=%(outfile)s.log
@@ -1064,7 +1067,7 @@ class FastQc(Mapper):
         # get temporary file name
         outfile = P.getTempFilename(shared=True)
         with IOTools.openFile(outfile, "w") as wfile:
-            for key, value in adaptor_dict.items():
+            for key, value in list(adaptor_dict.items()):
                 wfile.write("%s\t%s\n" % (key, value))
         wfile.close()
 
@@ -1192,7 +1195,6 @@ class Salmon(Mapper):
                  *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
         self.compress = compress
-        self.bias_correct = bias_correct
 
     def mapper(self, infiles, outfile):
 
@@ -1234,32 +1236,17 @@ class Salmon(Mapper):
 
         return statement
 
-    def postprocess(self, infiles, outfile):
-        '''collect output data and postprocess.'''
-
-        # if using bias correct, need to rename the bias corrected outfile
-        if self.bias_correct:
-            bias_corrected = outfile.replace(".sf", "_bias_corrected.sf")
-
-            statement = '''
-            rm -rf %(outfile)s;
-            mv %(bias_corrected)s %(outfile)s;
-            ''' % locals()
-            return statement
-
-        else:
-            return ""
-
 
 class Kallisto(Mapper):
 
     '''run Kallisto to quantify transcript abundance from fastq files
     - set pseudobam to True to output a pseudobam along with the quantification'''
 
-    def __init__(self, pseudobam=False, *args, **kwargs):
+    def __init__(self, pseudobam=False, readable_suffix=False, *args, **kwargs):
         Mapper.__init__(self, *args, **kwargs)
 
         self.pseudobam = pseudobam
+        self.readable_suffix = readable_suffix
 
     def mapper(self, infiles, outfile):
         '''build mapping statement on infiles'''
@@ -1317,6 +1304,14 @@ class Kallisto(Mapper):
         statement = ('''
         mv -f %(tmpdir)s/abundance.h5 %(outfile)s;
         ''' % locals())
+
+        if self.readable_suffix:
+
+            outfile_readable = outfile + self.readable_suffix
+            statement += ('''
+            kallisto h5dump -o %(tmpdir)s %(outfile)s;
+            mv %(tmpdir)s/abundance.tsv %(outfile_readable)s;
+            rm -rf %(tmpdir)s/bs_abundance_*.tsv;''' % locals())
 
         return statement
 
@@ -1406,7 +1401,8 @@ class SubsetHeads(Mapper):
         in fastq files.
         '''
 
-        limits = [x * 4 for x in sorted(self.limits)]  # 4 lines per fastq entry
+        # 4 lines per fastq entry
+        limits = [x * 4 for x in sorted(self.limits)]
         output_prefix = P.snip(outfile, ".sentinel")
         assert len(infiles) == 1
         infiles = infiles[0]
@@ -1429,7 +1425,8 @@ class SubsetHeads(Mapper):
                 awk_cmd = ""
                 for n, ix in enumerate(range(0, len(limits))):
                     limit = limits[ix]
-                    output_filename = output_prefix + "_%i.fastq.%i.gz" % (n, x + 1)
+                    output_filename = output_prefix + \
+                        "_%i.fastq.%i.gz" % (n, x + 1)
                     awk_cmd += '''{if (NR<%(limit)s) print |
                     "gzip > %(output_filename)s"};''' % locals()
                 awk_cmd += '{if (NR>%s) {exit}};' % limits[-1]
@@ -1618,19 +1615,19 @@ class BWA(Mapper):
         strip_cmd, unique_cmd, set_nh_cmd = "", "", ""
 
         if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            unique_cmd = '''| cgat bam2bam
             --method=filter
             --filter-method=unique,mapped
             --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence
             --log=%(outfile)s.log''' % locals()
 
         if self.set_nh:
-            set_nh_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            set_nh_cmd = '''| cgat bam2bam
             --method=set-nh
             --log=%(outfile)s.log''' % locals()
 
@@ -2590,7 +2587,7 @@ class Hisat(Mapper):
         strip_cmd = ""
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence
             --log=%(outfile)s.log''' % locals()
@@ -2746,12 +2743,12 @@ class GSNAP(Mapper):
         strip_cmd, unique_cmd = "", ""
 
         if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            unique_cmd = '''| cgat bam2bam
             --method=filter
             --filter-method=unique --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
@@ -2899,12 +2896,12 @@ class STAR(Mapper):
         strip_cmd, unique_cmd = "", ""
 
         if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            unique_cmd = '''| cgat bam2bam
             --method=filter
             --filter-method=unique --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
@@ -2984,7 +2981,7 @@ class Bowtie(Mapper):
         nfiles = max(num_files)
 
         # transpose files
-        infiles = zip(*infiles)
+        infiles = list(zip(*infiles))
 
         # add options specific to data type
         data_options = []
@@ -3088,17 +3085,17 @@ class Bowtie(Mapper):
         unique_cmd, strip_cmd = "", ""
 
         if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            unique_cmd = '''| cgat bam2bam
             --method=filter
             --filter-method=unique --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
         statement = '''cat %(tmpdir_fastq)s/out.bam
-        | python %%(scriptsdir)s/bam2bam.py
+        | cgat bam2bam
         --method=set-nh
         --log=%(outfile)s.log
         %(unique_cmd)s
@@ -3182,7 +3179,7 @@ class BowtieTranscripts(Mapper):
         nfiles = max(num_files)
 
         # transpose files
-        infiles = zip(*infiles)
+        infiles = list(zip(*infiles))
 
         # add options specific to data type
         data_options = []
@@ -3276,12 +3273,12 @@ class BowtieTranscripts(Mapper):
         strip_cmd, unique_cmd = "", ""
 
         if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            unique_cmd = '''| cgat bam2bam
             --method=filter
             --filter-method=unique --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
@@ -3336,13 +3333,13 @@ class BowtieJunctions(BowtieTranscripts):
         strip_cmd, unique_cmd = "", ""
 
         if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            unique_cmd = '''| cgat bam2bam
             --method=filter
             --filter-method=unique
             --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence
             --log=%(outfile)s.log''' % locals()
@@ -3351,10 +3348,10 @@ class BowtieJunctions(BowtieTranscripts):
         cat %(tmpdir_fastq)s/out.bam
         %(unique_cmd)s
         %(strip_cmd)s
-        | python %%(scriptsdir)s/bam2bam.py
+        | cgat bam2bam
         --method=set-nh
         --log=%(outfile)s.log
-        | python %%(scriptsdir)s/rnaseq_junction_bam2bam.py
+        | cgat rnaseq_junction_bam2bam
         --contigs-tsv-file=%%(contigsfile)s
         --log=%(outfile)s.log
         | samtools sort -o %(outfile)s;
@@ -3507,18 +3504,18 @@ class Shortstack(Bowtie):
         unique_cmd, strip_cmd = "", ""
 
         if self.remove_non_unique:
-            unique_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            unique_cmd = '''| cgat bam2bam
             --method=filter
             --filter-method=unique --log=%(outfile)s.log''' % locals()
 
         if self.strip_sequence:
-            strip_cmd = '''| python %%(scriptsdir)s/bam2bam.py
+            strip_cmd = '''| cgat bam2bam
             --strip-method=all
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
         statement = '''mv shortstack.dir/%(track)s/%(track)s.bam %(outfile)s;
         cat %(outfile)s
-        | python %%(scriptsdir)s/bam2bam.py
+        | cgat bam2bam
         --method=set-nh
         --log=%(outfile)s.log
         %(unique_cmd)s

@@ -124,7 +124,7 @@ def frequencyMetrics(database, match_table, outfile):
         tf_max[seq_id].append(tfid)
 
     # get max number of hits for any transcription factor
-    for seq_id, tfs in tf_max.iteritems():
+    for seq_id, tfs in tf_max.items():
         result = collections.defaultdict(int)
         for tf in tfs:
             result[tf] += 1
@@ -170,7 +170,7 @@ def calculateSequenceComposition(interval_names,
 
     inf = temp.name
     statement = '''
-    cat %(inf)s | python %(scriptsdir)s/fasta2table.py
+    cat %(inf)s | cgat fasta2table
     -s na -s cpg -s length
     --log=%(outfile)s.log > %(outfile)s'''
 
@@ -258,11 +258,11 @@ def matchBgSequenceComposition(gc_load_files,
     # jj: sample background gene_ids without replacement
     matched_background = set()
     X = 0
-    for interval, cpg in gc["foreground"].iteritems():
+    for interval, cpg in gc["foreground"].items():
 
         # print("Finding background for foreground gene: %s (%s)" %
         # (interval, cpg))
-        if cpg in gc["background"].keys():
+        if cpg in list(gc["background"].keys()):
 
             # get set of bg gene_ids with relevant cpg score
             bg_gene_ids = gc["background"][cpg]
@@ -298,14 +298,14 @@ def matchBgSequenceComposition(gc_load_files,
     # hack
     # MM: only need to check sufficient background size for Fisher's exact test
     if stat == "fisher":
-        assert len(matched_background) > 0.9*len(foreground_set), (
+        assert len(matched_background) > 0.9 * len(foreground_set), (
             "There are insufficient genes with matched background to perform"
             " test for sample %s" % foreground_file)
     else:
         pass
-    print "Number of genes with no available background: %i" % X
-    print "Foreground set: %i" % len(foreground_set)
-    print "Backfround set: %i" % len(matched_background)
+    print("Number of genes with no available background: %i" % X)
+    print("Foreground set: %i" % len(foreground_set))
+    print("Backfround set: %i" % len(matched_background))
     outf.write("\n".join(matched_background) + "\n")
     outf.close()
 
@@ -322,7 +322,7 @@ def matchGenesByComposition(bg_gc, fg_gc, bg_stat):
     gc_dict = {}
     match_dict = {}
 
-    props = (x/100.0 for x in xrange(0, 101, 1))
+    props = (x / 100.0 for x in range(0, 101, 1))
 
     bg_genes = bg_gc.index
     bg_cpg = bg_gc[bg_stat]
@@ -377,10 +377,10 @@ def genNullGeneSet(match_background):
     '''
 
     null_list = set()
-    for gene in match_background.keys():
+    for gene in list(match_background.keys()):
         matches = match_background[gene]
         if len(matches) > 1:
-            rand = random.randint(0, len(matches)-1)
+            rand = random.randint(0, len(matches) - 1)
             match = matches[rand]
         elif len(matches) == 0:
             pass
@@ -389,7 +389,7 @@ def genNullGeneSet(match_background):
 
         if match in null_list and len(matches) > 1:
             matches.remove(match)
-            rand = random.randint(0, len(matches)-1)
+            rand = random.randint(0, len(matches) - 1)
             match = matches[rand]
             null_list.add(match)
         else:
@@ -409,10 +409,10 @@ def nullDistPermutations(tfbs_genes, matched_genes, nPerms=1000):
 
     null_dist = []
 
-    for i in xrange(0, nPerms):
+    for i in range(0, nPerms):
         null_genes = genNullGeneSet(matched_genes)
         null_counts = countTFBSEnrichment(tfbs_genes, null_genes)
-        null_enrich = null_counts[0]/float(null_counts[1])
+        null_enrich = null_counts[0] / float(null_counts[1])
         null_dist.append(null_enrich)
 
     # null_dist = robjects.FloatVector([float(x) for x in null_dist])
@@ -449,7 +449,7 @@ def permuteTFBSEnrich(tfbs_table,
         n_foregenes = fg_genes_counters[0]
         n_tfbsgenes = fg_genes_counters[1]
         total_fg = len(fg_geneset)
-        fore_enrich = n_foregenes/float(n_tfbsgenes)
+        fore_enrich = n_foregenes / float(n_tfbsgenes)
         if fore_enrich > 0:
             null_perms = nullDistPermutations(tfbs_genes=tfbs_genes,
                                               matched_genes=matched_genes,
@@ -484,8 +484,8 @@ def nCr(n, r):
 
     n_fac = factorial(n)
     r_fac = factorial(r)
-    n_r_fac = factorial(n-r)
+    n_r_fac = factorial(n - r)
 
-    ncr = n_fac/r_fac/n_r_fac
+    ncr = n_fac / r_fac / n_r_fac
 
     return ncr
