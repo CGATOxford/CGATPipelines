@@ -404,7 +404,7 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                                            qual, pe)
 
     # get statement for filtering contigs
-    if "contigs" in filters and contigs_to_remove not None:
+    if "contigs" in filters and contigs_to_remove != None:
         samfile = pysam.AlignmentFile(infile, 'rb')
         all_contigs = samfile.references
         statement, inT = appendContigFilters(statement, inT, tabout, filters, pe,

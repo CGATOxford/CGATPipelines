@@ -404,7 +404,6 @@ def buildRefFlat(infile, outfile):
     os.unlink(tmpflat)
 
 
-#@active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
            add_inputs(identifyProteinCodingGenes),
@@ -520,7 +519,6 @@ def buildIntronGeneModels(infiles, outfile):
            "_transcript2gene.load")
 def loadGeneInformation(infile, outfile):
     PipelineGeneset.loadTranscript2Gene(infile, outfile)
-
 
 
 @follows(mkdir("geneset.dir"))
