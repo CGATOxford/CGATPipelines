@@ -1238,8 +1238,9 @@ def downloadEntrezToEnsembl(infile, outfile):
         Biomart attribute containing entrez gene id
 
     '''
-    # SCRUM note - paramterised features being selected from biomaRt 
-    #in the ini file 
+
+    # SCRUM note - paramterised features being selected from biomaRt
+    # in the ini file
 
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
@@ -1304,11 +1305,8 @@ def downloadTranscriptSynonyms(infile, outfile):
         Biomart attribute containing refseq ids
     """
 
-
-
-
-    # SCRUM note - paramterised features being selected from biomaRt 
-    #in the ini file 
+    # SCRUM note - paramterised features being selected from biomaRt
+    # in the ini file
 
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
