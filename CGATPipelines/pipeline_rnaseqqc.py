@@ -1071,7 +1071,9 @@ def loadPicardRnaSeqMetrics(infiles, outfiles):
 ###################################################################
 
 @transform(subsetRange,
-           regex("fastq.dir/highest_counts_subset_(\d+).fastq.1.gz"),
+           regex("fastq.dir/highest_counts_subset_(\d+)."
+                 "(fastq.1.gz|fastq.gz|fa.gz|sra|"
+                 "csfasta.gz|csfasta.F3.gz|export.txt.gz)"),
            add_inputs(indexForSailfish,
                       buildCodingGeneSet,
                       buildTranscriptGeneMap),
@@ -1087,7 +1089,7 @@ def runSailfishSaturation(infiles, outfile):
     sailfish_bootstrap = 20
     sailfish_libtype = PARAMS["sailfish_libtype"]
     sailfish_options = PARAMS["sailfish_options"]
-    sailfish_options += "--geneMap %s" % transcript_map
+    sailfish_options += " --geneMap %s" % transcript_map
 
     m = PipelineMapping.Sailfish()
 
