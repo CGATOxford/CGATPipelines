@@ -48,11 +48,12 @@ import subprocess
 import sys
 import tempfile
 import time
-from cStringIO import StringIO
-from multiprocessing.pool import ThreadPool
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 
-# talking to mercurial
-import hgapi
+from multiprocessing.pool import ThreadPool
 
 # talking to RabbitMQ
 try:
@@ -90,21 +91,28 @@ PARAMS = {}
 GLOBAL_OPTIONS, GLOBAL_ARGS = None, None
 
 
-def writeConfigFiles(path):
+def writeConfigFiles(pipeline_path, general_path):
     '''create default configuration files in `path`.
     '''
 
-    for dest in ("pipeline.ini", "conf.py"):
-        src = os.path.join(path, dest)
+    paths = [pipeline_path, general_path]
+    config_files = ['pipeline.ini', 'conf.py']
+
+    for dest in config_files:
         if os.path.exists(dest):
             E.warn("file `%s` already exists - skipped" % dest)
             continue
 
-        if not os.path.exists(src):
-            raise ValueError("default config file `%s` not found" % src)
-
-        shutil.copyfile(src, dest)
-        E.info("created new configuration file `%s` " % dest)
+        for path in paths:
+            src = os.path.join(path, dest)
+            if os.path.exists(src):
+                shutil.copyfile(src, dest)
+                E.info("created new configuration file `%s` " % dest)
+                break
+        else:
+            raise ValueError(
+                "default config file for `%s` not found in %s" %
+                (config_files, paths))
 
 
 def clonePipeline(srcdir, destdir=None):
@@ -318,7 +326,7 @@ def peekParameters(workingdir,
     # patch for the "config" target - use default
     # pipeline directory if directory is not specified
     # working dir is set to "?!"
-    if "config" in sys.argv or "check" in sys.argv and workingdir == "?!":
+    if "config" in sys.argv or "check" in sys.argv or "clone" in sys.argv and workingdir == "?!":
         workingdir = os.path.join(PARAMS.get("pipelinedir"),
                                   IOTools.snip(pipeline, ".py"))
 
@@ -353,18 +361,18 @@ def peekParameters(workingdir,
 
     # update interface
     if update_interface:
-        for key, value in dump.items():
+        for key, value in list(dump.items()):
             if key.startswith("interface"):
                 dump[key] = os.path.join(workingdir, value)
 
     # keep only interface if so required
     if restrict_interface:
-        dump = dict([(k, v) for k, v in dump.iteritems()
+        dump = dict([(k, v) for k, v in dump.items()
                      if k.startswith("interface")])
 
     # prefix all parameters
     if prefix is not None:
-        dump = dict([("%s%s" % (prefix, x), y) for x, y in dump.items()])
+        dump = dict([("%s%s" % (prefix, x), y) for x, y in list(dump.items())])
 
     return dump
 
@@ -524,7 +532,6 @@ class LoggingFilterRabbitMQ(logging.Filter):
         data['task_completed'] = task_completed
 
         key = "%s.%s.%s" % (self.project_name, self.pipeline_name, task_name)
-
         try:
             self.channel.basic_publish(exchange=self.exchange,
                                        routing_key=key,
@@ -572,7 +579,6 @@ class LoggingFilterRabbitMQ(logging.Filter):
 
         # filter ruffus logging messages
         if record.filename.endswith("task.py"):
-
             try:
                 before, task_name = record.msg.strip().split(" = ")
             except ValueError:
@@ -623,6 +629,10 @@ config
 
 dump
    write pipeline configuration to stdout
+
+printconfig
+   write pipeline configuration to stdout in a user-friendly way so
+   it is easier to debug pipeline parameters
 
 touch
    touch files only, do not run
@@ -679,7 +689,7 @@ def main(args=sys.argv):
                       type="choice",
                       choices=(
                           "make", "show", "plot", "dump", "config", "clone",
-                          "check", "regenerate"),
+                          "check", "regenerate", "printconfig"),
                       help="action to take [default=%default].")
 
     parser.add_option("--pipeline-format", dest="pipeline_format",
@@ -792,33 +802,6 @@ def main(args=sys.argv):
         variable, value = variables.split("=")
         PARAMS[variable.strip()] = IOTools.str2val(value.strip())
 
-    version = None
-
-    try:
-        # this is for backwards compatibility
-        # get mercurial version
-        repo = hgapi.Repo(PARAMS["pipeline_scriptsdir"])
-        version = repo.hg_id()
-
-        status = repo.hg_status()
-        if status["M"] or status["A"]:
-            if not options.force:
-                raise ValueError(
-                    ("uncommitted change in code "
-                     "repository at '%s'. Either commit or "
-                     "use --force-output") % PARAMS["pipeline_scriptsdir"])
-            else:
-                E.warn("uncommitted changes in code repository - ignored ")
-        version = version[:-1]
-    except:
-        # try git:
-        try:
-            stdout, stderr = execute(
-                "git rev-parse HEAD", cwd=PARAMS["pipeline_scriptsdir"])
-        except:
-            stdout = "NA"
-        version = stdout
-
     if args:
         options.pipeline_action = args[0]
         if len(args) > 1:
@@ -894,7 +877,6 @@ def main(args=sys.argv):
                 # session_mutex = manager.Lock()
                 E.info(E.GetHeader())
                 E.info("code location: %s" % PARAMS["pipeline_scriptsdir"])
-                E.info("code version: %s" % version)
                 E.info("Working directory is: %s" % PARAMS["workingdir"])
 
                 pipeline_run(
@@ -948,7 +930,7 @@ def main(args=sys.argv):
                 execute("inkscape %s" % filename)
                 os.unlink(filename)
 
-        except ruffus_exceptions.RethrownJobError, value:
+        except ruffus_exceptions.RethrownJobError as value:
 
             if not options.debug:
                 E.error("%i tasks with errors, please see summary below:" %
@@ -996,13 +978,20 @@ def main(args=sys.argv):
     elif options.pipeline_action == "dump":
         # convert to normal dictionary (not defaultdict) for parsing purposes
         # do not change this format below as it is exec'd in peekParameters()
-        print "dump = %s" % str(dict(PARAMS))
+        print("dump = %s" % str(dict(PARAMS)))
+
+    elif options.pipeline_action == "printconfig":
+        print("Printing out pipeline parameters: ")
+        for k in sorted(PARAMS):
+            print(k, "=", PARAMS[k])
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
         caller = inspect.getargvalues(f).locals["__file__"]
-        prefix = os.path.splitext(caller)[0]
-        writeConfigFiles(prefix)
+        pipeline_path = os.path.splitext(caller)[0]
+        general_path = os.path.join(os.path.dirname(pipeline_path),
+                                    "configuration")
+        writeConfigFiles(pipeline_path, general_path)
 
     elif options.pipeline_action == "clone":
         clonePipeline(options.pipeline_targets[0])
@@ -1012,5 +1001,3 @@ def main(args=sys.argv):
                          options.pipeline_action)
 
     E.Stop()
-
-

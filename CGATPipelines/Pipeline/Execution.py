@@ -1,4 +1,4 @@
-##########################################################################
+###########################################################################
 #
 #   MRC FGU Computational Genomics Group
 #
@@ -39,13 +39,17 @@ import os
 import pickle
 import pipes
 import re
-import stat
 import subprocess
 import sys
-import time
 
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
+from CGAT.IOTools import snip as snip
+
+from CGATPipelines.Pipeline.Utils import getCallerLocals
+from CGATPipelines.Pipeline.Parameters import substituteParameters
+from CGATPipelines.Pipeline.Files import getTempFilename, getTempFile
+from CGATPipelines.Pipeline.Cluster import *
 
 # talking to a cluster
 try:
@@ -57,12 +61,33 @@ except RuntimeError:
 # Set from Pipeline.py
 PARAMS = {}
 
-from CGATPipelines.Pipeline.Utils import getCallerLocals
-from CGATPipelines.Pipeline.Parameters import substituteParameters
-from CGATPipelines.Pipeline.Files import getTempFilename, getTempFile
-
 # global drmaa session
 GLOBAL_SESSION = None
+
+
+def _pickle_args(args, kwargs):
+    ''' Pickle a set of function arguments. Removes any kwargs that are
+    arguements to submit first. Returns a tuple, the first member of which
+    is the key word arguements to submit, the second is a file name
+    with the picked call arguements '''
+
+    use_args = ["to_cluster",
+                "logfile",
+                "job_options",
+                "job_queue",
+                "job_threads",
+                "job_memory"]
+
+    submit_args = {}
+
+    for arg in use_args:
+        if arg in kwargs:
+            submit_args[arg] = kwargs[arg]
+            del kwargs[arg]
+
+    args_file = getTempFilename(shared=True)
+    pickle.dump([args, kwargs], open(args_file, "wb"))
+    return (submit_args, args_file)
 
 
 def startSession():
@@ -116,7 +141,7 @@ def execute(statement, **kwargs):
     if not kwargs:
         kwargs = getCallerLocals()
 
-    kwargs = dict(PARAMS.items() + kwargs.items())
+    kwargs = dict(list(PARAMS.items()) + list(kwargs.items()))
 
     E.debug("running %s" % (statement % kwargs))
 
@@ -153,26 +178,6 @@ def execute(statement, **kwargs):
 # detect_pipe_error(): propagate error of programs not at the end of a pipe
 # checkpoint(): exit a set of chained commands (via ;) if the previous
 # command failed.
-_exec_prefix = '''detect_pipe_error_helper()
-    {
-    while [ "$#" != 0 ] ; do
-        # there was an error in at least one program of the pipe
-        if [ "$1" != 0 ] ; then return 1 ; fi
-        shift 1
-    done
-    return 0
-    }
-    detect_pipe_error() {
-    detect_pipe_error_helper "${PIPESTATUS[@]}"
-    return $?
-    }
-    checkpoint() {
-        detect_pipe_error;
-        if [ $? != 0 ]; then exit 1; fi;
-    }
-    '''
-
-_exec_suffix = "; detect_pipe_error"
 
 
 def buildStatement(**kwargs):
@@ -208,11 +213,11 @@ def buildStatement(**kwargs):
     # build the statement
     try:
         statement = kwargs.get("statement") % local_params
-    except KeyError, msg:
+    except KeyError as msg:
         raise KeyError(
             "Error when creating command: could not "
             "find %s in dictionaries" % msg)
-    except ValueError, msg:
+    except ValueError as msg:
         raise ValueError("Error when creating command: %s, statement = %s" % (
             msg, kwargs.get("statement")))
 
@@ -223,34 +228,6 @@ def buildStatement(**kwargs):
         statement = statement[:-1]
 
     return statement
-
-
-def expandStatement(statement, ignore_pipe_errors=False):
-    '''add generic commands before and after statement.
-
-    The prefixes and suffixes added are defined in :data:`exec_prefix`
-    and :data:`exec_suffix`. The main purpose of these prefixs is to
-    provide error detection code to detect errors at early steps in a
-    series of unix commands within a pipe.
-
-    Arguments
-    ---------
-    statement : string
-        Command line statement to expand
-    ignore_pipe_errors : bool
-        If False, do not modify statement.
-
-    Returns
-    -------
-    statement : string
-        The expanded statement.
-
-    '''
-
-    if ignore_pipe_errors:
-        return statement
-    else:
-        return " ".join((_exec_prefix, statement, _exec_suffix))
 
 
 def joinStatements(statements, infile):
@@ -300,84 +277,42 @@ def joinStatements(statements, infile):
     return result
 
 
-def getStdoutStderr(stdout_path, stderr_path, tries=5):
-    '''get stdout/stderr allowing for same lag.
+def getJobMemory(options=False, PARAMS=False):
+    '''Extract the job memory from an options or
+       or PARAMS dictionaries'''
 
-    Try at most *tries* times. If unsuccessfull, throw OSError
+    job_memory = None
+    if options and 'job_memory' in options:
+        job_memory = options['job_memory']
 
-    Removes the files once they are read.
+    elif (options and "mem_free" in options["cluster_options"] and
+          PARAMS.get("cluster_memory_resource", False)):
 
-    Returns tuple of stdout and stderr.
-    '''
-    x = tries
-    while x >= 0:
-        if os.path.exists(stdout_path):
-            break
-        time.sleep(1)
-        x -= 1
+        E.warn("use of mem_free in job options is deprecated, please"
+               " set job_memory local var instead")
 
-    x = tries
-    while x >= 0:
-        if os.path.exists(stderr_path):
-            break
-        time.sleep(1)
-        x -= 1
+        o = options["cluster_options"]
+        x = re.search("-l\s*mem_free\s*=\s*(\S+)", o)
+        if x is None:
+            raise ValueError(
+                "expecting mem_free in '%s'" % o)
 
-    try:
-        stdout = open(stdout_path, "r").readlines()
-    except IOError, msg:
-        E.warn("could not open stdout: %s" % msg)
-        stdout = []
+        job_memory = x.groups()[0]
 
-    try:
-        stderr = open(stderr_path, "r").readlines()
-    except IOError, msg:
-        E.warn("could not open stdout: %s" % msg)
-        stderr = []
+        # remove memory spec from job options
+        options["cluster_options"] = re.sub(
+            "-l\s*mem_free\s*=\s*(\S+)", "", o)
+    elif PARAMS:
+        job_memory = PARAMS["cluster_memory_default"]
+        # SNS not sure why this was hard coded
+        # PARAMS.get("cluster_memory_default", "2G")
+        # consider better to fail if not set.
+    else:
+        raise ValueError('Job memory must be specified for DRMAA jobs'
+                         ' using either the "job_memory" option or the'
+                         ' "cluster_memory_default" parameter')
 
-    try:
-        os.unlink(stdout_path)
-        os.unlink(stderr_path)
-    except OSError, msg:
-        pass
-
-    return stdout, stderr
-
-
-def _collectSingleJobFromCluster(session, job_id,
-                                 statement,
-                                 stdout_path, stderr_path,
-                                 job_path,
-                                 ignore_errors=False):
-    '''runs a single job on the cluster.'''
-    try:
-        retval = session.wait(
-            job_id, drmaa.Session.TIMEOUT_WAIT_FOREVER)
-    except Exception, msg:
-        # ignore message 24 in PBS code 24: drmaa: Job
-        # finished but resource usage information and/or
-        # termination status could not be provided.":
-        if not msg.message.startswith("code 24"):
-            raise
-        retval = None
-
-    stdout, stderr = getStdoutStderr(stdout_path, stderr_path)
-
-    if retval and retval.exitStatus != 0 and not ignore_errors:
-        raise OSError(
-            "---------------------------------------\n"
-            "Child was terminated by signal %i: \n"
-            "The stderr was: \n%s\n%s\n"
-            "-----------------------------------------" %
-            (retval.exitStatus,
-             "".join(stderr), statement))
-
-    try:
-        os.unlink(job_path)
-    except OSError:
-        E.warn(
-            ("temporary job file %s not present for "
-             "clean-up - ignored") % job_path)
+    return job_memory
 
 
 def run(**kwargs):
@@ -426,9 +361,9 @@ def run(**kwargs):
     """
 
     # combine options using correct preference
-    options = dict(PARAMS.items())
-    options.update(getCallerLocals().items())
-    options.update(kwargs.items())
+    options = dict(list(PARAMS.items()))
+    options.update(list(getCallerLocals().items()))
+    options.update(list(kwargs.items()))
 
     # insert a few legacy synonyms
     options['cluster_options'] = options.get('job_options',
@@ -437,61 +372,11 @@ def run(**kwargs):
                                            options['cluster_queue'])
     options['without_cluster'] = options.get('without_cluster')
 
-    job_memory = None
+    # get the memory requirement for the job
+    job_memory = getJobMemory(options, PARAMS)
 
-    if 'job_memory' in options:
-        job_memory = options['job_memory']
-
-    elif "mem_free" in options["cluster_options"] and \
-         PARAMS.get("cluster_memory_resource", False):
-
-        E.warn("use of mem_free in job options is deprecated, please"
-               " set job_memory local var instead")
-
-        o = options["cluster_options"]
-        x = re.search("-l\s*mem_free\s*=\s*(\S+)", o)
-        if x is None:
-            raise ValueError(
-                "expecting mem_free in '%s'" % o)
-
-        job_memory = x.groups()[0]
-
-        # remove memory spec from job options
-        options["cluster_options"] = re.sub(
-            "-l\S*mem_free\s*=\s(\S+)", "", o)
-    else:
-        job_memory = PARAMS.get("cluster_memory_default", "2G")
-
-    def setupJob(session, options, job_memory, job_name):
-
-        jt = session.createJobTemplate()
-        jt.workingDirectory = PARAMS["workingdir"]
-        jt.jobEnvironment = {'BASH_ENV': '~/.bashrc'}
-        jt.args = []
-        if not re.match("[a-zA-Z]", job_name[0]):
-            job_name = "_" + job_name
-
-        spec = [
-            "-V",
-            "-q %(cluster_queue)s",
-            "-p %(cluster_priority)i",
-            "-N %s" % job_name,
-            "%(cluster_options)s"]
-
-        # limit memory of cluster jobs
-        spec.append("-l %s=%s" % (PARAMS["cluster_memory_resource"],
-                                  job_memory))
-
-        # if process has multiple threads, use a parallel environment
-        if 'job_threads' in options:
-            spec.append(
-                "-pe %(cluster_parallel_environment)s %(job_threads)i -R y")
-
-        jt.nativeSpecification = " ".join(spec) % options
-        # keep stdout and stderr separate
-        jt.joinFiles = False
-
-        return jt
+    # get the queue manager
+    queue_manager = PARAMS["cluster_queue_manager"]
 
     shellfile = os.path.join(PARAMS["workingdir"], "shell.log")
 
@@ -519,54 +404,39 @@ def run(**kwargs):
         "[:]", "_",
         os.path.basename(options.get("outfile", "ruffus")))
 
-    def buildJobScript(statement, job_memory, job_name):
-        '''build job script from statement.
-
-        returns (name_of_script, stdout_path, stderr_path)
-        '''
-
-        tmpfile = getTempFile(dir=PARAMS["workingdir"])
-        # disabled: -l -O expand_aliases\n" )
-        tmpfile.write("#!/bin/bash\n")
-        tmpfile.write(
-            'echo "%s : START -> %s" >> %s\n' %
-            (job_name, tmpfile.name, shellfile))
+    def _writeJobScript(statement, job_memory, job_name, shellfile):
         # disabled - problems with quoting
         # tmpfile.write( '''echo 'statement=%s' >> %s\n''' %
         # (shellquote(statement), shellfile) )
-        tmpfile.write("set | sed 's/^/%s : /' &>> %s\n" %
-                      (job_name, shellfile))
         # module list outputs to stderr, so merge stderr and stdout
-        tmpfile.write("module list 2>&1 | sed 's/^/%s: /' &>> %s\n" %
-                      (job_name, shellfile))
-        tmpfile.write("hostname | sed 's/^/%s: /' &>> %s\n" %
-                      (job_name, shellfile))
-        tmpfile.write("cat /proc/meminfo | sed 's/^/%s: /' &>> %s\n" %
-                      (job_name, shellfile))
-        tmpfile.write(
-            'echo "%s : END -> %s" >> %s\n' %
-            (job_name, tmpfile.name, shellfile))
+
+        script = '''#!/bin/bash -e \n
+                    echo "%(job_name)s : START -> ${0}" >> %(shellfile)s
+                    set | sed 's/^/%(job_name)s : /' &>> %(shellfile)s
+                    set +o errexit
+                    module list 2>&1 | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
+                    set -o errexit
+                    hostname | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
+                    cat /proc/meminfo | sed 's/^/%(job_name)s: /' &>> %(shellfile)s
+                    echo "%(job_name)s : END -> ${0}" >> %(shellfile)s
+                 ''' % locals()
 
         # restrict virtual memory
         # Note that there are resources in SGE which could do this directly
         # such as v_hmem.
         # Note that limiting resident set sizes (RSS) with ulimit is not
         # possible in newer kernels.
-        tmpfile.write("ulimit -v %i\n" % IOTools.human2bytes(job_memory))
+        script += "ulimit -v %i\n" % IOTools.human2bytes(job_memory)
+        script += expandStatement(statement,
+                                  ignore_pipe_errors=ignore_pipe_errors)
+        script += "\n"
 
-        tmpfile.write(
-            expandStatement(
-                statement,
-                ignore_pipe_errors=ignore_pipe_errors) + "\n")
-        tmpfile.close()
+        job_path = getTempFilename(dir=PARAMS["workingdir"])
 
-        job_path = os.path.abspath(tmpfile.name)
-        stdout_path = job_path + ".stdout"
-        stderr_path = job_path + ".stderr"
+        with open(job_path, "w") as script_file:
+            script_file.write(script)
 
-        os.chmod(job_path, stat.S_IRWXG | stat.S_IRWXU)
-
-        return (job_path, stdout_path, stderr_path)
+        return(job_path)
 
     if run_on_cluster:
         # run multiple jobs
@@ -580,29 +450,27 @@ def run(**kwargs):
             if options.get("dryrun", False):
                 return
 
-            jt = setupJob(session, options, job_memory, job_name)
+            jt = setupDrmaaJobTemplate(session, options, job_name, job_memory)
+            E.debug("Job spec is: %s" % jt.nativeSpecification)
 
             job_ids, filenames = [], []
+
             for statement in statement_list:
                 E.debug("running statement:\n%s" % statement)
 
-                job_path, stdout_path, stderr_path = buildJobScript(statement,
-                                                                    job_memory,
-                                                                    job_name)
+                job_path = _writeJobScript(statement, job_memory, job_name, shellfile)
 
-                jt.remoteCommand = job_path
-                jt.outputPath = ":" + stdout_path
-                jt.errorPath = ":" + stderr_path
-
-                os.chmod(job_path, stat.S_IRWXG | stat.S_IRWXU)
+                jt, stdout_path, stderr_path = setDrmaaJobPaths(jt, job_path)
 
                 job_id = session.runJob(jt)
+
                 job_ids.append(job_id)
                 filenames.append((job_path, stdout_path, stderr_path))
 
                 E.debug("job has been submitted with job_id %s" % str(job_id))
 
             E.debug("waiting for %i jobs to finish " % len(job_ids))
+
             session.synchronize(job_ids, drmaa.Session.TIMEOUT_WAIT_FOREVER,
                                 False)
 
@@ -610,12 +478,12 @@ def run(**kwargs):
             for job_id, statement, paths in zip(job_ids, statement_list,
                                                 filenames):
                 job_path, stdout_path, stderr_path = paths
-                _collectSingleJobFromCluster(session, job_id,
-                                             statement,
-                                             stdout_path,
-                                             stderr_path,
-                                             job_path,
-                                             ignore_errors=ignore_errors)
+                collectSingleJobFromCluster(session, job_id,
+                                            statement,
+                                            stdout_path,
+                                            stderr_path,
+                                            job_path,
+                                            ignore_errors=ignore_errors)
 
             session.deleteJobTemplate(jt)
 
@@ -628,17 +496,11 @@ def run(**kwargs):
             if options.get("dryrun", False):
                 return
 
-            job_path, stdout_path, stderr_path = buildJobScript(statement,
-                                                                job_memory,
-                                                                job_name)
+            jt = setupDrmaaJobTemplate(session, options, job_name, job_memory)
+            E.debug("Job spec is: %s" % jt.nativeSpecification)
 
-            jt = setupJob(session, options, job_memory, job_name)
-
-            jt.remoteCommand = job_path
-            # later: allow redirection of stdout and stderr to files;
-            # can even be across hosts?
-            jt.outputPath = ":" + stdout_path
-            jt.errorPath = ":" + stderr_path
+            job_path = _writeJobScript(statement, job_memory, job_name, shellfile)
+            jt, stdout_path, stderr_path = setDrmaaJobPaths(jt, job_path)
 
             if "job_array" in options and options["job_array"] is not None:
                 # run an array job
@@ -659,12 +521,12 @@ def run(**kwargs):
                 job_id = session.runJob(jt)
                 E.debug("job has been submitted with job_id %s" % str(job_id))
 
-                _collectSingleJobFromCluster(session, job_id,
-                                             statement,
-                                             stdout_path,
-                                             stderr_path,
-                                             job_path,
-                                             ignore_errors=ignore_errors)
+                collectSingleJobFromCluster(session, job_id,
+                                            statement,
+                                            stdout_path,
+                                            stderr_path,
+                                            job_path,
+                                            ignore_errors=ignore_errors)
 
             session.deleteJobTemplate(jt)
     else:
@@ -688,7 +550,7 @@ def run(**kwargs):
             # the statement needs to be wrapped in
             # /bin/bash -c '...' in order for bash
             # to interpret the substitution correctly.
-            if "<(" in statement:
+            if "<(" in statement or ">(" in statement:
                 shell = os.environ.get('SHELL', "/bin/bash")
                 if "bash" not in shell:
                     raise ValueError(
@@ -824,7 +686,8 @@ def cluster_runnable(func):
                    **submit_args)
         else:
             # remove job contral options before running function
-            for x in ("submit", "job_options", "job_queue"):
+            for x in ("submit", "job_options", "job_queue",
+                      "job_memory", "job_threads"):
                 if x in kwargs:
                     del kwargs[x]
             return func(*args, **kwargs)
@@ -862,5 +725,3 @@ def run_pickled(params):
     function(*args, **kwargs)
 
     os.unlink(args_file)
-
-

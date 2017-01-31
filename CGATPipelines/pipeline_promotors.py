@@ -170,7 +170,7 @@ def findTATABox(infiles, outfile):
             -r %(tata_search_downstream)i
             -s
             -g %(genomefile)s
-    | python %(scriptsdir)s/bed2fasta.py 
+    | cgat bed2fasta 
        --use-strand
        --genome=%(genome_dir)s/%(genome)s
        --log=%(outfile)s.log

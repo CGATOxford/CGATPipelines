@@ -28,11 +28,14 @@ Reference
 
 """
 
-import types
 import re
 import collections
 import os
-import ConfigParser
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
+
 import sys
 
 import CGAT.Experiment as E
@@ -47,7 +50,7 @@ CGATSCRIPTS_ROOT_DIR = os.path.dirname(
     os.path.dirname(E.__file__))
 
 # CGAT Code collection scripts
-CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
+CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "CGAT", "scripts")
 
 # root directory of CGAT Pipelines
 CGATPIPELINES_ROOT_DIR = os.path.dirname(os.path.dirname(
@@ -71,7 +74,7 @@ if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
     PIPELINE_SCRIPTS_DIR = os.path.join(sys.exec_prefix, "bin")
 
 # Global variable for configuration file data
-CONFIG = ConfigParser.ConfigParser()
+CONFIG = configparser.ConfigParser()
 
 
 class TriggeredDefaultFactory:
@@ -111,9 +114,15 @@ HARDCODED_PARAMS = {
                 --cluster-queue=%(cluster_queue)s
                 --cluster-num-jobs=%(cluster_num_jobs)i
                 --cluster-priority=%(cluster_priority)i
+                --cluster-queue-manager=%(cluster_queue_manager)s
+                --cluster-memory-resource=%(cluster_memory_resource)s
+                --cluster-memory-default=%(cluster_memory_default)s
     """,
     # command to get tab-separated output from database
     'cmd-sql': """sqlite3 -header -csv -separator $'\\t' """,
+    # DEPRECATED: options to use for csv2db upload
+    "csv2db_options": "--backend=sqlite --retry --map=gene_id:str "
+    "--map=contig:str --map=transcript_id:str",
     # database backend
     'database_backend': "sqlite",
     # database host
@@ -128,10 +137,21 @@ HARDCODED_PARAMS = {
     'database_port': 3306,
     # wrapper around non-CGAT scripts
     'cmd-run': """%(pipeline_scriptsdir)s/run.py""",
-    # directory used for temporary local files
+    # legacy directory used for temporary local files
+    #     Use of this var can be problematic (issue #174)
+    #     - it may be depreciated.
     'tmpdir': os.environ.get("TMPDIR", '/scratch'),
+    # directory used for temporary local tempory files on compute nodes
+    # *** passed directly to the shell      ***
+    # *** may not exist on login/head nodes ***
+    # default matches 'tmpdir' only for backwards compatibility
+    # typically a shell environment var is expected, e.g.
+    # 'local_tmpdir': '$SCRATCH_DIR',
+    'local_tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
+    # queue manager (supported: sge, slurm, torque, pbspro)
+    'cluster_queue_manager': 'sge',
     # cluster queue to use
     'cluster_queue': 'all.q',
     # priority of jobs in cluster queue
@@ -203,7 +223,7 @@ def configToDictionary(config):
             if section in ("general", "DEFAULT"):
                 p["%s" % (key)] = v
 
-    for key, value in config.defaults().iteritems():
+    for key, value in config.defaults().items():
         p["%s" % (key)] = IOTools.str2val(value)
 
     return p
@@ -211,6 +231,7 @@ def configToDictionary(config):
 
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
+                  site_ini=True,
                   user_ini=True,
                   default_ini=True,
                   only_import=None):
@@ -302,6 +323,12 @@ def getParameters(filenames=["pipeline.ini", ],
         # turn on default dictionary
         TriggeredDefaultFactory.with_default = True
 
+    if site_ini:
+        # read configuration from /etc/cgat/pipeline.ini
+        fn = "/etc/cgat/pipeline.ini"
+        if os.path.exists(fn):
+            filenames.insert(0, fn)
+
     if user_ini:
         # read configuration from a users home directory
         fn = os.path.join(os.path.expanduser("~"),
@@ -312,7 +339,7 @@ def getParameters(filenames=["pipeline.ini", ],
     # IMS: Several legacy scripts call this with a sting as input
     # rather than a list. Check for this and correct
 
-    if isinstance(filenames, basestring):
+    if isinstance(filenames, str):
         filenames = [filenames]
 
     if default_ini:
@@ -340,12 +367,12 @@ def getParameters(filenames=["pipeline.ini", ],
     for param in INTERPOLATE_PARAMS:
         try:
             PARAMS[param] = PARAMS[param] % PARAMS
-        except TypeError, msg:
+        except TypeError as msg:
             raise TypeError('could not interpolate %s: %s' %
                             (PARAMS[param], msg))
 
     # expand pathnames
-    for param, value in PARAMS.items():
+    for param, value in list(PARAMS.items()):
         if param.endswith("dir"):
             if value.startswith("."):
                 PARAMS[param] = os.path.abspath(value)
@@ -372,7 +399,7 @@ def loadParameters(filenames):
        A configuration dictionary.
 
     '''
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.read(filenames)
 
     p = configToDictionary(config)
@@ -401,7 +428,7 @@ def matchParameter(param):
     if param in PARAMS:
         return param
 
-    for key in PARAMS.keys():
+    for key in list(PARAMS.keys()):
         if "%" in key:
             rx = re.compile(re.sub("%", ".*", key))
             if rx.search(param):
@@ -445,12 +472,12 @@ def substituteParameters(**kwargs):
 
     # build parameter dictionary
     # note the order of addition to make sure that kwargs takes precedence
-    local_params = dict(PARAMS.items() + kwargs.items())
+    local_params = dict(list(PARAMS.items()) + list(kwargs.items()))
 
     if "outfile" in local_params:
         # replace specific parameters with task (outfile) specific parameters
         outfile = local_params["outfile"]
-        for k in local_params.keys():
+        for k in list(local_params.keys()):
             if k.startswith(outfile):
                 p = k[len(outfile) + 1:]
                 if p not in local_params:
@@ -482,7 +509,7 @@ def asList(value):
         except AttributeError:
             values = [value.strip()]
         return [x for x in values if x != ""]
-    elif type(value) in (types.ListType, types.TupleType):
+    elif type(value) in (list, tuple):
         return value
     else:
         return [value]
@@ -530,4 +557,3 @@ def checkParameter(param):
 def getParams():
     """return handle to global parameter dictionary"""
     return PARAMS
-

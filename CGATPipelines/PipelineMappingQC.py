@@ -14,7 +14,7 @@ import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
 
-PICARD_MEMORY = "2.1G"
+PICARD_MEMORY = "5G"
 
 
 def getNumReadsFromReadsFile(infile):
@@ -88,7 +88,7 @@ def buildPicardAlignmentStats(infile, outfile, genome_file):
     # or there is no sequence/quality information within the bam file.
     # Thus, add it explicitly.
     statement = '''cat %(infile)s
-    | python %(scriptsdir)s/bam2bam.py -v 0
+    | cgat bam2bam -v 0
     --method=set-sequence --output-sam
     | CollectMultipleMetrics
     INPUT=/dev/stdin
@@ -137,6 +137,9 @@ def buildPicardDuplicationStats(infile, outfile):
         statement = ""
         data_source = infile
 
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
+
     statement += '''MarkDuplicates
     INPUT=%(data_source)s
     ASSUME_SORTED=true
@@ -144,8 +147,9 @@ def buildPicardDuplicationStats(infile, outfile):
     OUTPUT=/dev/null
     VALIDATION_STRINGENCY=SILENT
     '''
-
     P.run()
+
+    os.unsetenv("CGAT_JAVA_OPTS")
 
     if ".gsnap.bam" in infile:
         os.unlink(tmpfile_name)
@@ -157,6 +161,12 @@ def buildPicardDuplicateStats(infile, outfile):
     Record duplicate metrics using Picard and keep the dedupped .bam
     file.
 
+    Pair duplication is properly handled, including inter-chromosomal
+    cases. SE data is also handled.  These stats also contain a
+    histogram that estimates the return from additional sequecing.  No
+    marked bam files are retained (/dev/null...)  Note that picards
+    counts reads but they are in fact alignments.
+
     Arguments
     ---------
     infile : string
@@ -165,7 +175,6 @@ def buildPicardDuplicateStats(infile, outfile):
         Output filename with picard output.
 
     '''
-
     job_memory = PICARD_MEMORY
     job_threads = 3
 
@@ -174,15 +183,18 @@ def buildPicardDuplicateStats(infile, outfile):
         P.touch(outfile)
         return
 
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
     statement = '''MarkDuplicates
     INPUT=%(infile)s
     ASSUME_SORTED=true
     METRICS_FILE=%(outfile)s.duplicate_metrics
     OUTPUT=%(outfile)s
-    VALIDATION_STRINGENCY=SILENT
+    VALIDATION_STRINGENCY=SILENT;
     '''
     statement += '''samtools index %(outfile)s ;'''
     P.run()
+    os.unsetenv("CGAT_JAVA_OPTS")
 
 
 def buildPicardCoverageStats(infile, outfile, baits, regions):
@@ -372,7 +384,7 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
         return
 
     header = ",".join([P.snip(os.path.basename(x), pipeline_suffix)
-                      for x in xfiles])
+                       for x in xfiles])
     filenames = " ".join(["%s.%s" % (x, suffix) for x in xfiles])
 
     # there might be a variable number of columns in the tables
@@ -385,7 +397,7 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
         " --allow-empty-file"
         " --replace-header" % (column, header))
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --regex-start="## HISTOGRAM"
     --missing-value=0
     --take=2
@@ -399,6 +411,13 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
 
 def loadPicardAlignmentStats(infiles, outfile):
     '''load all output from Picard's CollectMultipleMetrics into database.
+
+    Loads tables into database with prefix derived from outfile:
+       * [outfile]_alignment_summary_metric
+       * [outfile]_insert_size_metrics
+       * [outfile]_quality_by_cycle_metrics
+       * [outfile]_quality_distribution_metrics
+       * [outfile]_insert_size_metrics
 
     Arguments
     ---------
@@ -425,6 +444,10 @@ def loadPicardAlignmentStats(infiles, outfile):
 
 def loadPicardDuplicationStats(infiles, outfiles):
     '''load picard duplicate filtering stats into database.
+
+    Loads two tables into the database
+       * picard_duplication_metrics
+       * picard_complexity_histogram
 
     Arguments
     ---------
@@ -538,7 +561,7 @@ def buildBAMStats(infile, outfile):
 
     '''
 
-    statement = '''python %(scriptsdir)s/bam2stats.py
+    statement = '''cgat bam2stats
     --force-output
     --output-filename-pattern=%(outfile)s.%%s
     < %(infile)s
@@ -554,11 +577,11 @@ def loadBAMStats(infiles, outfile):
     infiles : string
         Input files, output from :func:`buildBAMStats`.
     outfile : string
-        Output file in :term:`tsv` format.
+        Logfile. The table name will be derived from `outfile`.
     '''
 
     header = ",".join([P.snip(os.path.basename(x), ".readstats")
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(["<( cut -f 1,2 < %s)" % x for x in infiles])
     tablename = P.toTable(outfile)
 
@@ -568,13 +591,13 @@ def loadBAMStats(infiles, outfile):
         " --allow-empty-file")
 
     E.info("loading bam stats - summary")
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --header-names=%(header)s
     --missing-value=0
     --ignore-empty
     %(filenames)s
     | perl -p -e "s/bin/track/"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s"""
     P.run()
@@ -587,7 +610,7 @@ def loadBAMStats(infiles, outfile):
             "%s_%s" % (tablename, suffix),
             options="--allow-empty-file")
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
         --header-names=%(header)s
         --skip-titles
         --missing-value=0
@@ -609,7 +632,7 @@ def loadBAMStats(infiles, outfile):
             "%s_%s" % (tablename, suffix),
             options=" --allow-empty-file")
 
-        statement = """python %(scriptsdir)s/combine_tables.py
+        statement = """cgat combine_tables
         --header-names=%(header)s
         --skip-titles
         --missing-value=0
@@ -620,3 +643,91 @@ def loadBAMStats(infiles, outfile):
         | %(load_statement)s
         >> %(outfile)s """
         P.run()
+
+
+def buildPicardRnaSeqMetrics(infiles, strand, outfile):
+    '''run picard:RNASeqMetrics
+
+
+
+    Arguments
+    ---------
+    infiles : string
+        Input filename in :term:`BAM` format.
+        Genome file in refflat format
+            (http://genome.ucsc.edu/goldenPath/gbdDescriptionsOld.html#RefFlat)
+    outfile : string
+        Output filename with picard output.
+
+    '''
+    job_memory = PICARD_MEMORY
+    job_threads = 3
+    infile, genome = infiles
+
+    if BamTools.getNumReads(infile) == 0:
+        E.warn("no reads in %s - no metrics" % infile)
+        P.touch(outfile)
+        return
+
+    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
+                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
+    statement = '''CollectRnaSeqMetrics
+    REF_FLAT=%(genome)s
+    INPUT=%(infile)s
+    ASSUME_SORTED=true
+    OUTPUT=%(outfile)s
+    STRAND=%(strand)s
+    VALIDATION_STRINGENCY=SILENT
+    '''
+    P.run()
+    os.unsetenv("CGAT_JAVA_OPTS")
+
+
+def loadPicardRnaSeqMetrics(infiles, outfiles):
+    '''load picard rna stats into database.
+
+    Loads tables into the database
+       * picard_rna_metrics
+       * picard_rna_histogram
+
+    Arguments
+    ---------
+    infile : string
+        Filenames of files with picard metric information. Each file
+        corresponds to a different track.
+    outfiles : string
+        Logfile. The table names will be derived from `outfile`.
+    '''
+
+    outfile_metrics, outfile_histogram = outfiles
+
+    suffix = "picard_rna_metrics"
+
+    # the loading functions expect "infile_name.pipeline_suffix" as the infile
+    # names.
+    infile_names = [x[:-len("." + suffix)] for x in infiles]
+
+    loadPicardMetrics(infile_names, outfile_metrics, suffix, "",
+                      tablename="picard_rna_metrics")
+
+    infiles_with_histograms = []
+
+    # Checking if histogram is present (?is this necessary)
+    for infile in infile_names:
+        with_hist = False
+        with open(".".join([infile, suffix]), "r") as open_infile:
+            for line in open_infile:
+                if line.startswith("## HISTOGRAM"):
+                    infiles_with_histograms.append(infile)
+                    break
+
+    if len(infiles_with_histograms) > 0:
+        loadPicardHistogram(infiles_with_histograms,
+                            outfile_histogram,
+                            suffix,
+                            "coverage_multiple",
+                            "",
+                            tablename="picard_rna_histogram")
+    else:
+        with open(outfile_histogram, "w") as ofh:
+            ofh.write("No histograms detected, no data loaded.")

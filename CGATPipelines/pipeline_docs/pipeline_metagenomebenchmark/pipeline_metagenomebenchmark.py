@@ -230,13 +230,13 @@ def buildTrueTaxonomicRelativeAbundances(infile, outfile):
         total += 1
         gi = fastq.identifier.split("|")[1]
         rel_abundance[gi] += 1
-    for gi, ab in rel_abundance.iteritems():
+    for gi, ab in rel_abundance.items():
         rel_abundance[gi] = float(ab)/total
 
     dbh = sqlite3.connect(PARAMS["database"])
     cc = dbh.cursor()
     result = collections.defaultdict(float)
-    for gi in rel_abundance.keys():
+    for gi in list(rel_abundance.keys()):
         E.info("processing gi %s" % gi)
         taxid = cc.execute("""SELECT taxid FROM gi_taxid_nucl WHERE gi == '%s'""" % gi).fetchone()[0]
         species_id = cc.execute("""SELECT species_id FROM categories WHERE taxid == '%s'""" % taxid).fetchone()[0]
@@ -247,7 +247,7 @@ def buildTrueTaxonomicRelativeAbundances(infile, outfile):
 
     outf = open(outfile, "w")
     outf.write("species_name\trelab\n")
-    for species_name, abundance in result.iteritems():
+    for species_name, abundance in result.items():
         # create names consistent with metaphlan
         species_name = species_name.replace(" ", "_")
         outf.write("%s\t%f\n" % (species_name, abundance))
@@ -309,7 +309,7 @@ def plotRelativeAbundanceCorrelations(infiles, outfile):
                 true, estimate = data[0], data[1]
                 temp.write("%f\t%f\n" % (true, estimate))
     temp.close()
-    print temp.name
+    print(temp.name)
 
     inf = temp.name
     R('''data <- read.csv("%s", header = T, stringsAsFactors = F, sep = "\t")''' % inf)
@@ -355,7 +355,7 @@ def calculateFalsePositiveRate(infiles, outfile):
     total_true = len(true_set)
 
     E.info("counting false positives and false negatives")
-    print estimate_set.difference(true_set)
+    print(estimate_set.difference(true_set))
     nfp = len(estimate_set.difference(true_set))
     nfn = len(true_set.difference(estimate_set))
     ntp = len(estimate_set.intersection(true_set))
@@ -433,7 +433,7 @@ def filterContigsByCoverage(infiles, outfile):
     dbh = sqlite3.connect(PARAMS["database"])
     cc = dbh.cursor()
     for infile in infiles[1:]:
-        print contig_file, P.snip(os.path.basename(infile), ".load")
+        print(contig_file, P.snip(os.path.basename(infile), ".load"))
 
 
 
@@ -601,7 +601,7 @@ def buildCoverageOverGenomes(infiles, outfile):
                 alignments[name] = value
             else:
                 genomes[name] = value
-    for name in alignments.keys():
+    for name in list(alignments.keys()):
         outf.write("%s\t%f\n" % (name, float(alignments[name])/float(genomes[name])))
     outf.close()
 
@@ -742,7 +742,7 @@ def buildChimerasBasedOnReads(infile, outfile):
     E.info("calculating proportion of 'good' reads")
     outf = open(outfile, "w")
     outf.write("contig\tchimericity\n")
-    for contig in result.keys():
+    for contig in list(result.keys()):
         ngood = collections.defaultdict(int)
         for species in result[contig]:
             ngood[species] += 1

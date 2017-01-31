@@ -1,31 +1,7 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Analysis & Training Programme
-#
-#   $Id$
-#
-#   Copyright (C) 2014 David Sims
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
-
 """====================
 ReadQc pipeline
 ====================
 
-:Author: David Sims
 :Date: |today|
 :Tags: Python
 
@@ -118,7 +94,8 @@ https://www.cgat.org/downloads/public/cgatpipelines/pipeline_test_data/test_read
 
 To run the example, simply unpack and untar::
 
-   wget -qO- https://www.cgat.org/downloads/public/cgatpipelines/pipeline_test_data/test_readqc.tgz | tar -xvz
+   wget -qO- https://www.cgat.org/downloads/public/cgatpipelines/
+             pipeline_test_data/test_readqc.tgz | tar -xvz
    cd test_readqc
    python <srcdir>/pipeline_readqc.py make full
 
@@ -139,8 +116,8 @@ Requirements:
 """
 
 # import ruffus
-from ruffus import transform, merge, follows, mkdir, regex, suffix, jobs_limit, \
-    subdivide, collate
+from ruffus import transform, merge, follows, mkdir, regex, suffix, \
+    jobs_limit, subdivide, collate, active_if
 
 # import useful standard python modules
 import sys
@@ -167,18 +144,19 @@ PARAMS = P.PARAMS
 
 # define input files and preprocessing steps
 # list of acceptable input formats
-INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz"]
+INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz",
+                 "*.sra", "*.csfasta.gz", "*.remote"]
 
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
-REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
 # Regular expression to extract a track from both processed and unprocessed
 # files
 REGEX_TRACK_BOTH = \
-    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
-SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
 
 def connect():
@@ -256,31 +234,36 @@ if PARAMS.get("preprocessors", None):
     def processReads(infile, outfiles):
         '''process reads from .fastq and other sequence files.
         '''
-
         trimmomatic_options = PARAMS["trimmomatic_options"]
+
         if PARAMS["trimmomatic_adapter"]:
-            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
                 PARAMS["trimmomatic_adapter"],
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
-                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
+                PARAMS["trimmomatic_c_thresh"],
+                PARAMS["trimmomatic_min_adapter_len"],
+                PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
 
         if PARAMS["auto_remove"]:
-            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
                 "contaminants.fasta",
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
-                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
+                PARAMS["trimmomatic_c_thresh"],
+                PARAMS["trimmomatic_min_adapter_len"],
+                PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
 
         job_threads = PARAMS["threads"]
-        job_memory = "7G"
+        job_memory = "12G"
 
         track = re.match(REGEX_TRACK, infile).groups()[0]
 
         m = PipelinePreprocess.MasterProcessor(
             save=PARAMS["save"],
             summarize=PARAMS["summarize"],
-            threads=PARAMS["threads"])
+            threads=PARAMS["threads"],
+            qual_format=PARAMS['qual_format'])
 
         for tool in P.asList(PARAMS["preprocessors"]):
 
@@ -304,16 +287,26 @@ if PARAMS.get("preprocessors", None):
                 m.add(PipelinePreprocess.Flash(
                     PARAMS["flash_options"],
                     threads=PARAMS["threads"]))
+            elif tool == "reversecomplement":
+                m.add(PipelinePreprocess.ReverseComplement(
+                    PARAMS["reversecomplement_options"]))
+            elif tool == "pandaseq":
+                m.add(PipelinePreprocess.Pandaseq(
+                    PARAMS["pandaseq_options"],
+                    threads=PARAMS["threads"]))
             elif tool == "cutadapt":
                 cutadapt_options = PARAMS["cutadapt_options"]
                 if PARAMS["auto_remove"]:
                     cutadapt_options += " -a file:contaminants.fasta "
                 m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
-                    threads=PARAMS["threads"]))
+                    threads=PARAMS["threads"],
+                    untrimmed=PARAMS['cutadapt_reroute_untrimmed'],
+                    process_paired=PARAMS["cutadapt_process_paired"]))
+            else:
+                raise NotImplementedError("tool '%s' not implemented" % tool)
 
         statement = m.build((infile,), "processed.dir/trimmed-", track)
-
         P.run()
 
 else:
@@ -323,6 +316,28 @@ else:
         pass
 
 
+@active_if(PARAMS["general_reconcile"] == 1)
+@follows(mkdir("reconciled.dir"))
+@transform(processReads, regex(
+    r"processed.dir\/trimmed-(.*)\.fastq\.1\.gz"),
+    r"reconciled.dir/trimmed-\1.fastq.1.gz")
+def reconcileReads(infile, outfile):
+    if PARAMS["general_reconcile"] == 1:
+        in1 = infile
+        in2 = infile.replace(".fastq.1.gz", ".fastq.2.gz")
+        outfile = outfile.replace(".fastq.1.gz",  "")
+        job_threads = PARAMS["threads"]
+        job_memory = "8G"
+        statement = """python
+            cgat fastqs2fastqs
+            --method=reconcile
+            --output-filename-pattern=%(outfile)s.fastq.%%s.gz
+            %(in1)s %(in2)s"""
+
+        P.run()
+
+
+@follows(reconcileReads)
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastqc")))
 @transform((unprocessReads, processReads),
@@ -340,10 +355,16 @@ def runFastqc(infiles, outfile):
     if PARAMS['add_contaminants']:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc",
-                                   contaminants=PARAMS['contaminants'])
+                                   contaminants=PARAMS['contaminants'],
+                                   qual_format=PARAMS['qual_format'])
     else:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                   outdir=PARAMS["exportdir"] + "/fastqc")
+                                   outdir=PARAMS["exportdir"] + "/fastqc",
+                                   qual_format=PARAMS['qual_format'])
+
+    if PARAMS["general_reconcile"] == 1:
+        infiles = infiles.replace("processed.dir/trimmed",
+                                  "reconciled.dir/trimmed")
 
     statement = m.build((infiles,), outfile)
     P.run()
@@ -369,6 +390,7 @@ def loadFastqc(infile, outfile):
 
 @follows(mkdir(PARAMS["exportdir"]),
          mkdir(os.path.join(PARAMS["exportdir"], "fastq_screen")))
+@active_if(PARAMS["fastq_screen_run"] == 1)
 @transform((unprocessReads, processReads),
            regex(REGEX_TRACK_BOTH),
            r"%s/fastq_screen/\2.fastqscreen" % PARAMS['exportdir'])
@@ -383,7 +405,7 @@ def runFastqScreen(infiles, outfile):
     # using parameters from Pipeline.ini
     with IOTools.openFile(os.path.join(tempdir, "fastq_screen.conf"),
                           "w") as f:
-        for i, k in PARAMS.items():
+        for i, k in list(PARAMS.items()):
             if i.startswith("fastq_screen_database"):
                 f.write("DATABASE\t%s\t%s\n" % (i[22:], k))
 
@@ -432,7 +454,7 @@ def combineExperimentLevelReadQualities(infiles, outfile):
     Combine summaries of read quality for different experiments
     """
     infiles = " ".join(infiles)
-    statement = ("python %(scriptsdir)s/combine_tables.py "
+    statement = ("cgat combine_tables "
                  "  --log=%(outfile)s.log "
                  "  --regex-filename='.+/(.+)_per_sequence_quality.tsv' "
                  "%(infiles)s"

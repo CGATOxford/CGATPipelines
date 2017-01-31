@@ -51,9 +51,9 @@ inifile = os.path.join(os.path.dirname(CGATPipelines.__file__),
 
 PARAMS = P.getParameters([inifile, "pipeline.ini"])
 
-
-def setup(app):
-    app.add_config_value('PARAMS', {}, True)
+# Definition now part of CGATReport
+# def setup(app):
+#     app.add_config_value('PARAMS', {}, True)
 
 ################################################################
 ################################################################
@@ -166,8 +166,8 @@ source_suffix = '.rst'
 master_doc = 'contents'
 
 # General information about the project.
-project = u'test'
-copyright = u'2014, %CGAT%'
+project = 'test'
+copyright = '2014, %CGAT%'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -323,8 +323,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    ('index', 'test.tex', u'test Documentation',
-     u'\\%CGAT\\%', 'manual'),
+    ('index', 'test.tex', 'test Documentation',
+     '\\%CGAT\\%', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -353,8 +353,8 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'test', u'test Documentation',
-     [u'%CGAT%'], 1)
+    ('index', 'test', 'test Documentation',
+     ['%CGAT%'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -367,8 +367,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    ('index', 'test', u'test Documentation',
-     u'%CGAT%', 'test', 'One line description of project.',
+    ('index', 'test', 'test Documentation',
+     '%CGAT%', 'test', 'One line description of project.',
      'Miscellaneous'),
 ]
 

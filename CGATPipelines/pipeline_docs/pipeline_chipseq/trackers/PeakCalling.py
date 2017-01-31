@@ -23,7 +23,7 @@ class MacsSummary(DefaultTracker):
         f = ",".join(fields)
         data = self.getFirstRow(
             '''SELECT %(f)s FROM macs_summary WHERE track="%(track)s"''' % locals())
-        result = odict(zip(fields, data))
+        result = odict(list(zip(fields, data)))
 
         if os.path.exists(resultsdir):
             result[
@@ -47,9 +47,9 @@ class MacsDiagnostics(ChipseqTracker):
         for fc, npeaks, p20, p30, p40, p50, p60, p70, p80, p90 in data:
             result[fc] = odict()
             result[fc]["npeaks"] = npeaks
-            result[fc]["proportion of reads"] = range(20, 100, 10)
-            result[fc]["proportion of peaks"] = map(
-                float, (p20, p30, p40, p50, p60, p70, p80, p90))
+            result[fc]["proportion of reads"] = list(range(20, 100, 10))
+            result[fc]["proportion of peaks"] = list(map(
+                float, (p20, p30, p40, p50, p60, p70, p80, p90)))
 
         return result
 

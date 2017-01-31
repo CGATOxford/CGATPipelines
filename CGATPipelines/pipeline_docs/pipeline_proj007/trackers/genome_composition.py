@@ -37,7 +37,7 @@ class genomeCompostionSummary(cpgTracker):
                                     AND id not like '%%random%%' """ )
         mColumns = ["GC content", "CpG Obs/Exp", "CpG density"]
 
-        return odict(zip(mColumns, data))
+        return odict(list(zip(mColumns, data)))
 
 ##########################################################################
 

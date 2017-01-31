@@ -4,7 +4,7 @@ from ChipseqReport import *
 if not os.path.exists("conf.py"):
     raise IOError("could not find conf.py")
 
-execfile("conf.py")
+exec(compile(open("conf.py").read(), "conf.py", 'exec'))
 
 
 class CountsTranscripts (TrackerSQL):

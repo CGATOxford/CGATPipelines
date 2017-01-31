@@ -25,7 +25,7 @@ class replicatedSharedIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(stop-start),0) as length FROM %(track)s_replicated_shared_intervals" % locals())
-        return odict(zip(("Shared intervals", "mean_interval_length"), data))
+        return odict(list(zip(("Shared intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 
@@ -175,7 +175,7 @@ class replicatedSharedIntervalLengthVsAverageValue(cpgTracker):
         data = self.get( '''SELECT length, avgval FROM %(track)s_replicated_shared_intervals u, %(track)s_replicated_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "avgval"), zip(*data)))
+        return odict(list(zip(("length", "avgval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -190,7 +190,7 @@ class replicatedSharedIntervalLengthVsPeakValue(cpgTracker):
         data = self.get( '''SELECT length, peakval FROM %(track)s_replicated_shared_intervals u, %(track)s_replicated_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "peakval"), zip(*data)))
+        return odict(list(zip(("length", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -205,7 +205,7 @@ class replicatedSharedIntervalLengthVsFoldChange(cpgTracker):
         data = self.get( '''SELECT length, fold FROM %(track)s_replicated_shared_intervals u, %(track)s_replicated_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("length", "foldchange"), zip(*data)))
+        return odict(list(zip(("length", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -220,7 +220,7 @@ class replicatedSharedIntervalAvgValVsPeakVal(cpgTracker):
         data = self.get( '''SELECT avgval, peakval FROM %(track)s_replicated_shared_intervals u, %(track)s_replicated_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("avgval", "peakval"), zip(*data)))
+        return odict(list(zip(("avgval", "peakval"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -235,7 +235,7 @@ class replicatedSharedIntervalAvgValVsFoldChange(cpgTracker):
         data = self.get( '''SELECT avgval, fold FROM %(track)s_replicated_shared_intervals u, %(track)s_replicated_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("avgval", "foldchange"), zip(*data)))
+        return odict(list(zip(("avgval", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -250,7 +250,7 @@ class replicatedSharedIntervalPeakValVsFoldChange(cpgTracker):
         data = self.get( '''SELECT peakval, fold FROM %(track)s_replicated_shared_intervals u, %(track)s_replicated_intervals i
                             WHERE u.contig=i.contig
                             AND u.start=i.start''' % locals() )
-        return odict(zip(("peakval", "foldchange"), zip(*data)))
+        return odict(list(zip(("peakval", "foldchange"), list(zip(*data)))))
 
 ##########################################################################
 
@@ -275,7 +275,7 @@ class replicatedSharedIntervalTranscriptOverlap(featureOverlap):
                                    group by feature_class
                                    order by feature_class asc""" % locals() )
 
-        return odict(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+        return odict(list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))
 
 ##########################################################################
 
@@ -300,4 +300,4 @@ class replicatedSharedIntervalGeneOverlap(featureOverlap):
                                    group by feature_class
                                    order by feature_class asc""" % locals() )
 
-        return odict(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+        return odict(list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))

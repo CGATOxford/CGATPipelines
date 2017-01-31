@@ -25,7 +25,7 @@ class replicatedSharedIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(end-start),0) as length FROM liver_testes_shared_intervals" % locals())
-        return odict(zip(("Shared intervals", "mean_interval_length"), data))
+        return odict(list(zip(("Shared intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 
@@ -137,7 +137,7 @@ class replicatedSharedIntervalTranscriptOverlap(featureOverlap):
                                    group by feature_class
                                    order by feature_class asc""" % locals() )
 
-        return odict(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+        return odict(list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))
 
 ##########################################################################
 
@@ -162,4 +162,4 @@ class replicatedSharedIntervalGeneOverlap(featureOverlap):
                                    group by feature_class
                                    order by feature_class asc""" % locals() )
 
-        return odict(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+        return odict(list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))

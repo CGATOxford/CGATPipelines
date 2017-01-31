@@ -205,8 +205,8 @@ class QCFailedVersusMatched(ReadCorrespondenceTracker):
     def __call__(self, track):
         statement = '''SELECT nfailed, nmatched FROM %(table)s LIMIT %(limit)i'''
 
-        return asMatrix(range(self.max_failed),
-                        range(self.max_nmatched),
+        return asMatrix(list(range(self.max_failed)),
+                        list(range(self.max_nmatched)),
                         self.get(statement))
 
 
@@ -219,8 +219,8 @@ class QCFailedVersusHits(ReadCorrespondenceTracker):
     def __call__(self, track):
         statement = '''SELECT nfailed, %(track)s_nh FROM %(table)s LIMIT %(limit)i'''
 
-        return asMatrix(range(self.max_failed),
-                        range(self.max_nh),
+        return asMatrix(list(range(self.max_failed)),
+                        list(range(self.max_nh)),
                         self.get(statement))
 
 
@@ -233,8 +233,8 @@ class QCFailedVersusLocation(ReadCorrespondenceTracker):
     def __call__(self, track):
         statement = '''SELECT nfailed, nlocations FROM %(table)s WHERE %(track)s_nh > 0 LIMIT %(limit)i'''
 
-        return asMatrix(range(self.max_failed),
-                        range(self.max_locations),
+        return asMatrix(list(range(self.max_failed)),
+                        list(range(self.max_locations)),
                         self.get(statement))
 
 
@@ -246,8 +246,8 @@ class MappedLocationsVersusHits(ReadCorrespondenceTracker):
     def __call__(self, track):
         statement = '''SELECT nmatched, %(track)s_nh FROM %(table)s WHERE nmatched > 0 LIMIT %(limit)i'''
 
-        return asMatrix(range(self.max_nmatched),
-                        range(self.max_nh),
+        return asMatrix(list(range(self.max_nmatched)),
+                        list(range(self.max_nh)),
                         self.get(statement))
 
 
@@ -262,7 +262,7 @@ class MatrixFound(ReadCorrespondenceTracker):
 
 class ReadQualitiesVersusHits(ReadCorrespondenceTracker):
 
-    slices = map(str, range(0, 10))
+    slices = list(map(str, list(range(0, 10))))
 
     def __call__(self, track, slice):
         return self.getValues( '''SELECT nfailed FROM %(table)s WHERE %(track)s_nh > 0 LIMIT %(limit)i''' )

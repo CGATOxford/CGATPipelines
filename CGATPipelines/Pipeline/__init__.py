@@ -220,9 +220,11 @@ from CGATPipelines.Pipeline.Control import *
 from CGATPipelines.Pipeline.Database import *
 from CGATPipelines.Pipeline.Local import *
 from CGATPipelines.Pipeline.Files import *
+from CGATPipelines.Pipeline.Cluster import *
 from CGATPipelines.Pipeline.Execution import *
 from CGATPipelines.Pipeline.Utils import *
 from CGATPipelines.Pipeline.Parameters import *
+
 
 from CGAT import Experiment as E
 
@@ -232,13 +234,12 @@ from CGAT.IOTools import touchFile as touch
 from CGAT.IOTools import snip as snip
 
 # import submodules
-import Local as Local
-import Execution as Execution
-import Control as Control
-import Database as Database
-import Files as Files
-import Utils as Utils
-import Parameters as Parameters
+from . import Local as Local
+from . import Execution as Execution
+from . import Control as Control
+from . import Database as Database
+from . import Files as Files
+from . import Parameters as Parameters
 
 # broadcast parameters and config object, take from
 # Parameters.py
@@ -248,7 +249,6 @@ CONFIG = Parameters.CONFIG
 # and drop PARAMS/CONFIG variables into the submodules
 Local.CONFIG = CONFIG
 Local.PARAMS = PARAMS
-Database.PARAMS = PARAMS
 Control.PARAMS = PARAMS
 Execution.PARAMS = PARAMS
 Files.PARAMS = PARAMS
@@ -292,7 +292,10 @@ def run_report(clean=True,
     themedir = os.path.join(dirname, "pipeline_docs", "themes")
     relpath = os.path.relpath(docdir)
     trackerdir = os.path.join(docdir, "trackers")
-    job_memory = "4G"
+
+    # warning: memory gets multiplied by threads, so set it not too
+    # high
+    job_memory = "1G"
     job_threads = PARAMS["report_threads"]
 
     # use a fake X display in order to avoid windows popping up
@@ -335,12 +338,13 @@ def run_report(clean=True,
     export PYTHONPATH=%(syspath)s;
     %(xvfb_command)s
     %(report_engine)s-build
-           --num-jobs=%(report_threads)s
-           sphinx-build
-                    -b html
-                    -d %(report_doctrees)s
-                    -c .
-           %(docdir)s %(report_html)s
+    --num-jobs=%(report_threads)s
+    sphinx-build
+    -b html
+    -d %(report_doctrees)s
+    -c .
+    -j %(report_threads)s
+    %(docdir)s %(report_html)s
     >& report.log %(erase_return)s )
     '''
 
@@ -371,32 +375,6 @@ def publish_notebooks():
 
     E.run(statement)
 
-
-def _pickle_args(args, kwargs):
-    ''' Pickle a set of function arguments. Removes any kwargs that are
-    arguements to submit first. Returns a tuple, the first member of which
-    is the key word arguements to submit, the second is a file name
-    with the picked call arguements '''
-
-    use_args = ["to_cluster",
-                "logfile",
-                "job_options",
-                "job_queue",
-                "job_threads",
-                "job_memory"]
-
-    submit_args = {}
-
-    for arg in use_args:
-        if arg in kwargs:
-            submit_args[arg] = kwargs[arg]
-            del kwargs[arg]
-
-    args_file = getTempFilename(shared=True)
-    pickle.dump([args, kwargs], open(args_file, "wb"))
-    return (submit_args, args_file)
-
-
 __all__ = [
     # backwards incompatibility
     "clone",
@@ -423,6 +401,7 @@ __all__ = [
     "getDatabaseName",
     "importFromIterator",
     # Utils.py
+    "add_doc",
     "isTest",
     "getCallerLocals",
     "getCaller",

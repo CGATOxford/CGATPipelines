@@ -29,7 +29,7 @@ class SicerSummary(cpgTracker):
         f = ",".join(fields)
         data = self.getFirstRow(
             '''SELECT %(f)s FROM sicer_summary WHERE track="%(track)s"''' % locals())
-        result = odict(zip(fields, data))
+        result = odict(list(zip(fields, data)))
         return result
 
 ##########################################################################

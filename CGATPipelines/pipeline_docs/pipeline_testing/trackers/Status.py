@@ -38,7 +38,7 @@ class ComparisonStatus(Status):
         else:
             status = "FAIL"
 
-        value = ",".join(["%s:%i" % (x, y) for x, y in data.items()])
+        value = ",".join(["%s:%i" % (x, y) for x, y in list(data.items())])
 
         return status, value
 

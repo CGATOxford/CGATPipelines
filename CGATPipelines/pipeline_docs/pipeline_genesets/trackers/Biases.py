@@ -20,7 +20,7 @@ class BiasDistribution(GeneSetsTracker):
 
     def getSlices(self):
         # extract bias fields from all options that end in "_bias"
-        take = [y.split(",") for x, y in P.items() if x.endswith("_bias")]
+        take = [y.split(",") for x, y in list(P.items()) if x.endswith("_bias")]
         return list(set(itertools.chain(*take)))
 
     def __call__(self, track, slice):

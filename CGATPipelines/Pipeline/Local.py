@@ -60,9 +60,11 @@ import re
 import shutil
 import inspect
 import collections
+import brewer2mpl
 
 from CGAT import Experiment as E
 import CGAT.IOTools as IOTools
+from CGATPipelines.Pipeline.Parameters import loadParameters
 
 PROJECT_ROOT = '/ifs/projects'
 
@@ -129,10 +131,10 @@ def getProjectDirectories(sections=None):
     }
 
     if sections:
-        result = dict([(x, y) for x, y in result.items()
+        result = dict([(x, y) for x, y in list(result.items())
                        if x in sections])
 
-    for x, y in result.items():
+    for x, y in list(result.items()):
         if not os.path.exists(y):
             raise ValueError(
                 "directory %s for %s does not exist" % (y, x))
@@ -389,7 +391,7 @@ def publish_report(prefix="",
     if export_files:
         bigwigs, bams, beds = [], [], []
 
-        for targetdir, filenames in export_files.items():
+        for targetdir, filenames in list(export_files.items()):
 
             targetdir = os.path.join(web_dir, targetdir)
             if not os.path.exists(targetdir):
@@ -407,7 +409,7 @@ def publish_report(prefix="",
                 if not os.path.exists(dest):
                     try:
                         os.symlink(os.path.abspath(src), dest)
-                    except OSError, msg:
+                    except OSError as msg:
                         E.warn("could not create symlink from %s to %s: %s" %
                                (os.path.abspath(src), dest, msg))
 
@@ -440,7 +442,8 @@ def publish_report(prefix="",
 def publish_tracks(export_files,
                    prefix="",
                    project_id=None,
-                   project_name=None):
+                   project_name=None,
+                   UCSC_ini=None):
     '''publish a UCSC Track Hub.
 
     This method takes a dictionary of file types associated
@@ -466,6 +469,59 @@ def publish_tracks(export_files,
     OBFUSID is the obfuscated directory entry in the CGAT
     download directory for a particular project.
 
+    If you want to create group tracks and get them to inherit from a
+    parent, you can supply an filename for a UCSC ini file.  The ini
+    file defines two types of parameters, parents and set_features.
+    Parents define containers with a regex to identify the child
+    tracks. Set_features add additional features to all tracks
+    matching a regex. Parent and set_feature parameters are identified
+    by their respective "parent" or "set_features" prefixes.
+
+    For example, the following UCSC ini "test.ini" will create a
+    parent multiWig track called "Test" with the UCSC options as
+    defined in the values parameter. The values param must be a comma
+    separated list of key:value pairs which are seperated by a single
+    space. The regex param for parent_test defines the child tracks
+    which will be contained within "Test". The optional colour param
+    defines the colours for the child tracks. Colours are defined
+    using the brewer2mpl python module. Colour parameters must contain
+    the name of the pallete followed by the type of pallette.
+
+    The ini file below also defines a "set_features" parameter,
+    "bigwigs". Set_feature require a value and regex parameter. In
+    this case, the UCSC options in the values parameter will be added
+    to all tracks matching the ".*bigwig$" regex. As above, the values
+    param must be a comma separated list of key:value pairs which are
+    seperated by a single space. As above, an optional colours
+    parameter can also be given.
+
+    Note: colour palletes have a maximum number of allowable colours.
+    To see the available palletes and their size, run:
+    >import brewer2mpl
+    >brewer2mpl.print_maps()
+
+    >cat test.ini
+    #######################
+    #######################
+
+    [parent_test]
+    values=container multiWig,bigDataUrl Test,shortLabel Test,longLabel Test,type bigWig,viewLimits 0:160,visibility full,aggregate transparentOverlay,showSubtrackColorOnUi on,windowingFunction maximum,priority 1.2,configurable on,autoScale on,dragAndDrop subtracks
+
+    regex=.*-Saline-.*bw$
+
+    colour=Blues,Sequential
+
+    #######################
+    [set_features_bigwigs]
+
+    values=configurable on,autoScale on,useScore on,visibility full
+
+    regex=.*bigwig$
+
+    colour=Oranges,Sequential
+    #######################
+    #######################
+
     Arguments
     ---------
     export_files : dict
@@ -487,6 +543,9 @@ def publish_tracks(export_files,
 
     if not prefix:
         prefix = PARAMS.get("report_prefix", "")
+
+    if not UCSC_ini:
+        UCSC_ini = PARAMS.get("ucsc_ini", None)
 
     web_dir = PARAMS["web_dir"]
     if project_id is None:
@@ -558,10 +617,12 @@ def publish_tracks(export_files,
             return "bam", name
         elif name.endswith(".bw") or name.endswith(".bigwig"):
             return "bigWig", name
+        elif name.endswith(".bb") or name.endswith(".bigbed"):
+            return "bigBed", name
         else:
             return None, None
 
-    for targetdir, filenames in export_files.items():
+    for targetdir, filenames in list(export_files.items()):
         for src in filenames:
             dest = os.path.join(trackdir, prefix + os.path.basename(src))
             dest = os.path.abspath(dest)
@@ -569,7 +630,7 @@ def publish_tracks(export_files,
             if not os.path.exists(dest):
                 try:
                     os.symlink(os.path.abspath(src), dest)
-                except OSError, msg:
+                except OSError as msg:
                     E.warn("could not create symlink from %s to %s: %s" %
                            (os.path.abspath(src), dest, msg))
             ucsctype, trackname = getName(os.path.basename(dest))
@@ -581,10 +642,75 @@ def publish_tracks(export_files,
                                  ("longLabel", trackname),
                                  ("type", ucsctype))
 
+    if UCSC_ini:
+        UCSC_PARAMS = loadParameters(UCSC_ini)
+
+        for param, values in UCSC_PARAMS.items():
+            children = []
+
+            # find "parent" params
+            if re.match("parent_.*_values", param):
+                make_group = True
+                name = param.replace("_values", "")
+                regex = UCSC_PARAMS[name + "_regex"]
+
+                for targetdir, filenames in list(export_files.items()):
+                    for src in filenames:
+                        dest = prefix + os.path.basename(src)
+                        if re.match(regex, dest):
+                            children.append(dest)
+
+            # find "set features" params
+            elif re.match("set_features_.*_regex", param):
+                make_group = False
+                regex = UCSC_PARAMS[param]
+                name = param.replace("_regex", "")
+                for targetdir, filenames in list(export_files.items()):
+                    for src in filenames:
+                        dest = prefix + os.path.basename(src)
+                        if re.match(regex, dest):
+                            children.append(dest)
+            else:
+                continue
+
+            if name + "_colour" in list(UCSC_PARAMS.keys()):
+                colour, colour_type = UCSC_PARAMS[name + "_colour"].split(",")
+                try:
+                    colours = brewer2mpl.get_map(
+                        colour, colour_type, max(3, len(children)))
+                except ValueError as error:
+                    print(("Could not set colours for %s. See error message"
+                           "%s" % (",".join(children), error)))
+                colours = colours.colors
+                # make the colours a shade darker
+                colours = [[max(0, y - 25) for y in x] for x in colours]
+            else:
+                colours = None
+
+            for n, child in enumerate(children):
+                if make_group:
+                    # make a parent and a copy of the child so we have
+                    # two tracks, one grouped, one by itself
+                    values = UCSC_PARAMS[param]
+                    tracks[name] = [x.split(" ") for x in values.split(",")]
+                    group_trackname = child + "_grouped"
+                    tracks[group_trackname] = tracks[child]
+                    tracks[group_trackname] += (("parent", name),)
+
+                else:
+                    # just add the values to the child
+                    values = UCSC_PARAMS[name + "_values"]
+                    tracks[child] += tuple([x.split(" ") for x in values.split(",")])
+
+                if colours:
+                    rgb = ",".join(map(str, colours[n]))
+                    tracks[child] += (("color", rgb),)
+                    if make_group:
+                        tracks[group_trackname] += (("color", rgb),)
+
     E.info("writing to %s" % trackfile)
     with IOTools.openFile(trackfile, "w") as outfile:
-        PipelineUCSC.writeTrackFile(outfile, list(tracks.iteritems()))
+        PipelineUCSC.writeTrackFile(outfile, list(tracks.items()))
 
     E.info(
         "data hub has been created at http://www.cgat.org/downloads/%(project_id)s/ucsc/hub.txt" % locals())
-

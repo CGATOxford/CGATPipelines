@@ -69,8 +69,11 @@ def getRepeatsFromUCSC(dbhandle,
                        repclasses,
                        outfile,
                        remove_contigs_regex=None):
-    '''select repeats from UCSC database and write to `outfile` in
+    '''download repeats from UCSC database and write to `outfile` in
     :term:`gff` format.
+
+    This method downloads repeats from the repeatmasker track at
+    the UCSC.
 
     Arguments
     ---------
@@ -80,7 +83,7 @@ def getRepeatsFromUCSC(dbhandle,
        List of repeat classes to select. If empty, all repeat classes
        will be collected.
     outfile : string
-       Filename of output file
+       Filename of output file in :term:`gff` format.
     remove_contigs_regex : string
        If given, remove repeats on contigs matching the regular
        expression given.
@@ -128,7 +131,7 @@ def getRepeatsFromUCSC(dbhandle,
 
     statement = ['''cat %(tmpfilename)s
     | %(pipeline_scriptsdir)s/gff_sort pos
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
@@ -137,7 +140,7 @@ def getRepeatsFromUCSC(dbhandle,
 
     if remove_contigs_regex:
         statement.append(
-            ''' --contig-pattern="%(remove_contigs_regexs)s" ''')
+            ''' --contig-pattern="%(remove_contigs_regex)s" ''')
 
     statement.append('''| gzip > %(outfile)s ''')
 
@@ -210,9 +213,9 @@ def getRefSeqFromUCSC(dbhandle, outfile, remove_duplicates=False):
         if r.transcript_id in duplicates:
             continue
 
-        starts = map(int, r.starts.split(",")[:-1])
-        ends = map(int, r.ends.split(",")[:-1])
-        frames = map(int, r.frames.split(",")[:-1])
+        starts = list(map(int, r.starts.split(",")[:-1]))
+        ends = list(map(int, r.ends.split(",")[:-1]))
+        frames = list(map(int, r.frames.split(",")[:-1]))
 
         gtf = GTF.Entry()
         gtf.contig = r.contig
@@ -380,6 +383,9 @@ def readTrackFile(infile):
                 track = value
                 continue
             block.append((key, value))
+        # T.S need to yield final block too
+        yield track, block
+
     return list(_yielder(data))
 
 

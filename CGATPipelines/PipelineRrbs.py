@@ -37,12 +37,15 @@ Code
 '''
 import os
 import re
+import sqlite3
+import collections
 import itertools
 import copy
 import CGATPipelines.Pipeline as P
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGAT.FastaIterator as FastaIterator
+import CGAT.IndexedFasta as IndexedFasta
 import pandas as pd
 from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
@@ -58,6 +61,21 @@ from rpy2.robjects.vectors import FloatVector
 
 def hjoin(items):
     return "-".join(items)
+
+
+def nullConvert(start, end, strand, seq):
+    ''' define a convert function so the positions for sequences
+    on the '-' strand remain relative to the start of the
+    contig. Otherwise PysamIndexedFasta will perform this
+    conversion(!)'''
+    return start, end
+
+
+def getCpGs(seq):
+    '''return postions of CpGs'''
+    seq = seq.upper()
+    CpGs = [x.start() for x in re.finditer("CG", seq)]
+    return CpGs
 
 
 @cluster_runnable
@@ -78,9 +96,9 @@ def plotReadBias(infile, outfile):
                   for x in row_values]
         row += 1
         while lines[line + row].strip():
-            print lines[line+row].strip()
+            print(lines[line + row].strip())
             row_values = lines[line + row].strip().split("\t")
-            row_values = map(num, row_values)
+            row_values = list(map(num, row_values))
             rows.append(row_values)
             row += 1
         df = pd.DataFrame(rows, columns=header)
@@ -93,16 +111,16 @@ def plotReadBias(infile, outfile):
         while line < len(lines):
             if lines[line].strip() == "CpG context":
                 df = dfFromTsvTable(lines, line, "CpG")
-                print df
+                print(df)
             elif lines[line].strip() == "CHG context":
                 df2 = dfFromTsvTable(lines, line, "CHG")
-                print df2
+                print(df2)
             elif lines[line].strip() == "CHH context":
                 df3 = dfFromTsvTable(lines, line, "CHH")
-                print df3
+                print(df3)
             line += 1
     final_df = pd.concat([df, df2, df3])
-    final_df.index = range(len(final_df['context']))
+    final_df.index = list(range(len(final_df['context'])))
     r_dataframe = com.convert_to_r_dataframe(final_df)
 
     plot1_out = (P.snip(outfile, ".read_position.tsv") +
@@ -177,7 +195,7 @@ def pandasMerge(infile1, infile2, outfile, merge_type, left, right,
     def pandasRead(infile, peak=False):
         if peak:
             col_dtype = columnsPeak(infile)
-            print col_dtype
+            print(col_dtype)
             return pd.read_csv(infile, sep=delim, comment=com,
                                dtype=col_dtype, na_values="NA")
         else:
@@ -202,29 +220,30 @@ def fasta2CpG(infile, outfile):
 
     # AH: Use FastaIterator
     fasta = FastaIterator.FastaIterator(IOTools.openFile(infile, "r"))
-    temp_contig = fasta.next()
+    temp_contig = next(fasta)
 
     outfile = IOTools.openFile(outfile, "w")
     outfile.write("contig\tposition\tstrand\tread_position\n")
 
-    while len(temp_contig[1]) > 1:
+    while len(temp_contig.seq) > 1:
         contig, contig_seq = temp_contig.title, temp_contig.sequence
         # find MspI sites
         iter_pos = re.finditer("[cC][cC][gG][gG]", contig_seq)
         pos_start = [x.start(0) for x in iter_pos]
         # loop through pairs of MspI sites and add positions to dictionary
         MspI_cpg_dict = {}
-        for n in range(0, len(pos_start)-1):
-            frag_length = pos_start[n+1] - pos_start[n]
+        for n in range(0, len(pos_start) - 1):
+            frag_length = pos_start[n + 1] - pos_start[n]
             if frag_length > 25 and frag_length < 300:
                 if frag_length >= 51:
                     # need to include additional base at the end of the read
                     # to check for final CG
-                    read_f = contig_seq[pos_start[n]+1:pos_start[n]+53]
-                    read_r = contig_seq[pos_start[n+1]-49:pos_start[n+1]+3]
+                    read_f = contig_seq[pos_start[n] + 1:pos_start[n] + 53]
+                    read_r = contig_seq[
+                        pos_start[n + 1] - 49:pos_start[n + 1] + 3]
                 else:
-                    read_f = contig_seq[pos_start[n]+1:pos_start[n+1]+1]
-                    read_r = contig_seq[pos_start[n]+3:pos_start[n+1]+3]
+                    read_f = contig_seq[pos_start[n] + 1:pos_start[n + 1] + 1]
+                    read_r = contig_seq[pos_start[n] + 3:pos_start[n + 1] + 3]
                 # find positions of CGs in in silico reads
                 f_cgs = re.finditer("[cC][gG]", read_f)
                 r_cgs = re.finditer("[cC][gG]", read_r)
@@ -236,9 +255,9 @@ def fasta2CpG(infile, outfile):
                     MspI_cpg_dict[contig_position] = read_pos
                 for x in r_cgs:
                     # 1-based read position
-                    read_pos = len(read_r)-(x.start(0)+1)
+                    read_pos = len(read_r) - (x.start(0) + 1)
                     # contig position 1-based
-                    contig_position = pos_start[n+1] + 4 - read_pos
+                    contig_position = pos_start[n + 1] + 4 - read_pos
                     MspI_cpg_dict[contig_position] = read_pos
 
         # find location of ALL cpgs
@@ -257,7 +276,7 @@ def fasta2CpG(infile, outfile):
                 read_pos = MspI_cpg_dict[g_pos]
             outfile.write("%s\t%s\t%s\t%s\n" % (contig, g_pos,
                                                 "-", read_pos))
-        temp_contig = fasta.next()
+        temp_contig = next(fasta)
     outfile.close()
 
 
@@ -322,6 +341,299 @@ def subsetToCovered(infile, outfile, cov_threshold=10):
     high_cov.to_csv(outfile, sep="\t", index=False, na_rep="NA")
 
 
+@cluster_runnable
+def categorisePromoterCpGs(outfile, genome_fasta, annotations_database):
+    '''extract promoter sequences and categorise them by CpG density'''
+
+    def getGC(sequence):
+        ''' calculate the O/E and GC content for a given sequence'''
+        sequence = sequence.upper()
+        C = sequence.count("C")
+        G = sequence.count("G")
+        seq_length = float(len(sequence)) - sequence.count("N")
+
+        # sequence may be all Ns(!)
+        if seq_length == 0 or C == 0 or G == 0:
+            return None, None
+
+        GC = (C + G) / seq_length
+
+        OE = sequence.count("CG") * seq_length / float(C * G)
+
+        return GC, OE
+
+    def categorisePromoter(prom_seq, window=500, slide=1):
+        ''' identify Low/Mid/High CpG promoters
+        HCPs - At lease on 500bp interval with a GC fraction >=0.55 and O/E >= 0.6
+        LCPs - No 500bp interval with CpG O/E >= 0.4
+        MCPs - the rest'''
+        HCP = False
+        MCP = False
+        LCP = False
+        for seq_start in range(0, len(prom_seq) - window, slide):
+            GC, OE = getGC(prom_seq[seq_start: seq_start + window])
+
+            if GC >= 0.55 and OE >= 0.6:
+                return "HCP"
+
+            elif OE >= 0.4:
+                MCP = True
+
+            if GC:
+                LCP = True
+
+        if MCP:
+            return "MCP"
+        elif LCP:
+            return "LCP"
+        else:
+            return None
+
+    IxFA = IndexedFasta.PysamIndexedFasta(genome_fasta)
+    IxFA.mConverter = nullConvert
+
+    connect = sqlite3.connect(annotations_database)
+    select_cmd = '''SELECT gene_id, contig, start, end, strand FROM
+    geneset_all_gtf_genome_coordinates'''
+    select = connect.execute(select_cmd)
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(
+            ("contig", "position", "feature", "CpG_density")))
+
+        for promoter in select:
+            gene_id, contig, start, end, strand = list(map(str, promoter))
+
+            if strand == "+":
+                if int(start) >= 2000:
+                    prom_seq = IxFA.getSequence(
+                        contig, strand, int(start) - 2000, int(start) + 500)
+                    CpGs = getCpGs(prom_seq)
+                    CpGs = [x + int(start) - 2000 for x in CpGs]
+
+                else:
+                    prom_seq = IxFA.getSequence(
+                        contig, strand, 0, int(start) + 500)
+                    CpGs = getCpGs(prom_seq)
+
+            elif strand == "-":
+                # if the gene ends within 2000 bp of the contig end,
+                # this will skip the gene
+                try:
+                    prom_seq = IxFA.getSequence(
+                        contig, strand, int(end) - 500, int(end) + 2000)
+                except:
+                    pass
+
+                prom_seq = prom_seq[::-1]
+                CpGs = getCpGs(prom_seq)
+
+                CpGs = [int(end) + 2000 - x for x in CpGs[::-1]]
+
+            prom_type = categorisePromoter(prom_seq)
+
+            total_CG = len(CpGs)
+
+            if total_CG == 0:
+                CpG_density = "0"
+            else:
+                CpG_density = str(float(total_CG) / len(prom_seq))
+
+            for CpG in CpGs:
+                outf.write("%s\n" % "\t".join(
+                    (contig, str(CpG), prom_type, CpG_density)))
+
+
+@cluster_runnable
+def findRepeatCpGs(outfile, genome_fasta, repeats_gff):
+    '''extract repeats sequences and identify CpG locations'''
+
+    IxFA = IndexedFasta.PysamIndexedFasta(genome_fasta)
+    IxFA.mConverter = nullConvert
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(
+            ("contig", "position", "feature", "CpG_density")))
+
+        with IOTools.openFile(repeats_gff, "r") as inf:
+            for line in inf:
+                line = line.strip().split("\t")
+                contig = line[0]
+                start, stop = line[3:5]
+                atr = line[8].split("; ")
+                repeat_class = atr[0].split(" ")[1].replace('"', '')
+                repeat_family = atr[1].split(" ")[1].replace('"', '')
+
+                repeat_seq_f = IxFA.getSequence(
+                    contig, "+", int(start), int(stop))
+
+                CpGs_f = getCpGs(repeat_seq_f)
+
+                CpGs = [x + int(start) for x in CpGs_f]
+                total_CG = len(CpGs)
+
+                CpGs.extend([x + 1 for x in CpGs])
+
+                if total_CG == 0:
+                    CpG_density = "0"
+                else:
+                    CpG_density = str(float(total_CG) / len(repeat_seq_f))
+
+                for CpG in CpGs:
+                    outf.write("%s\n" % "\t".join(
+                        (contig, str(CpG), repeat_class, CpG_density)))
+
+                    outf.write("%s\n" % "\t".join(
+                        (contig, str(CpG), repeat_family, CpG_density)))
+
+
+@cluster_runnable
+def findCpGsFromBed(outfile, genome_fasta, bed, feature, both_strands=True):
+    '''extract sequences for bed entries and identify CpG locations'''
+
+    IxFA = IndexedFasta.PysamIndexedFasta(genome_fasta)
+    IxFA.mConverter = nullConvert
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(
+            ("contig", "position", "feature", "CpG_density")))
+
+        with IOTools.openFile(bed, "r") as inf:
+            for line in inf:
+                line = line.strip().split("\t")
+                contig, start, stop = line[0:3]
+
+                seq = IxFA.getSequence(contig, "+", int(start), int(stop))
+
+                CpGs = getCpGs(seq)
+
+                CpGs = [x + int(start) for x in CpGs]
+
+                seq_length = len(seq)
+
+                if both_strands:
+                    CpGs.extend([x + 1 for x in CpGs])
+                    seq_length *= 2
+
+                total_CG = len(CpGs)
+
+                if total_CG == 0:
+                    CpG_density = "0"
+                else:
+                    CpG_density = str(float(total_CG) / seq_length)
+
+                for CpG in CpGs:
+                    outf.write("%s\n" % "\t".join(
+                        (contig, str(CpG), feature, CpG_density)))
+
+
+@cluster_runnable
+def mergeCpGAnnotations(meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf,
+                        outfile):
+    '''merge together the CpG annotations for plotting'''
+
+    df = pd.read_table(meth_inf, usecols=[
+        "Germline-Dex-mean", "Germline-Veh-mean", "Liver-Dex-mean",
+        "Liver-Veh-mean", "contig", "position"])
+    df.columns = [x.replace("-mean", "") for x in df.columns]
+    df['position'] = df['position'] - 1
+    df.set_index(["contig", "position"], inplace=True)
+
+    def readAndMerge(df, cpg_annotations_inf):
+        tmp_df = pd.read_table(cpg_annotations_inf)
+        tmp_df.set_index(["contig", "position"], inplace=True)
+        tmp_df = tmp_df.join(df, how="inner")
+        tmp_df = pd.melt(tmp_df, id_vars=["feature", "CpG_density"])
+        return tmp_df
+
+    df_promoter = readAndMerge(df, prom_inf)
+    df_repeats = readAndMerge(df, repeat_inf)
+    df_hcne = readAndMerge(df, hcne_inf)
+    df_dmr = readAndMerge(df, dmr_inf)
+
+    final_df = pd.concat([df_promoter, df_repeats, df_hcne, df_dmr])
+    final_df.to_csv(outfile, sep="\t")
+
+
+def plotCpGAnnotations(infile, outfile_hist, outfile_box):
+    ''' make histogram and boxplots for the CpGs facetted per annotation'''
+    df = pd.read_table(infile, sep="\t")
+    r_df = com.convert_to_r_dataframe(df)
+
+    plotter = r('''
+    function(df){
+    library(scales)
+    library(plyr)
+    library(ggplot2)
+
+    # shouldn't hard code the features to retain
+    retain_features = c("HCP", "MCP", "LCP", "HCNE", "DMR", "LTR",
+                        "SINE", "Alu", "LINE", "ERVK")
+    df = df[df$feature %%in%% retain_features,]
+    df$feature = factor(df$feature, levels = retain_features)
+
+    # count instances per facet
+    df.n <- ddply(.data=df, .(variable, feature),
+    summarize, n=paste("n =", length(value)))
+
+    # we just want counts in the top row
+    df.n = df.n[df.n$variable=="Germline-Dex",]
+
+    ltxt = element_text(size = 20)
+    mtxt = element_text(size = 15)
+    mtxt90 = element_text(size = 15, angle=90, vjust=0.5, hjust=1)
+
+    theme_custom = theme(aspect.ratio=1,
+    axis.text.y = mtxt, axis.text.x = mtxt90,
+    axis.title.y = ltxt, axis.title.x = ltxt,
+    strip.text.x=ltxt, strip.text.y=mtxt,
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_blank(),
+    strip.background = element_rect(colour="grey60", fill="grey90"))
+
+    p = ggplot(df, aes(value)) +
+    geom_histogram(aes(y=100*(..count..)/tapply(..count..,..PANEL..,sum)[..PANEL..]),
+    binwidth=10, fill="midnightblue") +
+    facet_grid(variable~feature) +
+    geom_text(data=df.n, aes(x=60, y=90, label=n),
+    colour="black", inherit.aes=FALSE, parse=FALSE, size=5) +
+    theme_bw() +
+    theme_custom +
+    xlab("Methylation (%%)") +
+    ylab("CpGs (%%)") +
+    scale_x_continuous(breaks=c(0,50,100)) +
+    scale_y_continuous(breaks=c(0,25, 50, 75, 100))
+
+    ggsave("%(outfile_hist)s", width=16, height=8)
+
+    # for the box plot we need to bin the density values
+    df['binned_density'] <- .bincode(x = 100*df$CpG_density,
+                                     breaks = c(0,1,3,5,7,10,1000))
+
+    df['binned_density'] = revalue(as.factor(df$binned_density),
+                                   c("1"="<1", "2"="1-3", "3"="3-5",
+                                     "4"="5-7", "5"="7-10", "6"=">10"))
+
+    p = ggplot(df, aes(as.factor(binned_density), value, group=binned_density)) +
+    stat_boxplot(geom ='errorbar') +
+    geom_boxplot(notch=TRUE, outlier.shape = NA, fill="grey80", width = 0.8) +
+    stat_summary(fun.y="median", colour="red", geom="point", size=1) +
+    coord_flip() +
+    facet_grid(variable~feature) +
+    theme_bw() +
+    theme_custom +
+    ylab("Methylation (%%)") +
+    xlab("CpG Density (%%)") +
+    scale_y_continuous(breaks=c(0,50,100))
+
+    ggsave("%(outfile_box)s", width=16, height=8)
+
+    }''' % locals())
+
+    plotter(r_df)
+
+
 def identifyExperimentalFactors(df):
     '''takes a data frame and returns the samples, treatment groups,
     replicate numbers and tissues based on tissue-treatment-replicate
@@ -373,7 +685,7 @@ def splitDataframeClusters(infile, prefix, suffix):
     positions = df['position'].astype('int').tolist()
     contigs = df['contig'].tolist()
     # df.set_index('position', inplace=True)
-    current_pos, count, splits, n, first_pos = (0,)*5
+    current_pos, count, splits, n, first_pos = (0,) * 5
     current_contig = ""
     size = 10
     distance = 100
@@ -386,9 +698,9 @@ def splitDataframeClusters(infile, prefix, suffix):
             count += 1
         else:
             if count >= size:
-                temp_cluster_df = df[first_pos:ix]
+                temp_cluster_df = df[first_pos:ix + 1]
                 if n >= split_at:
-                    identifier = splits*split_at
+                    identifier = splits * split_at
                     filename = "%(prefix)s%(identifier)i%(suffix)s" % locals()
                     cluster_df.to_csv(
                         filename, index=False, header=True, sep="\t",
@@ -403,16 +715,177 @@ def splitDataframeClusters(infile, prefix, suffix):
                     n += count
             current_pos = next_pos
             current_contig = next_contig
-            first_pos = ix+1
+            first_pos = ix + 1
             count = 0
 
     # make sure final clusters are written out into smaller final file
     if n < split_at:
-        identifier = splits*split_at
+        identifier = splits * split_at
         filename = "%(prefix)s%(identifier)i%(suffix)s" % locals()
         cluster_df.to_csv(
             filename, index=False, header=True, sep="\t",
             dtype={'position': int})
+
+
+@cluster_runnable
+def calculateCoverage(infile, outfile):
+    ''' calculate the coverage at CpG islands
+    and non-CpG Islands '''
+
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write("\t".join(("coverage", "cpgi")) + "\n")
+
+        with IOTools.openFile(infile) as inf:
+
+            header = inf.next().strip().split("\t")
+            coverage_cols = ["meth" in x for x in header]
+            n_samples = sum(coverage_cols) / 2
+            cpgi_col = header.index('cpgi')
+
+            line_n = 0
+            for line in inf:
+                if line_n % 1000000 == 0:
+                    E.info("parsed %i lines" % line_n)
+
+                line_n += 1
+                line = line.strip().split("\t")
+
+                cov_values = [line[x] for x in range(0, len(line))
+                              if coverage_cols[x]]
+
+                cov = np.nansum(np.genfromtxt(
+                    np.array(cov_values))) / n_samples
+
+                if line[cpgi_col] == "CpGIsland":
+                    cpgi = "CpGIsland"
+                else:
+                    cpgi = "Non-CpGIsland"
+
+                outf.write("\t".join(map(str, (cov, cpgi))) + "\n")
+
+
+@cluster_runnable
+def plotCoverage(infile, outfiles):
+    ''' plot the coverage at CpG islands
+    and non-CpG Islands '''
+
+    bar_plot, pie_plot = outfiles
+    binned_out = P.snip(bar_plot, "_bar.png") + "_binned.tsv"
+
+    plotCoverage = r('''
+    library(ggplot2)
+    library(plyr)
+    library(RColorBrewer)
+
+    function(infile, binned_out, bar_plot, pie_plot){
+
+    df = read.table(infile, sep="\t", header=TRUE)
+
+    df$binned = .bincode(
+        df$coverage, breaks = c(0,1,5,10,20,1000000), include.lowest=TRUE)
+
+    df$binned = factor(df$binned)
+
+    df$binned = revalue(df$binned,
+        c("1"="< 1", "2"="[ >1 - 5 ]", "3"="[ >5 - 10 ]",
+          "4"="[ >10 - 20 ]", "5"="> 20"))
+
+    write.table(df, binned_out, quote=FALSE, sep="\t", row.names=FALSE)
+
+    s_f = scale_fill_manual(name="Coverage", values=brewer.pal(5, "YlOrRd"))
+
+    x = xlab("")
+    y = ylab("Fraction")
+    l_txt = element_text(size=10)
+    m_txt = element_text(size=12)
+    t = theme(
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid  = element_blank(),
+        aspect.ratio=1)
+
+    t2 = theme(
+        axis.text.x=m_txt,
+        axis.text.y=l_txt,
+        axis.title.y=l_txt,
+        legend.title=l_txt,
+        legend.text=l_txt,
+        strip.text=l_txt,
+        aspect.ratio=1)
+
+    p = ggplot(df, aes(x=cpgi, fill=as.factor(binned))) +
+        geom_bar(position="fill", stat="bin") +
+        theme_bw() + s_f + x + t2 + y
+
+    ggsave(bar_plot, height=4, width=5)
+
+    p = ggplot(df, aes(factor(0), fill=as.factor(binned))) +
+        geom_bar(position="fill", stat="bin", width=1) +
+        coord_polar(theta = "y") +
+        facet_wrap(~cpgi) +
+        theme_bw() + s_f + x + t + y
+
+    ggsave(pie_plot, height=3, width=6)
+    }''')
+
+    plotCoverage(infile, binned_out, bar_plot, pie_plot)
+
+
+@cluster_runnable
+def plotMethFrequency(infile, outfile):
+
+    plotMethFrequency = r('''
+    function(infile, outfile){
+    library(ggplot2)
+    library(grid)
+    library(RColorBrewer)
+
+    df = read.table(infile, sep="\t", header=TRUE)
+
+    plotter = function(df, plotname, facet='both'){
+
+        l_size = 30
+        l_txt = element_text(size = l_size)
+
+        p = ggplot(df, aes(x=treatment_replicate,
+                            y=X0, fill=value)) +
+        geom_bar(position="fill", stat="identity") +
+        xlab("") +
+        ylab("Fraction") +
+        scale_fill_manual(name="Methylation (%)",
+                          values = rev(colorRampPalette(
+                                           brewer.pal(9, "RdBu"))(11))) +
+        scale_y_continuous(breaks=c(0, 0.5, 1), labels=c(0, 0.5, 1)) +
+        theme_bw() +
+        theme(
+        axis.text.x = element_text(angle=90, size=l_size, hjust=1, vjust=0.5),
+        axis.text.y = l_txt,
+        axis.title.y = l_txt,
+        aspect.ratio=1,
+        legend.text = l_txt,
+        legend.title = l_txt,
+        legend.key.size = unit(1.5, "cm"),
+        strip.text = l_txt)
+
+        if (facet=='both'){
+        p = p + facet_grid(tissue~cpgi)
+        ggsave(plotname, height=10, width=12)}
+
+        else if (facet=='cpgi'){
+        p = p + facet_grid(~cpgi)
+        ggsave(plotname, height=7, width=12)}
+        }
+
+    plotter(df, outfile, facet='both')
+
+    for(tissue in levels(factor(df$tissue))){
+    tmp_df = df[df$tissue==tissue,]
+    plotfile = gsub(".png", paste0("_", tissue, ".png"), outfile)
+    plotter(tmp_df, plotfile, facet='cpgi')
+    }}''')
+
+    plotMethFrequency(infile, outfile)
 
 
 @cluster_runnable
@@ -454,16 +927,20 @@ def calculateM3DStat(infile, outfile, design,
     conditions = '","'.join(conditions)
     r_df = com.convert_to_r_dataframe(df)
 
-    # out = open(outfile, "w")
-    # out.write("ncols: %s\n" % ncols)
-    # out.write("conditions: %s\n" % conditions)
-    # out.write("samples: %s\n" % samples)
-    # out.write("pair: %s\n" % pair)
-    # out.write("groups: %s\n" % groups)
-    func = r('''library(BiSeq)
-    library(M3D)
+    out = open(outfile, "w")
+    out.write("ncols: %s\n" % ncols)
+    out.write("conditions: %s\n" % conditions)
+    out.write("samples: %s\n" % samples)
+    out.write("pair: %s\n" % pair)
+    out.write("groups: %s\n" % groups)
+    out.write("%i, %i" % df.shape)
+    out.close()
+
+    func = r('''
     function(df){
-    rowData <- GRanges(seqnames = Rle(as.character(df$contig)),
+    library(M3D)
+    library(BiSeq)
+rowRanges <- GRanges(seqnames = Rle(as.character(df$contig)),
     ranges = IRanges(start = df$position, end= df$position))
     colData <- DataFrame(group = c("%(conditions)s"),
     row.names = c("%(samples)s"))
@@ -472,30 +949,32 @@ def calculateM3DStat(infile, outfile, design,
     unmethReads <- matrix(as.integer(unlist(df[,grep("*[.]unmeth",colnames(df),
     value=FALSE)])),ncol=%(ncols)i)
     totalReads <- methReads + unmethReads
-    rawData=BSraw(rowData = rowData, colData = colData,
+    rawData=BSraw(rowRanges = rowRanges, colData = colData,
     totalReads = totalReads, methReads = methReads)
     clust.unlim <-clusterSites(object = rawData,  perc.samples = 1,
     min.sites = 10, max.dist = 100)
     clust.unlim_GR <- clusterSitesToGR(clust.unlim)
-    overlaps<-findOverlaps(clust.unlim_GR,rowData(rawData))
+    overlaps<-findOverlaps(clust.unlim_GR,rowRanges(rawData))
     MMDlist<-M3D_Wrapper(rawData, overlaps)
     M3Dstat<-MMDlist$Full-MMDlist$Coverage
     adjusted_colnames <- gsub(" ", "_", colnames(M3Dstat))
     M3Dstat_df <- as.data.frame(M3Dstat)
     colnames(M3Dstat_df) <- adjusted_colnames
-    ranges_df <- data.frame(seqnames=seqnames(clust.unlim_GR),
+    ranges_df <- data.frame(seqnames=seqnames(clust.unlim_GR,
     start=start(clust.unlim_GR)-1,end=end(clust.unlim_GR))
     complete_df <- cbind(ranges_df, M3Dstat_df)
     write.table(complete_df,file="%(outfile)s",sep="\t",quote=F,row.names=F)
     return(M3Dstat)
     }''' % locals())
 
-    df.to_csv(outfile+".pd", sep="\t")
+    df.to_csv(outfile + ".pd", sep="\t")
     # out.close()
     M3Dstat = func(r_df)
 
 
 def M3Dstat2pvalue(df, columns, pair):
+
+    stats = importr('stats')
 
     def meltAndPivot(df, columns):
         melt = pd.melt(df, id_vars=columns)
@@ -506,7 +985,7 @@ def M3Dstat2pvalue(df, columns, pair):
 
     def sampler(M3Dstat, vector, n):
         rand = np.random.choice(vector, size=n, replace=True, )
-        return len(rand[rand > M3Dstat])/n
+        return len(rand[rand > M3Dstat]) / n
 
     def addPvalues(df, within_df, repeat):
         df['p_value'] = df['value'].apply(
@@ -550,12 +1029,6 @@ def M3Dstat2pvalue(df, columns, pair):
 def calculateM3DSpikepvalue(infiles, outfile, design):
     '''takes a list of M3D stats files and a design dataframe and outputs
     p-values for each cluster for the pairwise comparison'''
-    # currently expects the first pair from the design table to be used
-    # to generate the M3D stats
-
-    # ***** this will no fail *****
-    # need to change call to M3D2pvalue to supply proper group labels as "pair"
-    # see calculateM3Dpvalue
 
     outfile_within = P.snip(outfile, "_between.tsv") + "_within.tsv"
 
@@ -568,7 +1041,7 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
     # need to create list along the lines of:
     # ["Germline-Saline", "Germline-Dex"]
     # here, this is acheived by removing replicates from track names and
-    # outputting unique values
+    # outputting unique values - should use PipelineTracks.py
     pair = list(set([re.sub("-(\d+)", "", x)
                      for x in design_df_subset['track'].tolist()]))
 
@@ -613,19 +1086,32 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
     text_theme_s = element_text(size=15)
     text_theme_xs = element_text(size=10)
     text_theme_s_x = element_text(size=15, angle=90)
+    axis_title_x = element_text(size=15, vjust=-2)
+    axis_title_y = element_text(size=15, vjust=2)
     text_theme_l = element_text(size=25)
-    plot_theme = theme(axis.title.x = text_theme,
-    axis.title.y = text_theme, axis.text.x = text_theme_s_x,
-    axis.text.y = text_theme_s, legend.text = text_theme_s,
-    legend.title = text_theme_s, title = text_theme_s)
+
+    plot_theme = theme(
+    axis.title.x = axis_title_x,
+    axis.title.y = axis_title_y,
+    axis.text.x = text_theme_s_x,
+    axis.text.y = text_theme,
+    legend.text = text_theme_s,
+    legend.title = text_theme_s,
+    title = text_theme_s,
+    aspect.ratio=1,
+    panel.grid.minor = element_blank())
 
     p = ggplot(agg,aes(x=as.numeric(change), y=as.numeric(as.character(size)),
-    fill=as.numeric(power))) + geom_tile() +
-    scale_fill_continuous(limits=c(0,1), name = "Power") +
-    scale_y_continuous(breaks=seq(1,8,1)) +
-    scale_x_continuous(breaks=seq(-60,80,20), limits=c(-60,80)) +
-    plot_theme + ylab("Size") + xlab("Change") +
-    ggtitle ("M3D  - power analysis")
+    fill=as.numeric(power))) +
+    geom_tile() +
+    scale_fill_continuous(limits=c(0,1), name = "Power",
+                          low="grey95", high="mediumpurple4") +
+    scale_y_continuous(breaks=seq(1,9,1)) +
+    scale_x_continuous(breaks=seq(-50,50,10), limits=c(-50,50)) +
+    theme_bw() +
+    plot_theme +
+    ylab("Size of spike-in region") +
+    xlab("Methylation change (%%)")
     ggsave(paste0('%(base)s',"_change_vs_size_power_heatmap.png"),
     plot = p, width = 5, height = 5)
 
@@ -633,9 +1119,11 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
     y=as.numeric(power),col=factor(as.numeric(as.character(size))))) +
     geom_line(size=2) + scale_colour_discrete(name = "Size") +
     scale_y_continuous(breaks=seq(0,1,0.1)) +
-    scale_x_continuous(breaks=seq(-60,80,20), limits=c(-60,80)) +
-    plot_theme + xlab("Change") + ylab("Power") +
-    ggtitle ("M3D - power analysis")
+    scale_x_continuous(breaks=seq(-50,50,10), limits=c(-50,50)) +
+    theme_bw() +
+    plot_theme +
+    xlab("Methylation change (%%)") +
+    ylab("Power")
     ggsave(paste0('%(base)s',"_change_vs_size_power_lineplot.png"),
     plot = p, width = 5, height = 5)
 
@@ -656,10 +1144,12 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
       merge$change = as.numeric(as.character(merge$change))
 
       p = ggplot(merge, aes(x=size, y=change, group=direction)) +
-      geom_line(size=3) + plot_theme +
-      scale_y_continuous(breaks=seq(-60,80,20), limits=c(-60,80)) +
-      scale_x_continuous(breaks=seq(1,8,1), limits=c(1,8)) +
+      geom_line(size=3) +
+      theme_bw() + plot_theme +
+      scale_y_continuous(breaks=seq(-50,50,10), limits=c(-50,50)) +
+      scale_x_continuous(breaks=seq(1,9,1), limits=c(1,8)) +
       xlab("Size") + ylab("Methylation difference") +
+
       ggtitle ("M3D - Mimimum methylation\n difference to reach 0.8 power")
       ggsave(paste0('%(base)s',"_powered.png"),
       plot = p, width = 5, height = 5)}}
@@ -1055,7 +1545,7 @@ def summaryPlots(infile, outfile):
 
     for tissue in tissues:
         for treatment_pair in itertools.combinations(treatments, 2):
-            treatment1, treatment2 = map(str, treatment_pair)
+            treatment1, treatment2 = list(map(str, treatment_pair))
             tissue = str(tissue)
             out.write("plotting tissue: %s, treatment: %s vs. %s\n"
                       % (tissue, treatment1, treatment2))
@@ -1126,7 +1616,7 @@ def spikeInClustersAnalysis(infile, outfile):
     samples = [re.sub("_10_pipeline.*", "", os.path.basename(x).strip())
                for x in infiles]
     samples_str = '","'.join(samples)
-    outfile_log = open(outfile+".log", "w")
+    outfile_log = open(outfile + ".log", "w")
     outfile_log.close()
     # outfile_log.write("samples: %s\n" % samples)
     samples_treatment = [x[1] for x in samples]
@@ -1165,14 +1655,14 @@ def spikeInClustersAnalysisBiSeq(infile, outfile):
     samples = [re.sub("_10_pipeline.*", "", os.path.basename(x).strip())
                for x in infiles]
     samples_str = '","'.join(samples)
-    print "samples: %s\n" % samples
+    print("samples: %s\n" % samples)
     samples_treatment = [x[1] for x in samples]
     group1, group2 = (samples_treatment[0], samples_treatment[1])
     samples_treatment = '","'.join(samples_treatment)
-    print "sample treatments: %s\n" % samples_treatment
+    print("sample treatments: %s\n" % samples_treatment)
 
     infiles = '","'.join([x.strip() for x in infiles])
-    print infiles
+    print(infiles)
     base = P.snip(outfile, ".out")
 
     BiSeq_power_analysis = r('''
@@ -1315,7 +1805,7 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
     seqnames_split = [["".join((x[0], x[1])), x[2], x[3], x[4], x[5], x[6]]
                       if len(x) > 6 else x for x in seqnames_split]
     cluster_values_df = pd.DataFrame(data=seqnames_split,
-                                     index=range(1, len(seqnames_split)+1))
+                                     index=list(range(1, len(seqnames_split) + 1)))
     cluster_values_df.columns = cluster_characteristics
     concat_df = pd.concat([analysis_df, cluster_values_df], axis=1)
     groups = [x[0] for x in groups]
@@ -1387,9 +1877,11 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
                   p = ggplot(agg_between,aes(y=as.numeric(change),
                   x=as.numeric(as.character(size)),fill=as.numeric(power))) +
                   geom_tile() +
-                  scale_fill_continuous(limits=c(0,1), name = "Power") +
+                  scale_fill_continuous(limits=c(0,1), name = "Power",
+                                        low="grey95", high="mediumpurple4") +
                   scale_x_continuous(breaks=seq(1,11,2)) +
                   scale_y_continuous(breaks=seq(-20,50,10), limits=c(-20,50)) +
+                  theme_bw() +
                   plot_theme + xlab("Size") + ylab("Change") + ggtitle ("M3D")
                   ggsave(paste0('%(base)s',"_change_vs_size_power_heatmap.png"),
                   plot = p, width = 5, height = 5)
@@ -1401,6 +1893,7 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
                   scale_colour_discrete(name = "Size") +
                   scale_y_continuous(breaks=seq(0,1,0.1)) +
                   scale_x_continuous(breaks=seq(-20,50,10), limits=c(-20,50)) +
+                  theme_bw() +
                   plot_theme + xlab("Change") + ylab("Power") + ggtitle ("M3D")
                   ggsave(paste0('%(base)s',"_change_vs_size_power_lineplot.png"),
                   plot = p, width = 5, height = 5)
@@ -1414,6 +1907,7 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
                   geom_tile() +
                   scale_fill_continuous(name = "Count") +
                   scale_x_continuous(breaks=seq(1,11,2)) +
+                  theme_bw() +
                   scale_y_continuous(breaks=seq(-20,50,10), limits=c(-20,50)) +
                   plot_theme + xlab("Size") + ylab("Change") + ggtitle ("M3D")
                   ggsave(paste0('%(base)s',"_change_vs_size_count.png"),
@@ -1435,7 +1929,7 @@ def runBiSeq(infiles, outfile, sample_id):
     # use this when following callMethylationStatus(i.e full run)
     # cov_infiles = infiles
 
-    cov_infiles = filter(lambda x: sample_id in x, infiles)
+    cov_infiles = [x for x in infiles if sample_id in x]
     out = open(outfile, "w")
     base = P.snip(os.path.abspath(outfile), ".tsv")
     basenames = [os.path.basename(x) for x in cov_infiles]

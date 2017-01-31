@@ -69,6 +69,7 @@ def convertReadsToIntervals(bamfile,
     is_paired = BamTools.isPaired(bamfile)
     current_file = bamfile
     tmpdir = P.getTempFilename()
+    os.unlink(tmpdir)
     statement = ["mkdir %(tmpdir)s"]
     nfiles = 0
 
@@ -77,7 +78,7 @@ def convertReadsToIntervals(bamfile,
         statement.append('''samtools view
         -q %(filtering_quality)i -b
         %(current_file)s
-        2>> %%(bedfile)s.log
+        2>> %%(bedfile)s.quality.log
         > %(next_file)s ''' % locals())
 
         nfiles += 1
@@ -87,10 +88,10 @@ def convertReadsToIntervals(bamfile,
 
         next_file = "%(tmpdir)s/bam_%(nfiles)i.bam" % locals()
         statement.append('''cat %(current_file)s
-        | python %%(scriptsdir)s/bam2bam.py
+        | cgat bam2bam
         --method=filter
         --filter-method=unique,mapped
-        --log=%%(bedfile)s.log
+        --log=%%(bedfile)s.nonunique.log
         > %(next_file)s ''' % locals())
 
         nfiles += 1
@@ -111,45 +112,43 @@ def convertReadsToIntervals(bamfile,
             METRICS_FILE=%(bedfile)s.duplicate_metrics
             REMOVE_DUPLICATES=TRUE
             VALIDATION_STRINGENCY=SILENT
-            2>> %%(bedfile)s.log ''' % locals())
+            2>> %%(bedfile)s.markdup.log ''' % locals())
 
         nfiles += 1
         current_file = next_file
 
     if is_paired:
         statement.append('''cat %(current_file)s
-            | python %(scriptsdir)s/bam2bed.py
+            | cgat bam2bed
               --merge-pairs
               --min-insert-size=%(filtering_min_insert_size)i
               --max-insert-size=%(filtering_max_insert_size)i
-              --log=%(bedfile)s.log
+              --log=%(bedfile)s.bam2bed.log
               -
-            | python %(scriptsdir)s/bed2bed.py
+            | cgat bed2bed
               --method=sanitize-genome
               --genome-file=%(genome_dir)s/%(genome)s
-              --log=%(bedfile)s.log
+              --log=%(bedfile)s.sanitize.log
             | cut -f 1,2,3,4
             | sort -k1,1 -k2,2n
             | bgzip > %(bedfile)s''')
     else:
         statement.append('''cat %(current_file)s
-            | python %(scriptsdir)s/bam2bed.py
-              --log=%(bedfile)s.log
+            | cgat bam2bed
+              --log=%(bedfile)s.bam2bed.log
               -
-            | python %(scriptsdir)s/bed2bed.py
+            | cgat bed2bed
               --method=sanitize-genome
               --genome-file=%(genome_dir)s/%(genome)s
-              --log=%(bedfile)s.log
+              --log=%(bedfile)s.sanitize.log
             | cut -f 1,2,3,4
             | sort -k1,1 -k2,2n
             | bgzip > %(bedfile)s''')
 
     statement.append("tabix -p bed %(bedfile)s")
     statement.append("rm -rf %(tmpdir)s")
-    statement = " ; ".join(statement)
+    statement = " ; checkpoint; ".join(statement)
     P.run()
-
-    os.unlink(tmpdir)
 
 
 def countTags(infile, outfile):
@@ -168,7 +167,7 @@ def countTags(infile, outfile):
     '''
 
     statement = '''zcat %(infile)s
-    | python %(scriptsdir)s/bed2stats.py
+    | cgat bed2stats
     --per-contig
     --log=%(outfile)s.log
     >& %(outfile)s'''
@@ -195,6 +194,10 @@ def countTagsWithinWindows(tagfile,
     counting_method : string
         Counting method to use. Possible values are ``nucleotide``
         and ``midpoint``.
+        midpoint counts the number of reads overlapping the midpoint of the
+        window by at least one base
+        nucleotide counts the number of reads overlapping the window by at
+        least one base.
     job_memory : string
         Amount of memory to allocate.
     '''
@@ -305,17 +308,25 @@ def aggregateWindowsTagCounts(infiles,
 def normalizeTagCounts(infile, outfile, method):
     '''normalize Tag counts
 
+    Parameters
+    ----------
     infile : string
         Input filename of file with counts.
     outfile : string
         Output filename with normalized counts.
     method : string
         Method to use for normalization.
-
+        can be deseq-size factors, total-column, total-row, total-count
+        deseq-size-factors - use normalisation implemented in DEseq
+        total-column - divide counts by column total
+        total-row - divide counts by the value in a row called 'total'
+        total-count - normalised all values in column by the ratio of the
+        per column sum of counts and the average column count
+        across all rows.
     '''
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/counts2counts.py
+    | cgat counts2counts
     --method=normalize
     --normalization-method=%(method)s
     --log=%(outfile)s.log
@@ -340,7 +351,7 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
     Arguments
     ---------
     infiles ; list
-        List of tables with DMR output
+        List of tabs with DMR output
     outfile : string
         Output filename. Tab separated file summarizing
     method : string
@@ -425,10 +436,10 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
         if is_first:
             is_first = False
             header1, header2 = set(), set()
-            for r in results.values():
-                header1.update(r.keys())
-            for s in status.values():
-                header2.update(s.keys())
+            for r in list(results.values()):
+                header1.update(list(r.keys()))
+            for s in list(status.values()):
+                header2.update(list(s.keys()))
 
             header = ["method", "treatment", "control"]
             header1 = list(sorted(header1))
@@ -436,7 +447,7 @@ def buildDMRStats(infiles, outfile, method, fdr_threshold=None):
 
             outf.write("\t".join(header + header1 + header2) + "\n")
 
-        for treatment, control in results.keys():
+        for treatment, control in list(results.keys()):
             key = (treatment, control)
             r = results[key]
             s = status[key]
@@ -476,11 +487,11 @@ def buildFDRStats(infile, outfile, method):
     fdrs = (0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
 
     for fdr in fdrs:
-        print "fdr"
+        print("fdr")
         take = data['qvalue'] <= fdr
 
         significant = sum(take)
-        print significant
+        print(significant)
 
 
 def outputAllWindows(infile, outfile):
@@ -530,16 +541,16 @@ def outputRegionsOfInterest(design_file, counts_file, outfile,
     design = Expression.readDesignFile(design_file)
 
     # remove tracks not included in the design
-    design = dict([(x, y) for x, y in design.items() if y.include])
+    design = dict([(x, y) for x, y in list(design.items()) if y.include])
     # define the two groups
-    groups = sorted(set([x.group for x in design.values()]))
+    groups = sorted(set([x.group for x in list(design.values())]))
 
     # build a filtering statement
     groupA, groupB = groups
 
     def _buildMax(g, threshold):
 
-        selected = [x for x, y in design.items() if y.group == g]
+        selected = [x for x, y in list(design.items()) if y.group == g]
         if len(selected) > 1:
             return "max((%s)) < %f" % (
                 ",".join(
@@ -552,7 +563,7 @@ def outputRegionsOfInterest(design_file, counts_file, outfile,
 
     def _buildSum(g, threshold):
 
-        selected = [x for x, y in design.items() if y.group == g]
+        selected = [x for x, y in list(design.items()) if y.group == g]
         if len(selected) > 1:
             return "sum((%s)) > %f" % (
                 ",".join(
@@ -570,11 +581,11 @@ def outputRegionsOfInterest(design_file, counts_file, outfile,
 
     statement = '''
     zcat %(counts_file)s
-    | python %(scriptsdir)s/csv_select.py
+    | cgat csv_select
             --log=%(outfile)s.log
             "(%(upper_levelA)s and %(sum_levelB)s) or
              (%(upper_levelB)s and %(sum_levelA)s)"
-    | python %(scriptsdir)s/runExpression.py
+    | cgat runExpression
             --log=%(outfile)s.log
             --design-tsv-file=%(design_file)s
             --tags-tsv-file=-
@@ -593,7 +604,7 @@ def runDE(design_file,
           outdir,
           method="deseq",
           spike_file=None):
-    '''run DESeq or EdgeR through :mod:`scripts/runExpression.py`
+    '''run DESeq, DESeq2 or EdgeR through :mod:`scripts/runExpression.py`
 
     The job is split into smaller sections. The order of the input
     data is randomized in order to avoid any biases due to chromosomes
@@ -620,24 +631,25 @@ def runDE(design_file,
     if spike_file is None:
         statement = "zcat %(counts_file)s"
     else:
-        statement = '''python %(scriptsdir)s/combine_tables.py
+        statement = '''cgat combine_tables
         --missing-value=0
         --cat=filename
         --log=%(outfile)s.log
         %(counts_file)s %(spike_file)s
-        | python %(scriptsdir)s/csv_cut.py
+        | cgat csv_cut
         --remove filename
         --log=%(outfile)s.log
         '''
 
-    prefix = os.path.basename(outfile)
+    prefix = IOTools.snip(os.path.basename(outfile))
+    E.info(prefix)
 
     # the post-processing strips away the warning,
     # renames the qvalue column to old_qvalue
     # and adds a new qvalue column after recomputing
     # over all windows.
     statement += '''
-    | perl %(scriptsdir)s/randomize_lines.pl -h
+    | cgat randomize_lines --keep-header=1
     | %(cmd-farm)s
     --input-header
     --output-header
@@ -647,22 +659,25 @@ def runDE(design_file,
     --output-filename-pattern=%(outdir)s/%%s
     --subdirs
     --output-regex-header="^test_id"
-    "python %(scriptsdir)s/runExpression.py
+    "cgat runExpression
               --method=%(method)s
               --tags-tsv-file=-
               --design-tsv-file=%(design_file)s
-              --output-filename-pattern=%%DIR%%/%(prefix)s_
+              --output-filename-pattern=%%DIR%%%(prefix)s_
               --deseq-fit-type=%(deseq_fit_type)s
               --deseq-dispersion-method=%(deseq_dispersion_method)s
               --deseq-sharing-mode=%(deseq_sharing_mode)s
               --edger-dispersion=%(edger_dispersion)f
+              --deseq2-design-formula=%(deseq2_model)s
+              --deseq2-contrasts=%(deseq2_contrasts)s
               --filter-min-counts-per-row=%(tags_filter_min_counts_per_row)i
               --filter-min-counts-per-sample=%(tags_filter_min_counts_per_sample)i
               --filter-percentile-rowsums=%(tags_filter_percentile_rowsums)i
               --log=%(outfile)s.log
-              --fdr=%(edger_fdr)f"
+              --fdr=%(edger_fdr)f
+              --deseq2-plot=0"
     | perl -p -e "s/qvalue/old_qvalue/"
-    | python %(scriptsdir)s/table2table.py
+    | cgat table2table
     --log=%(outfile)s.log
     --method=fdr
     --column=pvalue
@@ -670,6 +685,7 @@ def runDE(design_file,
     --fdr-add-column=qvalue
     | gzip
     > %(outfile)s '''
+    E.info(statement)
 
     P.run()
 
@@ -702,11 +718,11 @@ def normalizeBed(countsfile, outfile):
     bed_frame = bed_frame.fillna(0.0)
     val_array = numpy.array(bed_frame.values, dtype=numpy.int64)
     geom_mean = geoMean(val_array)
-    ratio_frame = bed_frame.apply(lambda x: x/geom_mean,
+    ratio_frame = bed_frame.apply(lambda x: x / geom_mean,
                                   axis=0)
     size_factors = ratio_frame.apply(numpy.median,
                                      axis=0)
-    normalize_frame = bed_frame/size_factors
+    normalize_frame = bed_frame / size_factors
     # replace infs and -infs with Nas, then 0s
     normalize_frame.replace([numpy.inf, -numpy.inf], numpy.nan, inplace=True)
     normalize_frame = normalize_frame.fillna(0.0)
@@ -735,6 +751,19 @@ def enrichmentVsInput(infile, outfile):
     '''
     Calculate the fold enrichment of the test data
     vs. the input data
+
+    Parameters
+    ----------
+    infile: list
+        list of filenames
+    infile[0]: str
+        filename of normalised :term:`bedGraph` file showing counts in
+        the input
+    infile[1]: str
+        filename of normalised :term:`bedGraph` files showing
+        counts in each experiment
+    outfile: str
+        filename of output :term:`bedGraph` file
     '''
 
     test_frame = pandas.read_table(infile[1],
@@ -783,7 +812,7 @@ def runMEDIPSQC(infile, outfile):
     # to the output filenames.
     job_memory = "10G"
 
-    statement = """python %(scriptsdir)s/runMEDIPS.py
+    statement = """cgat runMEDIPS
             --ucsc-genome=%(medips_genome)s
             --treatment=%(infile)s
             --toolset=saturation
@@ -815,7 +844,7 @@ def runMEDIPSDMR(design_file, outfile):
     design = Expression.readDesignFile(design_file)
 
     # remove data tracks not needed
-    design = [(x, y) for x, y in design.items() if y.include]
+    design = [(x, y) for x, y in list(design.items()) if y.include]
 
     # build groups
     groups = set([y.group for x, y in design])
@@ -829,7 +858,7 @@ def runMEDIPSDMR(design_file, outfile):
         control = ",".join(control)
         # outfile contains directory prefix
         statements.append(
-            """python %(scriptsdir)s/runMEDIPS.py
+            """cgat runMEDIPS
             --ucsc-genome=%(medips_genome)s
             --treatment=%(treatment)s
             --control=%(control)s
@@ -843,7 +872,7 @@ def runMEDIPSDMR(design_file, outfile):
             > %(outfile)s.log2;
             checkpoint;
             zcat %(outfile)s_%(pair1)s_vs_%(pair2)s_data.tsv.gz
-            | python %(scriptsdir)s/runMEDIPS.py
+            | cgat runMEDIPS
             --treatment=%(pair1)s
             --control=%(pair2)s
             --toolset=convert
@@ -1079,8 +1108,8 @@ def buildSpikeResults(infile, outfile):
         spiked_d2hist_fdr_normed[spiked_d2hist_counts == 0] = -1.0
 
         # output to table for database upload
-        for x, y in itertools.product(range(len(xedges) - 1),
-                                      range(len(yedges) - 1)):
+        for x, y in itertools.product(list(range(len(xedges) - 1)),
+                                      list(range(len(yedges) - 1))):
             tmpfile.write("\t".join(map(
                 str, (xedges[x], yedges[y],
                       fdr,
@@ -1146,7 +1175,7 @@ def summarizeTagsWithinContext(tagfile,
     '''
 
     statement = '''
-    python %(scriptsdir)s/bam_vs_bed.py
+    cgat bam_vs_bed
     --min-overlap=%(min_overlap)f
     --log=%(outfile)s.log
     %(tagfile)s %(contextfile)s
@@ -1158,7 +1187,7 @@ def summarizeTagsWithinContext(tagfile,
 
 
 def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
-    """combine output from :func:`summarizeTagsWithinContex`.
+    """combine output from :func:`summarizeTagsWithinContext`.
 
     Arguments
     ---------
@@ -1172,16 +1201,17 @@ def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
     """
 
     header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
-                      for x in infiles])
+                       for x in infiles])
     filenames = " ".join(infiles)
 
     if not samples_in_columns:
         transpose_cmd = \
-            "| python %(scriptsdir)s/table2table.py --transpose" % P.getParams()
+            """| cgat table2table
+            --transpose""" % P.getParams()
     else:
         transpose_cmd = ""
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --header-names=%(header)s
     --missing-value=0
     --skip-titles
@@ -1191,7 +1221,7 @@ def mergeSummarizedContextStats(infiles, outfile, samples_in_columns=False):
     | gzip
     > %(outfile)s
     """
-    
+
     P.run()
 
 
@@ -1212,21 +1242,21 @@ def loadSummarizedContextStats(infiles,
 
     """
 
-    header = ",".join([P.snip(os.path.basename(x), ".contextstats.tsv.gz")
-                      for x in infiles])
+    header = ",".join([P.snip(os.path.basename(x), suffix)
+                       for x in infiles])
     filenames = " ".join(infiles)
 
     load_statement = P.build_load_statement(
         P.toTable(outfile),
         options="--add-index=track")
 
-    statement = """python %(scriptsdir)s/combine_tables.py
+    statement = """cgat combine_tables
     --header-names=%(header)s
     --missing-value=0
     --skip-titles
     %(filenames)s
     | perl -p -e "s/bin/track/; s/\?/Q/g"
-    | python %(scriptsdir)s/table2table.py --transpose
+    | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s
     """

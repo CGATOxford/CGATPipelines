@@ -40,7 +40,7 @@ class Annotations(cpgReport.cpgTracker):
             data = self.getFirstRow(
                 "%(select)s FROM %(track)s_%(table)s WHERE %(where)s AND is_%slices" % locals())
 
-        return odict(zip(self.mColumns, data))
+        return odict(list(zip(self.mColumns, data)))
 
 ##########################################################################
 
@@ -131,7 +131,7 @@ class RepeatOverlap(AnnotationsAssociated):
         statement = self.getStatement(track, slice)
         if not statement:
             return []
-        return odict(zip(("with", "without"), self.getFirstRow(statement)))
+        return odict(list(zip(("with", "without"), self.getFirstRow(statement))))
 
 ##########################################################################
 ##########################################################################
@@ -161,7 +161,7 @@ class TSSOverlap(cpgReport.cpgTracker):
 
         hist, bins = numpy.histogram(
             data, bins=numpy.arange(0, max(data) + 1, 1))
-        return odict(zip(map(str, bins[:-1]), hist))
+        return odict(list(zip(list(map(str, bins[:-1])), hist)))
 
 ##########################################################################
 

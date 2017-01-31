@@ -11,7 +11,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 
 EXPORTDIR = P.get('calling_exportdir', P.get('exportdir', 'export'))
 DATADIR = P.get('calling_datadir', P.get('datadir', '.'))
-DATABASE = P.get('calling_backend', P.get('sql_backend', 'sqlite:///./csvdb'))
+DATABASE = P.get('calling_backend', P.get('report_sql_backend', 'sqlite:///./csvdb'))
 
 ###################################################################
 # cf. pipeline_chipseq.py
@@ -58,13 +58,13 @@ else:
 # shorthand
 # use list to convert trackers to strings
 MAP_TRACKS = {
-    'master': map(str, list(EXPERIMENTS) + list(CONDITIONS)),
-    'replicates': map(str, list(TRACKS)),
-    'default': map(str, list(EXPERIMENTS)),
-    'experiments': map(str, list(EXPERIMENTS)),
-    'conditions': map(str, list(CONDITIONS)),
-    'tissues': map(str, list(TISSUES)),
-    'merged': map(str, list(EXPERIMENTS)),
+    'master': list(map(str, list(EXPERIMENTS) + list(CONDITIONS))),
+    'replicates': list(map(str, list(TRACKS))),
+    'default': list(map(str, list(EXPERIMENTS))),
+    'experiments': list(map(str, list(EXPERIMENTS))),
+    'conditions': list(map(str, list(CONDITIONS))),
+    'tissues': list(map(str, list(TISSUES))),
+    'merged': list(map(str, list(EXPERIMENTS))),
 }
 
 # MAP_TRACKS = { "default":
@@ -90,7 +90,7 @@ def selectTracks(all_tracks, subset):
     elif "all" in subset:
         return sorted(all_tracks)
 
-    for key, tracks in MAP_TRACKS.iteritems():
+    for key, tracks in MAP_TRACKS.items():
         if key in subset:
             return tracks
 

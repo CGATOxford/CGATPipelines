@@ -48,7 +48,7 @@ class AnnotatorDistance(TrackerSQL):
             data = self.getAll( """%(select)s AND track = '%(track)s' AND slice = '%(slice)s' 
                         AND subset='%(subset)s' AND counter = '%(counter)s' AND workspace = '%(workspace)s' ORDER BY %(order)s""" % locals())
 
-        return odict(zip(self.mColumns, zip(*data)))
+        return odict(list(zip(self.mColumns, list(zip(*data)))))
 
 
 class AnnotatorDistanceVolcano(TrackerSQL):
@@ -73,7 +73,7 @@ class AnnotatorDistanceVolcano(TrackerSQL):
             "SELECT CAST( observed AS FLOAT)/ expected, max( pvalue, 0.00001)  FROM %(table)s WHERE workspace = '%(track)s'" % locals())
 
         data = [(x[0], math.log10(x[1])) for x in data]
-        return odict(zip(("fold", "log(pvalue)"), zip(*data)))
+        return odict(list(zip(("fold", "log(pvalue)"), list(zip(*data)))))
 
 
 class AnnotatorDistanceSummary(AnnotatorDistance):
@@ -97,7 +97,7 @@ class AnnotatorDistanceSummary(AnnotatorDistance):
                         AND subset='%(subset)s' AND counter = '%(counter)s'""" % locals())
 
         data.append(data[0] - data[1])
-        return odict(zip(self.mColumns, data))
+        return odict(list(zip(self.mColumns, data)))
 
 
 class AnnotatorDistanceEnrichment(AnnotatorDistance):
