@@ -212,7 +212,7 @@ def load(infile,
             --set-transpose-field=%(transpose)s""")
 
     if shuffle:
-        statement.append("perl %(scriptsdir)s/randomize_lines.pl -h")
+        statement.append("cgat randomize_lines --keep-header=1")
 
     if limit > 0:
         # use awk to filter in order to avoid a pipeline broken error from head

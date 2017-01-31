@@ -69,6 +69,7 @@ def convertReadsToIntervals(bamfile,
     is_paired = BamTools.isPaired(bamfile)
     current_file = bamfile
     tmpdir = P.getTempFilename()
+    os.unlink(tmpdir)
     statement = ["mkdir %(tmpdir)s"]
     nfiles = 0
 
@@ -648,7 +649,7 @@ def runDE(design_file,
     # and adds a new qvalue column after recomputing
     # over all windows.
     statement += '''
-    | perl %(scriptsdir)s/randomize_lines.pl -h
+    | cgat randomize_lines --keep-header=1
     | %(cmd-farm)s
     --input-header
     --output-header

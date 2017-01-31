@@ -176,6 +176,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
                  save=True,
                  summarize=False,
                  threads=1,
+                 qual_format='phred64',
                  *args, **kwargs):
         self.save = save
         self.summarize = summarize
@@ -186,6 +187,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
             self.outdir = P.getTempDir(shared=True)
 
         self.processors = []
+        self.qual_format = qual_format
 
     def add(self, processor):
         """add a processor to the list of tools to be executed."""

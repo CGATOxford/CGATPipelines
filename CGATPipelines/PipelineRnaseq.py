@@ -296,9 +296,10 @@ class FeatureCountsQuantifier(Quantifier):
         # raw featureCounts output saved to ".raw" file
         outfile_raw = P.snip(outfile, ".gz") + ".raw"
         outfile_dir = os.path.dirname(outfile)
+        if not os.path.exists(outfile_dir):
+            os.makedirs(outfile_dir)
 
         statement = '''mkdir %(tmpdir)s;
-                       mkdir %(outfile_dir)s;
                        zcat %(annotations)s > %(annotations_tmp)s;
                        checkpoint;
                        %(paired_processing)s
@@ -355,11 +356,13 @@ class Gtf2tableQuantifier(Quantifier):
             counter = 'read-counts'
 
         outfile_raw = P.snip(outfile, ".gz") + ".raw"
+
         outfile_dir = os.path.dirname(outfile)
+        if not os.path.exists(outfile_dir):
+            os.makedirs(outfile_dir)
 
         # ignore multi-mapping reads ("--multi-mapping-method=ignore")
         statement = '''
-        mkdir %(outfile_dir)s;
         zcat %(annotations)s
         | cgat gtf2table
               --reporter=%(reporter)s
