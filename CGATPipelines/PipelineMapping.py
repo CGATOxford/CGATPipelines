@@ -1074,10 +1074,15 @@ class FastQc(Mapper):
         '''
 
         # if no contaminants file provided return None
+	try:
+	    assert contaminants
+	except:
+	    return None
+
         try:
-            assert contaminants
+            assert os.path.exists(contaminants)
         except AssertionError:
-            return None
+            raise Exception(contaminants)
 
         # read in file and split into adaptor/sequence
         adaptor_dict = {}
@@ -1094,7 +1099,7 @@ class FastQc(Mapper):
 
         # get temporary file name
         outfile = P.getTempFilename(shared=True)
-        with IOTools.openFile(outfile, "w") as wfile:
+	with IOTools.openFile(outfile, "w") as wfile:
             for key, value in list(adaptor_dict.items()):
                 wfile.write("%s\t%s\n" % (key, value))
         wfile.close()
@@ -1125,8 +1130,8 @@ class FastQc(Mapper):
 
                 statement.append(
                     '''fastqc --extract --outdir=%(outdir)s %(x)s
-                    %(contaminants_cmd)s >& %(outfile)s ;
-                    rm -f %(contaminants)s ; ''' % locals())
+                    %(contaminants_cmd)s >& %(outfile)s ; ''' % locals())
+	statement.append('''rm -f %(contaminants)s ;''' % locals())
         return " ".join(statement)
 
 

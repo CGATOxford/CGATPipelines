@@ -353,7 +353,7 @@ def runFastqc(infiles, outfile):
     '''
     # MM: only pass the contaminants file list if requested by user,
     # do not make this the default behaviour
-    if PARAMS['add_contaminants']:
+    if PARAMS['contaminants'] != "":
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc",
                                    contaminants=PARAMS['contaminants'],
