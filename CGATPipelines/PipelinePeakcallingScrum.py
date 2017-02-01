@@ -37,7 +37,7 @@ def getWantedContigs(unwanted_contigs, all_contigs):
     Outputs
     -------
     contigs_string: str
-        space seperated string of contig names that you want to keep in bam file
+        space seperated string of contig names you want to keep
     contigs_to_remove: set
         set of contigs that will have all reads removed from the file
      '''
@@ -407,8 +407,8 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
     if "contigs" in filters and contigs_to_remove:
         samfile = pysam.AlignmentFile(infile, 'rb')
         all_contigs = samfile.references
-        statement, inT = appendContigFilters(statement, inT, tabout, filters, pe,
-                                             contigs_to_remove, all_contigs)
+        statement, inT = appendContigFilters(statement, inT, tabout, filters,
+                                             pe, contigs_to_remove, all_contigs)
 
     if bedfiles != [""]:
         statement, inT = appendBlacklistFilter(statement, inT, tabout,
@@ -1020,6 +1020,7 @@ class Peakcaller(object):
         Parameters
         ----------
         infile: str
+
            path to bam file
         outfile: str
            path to peakcalling output
@@ -1033,8 +1034,8 @@ class Peakcaller(object):
         '''
         return ""
 
-        def loadData(self, infile, outfile, bamfile, controlfile=None, mode=None,
-                     fragment_size=None):
+        def loadData(self, infile, outfile, bamfile, controlfile=None,
+                     mode=None, fragment_size=None):
             '''
 
             '''
