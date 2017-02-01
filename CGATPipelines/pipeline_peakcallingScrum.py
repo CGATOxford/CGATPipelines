@@ -29,14 +29,14 @@ Functionality
 
     Optional functions:
     -------------------
-    - Filter Bam files to remove:
+    - Filter :term:`Bam` files to remove:
             - Duplicates
             - Secondary alignments
             - Unpaired reads for paired-end files
             - Reads overlapping 'blacklisted' regions
             - Mapping quality (MAPQ) score
-    - Pool input files for peakcalling to give better peakcalling
-      when inputs have poor coverage or lack of sequening depth
+    - Pool input files for peakcalling to give better peakcalling results
+      when inputs have poor coverage or lack sequening depth
     - Perform Irreproducible Discovery Rate (IDR) analysis (described
       further below) to get a consensus list of 'highly reproducible peaks'
       and assess replicate quaility.
@@ -46,7 +46,7 @@ NOTE: WARNINGS!!!!
 ------------------
 
 1. IDR analysis may not be approprate for all type of peak file - It works
-best with transcription factor CHIPs or methodologies producing 'narrow peaks'
+best with transcription factor ChIPs or methodologies producing 'narrow peaks'
 or peaks with well defined boundaries.
 
 'BroadPeak' IDR (e.g. for widespread histone marks such as H3K27ac)
@@ -57,21 +57,21 @@ not be so reproducible between replicates
 2. Always check your output from this pipeline in a genome browser to check
 peaks are being called suffiently!
 
-3. This pipeline references ChIP bams throughout in the code -this
-referencces the immunoprecipitated (IP) sample from a ChIP experiment
-(i.e. the file you want to find peaks in), Input bams refer to the
+3. This pipeline references :term:`ChIP bams` throughout in the code -this
+references the immunoprecipitated (IP) sample from a ChIP experiment
+(i.e. the file you want to find peaks in), :term:`Input bams` refer to the
 bams of the input control samples that are used for background
-normalisation in peak calling. Although we refer to ChIP bams
+normalisation in peak calling. Although we refer to :term:`ChIP bams`
 this is only nomenclature and you could just as easily use
-an ATAC-Seq bam file or other bam file in which you are looking for
-peaks
+an ATAC-Seq :term:`bam` file or other :term:`bam` files in which you are
+looking for peaks.
 
 4) Whilst you can call peaks with as many peakcallers that are implemented in
 the pipeline, only the results from one peakcaller can be taken forward for IDR
 analysis. If you want to run IDR analysis on the output of multiple peakcallers
 you will need first run IDR with one peakcaller then clone the pipeline, modify
-pipeline.ini file and delete the appripriate files to rerun the IDR analysis on
-the output from a different peakcaller. Bewarned that IDR analysis generates
+pipeline.ini file and delete the appropriate files to rerun the IDR analysis on
+the output from a different peakcaller. Be warned that IDR analysis generates
 a large number of peakfiles and it's best to decide on your prefered peakcaller
 before running the IDR analysis.
 
@@ -80,21 +80,21 @@ References
 ==========
 
 This pipeline follows closely the ENCODE3 version 1 peakprocessing pipeline
-described by Anshul Kundaje's group:
-
-(https://docs.google.com/document/d/1lG_Rd7fnYgRpSIqrIfuVlAz2dW1VaSQThzk836Db99c/edit#heading=h.9ecc41kilcvq)
-
-and the open source AQUAS TF ChIP-Seq pipeline implemented by the Kundaje group
-https://github.com/kundajelab/TF_chipseq_pipeline
-
+described by Anshul Kundaje's group and the open source AQUAS TF ChIP-Seq 
+pipeline implemented by the Kundaje group:
+    * (https://docs.google.com/document/d/1lG_Rd7fnYgRpSIqrIfuVlAz2dW1VaSQThzk836Db99c/edit#heading=h.9ecc41kilcvq)
+    * (https://github.com/kundajelab/TF_chipseq_pipeline)
 
 IDR analysis workflow is described here
     * (https://sites.google.com/site/anshulkundaje/projects/idr)
 
 for troubleshooting/discussion of the IDR workflow see and extra documentation
 see:
-
     * (https://groups.google.com/forum/#!forum/idr-discuss)
+
+for ChIP and ATAC-Seq quality guidelines see:
+	* (https://www.encodeproject.org/data-standards/)
+
 
 IDR Analysis
 ============
@@ -130,19 +130,19 @@ software to be in the path:
 +---------+------------+------------------------------------------------+
 |*Program*|*Version*   |*Purpose*                                       |
 +---------+------------+------------------------------------------------+
-|samtools |>=0.1.16    |bam/sam files                                   |
+|samtools |>=0.1.16    |bam/sam file manipulation & stats               |
 +---------+------------+------------------------------------------------+
 |bedtools |            |working with intervals                          |
 +---------+------------+------------------------------------------------+
 |picard   |>=1.42      |duplication stats. The .jar files need to be in |
 |         |            | your CLASSPATH environment variable.           |
 +---------+------------+------------------------------------------------+
-|macs2	  |>=2.1.1.    |peakcalling                               	|
+|macs2	  |>=2.1.1.    |peakcalling                                 	|
 +---------+------------+------------------------------------------------+
-|Conda	  |	       |		?????????????			|
+|Conda	  |	           |		?????????????		                  	|
 +---------+------------+------------------------------------------------+
 |python   |>= 3.0      |run IDR analysis - currently set up in a        |
-|         | 	       |conda enviroment that the pipeline calls	|
+|         | 	       |conda enviroment that the pipeline calls	    |
 +---------+------------+------------------------------------------------+
 |IDR      |>= 2.0.2    |IDR analysis of peaks (bed files)               |
 |         |            |from: (https://github.com/nboley/idr)           |
@@ -152,11 +152,8 @@ software to be in the path:
 |ChIPQC   |            |                                                |
 |R Package|            |                                                |
 +---------+------------+------------------------------------------------+
-
-
-
-
-
+|SICER
++---------+------------+------------------------------------------------+
 
 Usage
 =====
@@ -165,20 +162,18 @@ See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general
 information how to use CGAT pipelines.
 
 
-IDR
+Pipeline Input
+==============
 
-Input
------
-
-Sample_bam = bam file you want to call peaks on
+Sample_bam = bam file you want to call peaks on (i.e. ChiP Bam or ATAC-Seq Bam)
 
 Input_bam = control file used as background reference in peakcalling
 (e.g. input file for ChIP-seq)
 
-Pipeline.ini = File containing paramaters and options for
+pipeline.ini = File containing paramaters and options for
 running the pipeline
 
-Desgin.tsv = Design file based on design file for R package Diff Bind
+design.tsv = Design file based on design file for R package DiffBind
 Has the following collumns:
 
 
@@ -192,18 +187,25 @@ The pipeline generates several new directories containing
 output files - these can roughly be grouped into XXX main
 stages of the pipeline
 
-1) Bam file preparation
-    --------------------
-    - filtered_bams.dir:
-    Contains bams files (and thier indexes)
-    that have been filtered according to pipeline.ini and a number
-    of log files relating to the number of reads that have been
-    filtered out for each reason. Also contains file with the
-    frequency of fragment lengths (the 3' end to 5'end of sequenced)
-    for paired-end samples.
+1) filtered_bams.dir
+   ---------------------
+	Directory containing filtered bam files created by removing duplicates and 
+	filtering of origional bam files. These filtered bam files are then taken 
+	forward to IDR/peakcalling. If no filtering or deduplication is specified
+	in the ini file then this directory will contain symbolic links to the
+    origional bam files. 
+
+    Directory contains:
+			* :term:`bams` files (and thier indexes) that have been filtered
+			according to specifications in pipeline.ini
+		 	* a number of log files detailing the number of reads that have been
+            filtered out for each reason. 
+			* for paired-end samples a file with the frequency of fragment 
+			  lengths (the distance between the paired reads 5' start positions)
 
 
-    IDR.dir:
+2) IDR.dir
+   -------
     Directory conatining the output files from IDR analysis
     IDR is currently only set up to use with macs2 because this
     is recomended by the authors of IDR. If you require IDR for broad
@@ -211,7 +213,8 @@ stages of the pipeline
     These include the lists of reproducible peaks and stats and
     QC tables summarising the output of the IDR analysis
 
-    IDR_inputs.dir
+	Directory contains:
+            * IDR_inputs.dir
     This directory contains the files that are
 
     IDR_inputs.dir
@@ -290,6 +293,7 @@ PARAMS.update(P.peekParameters(
 # load IDR parameters into a dictionary to pass to the IDR step
 # IDR requires multiple parameters from the PARAMS dictionary
 idrPARAMS = dict()
+#get IDR peakcaller (
 idrpc = PARAMS['peakcalling_idrpeakcaller']
 idrPARAMS['idrsuffix'] = PARAMS["%s_idrsuffix" % idrpc]
 idrPARAMS['idrcol'] = PARAMS["%s_idrcol" % idrpc]
@@ -297,37 +301,23 @@ idrPARAMS['idrcolname'] = PARAMS['%s_idrcolname' % idrpc]
 idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 
 
-###############################################################################
-# Match ChIP/ATAC-Seq Bams with Inputs ########################################
-###############################################################################
+#######################################################################
+# Check for design file & Match ChIP/ATAC-Seq Bams with Inputs ########
+#######################################################################
 
-
-# This function reads the design table and generates
-
+# This section checks for the design table and generates:
 # 1. A dictionary, inputD, linking each input file and each of the various
-# IDR subfiles to the appropriate input, as specified in the design table
-
+#    IDR subfiles to the appropriate input, as specified in the design table
 # 2. A pandas dataframe, df, containing the information from the
-# design table
+#    design table.
+# 3. INPUTBAMS: a list of control (input) bam files to use as background for
+#    peakcalling.
+# 4. CHIPBAMS: a list of experimental bam files on which to call peaks on.
 
-
-###############################################################################
-# Check for design file                                                       #
-###############################################################################
-
-# This function checks for  design file in the directory and if it isnt there
-# will set the input and chip bams to empty list. This gets round the import
-# tests
-# INPUTBAMS - list of control (input) bam files
-# CHIPBAMS - list of experimental bam files on which to call peaks on
+# if design table is missing the input and chip bams  to empty list. This gets 
+# round the import tests
 
 if os.path.exists("design.tsv"):
-    df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
-                                                     PARAMS['IDR_poolinputs'])
-    INPUTBAMS = list(set(df['bamControl'].values))
-    CHIPBAMS = list(set(df['bamReads'].values))
-
-elif os.path.exists("design.tsv"):
     df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
                                                      PARAMS['IDR_poolinputs'])
     INPUTBAMS = list(set(df['bamControl'].values))
@@ -342,15 +332,19 @@ else:
 # pipeline to throw an error
 
 
-###############################################################################
+########################################################################
 # Check if reads are paired end
+########################################################################
+
 if CHIPBAMS and Bamtools.isPaired(CHIPBAMS[0]) is True:
     PARAMS['paired_end'] = True
 else:
     PARAMS['paired_end'] = False
-###############################################################################
-# Make database
 
+
+#########################################################################
+# Connect to database
+#########################################################################
 
 def connect():
     '''connect to database.
@@ -366,13 +360,16 @@ def connect():
 
     return dbh
 
-###############################################################################
-# Preprocessing Steps - Filter bam files
-###############################################################################
+
+###########################################################################
+# start of pipelined tasks 
+# 1) Preprocessing Steps - Filter bam files & generate bam stats
+###########################################################################
 
 
 @transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
+	''' load design.tsv to database ''' 
     P.load(infile, outfile)
 
 
@@ -392,6 +389,12 @@ def filterInputBAMs(infile, outfiles):
         secondary alignment reads
         reads below a mapping quality (MAPQ) score
         reads overlapping with blacklisted regions specified in bed file.
+
+	inputs
+
+
+	outputs
+
     '''
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
@@ -466,11 +469,14 @@ def mergeFilteringStats(infiles, outfile):
 
 @merge(mergeFilteringStats, "post_filtering_read_counts.load")
 def loadFilteringStats(infile, outfile):
+	'''load filtering stats'''
     P.load(infile, outfile)
 
 
 @merge((filterChipBAMs, filterInputBAMs), "post_filtering_check.tsv")
 def mergeFilteringChecks(infiles, outfile):
+	'''take individual filering checks and merge them to produce single table'''
+
     counts = [i[0].replace(".bam", ".filteringlog") for i in infiles]
     bigtab = pd.DataFrame()
     for c in counts:
@@ -484,6 +490,7 @@ def mergeFilteringChecks(infiles, outfile):
 
 @transform(mergeFilteringChecks, suffix(".tsv"), ".load")
 def loadFilteringChecks(infile, outfile):
+	'''load filtering stats to database '''
     P.load(infile, outfile)
 
 
@@ -506,9 +513,10 @@ def filtering():
     ''' dummy task to allow all the filtering of bams & collection of stats'''
     pass
 
+
 ###############################################################################
 #
-# IDR
+# 2) IDR  - preparation of files (pooled & pseudobams) for IDR 
 #
 ###############################################################################
 
@@ -811,7 +819,7 @@ def preprocessing(infile, outfile):
     pass
 
 #################################################################
-#  Peakcalling Steps
+# 3) Peakcalling
 #################################################################
 
 
@@ -1055,7 +1063,7 @@ def peakcalling():
     '''
 
 ################################################################
-# IDR Steps
+# 4) post peakcalling IDR Steps 
 ################################################################
 
 if PARAMS['IDR_run']:
@@ -1380,7 +1388,7 @@ def makeCHIPQCInputTables(infiles, outfiles):
                     tab['Tissue'] + ".tsv")
     tab.to_csv(outfiles[1], sep="\t", index=None)
 
-
+# TODO 
 # @follows(mkdir("ChIPQC.dir"))
 # @transform(makeCHIPQCInputTable,regex("(.*)_(.*).tsv"), r'ChIPQC.dir/\1.pdf')
 # def runCHIPQC(infiles, outfiles):
