@@ -28,11 +28,14 @@ Reference
 
 """
 
-import types
 import re
 import collections
 import os
-import ConfigParser
+try:
+    import configparser
+except ImportError:
+    import ConfigParser as configparser
+
 import sys
 
 import CGAT.Experiment as E
@@ -47,7 +50,7 @@ CGATSCRIPTS_ROOT_DIR = os.path.dirname(
     os.path.dirname(E.__file__))
 
 # CGAT Code collection scripts
-CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "scripts")
+CGATSCRIPTS_SCRIPTS_DIR = os.path.join(CGATSCRIPTS_ROOT_DIR, "CGAT", "scripts")
 
 # root directory of CGAT Pipelines
 CGATPIPELINES_ROOT_DIR = os.path.dirname(os.path.dirname(
@@ -71,7 +74,7 @@ if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
     PIPELINE_SCRIPTS_DIR = os.path.join(sys.exec_prefix, "bin")
 
 # Global variable for configuration file data
-CONFIG = ConfigParser.ConfigParser()
+CONFIG = configparser.ConfigParser()
 
 
 class TriggeredDefaultFactory:
@@ -147,7 +150,7 @@ HARDCODED_PARAMS = {
     'local_tmpdir': os.environ.get("TMPDIR", '/scratch'),
     # directory used for temporary files shared across machines
     'shared_tmpdir': os.environ.get("SHARED_TMPDIR", "/ifs/scratch"),
-    # queue manager (supported: sge, slurm)
+    # queue manager (supported: sge, slurm, torque, pbspro)
     'cluster_queue_manager': 'sge',
     # cluster queue to use
     'cluster_queue': 'all.q',
@@ -220,10 +223,11 @@ def configToDictionary(config):
             if section in ("general", "DEFAULT"):
                 p["%s" % (key)] = v
 
-    for key, value in config.defaults().iteritems():
+    for key, value in config.defaults().items():
         p["%s" % (key)] = IOTools.str2val(value)
 
     return p
+
 
 
 def getParameters(filenames=["pipeline.ini", ],
@@ -320,6 +324,14 @@ def getParameters(filenames=["pipeline.ini", ],
         # turn on default dictionary
         TriggeredDefaultFactory.with_default = True
 
+    # Clear up ini files on the list that do not exist.
+    # Please note the use of list(filenames) to create
+    # a clone to iterate over as we remove items from
+    # the original list (to avoid unexpected results)
+    for fn in list(filenames):
+        if not os.path.exists(fn):
+            filenames.remove(fn)
+
     if site_ini:
         # read configuration from /etc/cgat/pipeline.ini
         fn = "/etc/cgat/pipeline.ini"
@@ -333,12 +345,6 @@ def getParameters(filenames=["pipeline.ini", ],
         if os.path.exists(fn):
             filenames.insert(0, fn)
 
-    # IMS: Several legacy scripts call this with a sting as input
-    # rather than a list. Check for this and correct
-
-    if isinstance(filenames, basestring):
-        filenames = [filenames]
-
     if default_ini:
         # The link between CGATPipelines and Pipeline.py
         # needs to severed at one point.
@@ -348,6 +354,14 @@ def getParameters(filenames=["pipeline.ini", ],
                          os.path.join(CGATPIPELINES_PIPELINE_DIR,
                                       'configuration',
                                       'pipeline.ini'))
+
+    # IMS: Several legacy scripts call this with a string as input
+    # rather than a list. Check for this and correct
+
+    if isinstance(filenames, str):
+        filenames = [filenames]
+
+    PARAMS['pipeline_ini'] = filenames
 
     CONFIG.read(filenames)
 
@@ -364,12 +378,12 @@ def getParameters(filenames=["pipeline.ini", ],
     for param in INTERPOLATE_PARAMS:
         try:
             PARAMS[param] = PARAMS[param] % PARAMS
-        except TypeError, msg:
+        except TypeError as msg:
             raise TypeError('could not interpolate %s: %s' %
                             (PARAMS[param], msg))
 
     # expand pathnames
-    for param, value in PARAMS.items():
+    for param, value in list(PARAMS.items()):
         if param.endswith("dir"):
             if value.startswith("."):
                 PARAMS[param] = os.path.abspath(value)
@@ -396,7 +410,7 @@ def loadParameters(filenames):
        A configuration dictionary.
 
     '''
-    config = ConfigParser.ConfigParser()
+    config = configparser.ConfigParser()
     config.read(filenames)
 
     p = configToDictionary(config)
@@ -425,7 +439,7 @@ def matchParameter(param):
     if param in PARAMS:
         return param
 
-    for key in PARAMS.keys():
+    for key in list(PARAMS.keys()):
         if "%" in key:
             rx = re.compile(re.sub("%", ".*", key))
             if rx.search(param):
@@ -469,12 +483,12 @@ def substituteParameters(**kwargs):
 
     # build parameter dictionary
     # note the order of addition to make sure that kwargs takes precedence
-    local_params = dict(PARAMS.items() + kwargs.items())
+    local_params = dict(list(PARAMS.items()) + list(kwargs.items()))
 
     if "outfile" in local_params:
         # replace specific parameters with task (outfile) specific parameters
         outfile = local_params["outfile"]
-        for k in local_params.keys():
+        for k in list(local_params.keys()):
             if k.startswith(outfile):
                 p = k[len(outfile) + 1:]
                 if p not in local_params:
@@ -506,7 +520,7 @@ def asList(value):
         except AttributeError:
             values = [value.strip()]
         return [x for x in values if x != ""]
-    elif type(value) in (types.ListType, types.TupleType):
+    elif type(value) in (list, tuple):
         return value
     else:
         return [value]

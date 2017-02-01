@@ -104,7 +104,7 @@ class MastEValueVersusPeakValueAndDistance(Motifs.Mast):
         data = [(math.log(x[1]), math.log(x[2]), math.log(x[0]))
                 for x in self.get(statement % locals()) if x[0] > 00 and x[1] > 0 and x[2] > 0]
 
-        return odict(zip(("log(distance)", "log(evalue)", "log(%s)" % field), zip(*data)))
+        return odict(list(zip(("log(distance)", "log(evalue)", "log(%s)" % field), list(zip(*data)))))
 
 
 ###########################################################################
@@ -147,7 +147,7 @@ class MastROC2(Motifs.Mast):
         d = Histogram.Combine(rocs)
 
         bins = [x[0] for x in d]
-        values = zip(*[x[1] for x in d])
+        values = list(zip(*[x[1] for x in d]))
 
         result = odict()
         for f, v in zip(self.mFields + ("dist",), values):

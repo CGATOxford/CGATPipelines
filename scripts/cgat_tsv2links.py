@@ -128,7 +128,7 @@ def main(argv=None):
 
     if not options.source_directory:
         # no source directory given, filenames must have complete path
-        for filename, link in map_filename2link.items():
+        for filename, link in list(map_filename2link.items()):
             _createLink(filename, link, counter)
     else:
         # walk through directory hierchy and create links

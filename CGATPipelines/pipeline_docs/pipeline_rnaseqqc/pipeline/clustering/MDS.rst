@@ -24,7 +24,7 @@ Results
 
 .. report:: RnaseqqcReport.sampleMDS
    :render: r-ggplot
-   :statement: aes(x=MD1, y=MD2) +
+   :statement: aes(x=MD1, y=MD2, colour=factor_value) +
 	       geom_point() +
 	       theme_bw() +
 	       xlab('Dimension 1') + ylab ('Dimension 2') +

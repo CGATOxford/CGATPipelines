@@ -40,7 +40,7 @@ def importKEGGAssignments(outfile, mart, host, biomart_dataset):
 
     '''
 
-    if not re.match("rnorvegicus|scerevisiae|hsapiens|mmusculus", 
+    if not re.match("rnorvegicus|scerevisiae|hsapiens|mmusculus",
                     biomart_dataset):
         E.warn("KEGG.db doesn't map Entrez ids for %s, %s will"
                " likely be empty" % (biomart_dataset, outfile))
@@ -67,7 +67,7 @@ def importKEGGAssignments(outfile, mart, host, biomart_dataset):
 
     E.info("Getting KEGG names")
     pathnames = R('as.list(KEGGPATHID2NAME)')
-    pathid2name = dict(zip(pathnames.names, R.unlist(pathnames)))
+    pathid2name = dict(list(zip(pathnames.names, R.unlist(pathnames))))
     E.info("Done")
 
     outf = IOTools.openFile(outfile, "w")

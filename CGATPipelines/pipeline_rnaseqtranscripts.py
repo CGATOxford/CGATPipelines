@@ -381,7 +381,7 @@ def writePrunedGTF(infile, outfile):
     # remove \0 bytes within gtf file
     statement = '''%(uncompress)s %(infile)s
     | %(cmds)s
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort
+    | cgat gtf2gtf --method=sort
     --sort-order=contig+gene --log=%(outfile)s.log
     | %(compress)s > %(outfile)s'''
 
@@ -753,7 +753,7 @@ def buildCodingGeneSet(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=filter
     --filter-method=gene
     --map-tsv-file=%(gene_tsv)s
@@ -801,6 +801,7 @@ def buildCodingTranscriptSet(infile, outfile):
 
 # Nick - added building of a mask file for omitting certain regions during
 # gene model building
+
 # Tom - this needs updating for ensembl >v79 GTFs
 # (no longer contain "rRNA" in source")
 
@@ -820,6 +821,7 @@ def buildMaskGtf(infile, outfile):
         if re.findall("rRNA",
                       entry.source) or re.findall("chrM",
                                                   entry.contig):
+
             outf.write("\t".join((map(str, [entry.contig,
                                             entry.source,
                                             entry.feature,
@@ -829,6 +831,21 @@ def buildMaskGtf(infile, outfile):
                                             entry.strand,
                                             ".",
                                             "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+
+    # CG: I added this in to expand the mask file - change as see fit
+        elif re.findall("snRNA",
+                        entry.source) or re.findall("snoRNA",
+                                                    entry.source):
+            outf.write("\t".join((map(str, [entry.contig,
+                                            entry.source,
+                                            entry.feature,
+                                            entry.start,
+                                            entry.end,
+                                            ".",
+                                            entry.strand,
+                                            ".",
+                                            "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+
     outf.close()
 
 #########################################################################
@@ -996,6 +1013,7 @@ def compareTranscriptsPerExperiment(infiles, outfile):
     infiles = [x[0] for x in infiles]
     runCuffCompare(infiles, outfile, reffile)
 
+
 #########################################################################
 #########################################################################
 #########################################################################
@@ -1065,15 +1083,31 @@ def mergeUsingCuffmerge(infiles, outfile):
 def loadTranscriptComparison(infile, outfile):
     '''load data from transcript comparison.
 
-    This task creates two tables:
+    This task creates several tables in database for:
+    experiment_condition_agg.cuffcompare tracks
+    agg_agg_agg.cuffcompare tracksexir
 
-    <track>_benchmark
-    <track>_loci
+    CG:the tracking file produced from cuffcompare can contain multiple
+    transcripts per transfrag for each sample
+    the <track>_fpkm table and <track>_transcripts table only record
+    one transcript for each transfrag. If the transfrag has more then one
+    transcript associated with it the information will be lost and
+    fpkm values etc could be misleading.
 
-    The following tables are only present if there are
-    multiple replicates in a sample:
+    <track>_benchmark: summarise info from <track>.cuffcompare stats file
 
-    <track>_tracking
+    <track>_loci: summarise info from <track>.cufffcompare.loci
+
+    <track>_fpkm: summarise fpkm of samples being compared in track
+    NOTE: MAY NOT GIVE INFO FOR ALL TRANSCRIPTS! (See above)
+
+    <track>_transcripts: contains transcripts details summarised from
+        <track>.cuffcompare.tracking file
+
+    <track>_tracking: summarises number of experiments transfrags are found in
+                        Only present if multiple replicate
+
+    <track>_tracks:     list of samples compared/combined
     '''
 
     tmpfile = P.getTempFilename(dir=".")
@@ -1113,12 +1147,13 @@ def loadTranscriptComparison(infile, outfile):
         outf.write("track\tcontig\t%s\n" %
                    "\t".join(Tophat.CuffCompareResult.getHeaders()))
 
-        for track, vv in result.iteritems():
+        for track, vv in result.items():
             track = P.snip(os.path.basename(track), ".gtf.gz")
-            for contig, v in vv.iteritems():
+            for contig, v in vv.items():
                 if v.is_empty:
                     continue
-                outf.write("%s\t%s\t%s\n" % (P.tablequote(track), contig, str(v)))
+                outf.write("%s\t%s\t%s\n" %
+                           (P.tablequote(track), contig, str(v)))
 
         outf.close()
 
@@ -1177,14 +1212,21 @@ def loadTranscriptComparison(infile, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" %
+                "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
     if os.path.exists(fn):
         for transfrag in Tophat.iterate_tracking(IOTools.openFile(fn, "r")):
+            # collect transcripts from each transfrag,
+            # filter out samples with no transcripts
+            numtranscripts = [x for x in transfrag.transcripts if x]
 
-            nexperiments = len([x for x in transfrag.transcripts if x])
+            # count number of gene_ids containing q1 - qXX
+            # qXX = identifier of samples where transcript is found
+            nexperiments = len([y for y in numtranscripts
+                               if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
 
             outf.write("%s\n" %
                        "\t".join((transfrag.transfrag_id,
@@ -1223,7 +1265,7 @@ def loadTranscriptComparison(infile, outfile):
     L.info("loaded %s" % tablename)
 
     tablename = P.toTable(outfile) + "_transcripts"
-    
+
     P.load(tmpfile2, outfile,
            tablename=tablename,
            options='''
@@ -1364,22 +1406,28 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
                                     "cov",
                                     "length")))
     outf3 = open(tmpfile3, "w")
-    outf3.write("transfrag_id\t%s\n" % "\t".join([P.tablequote(x) for x in tracks]))
+    outf3.write("transfrag_id\t%s\n" %
+                "\t".join([P.tablequote(x) for x in tracks]))
 
     fn = "%s.tracking.gz" % infile
 
     if os.path.exists(fn):
         for transfrag in Tophat.iterate_tracking(IOTools.openFile(fn, "r")):
             if transfrag.transfrag_id in kept_transcripts:
-                nexperiments = len([x for x in transfrag.transcripts if x])
+                # collect transcripts from each transfrag,
+                # filter out samples with no transcripts
+                numtranscripts = [x for x in transfrag.transcripts if x]
 
-                outf.write("%s\n" %
-                           "\t".join((transfrag.transfrag_id,
-                                      transfrag.locus_id,
-                                      transfrag.ref_gene_id,
-                                      transfrag.ref_transcript_id,
-                                      transfrag.code,
-                                      str(nexperiments))))
+                #  number of gene_ids containing q1 - qXX
+                # qXX = identifier of samples where transcript is found
+                nexperiments = len([y for y in numtranscripts if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
+
+                outf.write("%s\n" % "\t".join((transfrag.transfrag_id,
+                                               transfrag.locus_id,
+                                               transfrag.ref_gene_id,
+                                               transfrag.ref_transcript_id,
+                                               transfrag.code,
+                                               str(nexperiments))))
 
                 outf3.write("%s" % transfrag.transfrag_id)
 
@@ -1672,7 +1720,7 @@ def buildLincRNAGeneSet(infiles, outfile):
 
     E.info("added index for numts")
 
-    sections = indices.keys()
+    sections = list(indices.keys())
 
     total_genes, remove_genes = set(), collections.defaultdict(set)
     inf = GTF.iterator(IOTools.openFile(infile_abinitio))
@@ -1719,7 +1767,7 @@ def buildLincRNAGeneSet(infiles, outfile):
     mv %(outfile)s %(outfile)s.tmp;
     checkpoint;
     zcat %(outfile)s.tmp
-    | python %(scriptsdir)s/gtf2gtf.py --method=sort
+    | cgat gtf2gtf --method=sort
     --sort-order=contig+gene --log=%(outfile)s.log
     | gzip > %(outfile)s;
     checkpoint;
@@ -1791,7 +1839,7 @@ def buildAbinitioLincRNAGeneSet(infiles, outfile):
 
     E.info("created index for known noncoding exons to avoid filtering")
 
-    sections = indices.keys()
+    sections = list(indices.keys())
 
     total_transcripts, remove_transcripts = set(), collections.defaultdict(set)
     transcript_length = collections.defaultdict(int)
@@ -1835,7 +1883,7 @@ def buildAbinitioLincRNAGeneSet(infiles, outfile):
 
     outf = open("lincrna_removed.tsv", "w")
     outf.write("transcript_id" + "\t" + "removed" + "\n")
-    for x, y in remove_transcripts.iteritems():
+    for x, y in remove_transcripts.items():
         outf.write("%s\t%s\n" % (x, ",".join(y)))
 
     # write out transcripts that are not in removed set
@@ -1893,7 +1941,7 @@ def buildGeneSetStats(infiles, outfile):
     allfiles = " ".join(other + cuffcompare)
 
     statement = '''
-    python %(scriptsdir)s/gff2stats.py --is-gtf
+    cgat gff2stats --is-gtf
     %(allfiles)s --log=%(outfile)s.log
     | perl -p -e "s/.gtf.gz//"
     | perl -p -e "s/^agg.*cuffcompare.combined/unfiltered/"
@@ -1978,7 +2026,7 @@ def classifyTranscripts(infiles, outfile):
 
     statement = '''
     zcat %(infile)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
            --counter=%(counter)s
            --reporter=transcripts
            --gff-file=%(reference)s
@@ -2006,7 +2054,7 @@ def classifyTranscriptsCuffcompare(infiles, outfile):
     # IMS: change to allow different classifiers
     statement = '''
     zcat %(infile)s.combined.gtf.gz
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
            --counter=%(gtf2table_classifier)s
            --reporter=transcripts
            --gff-file=%(reference)s
@@ -2055,7 +2103,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
 
     statement = '''
     zcat %(geneset)s
-    | python %(scriptsdir)s/gtf2table.py
+    | cgat gtf2table
           --reporter=transcripts
           --bam-file=%(infile)s
           --counter=length
@@ -2133,9 +2181,9 @@ def buildReproducibility(infile, outfile):
     for rep1, rep2 in itertools.combinations(replicates, 2):
 
         track1, track2 = rep1.asTable(), rep2.asTable()
-        
+
         def _write(statement, code):
-            print statement
+            print(statement)
             data = Database.executewait(dbhandle, statement).fetchall()
             if len(data) == 0:
                 return
@@ -2145,7 +2193,7 @@ def buildReproducibility(infile, outfile):
             null2 = len([x for x in data if x[1] == 0])
             not_null = [x for x in data if x[0] != 0 and x[1] != 0]
             if len(not_null) > 1:
-                x, y = zip(*not_null)
+                x, y = list(zip(*not_null))
                 result = Stats.doCorrelationTest(x, y)
             else:
                 result = Stats.CorrelationTest()
@@ -2221,7 +2269,7 @@ def buildReproducibility(infile, outfile):
            "_reproducibility.load")
 def loadReproducibility(infile, outfile):
     '''load reproducibility results.'''
-        
+
     P.load(infile, outfile, options="--allow-empty-file")
 
 #########################################################################
@@ -2256,7 +2304,7 @@ def full():
 ###################################################################
 if os.path.exists("pipeline_conf.py"):
     L.info("reading additional configuration from pipeline_conf.py")
-    execfile("pipeline_conf.py")
+    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
 ###################################################################
 ###################################################################
@@ -2312,7 +2360,7 @@ def publish():
 
     bams = []
 
-    for targetdir, filenames in exportfiles.iteritems():
+    for targetdir, filenames in exportfiles.items():
         for src in filenames:
             dest = "%s/%s/%s" % (web_dir, targetdir, src)
             if dest.endswith(".bam"):
@@ -2325,9 +2373,9 @@ def publish():
     for bam in bams:
         filename = os.path.basename(bam)
         track = P.snip(filename, ".bam")
-        print """track type=bam name="%(track)s" '''
+        print("""track type=bam name="%(track)s" '''
         '''bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/'''
-        '''bamfiles/%(filename)s""" % locals()
+        '''bamfiles/%(filename)s""" % locals())
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

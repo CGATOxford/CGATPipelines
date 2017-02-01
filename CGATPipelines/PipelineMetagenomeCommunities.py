@@ -36,7 +36,7 @@ def normaliseKraken(infile, outfile):
     outf.write(header)
     for line in inf.readlines():
         data = line[:-1].split("\t")
-        count = int(data[-1])/(float(mapped)/1000000)
+        count = int(data[-1]) / (float(mapped) / 1000000)
         outf.write("\t".join(map(str, data[:-1] + [count])) + "\n")
     outf.close()
 
@@ -79,9 +79,9 @@ def countContributingReads(infile, outfile):
             result["species"] += 1
     outf = open(outfile, "w")
     outf.write("level\tn_reads\tpct_reads\n")
-    for level, count in result.iteritems():
+    for level, count in result.items():
         nreads, prop = count, float(count) / total
-        outf.write("\t".join([level, str(nreads), str(prop*100)]) + "\n")
+        outf.write("\t".join([level, str(nreads), str(prop * 100)]) + "\n")
     outf.close()
 
 
@@ -116,7 +116,7 @@ def barplotAlignmentStats(infile, outfile, **kwargs):
     take = "passigned"
     if "take" in kwargs:
         take = kwargs["take"]
-    
+
     R('''library(ggplot2)''')
     R('''library(gtools)''')
     R('''dat <- read.csv("%s", header=T, stringsAsFactors=F, sep="\t")''' % infile)
@@ -126,27 +126,27 @@ def barplotAlignmentStats(infile, outfile, **kwargs):
     R('''plot2 <- plot1 + geom_bar(stat="identity")''')
     R('''plot3 <- plot2 + facet_wrap(~level + tool) + coord_flip()''')
     R('''ggsave("%s", height=12, width=12)''' % outfile)
-    
+
 ###################################################################
 ###################################################################
 ###################################################################
 
 
-def runPCA(infile, outfile):
+def runPCA(infile, outfile, rownames=1):
     '''
     run principle components analysis on 
     normalised matrix
     '''
-    ncol = len(open(infile).readline().strip("\n").split("\t"))
+#    ncol = len(open(infile).readline().strip("\n").split("\t"))
     # read in and format data
     R('''dat <- read.csv("%s",
                           header=T,
                           stringsAsFactors=F,
                           sep="\t",
-                          row.names=%i)''' % (infile, ncol))
+                          row.names=%i)''' % (infile, rownames))
     # run PCA
     R('''pc.dat <- prcomp(as.matrix(t(dat)))''')
-    
+
     # get scores
     R('''pc.dat.scores <- data.frame(pc.dat$x)''')
     R('''pc.dat.scores$sample <- rownames(pc.dat.scores)''')
@@ -167,7 +167,7 @@ def runPCA(infile, outfile):
                      sep="\t",
                      quote=F,
                      row.names=F)''' % outf_ve)
-    
+
 
 ###################################################################
 ###################################################################
@@ -183,7 +183,7 @@ def plotPCA(scores,
     R('''library(gtools)''')
     R('''library(ggplot2)''')
     R('''library(gridExtra)''')
-    
+
     # read scores
     R('''dat <- read.csv("%s",
                          header=T,
@@ -197,7 +197,7 @@ def plotPCA(scores,
                         stringsAsFactors=F,
                         sep="\t")''' % variance_explained)
     R('''ve <- data.frame(t(ve))''')
-    
+
     # condition colours
     R('''dat <- dat[mixedsort(rownames(dat)),]''')
     R('''conds <- unlist(strsplit(rownames(dat),
@@ -238,7 +238,7 @@ def plotPCA(scores,
            g <- arrangeGrob(p1, p2, p3, ncol=3)
          }''')
     R('''ggsave("%s", g, width=width, height=height)''' % outfile)
-    
+
 
 ###################################################################
 ###################################################################
@@ -280,7 +280,7 @@ def plotMDS(infile, outfile):
 ###################################################################
 
 
-def testDistSignificance(infile, outfile):
+def testDistSignificance(infile, outfile, rownames=1, method="adonis"):
     '''
     use permanova to test significance of differences
     in distance metrics
@@ -290,10 +290,9 @@ def testDistSignificance(infile, outfile):
     R('''library(vegan)''')
     R('''dat <- read.csv("%s",
                          header = T,
-                         stringsAsFactors = F, sep = "\t")''' % infile)
-    R('''rownames(dat) <- dat$taxa
-         dat <- dat[,1:ncol(dat)-1]
-         dat <- dat[, mixedsort(colnames(dat))]
+                         stringsAsFactors = F, sep = "\t",
+                         row.names=%i)''' % (infile, rownames))
+    R('''dat <- dat[, mixedsort(colnames(dat))]
          conds <- unlist(strsplit(colnames(dat),
                          ".R[0-9]"))[seq(1, ncol(dat)*2, 2)]
          conds <- unlist(strsplit(conds, ".",
@@ -772,7 +771,7 @@ def barchartProportions(infile, outfile, order, dtype="pathways"):
 
     # take average across samples
     R('''dat.percent$average <- rowMeans(dat.percent)''')
-    
+
     # add taxa column with "other" = < 5% in any sample
     R('''dat.percent$taxa <- rownames(dat.percent)''')
     R('''dat.percent$taxa <- ifelse(dat.percent$taxa %in% to_other,
@@ -835,7 +834,7 @@ def annotate(infile, outfile, geneset):
     inf = IOTools.openFile(infile)
     header = inf.readline()
     outf = IOTools.openFile(outfile, "w")
-    outf.write(header[:-1]+"\ttaxa\n")
+    outf.write(header[:-1] + "\ttaxa\n")
     for line in inf.readlines():
         data = line[:-1].split("\t")
         nog = data[0]
@@ -843,5 +842,5 @@ def annotate(infile, outfile, geneset):
             pathway = annotation[nog]
         except KeyError:
             pathway = "Function unknown"
-        outf.write(line[:-1]+"\t"+pathway+"\n")
+        outf.write(line[:-1] + "\t" + pathway + "\n")
     outf.close()

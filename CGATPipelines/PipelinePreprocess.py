@@ -41,6 +41,7 @@ import CGAT.IOTools as IOTools
 import CGAT.Fastq as Fastq
 import CGATPipelines.PipelineMapping as Mapping
 import CGAT.Sra as Sra
+import CGAT.Experiment as E
 
 
 def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
@@ -70,7 +71,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
 
     if infile.endswith(".sra"):
         # patch for SRA files, look at multiple tracks
-        f, fastq_format = Sra.peek(infile)
+        f, fastq_format, datatype = Sra.peek(infile)
         if len(f) == 2:
             tracks = [track + "_fastq_1", track + "_fastq_2"]
 
@@ -78,16 +79,21 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     for t in tracks:
         table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
 
+        # if sample name starts with a number, sql table will have
+        # prepended "_"
+        if re.match("^\d+.*", table):
+            table = "_" + table
+
         query = '''SELECT Possible_Source, Sequence FROM
         %s_fastqc_Overrepresented_sequences;''' % table
 
         cc = dbh.cursor()
+        # if there is no contamination table for even a single sample
+        # it will prevent the whole pipeline progressing
         try:
             found_contaminants.extend(cc.execute(query).fetchall())
-        except sqlite3.OperationalError, msg:
-            print msg
-            # empty table
-            continue
+        except sqlite3.OperationalError:
+            E.warn("No table found for {}".format(t))
 
     if len(found_contaminants) == 0:
         P.touch(outfile)
@@ -170,6 +176,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
                  save=True,
                  summarize=False,
                  threads=1,
+                 qual_format='phred64',
                  *args, **kwargs):
         self.save = save
         self.summarize = summarize
@@ -180,6 +187,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
             self.outdir = P.getTempDir(shared=True)
 
         self.processors = []
+        self.qual_format = qual_format
 
     def add(self, processor):
         """add a processor to the list of tools to be executed."""
@@ -241,7 +249,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
             else:
                 suffixes = [track + ".fastq.gz"]
 
-            if idx == len(self.processors)-1:
+            if idx == len(self.processors) - 1:
                 # last iteration, write to output files
                 next_files = [output_prefix + s
                               for s in suffixes]
@@ -266,7 +274,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
                 for fn in current_files:
                     cmd_processors.append(
                         """zcat %(fn)s
-                        | python %%(scriptsdir)s/fastq2summary.py
+                        | cgat fastq2summary
                         --guess-format=illumina-1.8
                         > %(fn)s.summary""")
 
@@ -504,6 +512,10 @@ class Cutadapt(ProcessTool):
 
     prefix = "cutadapt"
 
+    def __init__(self, options, threads=1, process_paired=0, *args, **kwargs):
+        self.process_paired = process_paired
+        ProcessTool.__init__(self, options, threads, *args, **kwargs)
+
     def build(self, infiles, outfiles, output_prefix):
         prefix = self.prefix
         processing_options = self.processing_options
@@ -512,23 +524,50 @@ class Cutadapt(ProcessTool):
         assert len(infiles) == len(outfiles)
 
         cmds = []
-        if int(untrimmed) == 0:
-            for infile, outfile in zip(infiles, outfiles):
+        if self.process_paired and len(infiles) == 2:
+            in1, in2 = infiles
+            out1, out2 = outfiles
 
-                    cmds.append('''zcat %(infile)s
-                    | cutadapt %(processing_options)s -
-                    2>> %(output_prefix)s.log
-                    | gzip > %(outfile)s;''' % locals())
+            if "fastq" in in1:
+                format = "--format=fastq"
+            elif "fasta" in in1:
+                format = "--format=fasta"
+            else:
+                format = ""
+
+            untrimmed_output1, untrimmed_output2 = \
+                [i.replace(".fast", "_untrimmed.fast")
+                 for i in infiles]
+
+            if untrimmed:
+                processing_options += \
+                    "--untrimmed-output=%(untrimmed_output1)s" \
+                    "--untrimmed-output-paired=%(untrimmed_output2)s" % locals()
+
+            cmds.append('''
+            cutadapt %(processing_options)s %(in1)s %(in2)s
+                     -p %(out2)s -o %(out1)s %(format)s
+            2>> %(output_prefix)s.log; ''' % locals())
+
+            if untrimmed:
+                cmds.append("gzip %s;" % untrimmed_output1)
+                cmds.append("gzip %s;" % untrimmed_output2)
+
         else:
             for infile, outfile in zip(infiles, outfiles):
-                    outfile_untrimmed = outfile.replace(".fastq",
-                                                        "_untrimmed.fastq")
-                    cmds.append('''zcat %(infile)s
-                    | cutadapt %(processing_options)s
-                    --untrimmed-output %(outfile_untrimmed)s -
-                    2>> %(output_prefix)s.log
-                    | gzip > %(outfile)s;
-                    gzip %(outfile_untrimmed)s;''' % locals())
+                outfile_untrimmed = outfile.replace(".fastq",
+                                                    "_untrimmed.fastq")
+                if untrimmed:
+                    processing_options += " --untrimmed-output=%s" % \
+                        outfile_untrimmed
+
+                cmds.append('''zcat %(infile)s
+                | cutadapt %(processing_options)s -
+                2>> %(output_prefix)s.log
+                | gzip > %(outfile)s;''' % locals())
+
+                if untrimmed:
+                    cmds.append("gzip %s;" % outfile_untrimmed)
 
         return " checkpoint; ".join(cmds)
 
@@ -551,10 +590,10 @@ class Reconcile(ProcessTool):
         assert len(infiles) == 2
         infile1, infile2 = infiles
 
-        cmd = """python %%(scriptsdir)s/fastqs2fastqs.py
+        cmd = """cgat fastqs2fastqs
         --method=reconcile
-        --output-filename-pattern=%(output_prefix)s.fastq.%%s.gz
-        %(infile1)s %(infile2)s
+        --output-filename-pattern=%(output_prefix)s.fastq.%%%%s.gz
+        %(infile1)s %(infile2)s;
         """ % locals()
 
         return cmd
@@ -610,11 +649,11 @@ class Flash(ProcessTool):
             infile_base2 = re.sub(".1.fastq.gz", ".2.fastq.gz", infile_base1)
             infile = re.sub(".fastq.1.gz", ".fastq.gz", infile1)
             postprocess_cmd = '''zcat %(infile)s |
-            python %%(scriptsdir)s/fastq2summary.py
+            cgat fastq2summary
             --guess-format=illumina-1.8 -v0
             > summary.dir/%(infile_base1)s.summary;
             zcat %(infile)s |
-            python %%(scriptsdir)s/fastq2summary.py
+            cgat fastq2summary
             --guess-format=illumina-1.8 -v0
             > summary.dir/%(infile_base2)s.summary
             ;''' % locals()
@@ -636,7 +675,7 @@ class ReverseComplement(ProcessTool):
         cmds = []
         for infile, outfile in zip(infiles, outfiles):
             cmds.append('''zcat %(infile)s
-            | python %%(scriptsdir)s/fastq2fastq.py
+            | cgat fastq2fastq
             --method=reverse-complement
             --log=%(output_prefix)s.log
             | gzip > %(outfile)s;
@@ -651,7 +690,7 @@ class Pandaseq(ProcessTool):
     prefix = "pandaseq"
 
     def get_num_files(self, infiles):
-        print "infiles=", infiles
+        print("infiles=", infiles)
         assert len(infiles) == 2
         return 1
 

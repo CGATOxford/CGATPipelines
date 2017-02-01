@@ -129,7 +129,7 @@ import CGAT.IOTools as IOTools
 import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGAT.FastaIterator as FastaIterator
-import PipelineEnrichment as PEnrichment
+import CGATPipelines.PipelineEnrichment as PEnrichment
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 import scipy.stats
 import CGAT.Stats as Stats
@@ -236,7 +236,7 @@ def connect():
 #     to_cluster = True
 
 #     statement = '''gunzip < %(infile)s
-#     | python %(scriptsdir)s/snp2counts.py
+#     | cgat snp2counts
 #             --genome-file=genome
 #             --module=contig-counts
 #     > %(outfile)s
@@ -291,7 +291,7 @@ if "refseq_filename_gtf" in PARAMS:
         # build map between mrna and prot
         tmpfilename1 = P.getTempFilename()
         statement = '''gunzip < %(infile_map)s 
-        | python %(scriptsdir)s/csv_cut.py mrnaAcc protAcc 
+        | cgat csv_cut mrnaAcc protAcc 
         | perl -p -e "s/\.\d+//g"
         > %(tmpfilename1)s
         '''
@@ -300,7 +300,7 @@ if "refseq_filename_gtf" in PARAMS:
         # build map between mrna and gene - use ccds gene
         tmpfilename2 = P.getTempFilename()
         statement = '''gunzip < %(infile_map)s 
-        | python %(scriptsdir)s/csv_cut.py mrnaAcc geneName
+        | cgat csv_cut mrnaAcc geneName
         | perl -p -e "s/\.\d+//g"
         > %(tmpfilename2)s
         '''
@@ -309,20 +309,20 @@ if "refseq_filename_gtf" in PARAMS:
         statement = '''gunzip < %(infile_gtf)s
         | awk -v FS="\\t" -v OFS="\\t" '
               { $2 = "protein_coding"; print } '
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
            --method=remove-duplicates --duplicate-feature=ucsc
            --log=%(outfile_gtf)s.log
            --verbose=2
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
            --method=add-protein-id --map-tsv-file=%(tmpfilename1)s
            --log=%(outfile_gtf)s.log
            --verbose=2
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
            --method=rename-genes=gene
            --map-tsv-file=%(tmpfilename2)s
            --log=%(outfile_gtf)s.log
            --verbose=2
-        | python %(scriptsdir)s/gtf2gtf.py
+        | cgat gtf2gtf
            --method=sort --sort-order=gene
         | gzip
         > %(outfile_gtf)s'''
@@ -372,7 +372,7 @@ if "refseq_filename_gtf" in PARAMS:
             outf.close()
 
             statement = '''cat < %(tmpfilename1)s
-            |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+            |cgat csv2db %(csv2db_options)s 
                --add-index=gene_id 
                --add-index=transcript_id 
                --add-index=refseq_transcript_id 
@@ -389,7 +389,7 @@ if "refseq_filename_gtf" in PARAMS:
             | perl -p -i -e "s/\.\d+//g"
             | awk 'BEGIN {printf("ccds_id\\tsrc_db\\tttranscript_id\\tprotein_id\\n")} 
                    /^ccds/ {next} {print}'
-            |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+            |cgat csv2db %(csv2db_options)s 
                --add-index=ccds_id 
                --add-index=transcript_id 
                --add-index=protein_id 
@@ -461,7 +461,7 @@ if "refseq_filename_gtf" in PARAMS:
         #     | perl -p -i -e "s/\.\d+//g"
         #     | awk 'BEGIN {printf("ccds_id\\tsrc_db\\tttranscript_id\\tprotein_id\\n")}
         #            /^ccds/ {next} {print}'
-        #     |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+        #     |cgat csv2db %(csv2db_options)s
         #        --add-index=ccds_id
         #        --add-index=transcript_id
         #        --add-index=protein_id
@@ -509,7 +509,7 @@ def importPseudogenes(infile, outfile):
     statement = '''
     zcat %(tmpfile)s.gz
     | perl -p -i -e "s/Parent Protein/protein_id/; s/Chromosome/contig/; s/Start Coordinate/start/; s/Stop Coordiante/end/"
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s 
                      --table=%(tablename)s
                      --add-index=protein_id
     > %(outfile)s
@@ -542,7 +542,7 @@ def importMGI(infile, outfile):
             "phenotype_id_106_att": "phenotype_id",
             "ensembl_gene_id_103": "gene_id"}
 
-        keys = columns.keys()
+        keys = list(columns.keys())
 
         mgi = R.useMart(biomart="biomart", dataset="markers")
         result = R.getBM(attributes=keys, mart=mgi)
@@ -580,7 +580,7 @@ def importMGI(infile, outfile):
 
             E.info("downloading data for %s" % filename)
 
-            keys = columns.keys()
+            keys = list(columns.keys())
 
             mgi = R.useMart(biomart="biomart", dataset="markers")
             result = R.getBM(attributes=keys,
@@ -639,7 +639,7 @@ def importMGI(infile, outfile):
             | %(pipeline_scriptsdir)s/hsort 1
             | uniq
             | awk '{ for (x=2; x<=NF; x++) { if ($x != "") { print; break;} } }'
-            |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+            |cgat csv2db %(csv2db_options)s 
                      --table=%(tablename)s
                      --add-index=marker_id
                      --add-index=allele_id
@@ -670,7 +670,7 @@ def loadGene2Omim(infile, outfile):
     }
 
     data = Biomart.biomart_iterator(
-        columns.keys(), biomart="ensembl", dataset="hsapiens_gene_ensembl")
+        list(columns.keys()), biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
     def transform_data(data):
         for result in data:
@@ -703,7 +703,7 @@ def loadHumanOrthologs(infile, outfile):
         }
 
         data = Biomart.biomart_iterator(
-            columns.keys(), biomart="ensembl", dataset="hsapiens_gene_ensembl")
+            list(columns.keys()), biomart="ensembl", dataset="hsapiens_gene_ensembl")
 
         P.importFromIterator(
             outfile, tablename, data,
@@ -803,7 +803,7 @@ def loadEnsembl2Uniprot(infile, outfile):
            s/UniProt\/SwissProt ID/swissprot_id/;       
            s/UniProt\/SwissProt Accession/swissprot_acc/;
            s/UniProt\/TrEMBL Accession/trembl_acc/"
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
+    |cgat csv2db %(csv2db_options)s \
         --add-index=gene_id \
         --add-index=transcript_id \
         --add-index=trembl_acc \
@@ -827,7 +827,7 @@ def buildBaseAnnotations(infile, outfile):
     dbname = outfile[:-len(".fasta")]
     statement = """
         gunzip < %(infile)s 
-        | python %(scriptsdir)s/gtf2fasta.py 
+        | cgat gtf2fasta 
                 --force-output 
                 --genome=%(genome_dir)s/%(genome)s 
                 --output-filename-pattern=annotations_bases.%%s 
@@ -853,12 +853,12 @@ def buildExonAnnotations(infile, outfile):
     statement = """
     gunzip < %(infile)s
     | awk '$3 == "CDS"'
-    | python %(scriptsdir)s/gff2gff.py
+    | cgat gff2gff
     --method=sanitize
     --sanitize-method=genome
     --skip-missing
     --genome-file=%(genome_dir)s/%(genome)s --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gff.py
+    | cgat gtf2gff
     --method=exons
     --restrict-source=protein_coding
     --log=%(outfile)s.log
@@ -883,13 +883,13 @@ def buildGeneAnnotations(infile, outfile):
     """
     statement = """
     gunzip < %(infile)s
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-exons
     --mark-utr
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gtf2gtf.py --method=set-transcript-to-gene
+    | cgat gtf2gtf --method=set-transcript-to-gene
     --log=%(outfile)s.log
-    | python %(scriptsdir)s/gff2gff.py --skip-missing --method=sanitize
+    | cgat gff2gff --skip-missing --method=sanitize
     --sanitize-method=genome
     --genome-file=%(genome_dir)s/%(genome)s
     --log=%(outfile)s.log
@@ -910,7 +910,7 @@ def makeGeneCounts(infile, outfile):
 
     statement = """
     cat < %(infile)s |\
-    python %(scriptsdir)s/gtf2table.py \
+    cgat gtf2table \
         --genome-file=genome \
         --counter=length \
         --log=%(outfile)s.log \
@@ -933,7 +933,7 @@ def buildAnnotations(infile, outfile, sample):
     bases = "annotations_bases"
 
     statement = """
-    python %(scriptsdir)s/snp2table.py 
+    cgat snp2table 
         --input-format=vcf
         --vcf-sample=%(sample)s
         --vcf-file=%(infile)s
@@ -959,7 +959,7 @@ def loadAnnotations(infile, outfile):
 
     statement = '''gunzip 
     < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s 
               --quick
               --map=gene_id:str 
               --add-index=gene_id 
@@ -985,7 +985,7 @@ def summarizeAnnotations(infile, outfile):
     # count substitutions for each category
     statement = '''gunzip 
     < %(infile)s
-    | python %(scriptsdir)s/csv_cut.py code reference_base genotype variant_type 
+    | cgat csv_cut code reference_base genotype variant_type 
     | awk '$4 == "variant_type" { printf("%%s-%%s-%%s\\tcounts\\n", $1,$2,$3); } 
            $4 == "E" || $4 == "O" {printf("%%s-%%s-%%s\\t1\\n", $1,$2,$3)}'
     | sort 
@@ -1012,7 +1012,7 @@ def loadAnnotationsSummary(infile, outfile):
 
     statement = '''cat
     < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s 
               --add-index=code
               --table=%(tablename)s
     > %(outfile)s
@@ -1037,7 +1037,7 @@ def buildEffects(infile, outfile, sample):
                                PARAMS_ANNOTATIONS["interface_geneset_cds_gtf"])
 
     statement = """
-    python %(scriptsdir)s/snp2counts.py 
+    cgat snp2counts 
         --genome-file=%(genome_dir)s/%(genome)s
         --input-format=vcf
         --vcf-sample=%(sample)s
@@ -1066,7 +1066,7 @@ def loadEffects(infile, outfile):
     root = infile[:-len(".effects.gz")]
 
     statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s \
+   cgat csv2db %(csv2db_options)s \
               --from-zipped \
               --add-index=transcript_id \
               --table=%(root)s_effects \
@@ -1079,7 +1079,7 @@ def loadEffects(infile, outfile):
         statement = '''
         gunzip 
         < %(infile)s.%(suffix)s.gz
-        |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+        |cgat csv2db %(csv2db_options)s 
         --allow-empty-file
         --add-index=transcript_id 
         --table=%(root)s_effects_%(suffix)s 
@@ -1116,7 +1116,7 @@ def mergeEffects(infiles, outfile):
     tmpfilename = outf.name
 
     statement = '''zcat %(tmpfilename)s 
-                   | python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+                   | cgat csv2db %(csv2db_options)s 
                        --add-index=transcript_id 
                        --table=%(tablename)s 
                    > %(outfile)s'''
@@ -1142,7 +1142,7 @@ def mergeEffects(infiles, outfile):
         tmpfilename = outf.name
 
         statement = '''zcat %(tmpfilename)s 
-                       | python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+                       | cgat csv2db %(csv2db_options)s 
                            --allow-empty-file
                            --add-index=transcript_id 
                            --table=%(tablename)s_%(suffix)s 
@@ -1169,7 +1169,7 @@ def buildAlleles(infile, outfile, sample):
                                PARAMS_ANNOTATIONS["interface_geneset_cds_gtf"])
 
     statement = """zcat %(transcripts)s 
-    | python %(scriptsdir)s/gtf2alleles.py 
+    | cgat gtf2alleles 
         --genome-file=%(genome_dir)s/%(genome)s
         --seleno-tsv-file=%(seleno)s 
         --output-filename-pattern=%(outfile)s.%%s.gz
@@ -1195,7 +1195,7 @@ def loadAlleles(infile, outfile):
     statement = '''gunzip
     < %(infile)s.table.gz
     | perl -p -e "s/False/0/g; s/True/1/g;"
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s 
               --add-index=gene_id 
               --add-index=transcript_id 
               --ignore-column=cds
@@ -1394,7 +1394,7 @@ def combineSummaryAllelesPerGene(infiles, outfile):
             for gene in genes:
                 all_genes[gene].add(track)
 
-        for gene_id, data in all_genes.iteritems():
+        for gene_id, data in all_genes.items():
             matrix = [0] * len(tracks)
             for x, track in enumerate(tracks):
                 if track in data:
@@ -1469,7 +1469,7 @@ def makeSNPCountsPerGene(infiles, outfile):
     statement = """
     gunzip < %(infile_snps)s |\
     grep -v "^NT" |\
-    python %(scriptsdir)s/snp2counts.py \
+    cgat snp2counts \
         --genome-file=genome \
         --exons-file=%(ensembl_filename_gtf)s \
         --log=%(outfile)s.log |\
@@ -1585,18 +1585,18 @@ def buildMultipleAlignments(infile, outfile):
     to_cluster = True
 
     statement = '''
-	python %(scriptsdir)s/align_transcripts.py \
-		--gtf-file=%(infile)s \
-		--cds-gtf-file=%(filename_cds)s \
-		--force-map \
-		--verbose=2 \
-		--output-filename-pattern=%(track)s_%%s.fasta \
-		--output-section=final_aa \
-		--output-section=final_na \
-		--output-section=aligned_aa \
-		--output-section=aligned_na \
-		--output-format="plain-fasta" \
-	< %(filename_pep)s > %(outfile)s
+    cgat align_transcripts \
+    --gtf-file=%(infile)s \
+    --cds-gtf-file=%(filename_cds)s \
+    --force-map \
+    --verbose=2 \
+    --output-filename-pattern=%(track)s_%%s.fasta \
+    --output-section=final_aa \
+    --output-section=final_na \
+    --output-section=aligned_aa \
+    --output-section=aligned_na \
+    --output-format="plain-fasta" \
+    < %(filename_pep)s > %(outfile)s
       '''
 
     P.run()
@@ -1613,18 +1613,18 @@ def buildMultipleAlignmentVariantColumns(infile, outfile):
     to_cluster = True
 
     statement = '''
-	python %(scriptsdir)s/malis2mali.py \
-		--gtf-file=%(infile)s \
-		--cds-gtf-file=%(filename_cds)s \
-		--force-map \
-		--verbose=2 \
-		--output-filename-pattern=%(track)s_%%s.fasta \
-		--output-section=final_aa \
-		--output-section=final_na \
-		--output-section=aligned_aa \
-		--output-section=aligned_na \
-		--output-format="plain-fasta" \
-	< %(filename_pep)s > %(outfile)s
+    cgat malis2mali \
+    --gtf-file=%(infile)s \
+    --cds-gtf-file=%(filename_cds)s \
+    --force-map \
+    --verbose=2 \
+    --output-filename-pattern=%(track)s_%%s.fasta \
+    --output-section=final_aa \
+    --output-section=final_na \
+    --output-section=aligned_aa \
+    --output-section=aligned_na \
+    --output-format="plain-fasta" \
+    < %(filename_pep)s > %(outfile)s
       '''
 
     P.run()
@@ -1693,10 +1693,10 @@ def buildMAF(infiles, outfile):
     statement = '''
     gunzip
     < transcripts.gtf.gz
-    | python %(scriptsdir)s/gtf2gtf.py
+    | cgat gtf2gtf
     --method=merge-transcripts
     | %(cmd-farm)s --split-at-lines=100 --log=%(outfile)s.log --is-binary -v 10 
-    "python %(scriptsdir)s/snp2maf.py 
+    "cgat snp2maf 
           --genome=genome 
           %(tracks)s 
           --reference=mm9 
@@ -1776,7 +1776,7 @@ def exportKnockoutLists(infiles, outfiles):
     data = list(dbhandle.execute(statement))
 
     d = dict(
-        zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns, zip(*data)))
+        list(zip(["gene_id", "gene_name", "nmd_knockout_total"] + columns, list(zip(*data)))))
 
     c = []
     for x in range(len(d["gene_id"])):
@@ -2047,7 +2047,7 @@ def loadPolyphenMap(infile, outfile):
 
     table = P.toTable(outfile)
     statement = '''
-   python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+   cgat csv2db %(csv2db_options)s
               --add-index=snp_id 
               --add-index=track,transcript_id
               --add-index=contig,pos
@@ -2074,7 +2074,7 @@ def loadPolyphen(infile, outfile):
     gunzip 
     < %(infile)s
     | perl -p -e "s/o_acc/protein_id/; s/ +//g; s/^#//;"
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    |cgat csv2db %(csv2db_options)s
               --add-index=snp_id 
               --add-index=protein_id
               --table=%(table)s 
@@ -2195,7 +2195,7 @@ def analysePolyphen(infile, outfile):
         len_p = float(nsnps) / length
 
         code = "".join([str(int(x < fdr))
-                       for x in (del_qvalue, len_qvalue, com_qvalue)])
+                        for x in (del_qvalue, len_qvalue, com_qvalue)])
 
         outf.write("\t".join((gene_id,
                               code,
@@ -2249,7 +2249,7 @@ def loadPolyphenAnalysis(infile, outfile):
 
     statement = '''
     cat < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    |cgat csv2db %(csv2db_options)s
               --add-index=gene_id 
               --map=code:str
               --table=%(table)s 
@@ -2351,7 +2351,7 @@ def loadPolyphenAnalysis(infile, outfile):
 #     statement = '''
 #     perl -p -e "s/snpId/snp_id/; s/seqId/protein_id/; s/HMM /hmm/g;"
 #     < %(infile)s
-#     |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+#     |cgat csv2db %(csv2db_options)s
 #               --add-index=snp_id
 #               --add-index=protein_id
 #               --table=%(table)s
@@ -2393,8 +2393,8 @@ def buildSharedSNPMatrix(infiles, outfiles):
                 matrix[(t1, t2)] += 1
                 matrix[(t2, t1)] += 1
 
-    all_tracks = set([x[0] for x in matrix.keys()] + [x[1]
-                     for x in matrix.keys()])
+    all_tracks = set([x[0] for x in list(matrix.keys())] + [x[1]
+                                                            for x in list(matrix.keys())])
 
     # output matrix with shared SNPs.
     outf = open(outfiles[0], "w")
@@ -2456,10 +2456,10 @@ def buildSharedSNPMatrix(infiles, outfiles):
     outfile_distance, outfile_tree = outfiles[3], outfiles[4]
 
     # build tree
-    statement = '''python %(scriptsdir)s/matrix2matrix.py
+    statement = '''cgat matrix2matrix
        --output-format=phylip
     < %(outfile_distance)s
-    | python %(scriptsdir)s/matrix2tree.py
+    | cgat matrix2tree
        --method=nj
     > %(outfile_tree)s
     '''
@@ -2603,7 +2603,7 @@ def buildSNPDensityIsochores(infile, outfile):
     '''build isochores with SNP density.'''
 
     statement = '''
-           python %(scriptsdir)s/windows2gff.py 
+           cgat windows2gff 
                 --genome=%(genome)s
                 --fixed-width-windows=1000000
                 --output-format=bed
@@ -2628,9 +2628,9 @@ def QTLSummary(infiles, outfile):
     for infile in infiles:
         basename = os.path.basename(infile)
         statement = '''
-        python %(scriptsdir)s/bed2gff.py
+        cgat bed2gff
         < %(infile)s
-        | python %(scriptsdir)s/gff2histogram.py
+        | cgat gff2histogram
                --method=all
                --output-filename-pattern=%(outfile)s.%(basename)s
                --log=%(outfile)s.log
@@ -2720,7 +2720,7 @@ def loadGATOnQTLs(infile, outfile):
 
     statement = '''
     cat < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    |cgat csv2db %(csv2db_options)s
               --add-index=track
               --add-index=annotation
               --table=%(table)s
@@ -2735,7 +2735,7 @@ def loadGATOnQTLs(infile, outfile):
         table = os.path.splitext(basename)[0]
         statement = '''
         cat < %(stat_file)s
-        |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+        |cgat csv2db %(csv2db_options)s
               --add-index=track
               --add-index=contig
               --table=%(table)s
@@ -2805,7 +2805,7 @@ def buildGeneMatrix(tracks, analysis, statement, outfile):
 
     outf = open(outfile, "w")
     outf.write("gene_id\t%s\n" % "\t".join("%s_%s" %
-               (x, y[0]) for x, y in itertools.product(tracks, analysis)))
+                                           (x, y[0]) for x, y in itertools.product(tracks, analysis)))
     for gene_id in all_genes:
         outf.write("%s\t%s\n" %
                    (gene_id, "\t".join(map(str, matrix[gene2row[gene_id]]))))
@@ -2948,7 +2948,7 @@ def runGeneListAnalysis(infiles, outfile):
         options = ""
 
     statement = '''
-    python %(scriptsdir)s/genelist_analysis.py 
+    cgat genelist_analysis 
            --format=matrix 
            --assignments-tsv-file=%(assignments)s 
            --fdr 
@@ -2971,7 +2971,7 @@ def loadGeneListAnalysis(infile, outfile):
 
     statement = '''
     cat < %(infile)s
-    |python %(scriptsdir)s/csv2db.py %(csv2db_options)s
+    |cgat csv2db %(csv2db_options)s
               --table=%(table)s
               --add-index=gene_list
               --add-index=pvalue

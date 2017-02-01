@@ -54,7 +54,7 @@ def countMappableBases(infile, outfile):
 def loadMappableBases(infile, outfile):
     '''load count of mappable bases in genome'''
     header = "total_mappable_bases"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=total_mappable_bases
                       --header-names=%(header)s
                    > %(outfile)s '''
@@ -93,7 +93,7 @@ def countMappableBasesPerContig(infiles, outfile):
 def loadMappableBasesPerContig(infile, outfile):
     '''load count of mappable bases per contig '''
     header = "contig,mappable_bases"
-    statement = '''cat %(infile)s | python %(scriptsdir)s/csv2db.py
+    statement = '''cat %(infile)s | cgat csv2db
                       --table=mappable_bases_per_contig
                       --header-names=%(header)s
                    > %(outfile)s '''

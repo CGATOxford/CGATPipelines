@@ -24,7 +24,7 @@ class replicatedUniqueIntervals(cpgTracker):
     def __call__(self, track, slice=None):
         data = self.getFirstRow(
             "SELECT COUNT(*) as number, round(AVG(stop-start),0) as length FROM %(track)s_replicated_unique_intervals" % locals())
-        return odict(zip(("Unique intervals", "mean_interval_length"), data))
+        return odict(list(zip(("Unique intervals", "mean_interval_length"), data)))
 
 ##########################################################################
 
@@ -182,7 +182,7 @@ class replicatedUniqueIntervalTranscriptOverlap(featureOverlap):
                                    group by feature_class
                                    order by feature_class asc""" % locals() )
 
-        return odict(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+        return odict(list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))
 
 ##########################################################################
 
@@ -207,4 +207,4 @@ class replicatedUniqueIntervalGeneOverlap(featureOverlap):
                                    group by feature_class
                                    order by feature_class asc""" % locals() )
 
-        return odict(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data))
+        return odict(list(zip(("Downstream", "Gene", "Intergenic", "TSS", "Upstream"), data)))

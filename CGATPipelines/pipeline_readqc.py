@@ -1,31 +1,7 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Analysis & Training Programme
-#
-#   $Id$
-#
-#   Copyright (C) 2014 David Sims
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
-
 """====================
 ReadQc pipeline
 ====================
 
-:Author: David Sims
 :Date: |today|
 :Tags: Python
 
@@ -168,18 +144,19 @@ PARAMS = P.PARAMS
 
 # define input files and preprocessing steps
 # list of acceptable input formats
-INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz"]
+INPUT_FORMATS = ["*.fastq.1.gz", "*.fastq.gz",
+                 "*.sra", "*.csfasta.gz", "*.remote"]
 
 # Regular expression to extract a track from an input file. Does not preserve
 # a directory as part of the track.
-REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+REGEX_TRACK = r"([^/]+).(fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
 # Regular expression to extract a track from both processed and unprocessed
 # files
 REGEX_TRACK_BOTH = \
-    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+    r"(processed.dir/)*([^/]+)\.(fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
-SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz)"
+SEQUENCEFILES_REGEX = r"(\S+).(?P<suffix>fastq.1.gz|fastq.gz|sra|csfasta.gz|remote)"
 
 
 def connect():
@@ -259,30 +236,34 @@ if PARAMS.get("preprocessors", None):
         '''
         trimmomatic_options = PARAMS["trimmomatic_options"]
 
+        if PARAMS["trimmomatic_adapter"]:
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
+                PARAMS["trimmomatic_adapter"],
+                PARAMS["trimmomatic_mismatches"],
+                PARAMS["trimmomatic_p_thresh"],
+                PARAMS["trimmomatic_c_thresh"],
+                PARAMS["trimmomatic_min_adapter_len"],
+                PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
+
         if PARAMS["auto_remove"]:
-            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
+            trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
                 "contaminants.fasta",
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
-                PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
-
-        else:
-            if PARAMS["trimmomatic_adapter"]:
-                trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s " % (
-                    PARAMS["trimmomatic_adapter"],
-                    PARAMS["trimmomatic_mismatches"],
-                    PARAMS["trimmomatic_p_thresh"],
-                    PARAMS["trimmomatic_c_thresh"]) + trimmomatic_options
+                PARAMS["trimmomatic_c_thresh"],
+                PARAMS["trimmomatic_min_adapter_len"],
+                PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
 
         job_threads = PARAMS["threads"]
-        job_memory = "7G"
+        job_memory = "12G"
 
         track = re.match(REGEX_TRACK, infile).groups()[0]
 
         m = PipelinePreprocess.MasterProcessor(
             save=PARAMS["save"],
             summarize=PARAMS["summarize"],
-            threads=PARAMS["threads"])
+            threads=PARAMS["threads"],
+            qual_format=PARAMS['qual_format'])
 
         for tool in P.asList(PARAMS["preprocessors"]):
 
@@ -320,7 +301,8 @@ if PARAMS.get("preprocessors", None):
                 m.add(PipelinePreprocess.Cutadapt(
                     cutadapt_options,
                     threads=PARAMS["threads"],
-                    untrimmed=PARAMS['cutadapt_reroute_untrimmed']))
+                    untrimmed=PARAMS['cutadapt_reroute_untrimmed'],
+                    process_paired=PARAMS["cutadapt_process_paired"]))
             else:
                 raise NotImplementedError("tool '%s' not implemented" % tool)
 
@@ -347,7 +329,7 @@ def reconcileReads(infile, outfile):
         job_threads = PARAMS["threads"]
         job_memory = "8G"
         statement = """python
-            %(scriptsdir)s/fastqs2fastqs.py
+            cgat fastqs2fastqs
             --method=reconcile
             --output-filename-pattern=%(outfile)s.fastq.%%s.gz
             %(in1)s %(in2)s"""
@@ -373,10 +355,13 @@ def runFastqc(infiles, outfile):
     if PARAMS['add_contaminants']:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc",
-                                   contaminants=PARAMS['contaminants'])
+                                   contaminants=PARAMS['contaminants'],
+                                   qual_format=PARAMS['qual_format'])
     else:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                   outdir=PARAMS["exportdir"] + "/fastqc")
+                                   outdir=PARAMS["exportdir"] + "/fastqc",
+                                   qual_format=PARAMS['qual_format'])
+
     if PARAMS["general_reconcile"] == 1:
         infiles = infiles.replace("processed.dir/trimmed",
                                   "reconciled.dir/trimmed")
@@ -420,7 +405,7 @@ def runFastqScreen(infiles, outfile):
     # using parameters from Pipeline.ini
     with IOTools.openFile(os.path.join(tempdir, "fastq_screen.conf"),
                           "w") as f:
-        for i, k in PARAMS.items():
+        for i, k in list(PARAMS.items()):
             if i.startswith("fastq_screen_database"):
                 f.write("DATABASE\t%s\t%s\n" % (i[22:], k))
 
@@ -469,7 +454,7 @@ def combineExperimentLevelReadQualities(infiles, outfile):
     Combine summaries of read quality for different experiments
     """
     infiles = " ".join(infiles)
-    statement = ("python %(scriptsdir)s/combine_tables.py "
+    statement = ("cgat combine_tables "
                  "  --log=%(outfile)s.log "
                  "  --regex-filename='.+/(.+)_per_sequence_quality.tsv' "
                  "%(infiles)s"
