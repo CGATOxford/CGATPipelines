@@ -74,8 +74,13 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         f, fastq_format, datatype = Sra.peek(infile)
         if len(f) == 2:
             tracks = [track + "_fastq_1", track + "_fastq_2"]
+    elif infile.endswith(".fastq.1.gz"):
+        tracks = [track + "_fastq_1", track + "_fastq_2"]
+    elif infile.endswith(".fastq.gz"):
+        tracks = [track + "_fastq"]
 
     found_contaminants = []
+
     for t in tracks:
         table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
 
@@ -94,7 +99,9 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
             found_contaminants.extend(cc.execute(query).fetchall())
         except sqlite3.OperationalError:
             E.warn("No table found for {}".format(t))
-
+		
+	print(found_contaminants)
+	
     if len(found_contaminants) == 0:
         P.touch(outfile)
         return
