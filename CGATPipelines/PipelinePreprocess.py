@@ -74,10 +74,10 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         f, fastq_format, datatype = Sra.peek(infile)
         if len(f) == 2:
             tracks = [track + "_fastq_1", track + "_fastq_2"]
-	elif infile.endswith(".fastq.1.gz"):
-    	tracks = [track + "_fastq_1", track + "_fastq_2"]
-	elif infile.endswith(".fastq.gz"):
-    	tracks = [track]
+    elif infile.endswith(".fastq.1.gz"):
+        tracks = [track + "_fastq_1", track + "_fastq_2"]
+    elif infile.endswith(".fastq.gz"):
+        tracks = [track]
 
     found_contaminants = []
     for t in tracks:
@@ -89,7 +89,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
             table = "_" + table
 
         query = '''SELECT Possible_Source, Sequence FROM
-        %s_fastqc_Overrepresented_sequences;''' % table
+        %s_fastqc_Overrepresented_sequences ''' % table
 
         cc = dbh.cursor()
         # if there is no contamination table for even a single sample
