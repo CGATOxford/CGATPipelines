@@ -1,39 +1,51 @@
-====
-MEME
-====
+=====================
+Ab-inito motif finding
+=====================
 
-MEME is used to find motifs ab-initio within each data set.
+Several Algorithms can be used to detect motifs, ab-inito and each can be run in several modes.
 
-To increase the signal/noise ratio, 200 bp segments centerered around the 10% of intervals
-with the highest peak value are used. Repeats are masked to reduce the change of finding low
-complexity repeats. MEME finds the top 10 motifs, permitting any number of
-motifs within the sequence collection. 
+Thus far MEME and DREME are implimented in both descrimative and non-descriminative modes.
 
-The following table shows the number of sequences submitted for the motif search:
+To increase the signal/noise ratio and reduce running time, subsets of sequence can be selected. 
+Intervals are sorted by peak strength, score or shuffled randomly, and then either the top n
+sequences or a fixed fraction of the sequences taken.
+
+It is also possible to set a fixed width for intervals.
+
+These settings can be different for each algorithm used.
+
+The following criteria were used for each alogrithm:
+
+.. report:: Motifs.SequenceSubset
+   :render: table
+   
+
+The following is a summary of the results of each motif finding run, with links to the more detailed
+results, including an analysis of the sequences used. 
+
+:ref:`memedetails`
 
 .. report:: Motifs.MemeRuns
    :render: table
+   :groupby: slice
    :force:
 
    Meme results.
 
-To see an overview of all motifs found across all sets visit the
-:ref:`MemeGallery`.
+
+.. report:: Motifs.DremeRuns
+   :render: table
+   :groupby: slice
+   :force:
+
+   Dreme results
+
+
+
 
 .. toctree::
-   :maxdepth: 2
+   :glob:
+   :hidden: 
 
-   MemeGallery
-
-.. Sequence composition
-.. ====================
-
-.. The following boxplot shows the distribution G+C content in the
-.. sequences used for motif discovery.
-
-.. .. report:: Motifs.MemeInputSequenceComposition
-..    :render: box-plot
-..    :slices: pGC
-
-..    Distribution of G+C content in sequences used for motif discovery.
-
+   *Gallery.rst
+   MemeGallery.rst
