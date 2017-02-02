@@ -437,8 +437,6 @@ class MastCurve(Mast):
         return data
 
 
-
-
 class MastPeakValWithMotif(Mast):
 
     '''return for each peakval the proportion of intervals
@@ -464,7 +462,6 @@ class MastPeakValWithMotif(Mast):
                               list(zip(*result)))))
 
 
-
 class MemeInputSequenceComposition(IntervalTracker):
 
     '''distribution of sequence composition in sequences
@@ -482,7 +479,7 @@ class MotifRuns(IntervalTracker):
 
     def getSlices(self):
         methods = self.getValues("SELECT DISTINCT method FROM %s_summary" %
-                              self.prog)
+                                 self.prog)
         return ["%s (:ref:`%s_details`)" % (method, method)
                 for method in methods]
 
@@ -526,7 +523,7 @@ class MotifRuns(IntervalTracker):
 
         return "`%s_%s <%s/%s.html>`_" % (self.prog,
                                           track,
-                                          self.getExportDir(track,slice),
+                                          self.getExportDir(track, slice),
                                           self.prog)
 
     def __call__(self, track, slice=None):
@@ -538,8 +535,8 @@ class MotifRuns(IntervalTracker):
 
         data.extend(self.getInputInfo(track, slice))
         data.append(("nmotifs", self.getNMotifs(track, slice)))
-        data.append(("Link",self.getLink(track, slice)))
-        data.append(("TomTom",self.getTomTomLink(track, slice)))
+        data.append(("Link", self.getLink(track, slice)))
+        data.append(("TomTom", self.getTomTomLink(track, slice)))
 
         print data
         return odict(data)
@@ -576,14 +573,14 @@ class DremeRuns(MotifRuns):
                 "SELECT SUM(nA+nG+nC+nT) FROM %s_dreme_motifseq_stats" % track)
             return (n, length)
 
-        return zip(("n_positive_seqs", "n_positive_bases"), 
+        return zip(("n_positive_seqs", "n_positive_bases"),
                    _getinfo(positives)) + \
             zip(("n_negative_seqs", "n_negatives_bases"),
                 _getinfo(negatives))
 
 
 class MemeChipRuns(MotifRuns):
-    prog="memechip"
+    prog = "memechip"
 
     def getInputInfo(self, track, slice):
         track = re.sub("-", "_", track)
@@ -801,6 +798,7 @@ class DremeResults(IntervalTracker):
 
         return result
         
+
 class MemeChipResults(IntervalTracker):
 
     def getTracks(self):
@@ -829,13 +827,12 @@ class MemeChipResults(IntervalTracker):
 
         results = self.getDataFrame(statement)
       
-        
         results["Similar motif found in"] = results["Similar motif found in"].apply(line2lines)
   
         img_tmp = '''.. image:: memechip.dir/%s_%i.png
    :scale: 25%%'''
         
-        results["logo"] = results["ID"].apply(lambda x: img_tmp % (track,x))
+        results["logo"] = results["ID"].apply(lambda x: img_tmp % (track, x))
         results["link"] = "`MEME-CHIP report <%s/index.html>`_" % resultsdir
 
         return results
@@ -848,7 +845,7 @@ class SequenceSubset(IntervalTracker):
     def __call__(self, track):
         
         def _P(key):
-            return P["%s_%s" % (track,key)]
+            return P["%s_%s" % (track, key)]
 
         if _P("num_sequences"):
             which = str(_P("num_sequences"))
@@ -858,7 +855,7 @@ class SequenceSubset(IntervalTracker):
             else:
                 mins = 0
             which = "%s%% (minimum %i) of" % (str(_P("proportion") * 100),
-                                           mins)
+                                              mins)
         else:
             which = "all"
 
@@ -898,7 +895,7 @@ class CompFullSubset(GeneSetComparision):
     slices = ["full", "subset"]
     pattern = "(.+)_motifseq_stats"
     slice2table = {"full": "%(track)s_composition",
-                    "subset": "%(track)s_%(prog)s_motifseq_stats"}
+                   "subset": "%(track)s_%(prog)s_motifseq_stats"}
 
 
 class CompFullSubsetGC(CompFullSubset):
@@ -934,7 +931,7 @@ class CompPosNeg(GeneSetComparision):
         else:
             track = groups[1]
 
-        track = re.sub("-","_",track)
+        track = re.sub("-", "_", track)
         return self.getValues(''' SELECT %(column)s
                                   FROM %(track)s_%(prog)s_motifseq_stats''')
 
@@ -994,94 +991,3 @@ class TomTomResults(IntervalTracker):
         data['link'] = ["`tomtom <%s/tomtom.html#match_q_%s_t_2_%s>`_" % (resultsdir, target_id, target_name)
                         for target_id, target_name in zip(data['query_id'], data['target_id'])]
         return data
-
-
-# class AnnotationsMatrix(DefaultTracker):
-
-
-#     def getSlices(self, subset = None):
-#         if subset: return subset
-#         return []
-
-#     def __call__(self, track, slice = None):
-
-#         result = odict()
-#         rows = ("intergenic", "intronic", "upstream", "downstream", "utr", "cds", "other")
-
-#         statement = self.getStatement(slice)
-#         data = self.get(statement % locals())
-#         levels = sorted(list(set([ x[7] for x in data ])))
-
-#         for row in rows:
-#             m = odict()
-#             for l in levels: m[l] = 0
-#             result[row] = m
-
-#         map_level2col = dict([(y,x) for x,y in enumerate(levels)])
-#         for intergenic, intronic, upstream, downstream, utr, coding, ambiguous, level in data:
-#             col = level
-#             for x,v in enumerate((intergenic, intronic, upstream, downstream, utr, coding, ambiguous)):
-#                 if v:
-#                     row=rows[x]
-#                     break
-#             else:
-#                 row = rows[-1]
-
-#             result[row][col] += 1
-
-#         return result
-
-# class AnnotationsMotifs(AnnotationsMatrix):
-#     '''return a matrix with intervals stratified by motif presence
-#     and location of the interval.
-#     '''
-
-#     mPattern = "_mast$"
-
-#     def getStatement(self, slice = None):
-
-#         statement = '''
-#         SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous,
-#           CASE WHEN m.nmatches > 0 THEN motif || '+' ELSE motif || '-' END
-#         FROM %(track)s_intervals AS i,
-#         %(track)s_annotations AS a ON a.gene_id = i.interval_id,
-#         %(track)s_mast AS m ON m.id = i.interval_id'''
-
-#         if slice is not None:
-#             statement += " AND motif = '%(slice)s'"
-#         return statement
-
-# class AnnotationsPeakVal(AnnotationsMatrix):
-#     '''return a matrix with intervals stratified by peakval
-#     and location of the interval.
-#     '''
-#     mPattern = "_annotations$"
-
-#     def getStatement(self, slice = None):
-
-#         statement = '''
-#         SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous,
-#         peakval
-#         FROM %(track)s_intervals AS i,
-#         %(track)s_annotations AS a ON a.gene_id = i.interval_id'''
-
-#         return statement
-
-# class AnnotationsPeakValData(DefaultTracker):
-#     '''return peakval for intervals falling into various regions.'''
-
-#     def getSlices(self, subset = None):
-#         if subset: return subset
-# return ("intergenic", "intronic", "upstream", "downstream", "utr",
-# "cds", "other")
-
-#     def __call__(self, track, slice = None):
-
-#         if slice == "other": slice = "ambiguous"
-
-#         statement = '''
-#         SELECT peakval
-#         FROM %(track)s_intervals AS i,
-#         %(track)s_annotations AS a ON a.gene_id = i.interval_id AND a.is_%(slice)s ''' % locals()
-
-#         return odict((("peakval", self.getValues(statement)),))

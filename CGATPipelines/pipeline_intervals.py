@@ -174,7 +174,6 @@ import os
 import sqlite3
 import pysam
 import numpy
-import xml.etree.ElementTree
 
 from ruffus import *
 from ruffus.task import task_decorator
@@ -956,6 +955,7 @@ def loadOverlap(infile, outfile):
 
     P.run()
 
+
 def exportIntervalSequences(infile, outfile, track, method):
     '''export sequences for motif discovery.
 
@@ -1092,6 +1092,7 @@ def getMemeSeeds(infiles, outfile):
     alignments, motifs = infiles
     PipelineMotifs.getSeedMotifs(motifs, alignments, outfile)
 
+
 ############################################################
 @permutations(getMemeSeeds,
               formatter("meme.dir/(?P<TRACK>.+).meme.seeds"),
@@ -1111,6 +1112,7 @@ def compareMemeTracks(infiles, outfile):
 def meme():
     pass
 
+
 ############################################################
 def getdescMEMEfiles():
 
@@ -1125,7 +1127,7 @@ def getdescMEMEfiles():
         pos, neg = line.strip().split("\t")
         posf = "%s.meme.fasta" % pos
         negf = "%s.meme.fasta" % neg
-        out = "disc_meme.dir/%s_vs_%s.psp" %(pos,neg)
+        out = "disc_meme.dir/%s_vs_%s.psp" % (pos, neg)
         yield ((posf, negf), out)
 
 
@@ -1280,8 +1282,9 @@ def getDiscDREMEFiles():
         pos, neg = line.strip().split("\t")
         posf = "%s.dreme.fasta" % pos
         negf = "%s.dreme.fasta" % neg
-        out = "disc_dreme.dir/%s_vs_%s.dreme" %(pos,neg)
+        out = "disc_dreme.dir/%s_vs_%s.dreme" % (pos, neg)
         yield ((posf, negf), out)
+
 
 @active_if("disc_dreme" in PARAMS["methods"])
 @follows(mkdir("disc_dreme.dir"), exportDremeIntervalSequences)
@@ -1338,7 +1341,7 @@ def discDreme():
 
 
 ############################################################
-#MEME-ChIP
+# MEME-ChIP
 ############################################################
 @active_if("memechip" in PARAMS["methods"])
 @transform(loadIntervals,
@@ -1420,7 +1423,7 @@ def getSeqlogosFromMemeChip(infiles, outfiles):
     '''get png seqlogos for each of the seed motifs found'''
 
     table, memefile = infiles
-    track = re.match("memechip.dir/(.+).memechip.tsv",table).groups()[0]
+    track = re.match("memechip.dir/(.+).memechip.tsv", table).groups()[0]
     statement = []
     for nmotif, motif in enumerate(IOTools.openFile(table)):
         if motif.startswith("primary_id"):
@@ -1505,7 +1508,7 @@ def loadMemeSummary(infiles, outfile):
             continue
         method = re.match("(.+).dir/", infile).groups()[0]
         track = os.path.basename(".".join(infile.split(".")[:-1]))
-        outf.write("%s\t%s\n" % (method,track))
+        outf.write("%s\t%s\n" % (method, track))
 
     outf.close()
 

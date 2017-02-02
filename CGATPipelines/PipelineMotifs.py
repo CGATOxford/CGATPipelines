@@ -47,7 +47,7 @@ import shutil
 import glob
 import xml.etree.ElementTree
 import random
-from itertools import izip, product
+from itertools import izip
 
 import pandas
 import logging as L
@@ -61,8 +61,9 @@ import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.Bioprospector as Bioprospector
 import CGAT.FastaIterator as FastaIterator
-from CGAT.MEME import MemeMotif, MemeMotifFile, MotifCluster, MotifList
+from CGAT.MEME import MotifCluster, MemeMotifFile
 from CGAT.FastaIterator import FastaRecord
+from CGAT import Motifs
 
 # Set from importing module
 PARAMS = {}
@@ -98,7 +99,6 @@ def maskSequences(sequences, masker=None):
         dust/dustmasker * run dustmasker on sequences
         softmask        * use softmask to hardmask sequences
     '''
-
 
     if masker in ("dust", "dustmasker"):
         masker_object = Masker.MaskerDustMasker()
@@ -255,8 +255,7 @@ def getFASTAFromBed(beds, fasta, stranded, offset, maxsize):
         else:
             strand = "+"
         
-        
-        seq = ''.join(fasta.getSequence(bed.contig, 
+        seq = ''.join(fasta.getSequence(bed.contig,
                                         strand, interval[0], interval[1])
                       for interval in bed.toIntervals())
 
@@ -273,7 +272,6 @@ def getFASTAFromBed(beds, fasta, stranded, offset, maxsize):
                            bed.start, bed.end),
                           seq)
 
-        
 
 def shuffleFasta(sequences):
 
@@ -282,6 +280,7 @@ def shuffleFasta(sequences):
         random.shuffle(sequence)
         fasta.sequence = "".join(sequence)
         yield fasta
+
 
 def writeSequencesForIntervals(track,
                                filename,
@@ -344,15 +343,15 @@ def writeSequencesForIntervals(track,
             "Unknown value passed as order parameter, check your ini file")
 
     tablename = "%s_intervals" % P.tablequote(track)
-    statement = '''SELECT contig, start, end, interval_id, score, strand, peakcenter 
-                       FROM %(tablename)s 
+    statement = '''SELECT contig, start, end, interval_id, score, strand, peakcenter
+                       FROM %(tablename)s
                        ''' % locals() + orderby
 
     cc.execute(statement)
     data = cc.fetchall()
     cc.close()
 
-    E.debug("Got %s intervals for track %s" % ( len(data), track))
+    E.debug("Got %s intervals for track %s" % (len(data), track))
     if len(data) == 0:
         P.touch(filename)
         return
@@ -370,7 +369,7 @@ def writeSequencesForIntervals(track,
 
     # modify the ranges
     if shift == "leftright":
-        beds = shitfBeds(beds)
+        beds = shiftBeds(beds)
 
     if halfwidth and not full:
         beds = centreAndCrop(beds, halfwidth)
@@ -387,7 +386,6 @@ def writeSequencesForIntervals(track,
             ids, sequences = zip(*[(x.title, x.sequence) for x in sequences])
             sequences = maskSequences(sequences, masker)
             sequences = (FastaRecord(id, seq) for id, seq in izip(ids, sequences))
-
 
     with IOTools.openFile(filename, "w") as outs:
 
@@ -895,7 +893,7 @@ def runGLAM2(infile, outfile, dbhandle):
     tmpdir = tempfile.mkdtemp()
     tmpfasta = os.path.join(tmpdir, "in.fa")
 
-    nseq = PipelineMotifs.writeSequencesForIntervals(
+    nseq = writeSequencesForIntervals(
         track, tmpfasta,
         dbhandle,
         full=False,
@@ -952,7 +950,7 @@ def collectMEMEResults(tmpdir, target_path, outfile,
         try:
             shutil.copyfile(os.path.join(target_path, "combined.meme"), outfile)
         except IOError:
-            E.warn ("%s: No motifs found")
+            E.warn("%s: No motifs found")
             P.touch(outfile)
 
     # convert images to png
@@ -1129,7 +1127,6 @@ def runMemeCHIP(infile, outfile, motifs=None):
 
     P.run()
    
-
     collectMEMEResults(tmpdir, target_path, outfile, method="memechip")
 
     
@@ -1165,6 +1162,8 @@ def runTomTom(infile, outfile):
     shutil.move(tmpdir, target_path)
 
     shutil.copyfile(os.path.join(target_path, "tomtom.txt"), outfile)
+
+
 def loadTomTom(infile, outfile):
     '''load tomtom results'''
 
@@ -1211,7 +1210,7 @@ def loadTomTom(infile, outfile):
     os.unlink(tmpfile.name)
 
 
-def runDREME(infile, outfile, neg_file = "", options = ""):
+def runDREME(infile, outfile, neg_file="", options=""):
     ''' Run DREME on fasta file. If a neg_file is passed
     then DREME will use this as the negative set, otherwise
     the default is to shuffle the input '''
@@ -1249,6 +1248,7 @@ def runDREME(infile, outfile, neg_file = "", options = ""):
 
     collectMEMEResults(tmpdir, target_path, outfile, method="dreme")
 
+
 def runFIMO(motifs, database, outfile, exportdir, options={}):
     '''run fimo to look for occurances of motifs supplied in sequence database.
     :param:`motifs` is the path to a MEME formated motif file.
@@ -1259,20 +1259,18 @@ def runFIMO(motifs, database, outfile, exportdir, options={}):
                     --option=value and will overwrite options specified in the
                      PARAMs'''
 
-
     # if the motifs file is empty, then fimo will return an error
     # this isn't very useful behavoir.
 
     inlines = IOTools.openFile(motifs).read()
-    #print inlines
+
     if not re.search("MOTIF", inlines):
         E.warning("No motifs found in %s" % motifs)
         P.touch(outfile)
         return
     else:
-        E.debug("%s: %i motifs found" % 
+        E.debug("%s: %i motifs found" %
                 (motifs, len(re.findall("MOTIF", inlines))))
-
 
     fimo_options = PARAMS.get("fimo_options", "")
     for option, value in options.iteritems():
@@ -1287,8 +1285,8 @@ def runFIMO(motifs, database, outfile, exportdir, options={}):
     track = os.path.basename(outfile)
     exportdir = os.path.abspath(exportdir)
 
-    xmlout = P.snip(outfile,".txt") + ".xml"
-    logfile = P.snip(outfile,".txt") + ".log"
+    xmlout = P.snip(outfile, ".txt") + ".xml"
+    logfile = P.snip(outfile, ".txt") + ".log"
     gffout = os.path.join(exportdir, track + ".gff")
     htmlout = os.path.join(exportdir, track + ".html")
     
