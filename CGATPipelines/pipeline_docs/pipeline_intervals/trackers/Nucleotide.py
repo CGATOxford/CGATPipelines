@@ -20,8 +20,8 @@ class pGC(Annotations.AnnotationSlicer, IntervalTracker):
 
     mXLabel = "distance / bases"
     mPattern = "_intervals$"
-    mColumn = "pGC"
-    mTable = "nuc"
+    mColumn = "CpG_density"
+    mTable = "composition"
     mAnnotations = "annotations"
 
     def __call__(self, track, slice=None):
@@ -48,9 +48,9 @@ class TSS(Annotations.AnnotationSlicer, IntervalTracker):
 
     mXLabel = "distance / bases"
     mPattern = "_intervals$"
-    mColumn = "pGC"
-    mTable1 = "tss_withoverlap_nuc"
-    mTable2 = "tss_woutoverlap_nuc"
+    mColumn = "CpG_density"
+    mTable1 = "tss_withoverlap_composition"
+    mTable2 = "tss_woutoverlap_composition"
     mAnnotations = "annotations"
 
     def getNormValues(self, track, table):
@@ -86,9 +86,9 @@ class GCvsCounts(Annotations.AnnotationSlicer, IntervalTracker):
 
     mXLabel = "distance / bases"
     mPattern = "_intervals$"
-    mColumn1 = "pGC"
+    mColumn1 = "CpG_density"
     mColumn2 = "avgval"
-    mTable1 = "nuc"
+    mTable1 = "composition"
     mTable2 = "intervals"
     mAnnotations = "annotations"
 

@@ -1,14 +1,15 @@
-.. _meme_details:
+.. _rand_dreme_details:
 
-Meme Detailed Results
-=====================
+=================================
+Randomized DREME Detailed Results
+=================================
 
 The following table lists all the motifs found.
 
-.. report:: Motifs.MemeResults
+.. report:: Motifs.DremeResults
    :render: table
    :groupby: track
-   :slices: meme
+   :slices: rand_dreme
    :force:
 
    Meme results, showing for each motif the width,
@@ -21,10 +22,10 @@ interval set:
 
 .. report:: Motifs.CompFullSubsetLength
    :render: r-ggplot
-   :tracks: r(_meme)
+   :tracks: r(_dreme)
    :groupby: track
    :layout: column-3
    :statement: aes(value) + geom_bar() + scale_x_log10() + facet_grid(slice~., scale="free_y") + theme_bw()
 
-   Length distribution of full interval set vs subset used for meme motif calling
+   Length distribution of full interval set vs subset used for dreme motif calling
 

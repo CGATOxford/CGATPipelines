@@ -45,7 +45,11 @@ import tempfile
 import collections
 import shutil
 import glob
+import xml.etree.ElementTree
+import random
+from itertools import izip, product
 
+import pandas
 import logging as L
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -57,6 +61,8 @@ import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.Bioprospector as Bioprospector
 import CGAT.FastaIterator as FastaIterator
+from CGAT.MEME import MemeMotif, MemeMotifFile, MotifCluster, MotifList
+from CGAT.FastaIterator import FastaRecord
 
 # Set from importing module
 PARAMS = {}
@@ -92,6 +98,7 @@ def maskSequences(sequences, masker=None):
         dust/dustmasker * run dustmasker on sequences
         softmask        * use softmask to hardmask sequences
     '''
+
 
     if masker in ("dust", "dustmasker"):
         masker_object = Masker.MaskerDustMasker()
@@ -155,6 +162,127 @@ def exportSequencesFromBedFile(infile, outfile, masker=None, mode="intervals"):
     outs.close()
 
 
+def bedsFromList(data):
+    ''' takes a list of data and returns a bed object'''
+
+    for interval in data:
+        bed = Bed.Bed()
+        try:
+            bed.contig, bed.start, bed.end = \
+                        interval[0], int(interval[1]), int(interval[2])
+        except IndexError:
+            raise ValueError("Insufficient fields to generate bed entry")
+        except ValueError:
+            raise ValueError("Fields 2 and 3 must be integer")
+        bed.fields = interval[3:]
+
+        yield bed
+
+
+def shiftBeds(beds):
+    '''Create two bed intervals on either side of the
+    original interval'''
+
+    for bed in beds:
+        
+        left = bed.copy()
+        right = bed.copy()
+        length = bed.end - bed.start
+
+        left.start = bed.start - length
+        left.end = bed.start
+        left["name"] = str(left["name"]) + "_left"
+        yield left
+
+        right.start = bed.end
+        right.end = bed.end + length
+        right["name"] = str(bed["name"]) + "_right"
+        yield right
+
+
+def centreAndCrop(beds, halfwidth):
+    '''Centre each bed around the peakcenter (given in the thickStart entry)
+    and take "halfwidth" either side'''
+
+    for bed in beds:
+        try:
+            bed.start = int(bed["thickStart"]) - halfwidth
+            bed.end = int(bed["thickStart"]) + halfwidth
+        except:
+            print bed.fields
+            raise
+
+        yield bed
+
+
+def truncateList(data, track, proportion=None, min_sequences=None, num_sequences=None,
+                 shuffle=False):
+
+    if shuffle:
+        random.shuffle(data)
+
+    if proportion:
+        cutoff = int(len(data) * proportion) + 1
+        if min_sequences:
+            cutoff = max(cutoff, min_sequences)
+    elif num_sequences:
+        cutoff = num_sequences
+    else:
+        cutoff = len(data)
+
+    E.debug("Using %s sequences for track %s" % (cutoff, track))
+
+    for dataum in data[:cutoff]:
+        yield dataum
+
+
+def getFASTAFromBed(beds, fasta, stranded, offset, maxsize):
+
+    # get the sequences - cut at number of nucleotides
+    current_size, nseq = 0, 0
+    for bed in beds:
+        lcontig = fasta.getLength(bed.contig)
+        start, end = max(0, bed.start + offset), min(bed.end + offset, lcontig)
+
+        if start >= end:
+            E.info("writeSequencesForIntervals %s: sequence %s is empty: "
+                   "start=%i, end=%i, offset=%i - ignored" %
+                   (bed.track, bed.name, start, end, offset))
+            continue
+
+        if stranded:
+            strand = bed.strand
+        else:
+            strand = "+"
+        
+        
+        seq = ''.join(fasta.getSequence(bed.contig, 
+                                        strand, interval[0], interval[1])
+                      for interval in bed.toIntervals())
+
+        current_size += len(seq)
+        if maxsize and current_size >= maxsize:
+            E.info("writeSequencesForIntervals %s: maximum size (%i) reached"
+                   "- only %i sequences output" % (bed.track, maxsize, nseq))
+            break
+
+        nseq += 1
+
+        yield FastaRecord("%s_%s %s:%i-%i" %
+                          (bed.track, str(bed.name), bed.contig,
+                           bed.start, bed.end),
+                          seq)
+
+        
+
+def shuffleFasta(sequences):
+
+    for fasta in sequences:
+        sequence = list(fasta.sequence)
+        random.shuffle(sequence)
+        fasta.sequence = "".join(sequence)
+        yield fasta
+
 def writeSequencesForIntervals(track,
                                filename,
                                dbhandle,
@@ -168,7 +296,8 @@ def writeSequencesForIntervals(track,
                                num_sequences=None,
                                min_sequences=None,
                                order="peakval",
-                               shift=None):
+                               shift=None,
+                               stranded=False):
     '''build a sequence set for motif discovery. Intervals are taken from
     the table <track>_intervals in the database *dbhandle* and save to
     *filename* in :term:`fasta` format.
@@ -203,22 +332,19 @@ def writeSequencesForIntervals(track,
     truncated the same way as the main intervals.
 
     '''
-
-    fasta = IndexedFasta.IndexedFasta(
-        os.path.join(PARAMS["genome_dir"], PARAMS["genome"]))
-
     cc = dbhandle.cursor()
 
+    orderby = ""
     if order == "peakval":
         orderby = " ORDER BY peakval DESC"
     elif order == "max":
         orderby = " ORDER BY score DESC"
-    else:
+    elif order != "random":
         raise ValueError(
             "Unknown value passed as order parameter, check your ini file")
 
     tablename = "%s_intervals" % P.tablequote(track)
-    statement = '''SELECT contig, start, end, interval_id, peakcenter 
+    statement = '''SELECT contig, start, end, interval_id, score, strand, peakcenter 
                        FROM %(tablename)s 
                        ''' % locals() + orderby
 
@@ -226,18 +352,16 @@ def writeSequencesForIntervals(track,
     data = cc.fetchall()
     cc.close()
 
-    if proportion:
-        cutoff = int(len(data) * proportion) + 1
-        if min_sequences:
-            cutoff = max(cutoff, min_sequences)
-    elif num_sequences:
-        cutoff = num_sequences
-    else:
-        cutoff = len(data)
-        L.info("writeSequencesForIntervals %s: using at most %i sequences for pattern finding" % (
-            track, cutoff))
+    E.debug("Got %s intervals for track %s" % ( len(data), track))
+    if len(data) == 0:
+        P.touch(filename)
+        return
 
-    data = data[:cutoff]
+    data = truncateList(data, track,
+                        proportion, min_sequences, num_sequences,
+                        order == "random")
+
+    beds = bedsFromList(data)
 
     L.info("writeSequencesForIntervals %s: masker=%s" % (track, str(masker)))
 
@@ -245,72 +369,40 @@ def writeSequencesForIntervals(track,
         os.path.join(PARAMS["genome_dir"], PARAMS["genome"]))
 
     # modify the ranges
-    if shift:
-        if shift == "leftright":
-            new_data = [(contig, start - (end - start), start, str(interval_id) + "_left", peakcenter)
-                        for contig, start, end, interval_id, peakcenter in data]
-            new_data.extend([(contig, end, end + (end - start), str(interval_id) + "_right", peakcenter)
-                             for contig, start, end, interval_id, peakcenter in data])
-        data = new_data
+    if shift == "leftright":
+        beds = shitfBeds(beds)
 
-    if halfwidth:
-        # center around peakcenter, add halfwidth on either side
-        data = [(contig, peakcenter - halfwidth, peakcenter + halfwidth, interval_id)
-                for contig, start, end, interval_id, peakcenter in data]
-    else:
-        # remove peakcenter
-        data = [(contig, start, end, interval_id)
-                for contig, start, end, interval_id, peakcenter in data]
+    if halfwidth and not full:
+        beds = centreAndCrop(beds, halfwidth)
 
-    # get the sequences - cut at number of nucleotides
-    sequences = []
-    current_size, nseq = 0, 0
-    new_data = []
-    for contig, start, end, interval_id in data:
-        lcontig = fasta.getLength(contig)
-        start, end = max(0, start + offset), min(end + offset, lcontig)
-        if start >= end:
-            L.info("writeSequencesForIntervals %s: sequence %s is empty: start=%i, end=%i, offset=%i - ignored" %
-                   (track, id, start, end, offset))
-            continue
-        seq = fasta.getSequence(contig, "+", start, end)
-        sequences.append(seq)
-        new_data.append((start, end, interval_id, contig))
-        current_size += len(seq)
-        if maxsize and current_size >= maxsize:
-            L.info("writeSequencesForIntervals %s: maximum size (%i) reached - only %i sequences output (%i ignored)" %
-                   (track, maxsize, nseq, len(data) - nseq))
-            break
-        nseq += 1
-
-    data = new_data
+    sequences = getFASTAFromBed(beds, fasta, stranded, offset, maxsize)
 
     if shuffled:
-        # note that shuffling is done on the unmasked sequences
-        # Otherwise N's would be interspersed with real sequence
-        # messing up motif finding unfairly. Instead, masking is
-        # done on the shuffled sequence.
-        sequences = [list(x) for x in sequences]
-        for sequence in sequences:
-            random.shuffle(sequence)
-        sequences = maskSequences(["".join(x) for x in sequences], masker)
+        sequences = shuffleFasta(sequences)
 
     c = E.Counter()
     outs = IOTools.openFile(filename, "w")
     for masker in masker:
         if masker not in ("unmasked", "none", None):
+            ids, sequences = zip(*[(x.title, x.sequence) for x in sequences])
             sequences = maskSequences(sequences, masker)
+            sequences = (FastaRecord(id, seq) for id, seq in izip(ids, sequences))
 
-    for sequence, d in zip(sequences, data):
-        c.input += 1
-        if len(sequence) == 0:
-            c.empty += 1
-            continue
-        start, end, id, contig = d
-        id = "%s_%s %s:%i-%i" % (track, str(id), contig, start, end)
-        outs.write(">%s\n%s\n" % (id, sequence))
-        c.output += 1
-    outs.close()
+
+    with IOTools.openFile(filename, "w") as outs:
+
+        for sequence in sequences:
+            c.input += 1
+            if len(sequence.sequence) == 0:
+                c.empty += 1
+                continue
+            if len(sequence.sequence) < 0:
+                c.too_short += 1
+                continue
+
+            outs.write(">%s\n%s\n" % (sequence.title, sequence.sequence))
+            c.output += 1
+        outs.close()
 
     E.info("%s" % c)
 
@@ -833,7 +925,8 @@ def runGLAM2(infile, outfile, dbhandle):
     shutil.copyfile(os.path.join(target_path, "glam2.txt"), outfile)
 
 
-def collectMEMEResults(tmpdir, target_path, outfile):
+def collectMEMEResults(tmpdir, target_path, outfile,
+                       method="meme"):
     '''collect output from a MEME run in tmpdir
     and copy all over to target_path
 
@@ -851,7 +944,16 @@ def collectMEMEResults(tmpdir, target_path, outfile):
         shutil.rmtree(target_path)
     shutil.move(tmpdir, target_path)
 
-    shutil.copyfile(os.path.join(target_path, "meme.txt"), outfile)
+    if method == "dreme":
+        shutil.copyfile(os.path.join(target_path, "dreme.txt"), outfile)
+    elif method == "meme":
+        shutil.copyfile(os.path.join(target_path, "meme.txt"), outfile)
+    elif method == "memechip":
+        try:
+            shutil.copyfile(os.path.join(target_path, "combined.meme"), outfile)
+        except IOError:
+            E.warn ("%s: No motifs found")
+            P.touch(outfile)
 
     # convert images to png
     epsfiles = glob.glob(os.path.join(target_path, "*.eps"))
@@ -882,7 +984,7 @@ def runMEME(track, outfile, dbhandle):
     # job_options = "-l mem_free=8000M"
 
     target_path = os.path.join(
-        os.path.abspath(PARAMS["exportdir"]), "meme", outfile)
+        os.path.abspath(PARAMS["exportdir"]), outfile)
 
     fasta = IndexedFasta.IndexedFasta(
         os.path.join(PARAMS["genome_dir"], PARAMS["genome"]))
@@ -912,38 +1014,84 @@ def runMEME(track, outfile, dbhandle):
         collectMEMEResults(tmpdir, target_path, outfile)
 
 
-def runMEMEOnSequences(infile, outfile):
-    '''run MEME to find motifs.
+def generatePSP(positives, negatives, outfile):
+    ''' generate a discrimitative PSP file from
+    the positives and negatives that can be used
+    to do descriminative MEME '''
 
-    In order to increase the signal/noise ratio,
-    MEME is not run on all intervals but only the 
-    top 10% of intervals (peakval) are used. 
-    Also, only the segment of 200 bp around the peak
-    is used and not the complete interval.
+    psp_options = PARAMS["psp_options"]
+    
+    nseqs_pos = int(FastaIterator.count(positives))
+    nseqs_neg = int(FastaIterator.count(negatives))
 
-    * Softmasked sequence is converted to hardmasked
-      sequence to avoid the detection of spurious motifs.
+    if nseqs_pos < 2 or nseqs_neg < 2:
+        E.warn("%s: input files do not have sufficent sequences"
+               "to run psp-gen, skipping" % outfile)
+        P.touch(outfile)
+        return
 
-    * Sequence is run through dustmasker
+    # get appropriate options from meme options
+    if PARAMS.get("meme_revcomp", True):
+        psp_options += " -revcomp"
+
+    statement = '''psp-gen -pos %(positives)s
+                           -neg %(negatives)s
+                           %(psp_options)s
+                   > %(outfile)s '''
+
+    P.run()
+
+        
+def runMEMEOnSequences(infile, outfile, background=None,
+                       psp=None):
+    '''run MEME on fasta sequences to find motifs
+   
+    By defualt MEME calculates a zero-th order background
+    model from the nucleotide frequencies in the input set.
+
+    To use a different background set, a background
+    file created by fasta-get-markov must be supplied.
+
+    To perform descrimantive analysis a position specific
+    prior (psp) file must be provided. This can be generated
+    used generatePSP.
+
     '''
     # job_options = "-l mem_free=8000M"
 
     nseqs = int(FastaIterator.count(infile))
-    if nseqs == 0:
-        E.warn("%s: no sequences - meme skipped" % outfile)
+    if nseqs < 2:
+        E.warn("%s: less than 2 sequences - meme skipped" % outfile)
         P.touch(outfile)
         return
+    
+    if PARAMS.get("meme_revcomp", True):
+        revcomp = "-revcomp"
+    else:
+        revcomp = ""
 
     target_path = os.path.join(
-        os.path.abspath(PARAMS["exportdir"]), "meme", outfile)
+        os.path.abspath(PARAMS["exportdir"]),  outfile)
     tmpdir = P.getTempDir(".")
+    if background:
+        background_model = "-bfile %s" % background
+    else:
+        background_model = ""
+
+    if psp:
+        E.info("Running MEME in descriminative mode")
+        psp_file = "-psp %s" % psp
+    else:
+        psp_file = ""
 
     statement = '''
-    meme %(infile)s -dna -revcomp
+    meme %(infile)s -dna %(revcomp)s
     -mod %(meme_model)s
     -nmotifs %(meme_nmotifs)s
     -oc %(tmpdir)s
-    -maxsize %(motifs_max_size)s
+    -maxsize %(meme_max_size)s
+    %(background_model)s
+    %(psp_file)s
     %(meme_options)s
        > %(outfile)s.log
     '''
@@ -953,6 +1101,38 @@ def runMEMEOnSequences(infile, outfile):
     collectMEMEResults(tmpdir, target_path, outfile)
 
 
+def runMemeCHIP(infile, outfile, motifs=None):
+    '''Run the MEME-CHiP pipeline on the input files.
+    optional motifs files can be supplied as a list'''
+
+    if motifs:
+        motifs = " ".join("-db %s" % motif for motif in motifs)
+    else:
+        motifs = " "
+
+    nseqs = int(FastaIterator.count(infile))
+    if nseqs == 0:
+        E.warn("%s: no sequences - meme-chip skipped")
+        P.touch(outfile)
+        return
+
+    target_path = os.path.join(
+        os.path.abspath(PARAMS["exportdir"]), outfile)
+    tmpdir = P.getTempDir(".")
+
+    statement = '''
+    meme-chip %(infile)s
+             -oc %(tmpdir)s
+             -nmeme %(memechip_nmeme)s
+             %(memechip_options)s     
+             %(motifs)s > %(outfile)s.log '''
+
+    P.run()
+   
+
+    collectMEMEResults(tmpdir, target_path, outfile, method="memechip")
+
+    
 def runTomTom(infile, outfile):
     '''compare ab-initio motifs against tomtom.'''
 
@@ -985,3 +1165,253 @@ def runTomTom(infile, outfile):
     shutil.move(tmpdir, target_path)
 
     shutil.copyfile(os.path.join(target_path, "tomtom.txt"), outfile)
+def loadTomTom(infile, outfile):
+    '''load tomtom results'''
+
+    tablename = P.toTable(outfile)
+
+    resultsdir = os.path.join(
+        os.path.abspath(PARAMS["exportdir"]), "tomtom", infile)
+    xml_file = os.path.join(resultsdir, "tomtom.xml")
+
+    if not os.path.exists(xml_file):
+        E.warn("no tomtom output - skipped loading ")
+        P.touch(outfile)
+        return
+
+    # get the motif name from the xml file
+
+    tree = xml.etree.ElementTree.ElementTree()
+    tree.parse(xml_file)
+    motifs = tree.find("targets")
+    name2alt = {}
+    for motif in motifs.getiterator("motif"):
+        name = motif.get("name")
+        alt = motif.get("alt")
+        name2alt[name] = alt
+
+    tmpfile = P.getTempFile(".")
+
+    # parse the text file
+    for line in IOTools.openFile(infile):
+        if line.startswith("#Query"):
+            tmpfile.write('\t'.join(
+                ("target_name", "query_id", "target_id",
+                 "optimal_offset", "pvalue", "evalue",
+                 "qvalue", "Overlap", "query_consensus",
+                 "target_consensus", "orientation")) + "\n")
+            continue
+        data = line[:-1].split("\t")
+        target_name = name2alt[data[1]]
+        tmpfile.write("%s\t%s" % (target_name, line))
+    tmpfile.close()
+
+    P.load(tmpfile.name, outfile)
+
+    os.unlink(tmpfile.name)
+
+
+def runDREME(infile, outfile, neg_file = "", options = ""):
+    ''' Run DREME on fasta file. If a neg_file is passed
+    then DREME will use this as the negative set, otherwise
+    the default is to shuffle the input '''
+
+    nseqs_pos = int(FastaIterator.count(infile))
+    if nseqs_pos < 2:
+        E.warn("%s: less than 2 sequences - dreme skipped" % outfile)
+        P.touch(outfile)
+        return
+    
+    if neg_file:
+        nseqs_neg = int(FastaIterator.count(neg_file))
+        if nseqs_neg < 2:
+            E.warn("%s: less than 2 sequences in negatives file - dreme skipped"
+                   % outfile)
+            P.touch(outfile)
+            return
+        else:
+            neg_file = "-n %s" % neg_file
+
+    logfile = outfile + ".log"
+    target_path = os.path.join(
+        os.path.abspath(PARAMS["exportdir"]), outfile)
+    tmpdir = P.getTempDir(".")
+
+    statement = '''
+    dreme-patch -p %(infile)s %(neg_file)s -png
+        -oc %(tmpdir)s
+            %(dreme_options)s
+            %(options)s
+       > %(logfile)s
+    '''
+
+    P.run()
+
+    collectMEMEResults(tmpdir, target_path, outfile, method="dreme")
+
+def runFIMO(motifs, database, outfile, exportdir, options={}):
+    '''run fimo to look for occurances of motifs supplied in sequence database.
+    :param:`motifs` is the path to a MEME formated motif file.
+    :param:`database` is a fasta file.
+    :param:`outfile` is the text output from fimo
+    :param:`exportdir` specifies the directory to put exported files (html,gff)
+    :param:options is a dictionary: {'option':'value'} will be passed as
+                    --option=value and will overwrite options specified in the
+                     PARAMs'''
+
+
+    # if the motifs file is empty, then fimo will return an error
+    # this isn't very useful behavoir.
+
+    inlines = IOTools.openFile(motifs).read()
+    #print inlines
+    if not re.search("MOTIF", inlines):
+        E.warning("No motifs found in %s" % motifs)
+        P.touch(outfile)
+        return
+    else:
+        E.debug("%s: %i motifs found" % 
+                (motifs, len(re.findall("MOTIF", inlines))))
+
+
+    fimo_options = PARAMS.get("fimo_options", "")
+    for option, value in options.iteritems():
+        fimo_options = re.sub("%s=\S+" % option, "", fimo_options)
+        if value is None:
+            fimo_options += " --%s" % option
+        else:
+            fimo_options += " --%s=%s" % (option, value)
+
+    tmpout = P.getTempFilename()
+    
+    track = os.path.basename(outfile)
+    exportdir = os.path.abspath(exportdir)
+
+    xmlout = P.snip(outfile,".txt") + ".xml"
+    logfile = P.snip(outfile,".txt") + ".log"
+    gffout = os.path.join(exportdir, track + ".gff")
+    htmlout = os.path.join(exportdir, track + ".html")
+    
+    statement = ''' fimo --oc %(tmpout)s
+                         %(fimo_options)s
+                         %(motifs)s
+                         %(database)s &> %(logfile)s;
+                     checkpoint;
+                     mv %(tmpout)s/fimo.txt %(outfile)s;
+                     checkpoint;
+                     mv %(tmpout)s/fimo.xml %(xmlout)s;
+                     checkpoint;
+                     mv %(tmpout)s/fimo.gff %(gffout)s
+                     checkpoint;
+                     mv %(tmpout)s/fimo.html %(htmlout)s;
+                     checkpoint;
+                     rm -r %(tmpout)s '''
+
+    P.run()
+
+
+def getSeedMotifs(motif_file, tomtom_file, outfile):
+
+    ungrouped = MemeMotifFile(IOTools.openFile(motif_file))
+
+    if len(ungrouped) == 0:
+        with IOTools.openFile(outfile, "w") as outf:
+            outf.write(str(ungrouped))
+        return
+
+    E.debug("%s: Loaded %i motifs" % (motif_file, len(ungrouped)))
+    tomtom = pandas.read_csv(tomtom_file, sep="\t")
+    tomtom["Query ID"] = tomtom["Query ID"].astype(str)
+    tomtom["Target ID"] = tomtom["Target ID"].astype(str)
+    
+    all_clusters = ungrouped.keys()
+    new_index = pandas.MultiIndex.from_product([all_clusters, all_clusters],
+                                               names=["#Query ID", "Target ID"])
+    tomtom = tomtom.set_index(["Query ID", "Target ID"])
+    tomtom = tomtom.reindex(new_index)
+    tomtom = tomtom.sort_index()
+    ungrouped.sort("evalue")
+
+    groups = []
+
+    E.debug("%s: Clustering Motifs" % motif_file)
+    while len(ungrouped) > 0:
+        cur_cluster = MotifCluster(ungrouped.take(0))
+        assert len(cur_cluster) == 1
+        E.debug("%s: working on cluster %s, %i clusters remaining" %
+                (motif_file, cur_cluster.seed.primary_id, len(ungrouped)))
+
+        try:
+            seed_distances = tomtom.loc[cur_cluster.seed.primary_id]
+        except:
+            print tomtom
+            raise
+
+        close_motifs = seed_distances[seed_distances["q-value"] < 0.05]
+
+        E.debug("%s: Found %i similar motifs" %
+                (motif_file, close_motifs.shape[0]))
+
+        for motif in close_motifs.index.values:
+            if motif == cur_cluster.seed.primary_id:
+                continue
+            
+            try:
+                cur_cluster.append(ungrouped.take(str(motif)))
+            except KeyError:
+                pass
+
+        groups.append(cur_cluster)
+
+    E.debug("%s: Got %i clusters, containing a total of %i motifs"
+            % (motif_file, len(groups), sum(len(cluster) for cluster in groups)))
+
+    groups.sort(key=lambda cluster: cluster.seed.evalue)
+
+    merged_groups = []
+
+    E.debug("%s: Merging groups with weak similarity" % motif_file)
+    while len(groups) > 0:
+
+        cur_cluster = groups.pop(0)
+        
+        to_merge = []
+        
+        distances = tomtom.loc[cur_cluster.seed.primary_id]
+        for other_cluster in groups:
+
+            qvals = distances.loc[other_cluster.keys()]["q-value"]
+
+            if (qvals < 0.1).all():
+                to_merge.append(other_cluster)
+
+        for cluster in to_merge:
+            cur_cluster.extend(cluster)
+            groups.remove(cluster)
+
+        merged_groups.append(cur_cluster)
+
+    E.debug("%i final clusters found" % len(merged_groups))
+    E.debug("%s bulding output" % motif_file)
+    for group in merged_groups:
+        group.seed.letter_probability_line += " nClustered= %i" % len(group)
+        group.seed.letter_probability_line += " totalHits= %i" % sum(
+            [motif.nsites for motif in group])
+
+    output = MemeMotifFile(ungrouped)
+    output.extend(cluster.seed for cluster in merged_groups)
+    
+    E.debug("%s outputting" % motif_file)
+    with IOTools.openFile(outfile, "w") as outf:
+        outf.write(str(output))
+
+
+def tomtom_comparison(track1, track2, outfile):
+    ''' Compare two meme files to each other using
+    tomtom '''
+
+    statement = ''' tomtom -verbosity 1 -text -thresh 0.05
+                     %(track1)s
+                     %(track2)s  2> %(outfile)s.log 
+                 | sed 's/#//' > %(outfile)s '''
+    P.run()

@@ -9,7 +9,7 @@ respect to protein coding gene models.
 
 .. report:: Tracker.TrackerImages
    :render: gallery-plot
-   :glob: transcriptprofiles/*.detail.png
+   :glob: transcriptprofiles.dir/*.detail.png
    :layout: column-3
    :width: 200
 
