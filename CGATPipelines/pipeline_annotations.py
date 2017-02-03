@@ -963,7 +963,8 @@ def buildCpGBed(infile, outfile):
       genome.  The BED file is then indexed using tabix
     '''
 
-    job_memory = "5G"
+    job_memory = "10G"
+    
     statement = '''
     cgat fasta2bed
         --method=cpg

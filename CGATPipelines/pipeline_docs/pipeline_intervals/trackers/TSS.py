@@ -33,7 +33,7 @@ class TSSClosest(Annotations.AnnotationSlicer, IntervalTracker):
         column, where = self.mColumn, self.mWhere
         if not slice or slice == "all":
             data = self.getValues(
-                """SELECT %(column)s FROM %(track)s_%(table)s AS d WHERE %(where)s""" % locals() )
+                """SELECT abs(%(column)s) FROM %(track)s_%(table)s AS d WHERE %(where)s""" % locals() )
         else:
             data = self.getValues( """SELECT %(column)s FROM %(track)s_%(table)s AS d, %(track)s_%(annotations)s as a 
                                       WHERE d.gene_id = a.gene_id AND a.is_%(slice)s AND %(where)s""" % locals() )
