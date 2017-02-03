@@ -18,9 +18,11 @@ PARAMS = P.getParameters(
 @originate("genome.dir/%s.fa" % (PARAMS['genome_name']))
 def downloadGenomeFasta(outfile):
     genome_path = PARAMS['genome_path']
-    statement = '''wget %(genome_path)s''' % locals()
+    filename = genome_path.split('/')[-1]
+    filestem = PARAMS['genome_name']
+    statement = '''wget %(genome_path)s && cgat index_fasta 
+               %(filestem)s %(filename)s''' % locals()
     P.run()
-
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
