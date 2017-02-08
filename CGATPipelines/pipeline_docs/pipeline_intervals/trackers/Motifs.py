@@ -344,6 +344,78 @@ class MastMotifEvalues(Mast):
                 "SELECT %(x)s FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())
         return r
 
+# class MastNumberOfMotifs(Mast):
+#     '''number of motifs matching within intervals.'''
+
+#     def __call__(self, track, slice = None):
+#         data = self.getValues("SELECT nmatches FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())
+#         return odict((("nmatches", data),))
+
+# class MastAllCorrelations(Mast):
+#     '''correlating all measures.'''
+
+#     def __call__(self, track, slice = None):
+#         field = "length"
+#         data = self.get("""SELECT m.evalue, m.nmatches, i.length, i.peakval, i.avgval
+#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
+#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'
+#                                  ORDER BY i.%(field)s DESC"""
+#                               % locals())
+#         return odict(zip(("evalue", "nmatches", "length", "peakval", "avgval"),
+#                            zip(*data)))
+
+# class MastPairwiseCorrelation(Mast):
+#     '''base class for correlating two measures.'''
+
+#     def __call__(self, track, slice = None):
+
+#         field1 = self.mField1
+#         field2 = self.mField2
+#         data = self.get("""SELECT %(field1)s as a, %(field2)s AS b
+#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
+#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'"""
+#                               % locals())
+
+#         return odict(zip((field1, field2), zip(*data)))
+
+# class MastEvalueVersusLength(MastPairwiseCorrelation):
+#     '''correlate evalue with interval length.'''
+#     mField1 = "evalue"
+#     mField2 = "i.length"
+
+# class MastEvalueVersusNumberOfMatches(MastPairwiseCorrelation):
+#     '''correlate evalue with number of motifs found.'''
+#     mField1 = "evalue"
+#     mField2 = "nmatches"
+
+# class MastEvalueVersusPeakVal(MastPairwiseCorrelation):
+#     '''correlate evalue with peak value.'''
+#     mField2 = "evalue"
+#     mField1 = "peakval"
+
+# class MastNMatchesVersusPeakVal(MastPairwiseCorrelation):
+#     '''correlate evalue with peak value.'''
+#     mField2 = "nmatches"
+#     mField1 = "peakval"
+
+# class MastPeakValPerNMatches(MastPairwiseCorrelation):
+#     '''correlate evalue with peak value.'''
+#     mField1 = "nmatches"
+#     mField2 = "peakval"
+
+#     def __call__(self, track, slice = None):
+
+#         data = MastPairwiseCorrelation.__call__(self, track, slice)
+
+#         n = odict()
+#         for x in sorted(data["nmatches"]):
+#             n[x] = []
+
+#         for nmatches, peakval in sorted(zip(data["nmatches"], data["peakval"])):
+#             n[nmatches].append(peakval)
+
+#         return odict(n)
+
 
 class MastMotifLocation(Mast):
 
@@ -436,6 +508,117 @@ class MastCurve(Mast):
 
         return data
 
+# class MastROC(Mast):
+#     '''return a ROC curve. The ROC tests various peak parameters
+#     whether they are good descriptors of a motif.
+
+#     True/false positives are identified by the presence/absence
+#     of a motif. The presence is tested using the E-value of
+#     a motif.
+#     '''
+
+#     mPattern = "_mast$"
+#     mFields = ("peakval", "avgval", "length")
+
+#     def __call__(self, track, slice = None):
+#         data = []
+
+# obtain evalue distribution
+#         evalues = self.getValues("SELECT evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())
+
+#         if len(evalues) == 0: return odict()
+
+#         try:
+#             bin_edges, with_motifs, explained = computeMastCurve(evalues)
+#         except ValueError, msg:
+#             return odict()
+
+# determine the e-value cutoff as the maximum of "explained"
+#         cutoff = bin_edges[numpy.argmax(explained)]
+
+# retrieve values of interest together with e-value
+#         result = odict()
+
+#         for field in self.mFields:
+
+#             values = self.get("""SELECT i.%(field)s, m.evalue
+#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
+#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'
+#                                  ORDER BY i.%(field)s DESC"""
+#                               % locals())
+
+#             try:
+#                 roc = Stats.computeROC([ (x[0], x[1] <= cutoff) for x in values ])
+#             except ValueError, msg:
+# ignore results where there are no positives among values.
+#                 continue
+
+#             result[field] = odict(zip(("FPR", "TPR"), zip(*roc)))
+#         return result
+
+# class MastROCNMatches(Mast):
+#     '''return a ROC curve. The ROC tests various peak parameters
+#     whether they are good descriptors of a motif.
+
+#     True/false positives are identified by the presence/absence
+#     of a motif using the field nmatches
+#     '''
+
+#     mPattern = "_mast$"
+#     mFields = ("peakval", "avgval", "length")
+
+#     def __call__(self, track, slice = None):
+#         data = []
+
+# retrieve values of interest together with e-value
+#         result = odict()
+
+#         for field in self.mFields:
+
+#             values = self.get("""SELECT i.%(field)s, m.nmatches
+#                                  FROM %(track)s_mast as m, %(track)s_intervals as i
+#                                  WHERE i.interval_id = m.id AND motif = '%(slice)s'
+#                                  ORDER BY i.%(field)s DESC"""
+#                               % locals())
+
+#             try:
+#                 roc = Stats.computeROC([ (x[0], x[1] > 0) for x in values ])
+#             except ValueError, msg:
+# ignore results where there are no positives among values.
+#                 continue
+
+#             result[field] = odict(zip(("FPR", "TPR"), zip(*roc)))
+
+#         return result
+
+# class MastAUC(MastROC):
+#     '''return AUC for a ROC curve. The ROC tests various peak parameters
+#     whether they are good descriptors of a motif.
+
+#     True/false positives are identified by the presence/absence
+#     of a motif.
+#     '''
+
+#     mPattern = "_mast$"
+#     mFields = ("peakval", "avgval", "length")
+
+#     def __call__(self, track, slice = None):
+
+#         data = MastROC.__call__(self, track, slice)
+#         for k, d in data.iteritems():
+#             data[k] = Stats.getAreaUnderCurve(d['FPR'], d['TPR'])
+#         return data
+
+# class MastEvalues(Mast):
+#     """return arrays of mast evalues.
+#     """
+#     mPattern = "_mast$"
+
+#     def __call__(self, track, slice = None):
+
+#         return odict((("evalue", self.getValues("SELECT evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())),
+#                        ("evalue - control", self.getValues("SELECT min_evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals()))))
+
 
 class MastPeakValWithMotif(Mast):
 
@@ -461,6 +644,40 @@ class MastPeakValWithMotif(Mast):
         return odict(list(zip(("peakval", "proportion with motif", "recall"),
                               list(zip(*result)))))
 
+# class MastPeakValWithMotifEvalue(Mast):
+#     '''return for each peakval the proportion of intervals
+#     that have a motif.
+
+#     This class uses the ROC Evalue as cutoff.
+#     '''
+
+#     def __call__(self, track, slice = None):
+
+
+# obtain evalue distribution
+#         evalues = self.getValues("SELECT evalue FROM %(track)s_mast WHERE motif = '%(slice)s'" % locals())
+
+#         if len(evalues) == 0: return odict()
+
+#         try:
+#             bin_edges, with_motifs, explained = computeMastCurve(evalues)
+#         except ValueError, msg:
+#             return odict()
+
+# determine the e-value cutoff as the maximum of "explained"
+#         cutoff = bin_edges[numpy.argmax(explained)]
+
+#         data = self.get('''
+#         SELECT i.peakval, m.evalue
+#         FROM %(track)s_intervals AS i,
+#              %(track)s_mast AS m
+#         WHERE m.id = i.interval_id \
+#            AND m.motif = '%(slice)s' ORDER BY i.peakval DESC''' % locals())
+
+#         result = Stats.getSensitivityRecall([ (int(x[0]), x[1] < cutoff) for x in data ])
+
+# return odict(zip(("peakval", "proportion with motif", "recall"), zip(
+# *result)))
 
 class MemeInputSequenceComposition(IntervalTracker):
 
@@ -471,160 +688,43 @@ class MemeInputSequenceComposition(IntervalTracker):
               'nUnk', 'pA', 'pAT', 'pC', 'pG', 'pGC', 'pN', 'pT')
 
     def __call__(self, track, slice):
-        return self.getValues('''SELECT %(slice)s
-                                 FROM %(track)s_motifseq_stats''')
+        return self.getValues('''SELECT %(slice)s FROM %(track)s_motifseq_stats''')
 
 
-class MotifRuns(IntervalTracker):
-
-    def getSlices(self):
-        methods = self.getValues("SELECT DISTINCT method FROM %s_summary" %
-                                 self.prog)
-        return ["%s (:ref:`%s_details`)" % (method, method)
-                for method in methods]
+class MemeRuns(IntervalTracker):
 
     def getTracks(self):
-        slices = ",".join(self.getSlices())
-        return self.getValues("SELECT DISTINCT track FROM %s_summary" %
-                              self.prog)
+        return self.getValues("SELECT DISTINCT track FROM meme_summary")
 
-    def getExportDir(self, track, slice):
+    def __call__(self, track, slice=None):
+
         memedir = os.path.abspath(
-            os.path.join(EXPORTDIR, slice + ".dir", "%s.%s" %
-                         (track, self.prog)))
-        return memedir
+            os.path.join(EXPORTDIR, "meme", "%s.meme" % track))
+        if not os.path.exists(memedir):
+            return None
 
-    def checkexists(self, track, slice):
-        return os.path.exists(self.getExportDir(track, slice))
+        tomtomdir = os.path.abspath(
+            os.path.join(EXPORTDIR, "tomtom", "%s.tomtom" % track))
 
-    def getNMotifs(self, track, slice):
-        export_dir = self.getExportDir(track, slice)
+        data = []
+
         tree = xml.etree.ElementTree.ElementTree()
-        tree.parse(os.path.join(export_dir, "%s.xml" % self.prog))
+        tree.parse(os.path.join(memedir, "meme.xml"))
+        model = tree.find("model")
+        data.append(("nsequences", int(model.find("num_sequences").text)))
+        data.append(("nbases", int(model.find("num_positions").text)))
+
         motifs = tree.find("motifs")
         nmotifs = 0
         for motif in motifs.getiterator("motif"):
             nmotifs += 1
-        return nmotifs
 
-    def getTomTomLink(self, track, slice):
-        tomtomdir = os.path.abspath(
-            os.path.join(EXPORTDIR, "tomtom", "%s.tomtom" % track))
-        if os.path.exists(tomtomdir):
-            tomtomlink = "`tomtom_%s <%s/tomtom.html>`_" % (track, tomtomdir)
-        else:
-            tomtomlink = "NA"
-        return tomtomlink
+        data.append(("nmotifs", nmotifs))
+        data.append(("link", "`meme_%s <%s/meme.html>`_" % (track, memedir)))
+        data.append(
+            ("tomtom", "`tomtom_%s <%s/tomtom.html>`_" % (track, tomtomdir)))
 
-    def getInputInfo(self, track, slice):
-        return []
-
-    def getLink(self, track, slice):
-
-        return "`%s_%s <%s/%s.html>`_" % (self.prog,
-                                          track,
-                                          self.getExportDir(track, slice),
-                                          self.prog)
-
-    def __call__(self, track, slice=None):
-
-        slice = re.match("(.+) \(.+\)", slice).groups()[0]
-        data = []
-        if not self.checkexists(track, slice):
-            return None
-
-        data.extend(self.getInputInfo(track, slice))
-        data.append(("nmotifs", self.getNMotifs(track, slice)))
-        data.append(("Link", self.getLink(track, slice)))
-        data.append(("TomTom", self.getTomTomLink(track, slice)))
-
-        print data
         return odict(data)
-
-       
-class MemeRuns(MotifRuns):
-    prog = "meme"
-    
-    def getInputInfo(self, track, slice):
-        
-        tree = xml.etree.ElementTree.ElementTree()
-        tree.parse(os.path.join(self.getExportDir(track, slice), "meme.xml"))
-        model = tree.find("model")
-        return [("nsequences", int(model.find("num_sequences").text)),
-                ("nbases", int(model.find("num_positions").text))]
-
-
-class DremeRuns(MotifRuns):
-    prog = "dreme"
-
-    def getInputInfo(self, track, slice):
-
-        track = re.sub("-", "_", track)
-
-        try:
-            positives, negatives = re.match("(.+)_vs_(.+)", track).groups()
-        except:
-            positives = negatives = track
-
-        def _getinfo(track):
-            n = self.getValue("SELECT COUNT (*) FROM %s_dreme_motifseq_stats"
-                              % track)
-            length = self.getValue(
-                "SELECT SUM(nA+nG+nC+nT) FROM %s_dreme_motifseq_stats" % track)
-            return (n, length)
-
-        return zip(("n_positive_seqs", "n_positive_bases"),
-                   _getinfo(positives)) + \
-            zip(("n_negative_seqs", "n_negatives_bases"),
-                _getinfo(negatives))
-
-
-class MemeChipRuns(MotifRuns):
-    prog = "memechip"
-
-    def getInputInfo(self, track, slice):
-        track = re.sub("-", "_", track)
-        
-        return [("nsequences", 
-                 self.getValue(
-                     "SELECT COUNT (*) from %s_memechip_motifseq_stats" % track)),
-                ("nbases", 
-                 self.getValue(
-                     "SELECT SUM(nA+nG+nT+nC) FROM %s_memechip_motifseq_stats" % track))]
-
-    def getTracks(self):
-        return self.getValues("SELECT DISTINCT track FROM memechip_seeds")
-
-    def getSlices(self):
-        return ["MemeChip (:ref:`memechip_details`)"]
-
-    def getNMotifs(self, track, slice=None):
-        return self.getValue('''SELECT COUNT(*) from memechip_seeds 
-                                WHERE track = '%(track)s' ''')
-
-    def getLink(self, track, slice):
-        return "`Full MemeChip Output <%s/index.html>`_" \
-            % self.getExportDir(track, "memechip")
-
-    def checkexists(self, track, slice):
-        return True
-    
-    
-def line2lines(values):
-    output = []
-    values = list(set(str(values).split()))
-    
-    if len(values) == 1:
-        return values[0]
-    while len(values) > 0:
-        tmp = []
-        while sum(len(x) for x in tmp) < 20 and len(values) > 0:
-            tmp.append(values.pop(0))
-            output.append(" ".join(tmp))
-            
-        output = "\n".join(output)
-        
-    return output
 
 
 class MemeResults(IntervalTracker):
@@ -632,57 +732,30 @@ class MemeResults(IntervalTracker):
     def getTracks(self):
         return self.getValues("SELECT DISTINCT track FROM meme_summary")
 
-    def getSlices(self):
-        return self.getValues("SELECT DISTINCT method FROM meme_summary")
-
     def __call__(self, track, slice=None):
 
-        statement = '''SELECT DISTINCT
-                              primary_id as ID,
-                              group_concat(track2, " ") as other_tracks
-                      FROM %(slice)s_seeds as seeds
-                      LEFT JOIN %(slice)s_track_comparisons as comps
-                           ON seeds.track = comps.track1
-                          AND seeds.primary_id = comps.Query_ID
-                      WHERE track = '%(track)s'
-                      GROUP BY primary_id'''
-
-        alt_statement = '''SELECT DISTINCT primary_id as ID,
-                                           'NA' as other_tracks
-                                 FROM %(slice)s_seeds
-                                 WHERE track = '%(track)s' '''
-        try:
-            motifs_to_keep = self.getDataFrame(statement)
-        except:
-            motifs_to_keep = self.getDataFrame(alt_statement)
-
-        motifs_to_keep.set_index("ID", inplace=True)
-        
         resultsdir = os.path.abspath(
-            os.path.join(EXPORTDIR, slice + ".dir", "%s.meme" % track))
+            os.path.join(EXPORTDIR, "meme", "%s.meme" % track))
         if not os.path.exists(resultsdir):
-            return None
- 
+            return []
+
         tree = xml.etree.ElementTree.ElementTree()
         tree.parse(os.path.join(resultsdir, "meme.xml"))
+        # data.append(("nsequences", int(model.find("num_sequences").text)))
+        # data.append(("nbases", int(model.find("num_positions").text)))
 
         motifs = tree.find("motifs")
         nmotif = 0
         result = odict()
         for motif in motifs.getiterator("motif"):
             nmotif += 1
-            if nmotif not in motifs_to_keep.index:
-                continue
-
             motif_img = "%s/logo%i.png" % (resultsdir, nmotif)
             motif_rc_img = "%s/logo_rc%i.png" % (resultsdir, nmotif)
             img, rc_img = "na", "na"
             if os.path.exists(motif_img):
-                img = '''.. image:: %s
-   :scale: 25%%''' % motif_img
+                img = ".. image:: %s" % motif_img
             if os.path.exists(motif_rc_img):
-                rc_img = '''.. image:: %s
-   :scale: 25%%''' % motif_rc_img
+                rc_img = ".. image:: %s" % motif_rc_img
 
             result[str(nmotif)] = odict((
                 ("width", motif.get("width")),
@@ -693,277 +766,9 @@ class MemeResults(IntervalTracker):
                  (track, nmotif, resultsdir, nmotif)),
                 ("img", img),
                 ("rev", rc_img),
-                ("Similar motif found in:", 
-                 line2lines(motifs_to_keep.loc[nmotif]["other_tracks"])),
             ))
 
         return result
-
-
-class DremeResults(IntervalTracker):
-    
-    def getTracks(self):
-        return self.getValues("SELECT DISTINCT track FROM dreme_summary")
-
-    def getSlices(self):
-        return self.getValues("SELECT DISTINCT method FROM dreme_summary")
-
-    def __call__(self, track, slice=None):
-
-        statement = '''SELECT DISTINCT
-                              primary_id as ID,
-                              group_concat(track2, " ") as other_tracks
-                      FROM %(slice)s_seeds as seeds
-                      LEFT JOIN %(slice)s_track_comparisons as comps
-                           ON seeds.track = comps.track1
-                          AND seeds.primary_id = comps.Query_ID
-                      WHERE track = '%(track)s'
-                      GROUP BY primary_id'''
-
-        alt_statement = '''SELECT DISTINCT primary_id as ID,
-                                           'NA' as other_tracks
-                                 FROM %(slice)s_seeds
-                                 WHERE track = '%(track)s' '''
-        try:
-            motifs_to_keep = self.getDataFrame(statement)
-        except:
-            print alt_statement % locals()
-            motifs_to_keep = self.getDataFrame(alt_statement)
-
-        motifs_to_keep.set_index("ID", inplace=True)
-
-        resultsdir = os.path.abspath(
-            os.path.join(EXPORTDIR, slice + ".dir", "%s.dreme" % track))
-        if not os.path.exists(resultsdir):
-            return None
-
-        tree = xml.etree.ElementTree.ElementTree()
-        tree.parse(os.path.join(resultsdir, "dreme.xml"))
-        
-        model = tree.find("model")
-        num_positives = int(model.find("positives").get("count"))
-        num_negatives = int(model.find("negatives").get("count"))
-
-        result = odict()
-
-        motifs = tree.find("motifs")
-        nmotif = 0
-        for motif in motifs.getiterator("motif"):
-
-            seq = motif.get("seq")
-            nmotif += 1
-            id = motif.get("id")
-
-            if seq not in motifs_to_keep.index.values:
-                print "%s not in %s" % (seq, motifs_to_keep.index.values)
-                continue
-
-            motif_img = "%(resultsdir)s/%(id)snc_%(seq)s.png" % locals()
-            rc_file = glob.glob(os.path.join(resultsdir, "%(id)src_*" % locals()))
-
-            img, rc_img = "na", "na"
-            if os.path.exists(motif_img):
-                img = '''.. image:: %s
-   :scale: 25%% ''' % motif_img
-                
-            if len(rc_file) > 0:
-                rc_img = '''.. image:: %s
-   :scale: 25%%''' % rc_file[0]
-
-            p = float(motif.get("p"))
-            n = float(motif.get("n"))
-            
-            try:
-                enrichment = (p/num_positives)/(n/num_negatives)
-                enrichment = "{:.0%}".format(
-                    enrichment)
-            except ZeroDivisionError:
-                enrichment = "inf"
-
-            result[str(nmotif)] = odict((
-                ("sequence", seq),
-                ("evalue", motif.get("evalue")),
-                ("positives", "{:d}/{} ({:.0%})".format(int(p), num_positives,
-                                                        p/num_positives)),
-                ("negatives", "{:d}/{} ({:.0%})".format(int(n), num_negatives,
-                                                        n/num_negatives)),
-                ("enrichment", enrichment),
-                ("link", "`dreme_%s <%s/dreme.html>`_" %
-                 (track, resultsdir)),
-                ("img", img),
-                ("rc_img", rc_img),
-                ("Simialr motif found in:", 
-                 line2lines(motifs_to_keep.loc[seq]["other_tracks"])),
-            ))
-
-        return result
-        
-
-class MemeChipResults(IntervalTracker):
-
-    def getTracks(self):
-        return self.getValues("SELECT DISTINCT track FROM memechip_seeds")
-
-    def __call__(self, track):
-
-        print EXPORTDIR
-        resultsdir = os.path.abspath(os.path.join(EXPORTDIR, "memechip.dir",
-                                                  track + ".memechip"))
-
-        statement = '''SELECT DISTINCT
-                              primary_id as ID,
-                              consensus,
-                              nsites as '# seed matches',
-                              nClustered as "# in cluster",
-                              totalHits as '# cluster matches',
-                              E as 'E-value',
-                              group_concat(track2, " ") as "Similar motif found in"
-                      FROM memechip_seeds as seeds
-                      LEFT JOIN meme_chip_comparisons as comps
-                           ON seeds.track = comps.track1
-                          AND seeds.primary_id = comps.Query_ID
-                      WHERE track = '%(track)s'
-                      GROUP BY primary_id'''
-
-        results = self.getDataFrame(statement)
-      
-        results["Similar motif found in"] = results["Similar motif found in"].apply(line2lines)
-  
-        img_tmp = '''.. image:: memechip.dir/%s_%i.png
-   :scale: 25%%'''
-        
-        results["logo"] = results["ID"].apply(lambda x: img_tmp % (track, x))
-        results["link"] = "`MEME-CHIP report <%s/index.html>`_" % resultsdir
-
-        return results
-
-
-class SequenceSubset(IntervalTracker):
-
-    pattern = "(.+)_summary"
-
-    def __call__(self, track):
-        
-        def _P(key):
-            return P["%s_%s" % (track, key)]
-
-        if _P("num_sequences"):
-            which = str(_P("num_sequences"))
-        elif _P("proportion"):
-            if _P("min_sequences"):
-                mins = _P("min_sequences")
-            else:
-                mins = 0
-            which = "%s%% (minimum %i) of" % (str(_P("proportion") * 100),
-                                              mins)
-        else:
-            which = "all"
-
-        if _P("score") == "random":
-            seqs = "%s sequences at random were selected" % which
-        elif _P("score"):
-            seqs = "The top %s sequences ranked by %s were selected" % (which, _P("score"))
-        else:
-            seqs = "%s sequences were selected" % which
-        if _P("max_size"):
-            seqs += ", up to a total of %ibp" % _P("max_size")
-
-        if _P("halfwidth"):
-            seqs += ".\n %ibp either side of the peak was used." % _P("halfwidth")
-        else:
-            seqs += ".\n The whole interval was used."
-
-        if _P("masker"):
-            seqs += "\n Sequences were masked with %s" % _P("masker")
-
-        return seqs
-
-
-class GeneSetComparision(IntervalTracker):
-
-    def __call__(self, track, slice):
-
-        track, prog = re.match("(.+)_([^_]+)", track).groups()
-        table = self.slice2table[slice] % locals()
-        column = self.slice2column[slice]
-
-        return self.getValues("SELECT %(column)s FROM %(table)s")
-
-
-class CompFullSubset(GeneSetComparision):
-
-    slices = ["full", "subset"]
-    pattern = "(.+)_motifseq_stats"
-    slice2table = {"full": "%(track)s_composition",
-                   "subset": "%(track)s_%(prog)s_motifseq_stats"}
-
-
-class CompFullSubsetGC(CompFullSubset):
-
-    slice2column = {"full": "CpG_density",
-                    "subset": "pGC"}
-
-
-class CompFullSubsetLength(CompFullSubset):
-
-    slice2column = {"full": "end-start",
-                    "subset": "(nA+nT+nG+nC +nN)"}
-
-
-class CompPosNeg(GeneSetComparision):
-
-    slices = ["positives", "negatives"]
-    
-    def getTracks(self):
-
-        tracks = self.getValues('''SELECT track
-                                   FROM %(prog)s_summary'''
-                                )
-        tracks = filter(lambda x: "_vs_" in x, tracks)
-        return tracks
-
-    def __call__(self, track, slice):
-
-        groups = re.match("(.+)_vs_(.+)", track).groups()
-
-        if slice == "positives":
-            track = groups[0]
-        else:
-            track = groups[1]
-
-        track = re.sub("-", "_", track)
-        return self.getValues(''' SELECT %(column)s
-                                  FROM %(track)s_%(prog)s_motifseq_stats''')
-
-
-class PosNegMemeGC(CompPosNeg):
-    prog = "meme"
-    column = "pGC"
-
-
-class PosNegDremeGC(CompPosNeg):
-    prog = "dreme"
-    column = "pGC"
-
-
-class PosNegMemeLength(CompPosNeg):
-    prog = "meme"
-    column = "nGC + nAT + nN"
-
-
-class PosNegDremeLength(CompPosNeg):
-    prog = "dreme"
-    column = "nGC + nAT + nN"
-
-
-class PosNegMemeN(CompPosNeg):
-    prog = "meme"
-    column = "pN"
-
-
-class PosNegDremeN(CompPosNeg):
-    prog = "dreme"
-    column = "pN"
 
 
 class TomTomResults(IntervalTracker):
@@ -991,3 +796,94 @@ class TomTomResults(IntervalTracker):
         data['link'] = ["`tomtom <%s/tomtom.html#match_q_%s_t_2_%s>`_" % (resultsdir, target_id, target_name)
                         for target_id, target_name in zip(data['query_id'], data['target_id'])]
         return data
+
+
+# class AnnotationsMatrix(DefaultTracker):
+
+
+#     def getSlices(self, subset = None):
+#         if subset: return subset
+#         return []
+
+#     def __call__(self, track, slice = None):
+
+#         result = odict()
+#         rows = ("intergenic", "intronic", "upstream", "downstream", "utr", "cds", "other")
+
+#         statement = self.getStatement(slice)
+#         data = self.get(statement % locals())
+#         levels = sorted(list(set([ x[7] for x in data ])))
+
+#         for row in rows:
+#             m = odict()
+#             for l in levels: m[l] = 0
+#             result[row] = m
+
+#         map_level2col = dict([(y,x) for x,y in enumerate(levels)])
+#         for intergenic, intronic, upstream, downstream, utr, coding, ambiguous, level in data:
+#             col = level
+#             for x,v in enumerate((intergenic, intronic, upstream, downstream, utr, coding, ambiguous)):
+#                 if v:
+#                     row=rows[x]
+#                     break
+#             else:
+#                 row = rows[-1]
+
+#             result[row][col] += 1
+
+#         return result
+
+# class AnnotationsMotifs(AnnotationsMatrix):
+#     '''return a matrix with intervals stratified by motif presence
+#     and location of the interval.
+#     '''
+
+#     mPattern = "_mast$"
+
+#     def getStatement(self, slice = None):
+
+#         statement = '''
+#         SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous,
+#           CASE WHEN m.nmatches > 0 THEN motif || '+' ELSE motif || '-' END
+#         FROM %(track)s_intervals AS i,
+#         %(track)s_annotations AS a ON a.gene_id = i.interval_id,
+#         %(track)s_mast AS m ON m.id = i.interval_id'''
+
+#         if slice is not None:
+#             statement += " AND motif = '%(slice)s'"
+#         return statement
+
+# class AnnotationsPeakVal(AnnotationsMatrix):
+#     '''return a matrix with intervals stratified by peakval
+#     and location of the interval.
+#     '''
+#     mPattern = "_annotations$"
+
+#     def getStatement(self, slice = None):
+
+#         statement = '''
+#         SELECT a.is_intergenic, a.is_intronic, a.is_upstream, a.is_downstream, a.is_utr, a.is_cds, a.is_ambiguous,
+#         peakval
+#         FROM %(track)s_intervals AS i,
+#         %(track)s_annotations AS a ON a.gene_id = i.interval_id'''
+
+#         return statement
+
+# class AnnotationsPeakValData(DefaultTracker):
+#     '''return peakval for intervals falling into various regions.'''
+
+#     def getSlices(self, subset = None):
+#         if subset: return subset
+# return ("intergenic", "intronic", "upstream", "downstream", "utr",
+# "cds", "other")
+
+#     def __call__(self, track, slice = None):
+
+#         if slice == "other": slice = "ambiguous"
+
+#         statement = '''
+#         SELECT peakval
+#         FROM %(track)s_intervals AS i,
+#         %(track)s_annotations AS a ON a.gene_id = i.interval_id AND a.is_%(slice)s ''' % locals()
+
+#         return odict((("peakval", self.getValues(statement)),))
