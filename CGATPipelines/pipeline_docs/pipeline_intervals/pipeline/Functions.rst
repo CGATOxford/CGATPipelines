@@ -2,7 +2,7 @@
 Functional annotation
 =====================
 
-.. report:: Gat.GatResultsFunctions
+.. report:: Gat.GatResultsFunction
    :render: table
 
    All gat results for go categories

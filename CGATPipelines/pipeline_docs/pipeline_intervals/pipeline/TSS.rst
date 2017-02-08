@@ -37,7 +37,6 @@ as having a distance of 0.
    :logscale: x
    :as-lines:
    :groupby: all
-   :tf-range: 0,100000,1000
 
    Histogram of distances of intervals to closest :term:`tss`.
 
