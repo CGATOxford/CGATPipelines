@@ -278,7 +278,7 @@ def joinStatements(statements, infile):
 
 
 def getJobMemory(options=False, PARAMS=False):
-    '''Extract the job memory from an options or
+    '''Extract the job memory from an options
        or PARAMS dictionaries'''
 
     job_memory = None
@@ -313,6 +313,27 @@ def getJobMemory(options=False, PARAMS=False):
                          ' "cluster_memory_default" parameter')
 
     return job_memory
+
+
+def getParallelEnvironment(options=False):
+    ''' Configure cluster_parallel_environment and job_threads
+        from a given job_options variable within an options dict'''
+    
+    if options and options.get("job_options") and \
+       '-pe' in options.get("job_options") and \
+       'job_threads' not in options:
+    
+       o = options.get("job_options")
+       x = re.search("-pe\s+(\w+)\s+(\d+)", o)
+       if x is None:
+           raise ValueError(
+               "expecting -pe <environment> <threads> in '%s'" % o)
+       
+       options["cluster_parallel_environment"] = x.groups()[0]
+       options["job_threads"] = int(x.groups()[1])
+
+       # remove parallel environment from job_options
+       options["job_options"] = re.sub("-pe\s+(\w+)\s+(\d+)", "", o)
 
 
 def run(**kwargs):
@@ -355,7 +376,7 @@ def run(**kwargs):
           If there are error messages like "no available queue", then the
           problem could be that a particular complex attribute has
           not been defined (the code should be ``hc`` for ``host:complex``
-          and not ``hl`` for ``host:local``. Note that qrsh/qsub directly
+          and not ``hl`` for ``host:local``). Note that qrsh/qsub directly
           still works.
 
     """
@@ -365,12 +386,32 @@ def run(**kwargs):
     options.update(list(getCallerLocals().items()))
     options.update(list(kwargs.items()))
 
-    # insert a few legacy synonyms
-    options['cluster_options'] = options.get('job_options',
-                                             options['cluster_options'])
-    options['cluster_queue'] = options.get('job_queue',
-                                           options['cluster_queue'])
+    # insert legacy synonyms
     options['without_cluster'] = options.get('without_cluster')
+    getParallelEnvironment(options)
+
+    # enforce highest priority for cluster options in command-line
+    if "cli_cluster_memory_default" in PARAMS:
+        options["cluster_memory_default"] = PARAMS["cli_cluster_memory_default"]
+    if "cli_cluster_memory_resource" in PARAMS:
+        options["cluster_memory_resource"] = PARAMS["cli_cluster_memory_resource"]
+    if "cli_cluster_num_jobs" in PARAMS:
+       options["cluster_num_jobs"] = PARAMS["cli_cluster_num_jobs"]
+    if "cli_cluster_options" in PARAMS:
+        options["cluster_options"] = PARAMS["cli_cluster_options"]
+    if "cli_cluster_parallel_environment" in PARAMS:
+        options["cluster_parallel_environment"] = PARAMS["cli_cluster_parallel_environment"]
+    if "cli_cluster_priority" in PARAMS:
+        options["cluster_priority"] = PARAMS["cli_cluster_priority"]
+    if "cli_cluster_queue" in PARAMS:
+        options["cluster_queue"] = PARAMS["cli_cluster_queue"]
+    if "cli_cluster_queue_manager" in PARAMS:
+        options["cluster_queue_manager"] = PARAMS["cli_cluster_queue_manager"]
+
+    # if the command-line has not been used
+    # get information from the legacy job_options
+    if options["cluster_options"] == "":
+        options["cluster_options"] = options.get("job_options", options["cluster_options"])
 
     # get the memory requirement for the job
     job_memory = getJobMemory(options, PARAMS)

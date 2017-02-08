@@ -1076,8 +1076,13 @@ class FastQc(Mapper):
         # if no contaminants file provided return None
         try:
             assert contaminants
-        except AssertionError:
+        except:
             return None
+
+        try:
+            assert os.path.exists(contaminants)
+        except AssertionError:
+            raise Exception(contaminants)
 
         # read in file and split into adaptor/sequence
         adaptor_dict = {}
@@ -1125,8 +1130,8 @@ class FastQc(Mapper):
 
                 statement.append(
                     '''fastqc --extract --outdir=%(outdir)s %(x)s
-                    %(contaminants_cmd)s >& %(outfile)s ;
-                    rm -f %(contaminants)s ; ''' % locals())
+                    %(contaminants_cmd)s >& %(outfile)s ; ''' % locals())
+        statement.append('''rm -f %(contaminants)s ;''' % locals())
         return " ".join(statement)
 
 

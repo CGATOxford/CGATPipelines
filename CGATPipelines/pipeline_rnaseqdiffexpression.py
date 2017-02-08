@@ -1358,14 +1358,15 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 def getDESeqNormExp(infiles, outfiles):
     ''' Use the Deseq2 size factors method to obtain normalised
     expression values for summary plots '''
+    # currently DESeq expression factors is not working
+    # to normalise the expression values. In some workflows
+    # the columns produce infinity values. Have defaulted to
+    # total column until issue is identified
 
     transcripts_inf, genes_inf = infiles
     transcripts_outf, genes_outf = outfiles
 
-    if PARAMS["quantifiers"] != "featurecounts":
-        normalisation_method = "total-column"
-    else:
-        normalisation_method = "deseq-size-factors"
+    normalisation_method = "total-column"
 
     PipelineRnaseq.normaliseCounts(
         transcripts_inf, transcripts_outf, normalisation_method)
