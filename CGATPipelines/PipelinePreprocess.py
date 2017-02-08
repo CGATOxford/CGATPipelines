@@ -74,6 +74,10 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         f, fastq_format, datatype = Sra.peek(infile)
         if len(f) == 2:
             tracks = [track + "_fastq_1", track + "_fastq_2"]
+    elif infile.endswith(".fastq.1.gz"):
+        tracks = [track + "_fastq_1", track + "_fastq_2"]
+    elif infile.endswith(".fastq.gz"):
+        tracks = [track]
 
     found_contaminants = []
     for t in tracks:
