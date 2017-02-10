@@ -2628,7 +2628,7 @@ class Hisat(Mapper):
         | samtools sort - -o %(outfile)s 2>>%(outfile)s.hisat.log;
         checkpoint;
         samtools index %(outfile)s;
-        ckeckpoint;
+        checkpoint;
         rm -rf %(tmpdir_hisat)s;
         ''' % locals()
 
