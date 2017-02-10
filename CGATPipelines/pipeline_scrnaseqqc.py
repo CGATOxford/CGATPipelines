@@ -415,7 +415,7 @@ def mergeSailfishRuns(infiles, outfile):
     job_memory = "2G"
 
     statement = '''
-    cgat combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=4
     --use-file-prefix
@@ -455,7 +455,7 @@ def mergeSailfishCounts(infiles, outfile):
     job_memory = "4G"
 
     statement = '''
-    cgat combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=5
     --use-file-prefix
@@ -581,7 +581,7 @@ def aggregatePlateFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    cgat combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=7
     --use-file-prefix
@@ -610,7 +610,7 @@ def aggregateAllFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    cgat combine_tables.py
+    cgat combine_tables
     --columns=1
     --take=7
     --use-file-prefix
@@ -794,7 +794,7 @@ def aggregateQcTables(infiles, outfile):
     infiles = " ".join(infiles)
 
     statement = '''
-    cgat combine_tables.py
+    cgat combine_tables
     --columns=1
     --skip-titles
     --log=%(outfile)s.log
