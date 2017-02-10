@@ -438,13 +438,13 @@ def loadSailfishCounts(infile, outfile):
 
 BAMDIR = PARAMS['bam_dir']
 BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
-BAMREGEX = regex(r".*/(\S+)_([0-9]+)_([0-9]+).(\S+).bam$")
+BAMREGEX = regex(r".*/(\S+)-(\S+)-(\S+).(\S+).bam$")
 
 
 @follows(mkdir("dedup.dir"))
 @transform(BAMFILES,
            BAMREGEX,
-           r"dedup.dir/\1_\2_\3.dedup.bam")
+           r"dedup.dir/\1-\2-\3.dedup.bam")
 def dedupBamFiles(infile, outfile):
     '''
     Use Picard MarkDuplicates to remove
@@ -523,7 +523,7 @@ def buildFeatureCounts(infiles, outfile):
 
 
 @collate(buildFeatureCounts,
-         regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
+         regex("feature_counts.dir/(.+)-(.+)-(.+)_vs_(.+).tsv.gz"),
          r"feature_counts.dir/\1-\2-feature_counts.tsv.gz")
 def aggregatePlateFeatureCounts(infiles, outfile):
     ''' build a matrix of counts with genes and tracks dimensions.
@@ -551,7 +551,7 @@ def aggregatePlateFeatureCounts(infiles, outfile):
 
 @follows(aggregatePlateFeatureCounts)
 @collate(buildFeatureCounts,
-         regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
+         regex("feature_counts.dir/(.+)-(.+)-(.+)_vs_(.+).tsv.gz"),
          r"feature_counts.dir/\1-feature_counts.tsv.gz")
 def aggregateAllFeatureCounts(infiles, outfile):
     ''' build a matrix of counts with genes and tracks dimensions,
