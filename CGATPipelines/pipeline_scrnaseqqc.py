@@ -1,7 +1,6 @@
 ##############################################################################
 #
 #   MRC FGU CGAT
-#
 #   $Id$
 #
 #   Copyright (C) 2009 Andreas Heger
@@ -416,7 +415,7 @@ def mergeSailfishRuns(infiles, outfile):
     job_memory = "2G"
 
     statement = '''
-    cgat combine_tables
+    python %(cgat_scripts)s/combine_tables.py
     --columns=1
     --take=4
     --use-file-prefix
@@ -456,7 +455,7 @@ def mergeSailfishCounts(infiles, outfile):
     job_memory = "4G"
 
     statement = '''
-    cgat combine_tables
+    python %(cgat_scripts)s combine_tables.pu
     --columns=1
     --take=5
     --use-file-prefix
@@ -492,7 +491,7 @@ BAMREGEX = regex(r".*/(.+)-(.+)-(.+).bam$")
 @follows(mkdir("dedup.dir"))
 @transform(BAMFILES,
            BAMREGEX,
-           r"dedup.dir/\1_\2_\3.dedup.bam")
+           r"dedup.dir/\1-\2-\3.dedup.bam")
 def dedupBamFiles(infile, outfile):
     '''
     Use Picard MarkDuplicates to remove
@@ -571,7 +570,7 @@ def buildFeatureCounts(infiles, outfile):
 
 
 @collate(buildFeatureCounts,
-         regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
+         regex("feature_counts.dir/(.+)-(.+)-(.+)_vs_(.+).tsv.gz"),
          r"feature_counts.dir/\1-\2-feature_counts.tsv.gz")
 def aggregatePlateFeatureCounts(infiles, outfile):
     ''' build a matrix of counts with genes and tracks dimensions.
@@ -582,7 +581,7 @@ def aggregatePlateFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    cgat combine_tables
+    python %(cgat_scripts)s/combine_tables.py
     --columns=1
     --take=7
     --use-file-prefix
@@ -599,7 +598,7 @@ def aggregatePlateFeatureCounts(infiles, outfile):
 
 @follows(aggregatePlateFeatureCounts)
 @collate(buildFeatureCounts,
-         regex("feature_counts.dir/(.+)_(.+)_(.+)_vs_(.+).tsv.gz"),
+         regex("feature_counts.dir/(.+)-(.+)-(.+)_vs_(.+).tsv.gz"),
          r"feature_counts.dir/\1-feature_counts.tsv.gz")
 def aggregateAllFeatureCounts(infiles, outfile):
     ''' build a matrix of counts with genes and tracks dimensions,
@@ -611,7 +610,7 @@ def aggregateAllFeatureCounts(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    cgat combine_tables
+    python %(cgat_scripts)s/combine_tables.py
     --columns=1
     --take=7
     --use-file-prefix
@@ -795,7 +794,7 @@ def aggregateQcTables(infiles, outfile):
     infiles = " ".join(infiles)
 
     statement = '''
-    cgat combine_tables
+    python %(cgat_scripts)s/combine_tables.py
     --columns=1
     --skip-titles
     --log=%(outfile)s.log
