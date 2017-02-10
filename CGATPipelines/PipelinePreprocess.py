@@ -74,6 +74,10 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         f, fastq_format, datatype = Sra.peek(infile)
         if len(f) == 2:
             tracks = [track + "_fastq_1", track + "_fastq_2"]
+    elif infile.endswith(".fastq.1.gz"):
+        tracks = [track + "_fastq_1", track + "_fastq_2"]
+    elif infile.endswith(".fastq.gz"):
+        tracks = [track]
 
     found_contaminants = []
     for t in tracks:
@@ -176,6 +180,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
                  save=True,
                  summarize=False,
                  threads=1,
+                 qual_format='phred64',
                  *args, **kwargs):
         self.save = save
         self.summarize = summarize
@@ -186,6 +191,7 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
             self.outdir = P.getTempDir(shared=True)
 
         self.processors = []
+        self.qual_format = qual_format
 
     def add(self, processor):
         """add a processor to the list of tools to be executed."""

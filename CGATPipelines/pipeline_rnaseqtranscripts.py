@@ -275,6 +275,8 @@ import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.Tophat as Tophat
+import CGAT.Sra as Sra
+
 from rpy2.robjects import r as R
 from rpy2.rinterface import RRuntimeError
 
@@ -312,7 +314,8 @@ PipelineGeneset.PARAMS = PARAMS
 ###################################################################
 # collect sra nd fastq.gz tracks
 TRACKS = PipelineTracks.Tracks(PipelineTracks.Sample3).loadFromDirectory(
-    glob.glob("*.bam"), "(\S+).bam")
+    glob.glob("*.bam") + glob.glob("*.remote"),
+    "(\S+).(?:bam|remote)")
 
 ALL = PipelineTracks.Sample3()
 EXPERIMENTS = PipelineTracks.Aggregate(TRACKS, labels=("condition", "tissue"))
@@ -801,6 +804,7 @@ def buildCodingTranscriptSet(infile, outfile):
 
 # Nick - added building of a mask file for omitting certain regions during
 # gene model building
+
 # Tom - this needs updating for ensembl >v79 GTFs
 # (no longer contain "rRNA" in source")
 
@@ -820,15 +824,31 @@ def buildMaskGtf(infile, outfile):
         if re.findall("rRNA",
                       entry.source) or re.findall("chrM",
                                                   entry.contig):
-            outf.write("\t".join((list(map(str, [entry.contig,
-                                                 entry.source,
-                                                 entry.feature,
-                                                 entry.start,
-                                                 entry.end,
-                                                 ".",
-                                                 entry.strand,
-                                                 ".",
-                                                 "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"'])))) + "\n")
+
+            outf.write("\t".join((map(str, [entry.contig,
+                                            entry.source,
+                                            entry.feature,
+                                            entry.start,
+                                            entry.end,
+                                            ".",
+                                            entry.strand,
+                                            ".",
+                                            "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+
+    # CG: I added this in to expand the mask file - change as see fit
+        elif re.findall("snRNA",
+                        entry.source) or re.findall("snoRNA",
+                                                    entry.source):
+            outf.write("\t".join((map(str, [entry.contig,
+                                            entry.source,
+                                            entry.feature,
+                                            entry.start,
+                                            entry.end,
+                                            ".",
+                                            entry.strand,
+                                            ".",
+                                            "transcript_id" + " " + '"' + entry.transcript_id + '"' + ";" + " " + "gene_id" + " " + '"' + entry.gene_id + '"']))) + "\n")
+
     outf.close()
 
 #########################################################################
@@ -836,10 +856,10 @@ def buildMaskGtf(infile, outfile):
 #########################################################################
 
 
-@transform("*.bam",
-           suffix(".bam"),
+@transform(["*.bam", "*.remote"],
+           formatter(),
            add_inputs(buildMaskGtf, buildReferenceGeneSet),
-           r"\1.gtf.gz")
+           r"{basename[0]}.gtf.gz")
 def buildTranscriptsWithCufflinks(infiles, outfile):
     '''build transcript models for each track separately.
     '''
@@ -880,6 +900,23 @@ def buildTranscriptsWithCufflinks(infiles, outfile):
         %(tmpfilename)s/reference.gtf; ''' % locals()
         options = options + \
             " --GTF-guide %(tmpfilename)s/reference.gtf" % locals()
+    
+    if infile.endswith(".remote"):
+        token = glob.glob("gdc-user-token*")
+
+        if len(token) > 0:
+            token = token[0]
+        else:
+            token = None
+
+        s, infile = Sra.process_remote_BAM(
+            infile, token, tmpfilename,
+            filter_bed=os.path.join(
+                PARAMS["annotations_dir"],
+                PARAMS_ANNOTATIONS["interface_contigs_bed"]))
+
+        infile = " ".join(infile)
+        statement += s + "; "
 
     statement += '''
         cd %(tmpfilename)s;
@@ -996,6 +1033,7 @@ def compareTranscriptsPerExperiment(infiles, outfile):
     infiles = [x[0] for x in infiles]
     runCuffCompare(infiles, outfile, reffile)
 
+
 #########################################################################
 #########################################################################
 #########################################################################
@@ -1065,15 +1103,31 @@ def mergeUsingCuffmerge(infiles, outfile):
 def loadTranscriptComparison(infile, outfile):
     '''load data from transcript comparison.
 
-    This task creates two tables:
+    This task creates several tables in database for:
+    experiment_condition_agg.cuffcompare tracks
+    agg_agg_agg.cuffcompare tracksexir
 
-    <track>_benchmark
-    <track>_loci
+    CG:the tracking file produced from cuffcompare can contain multiple
+    transcripts per transfrag for each sample
+    the <track>_fpkm table and <track>_transcripts table only record
+    one transcript for each transfrag. If the transfrag has more then one
+    transcript associated with it the information will be lost and
+    fpkm values etc could be misleading.
 
-    The following tables are only present if there are
-    multiple replicates in a sample:
+    <track>_benchmark: summarise info from <track>.cuffcompare stats file
 
-    <track>_tracking
+    <track>_loci: summarise info from <track>.cufffcompare.loci
+
+    <track>_fpkm: summarise fpkm of samples being compared in track
+    NOTE: MAY NOT GIVE INFO FOR ALL TRANSCRIPTS! (See above)
+
+    <track>_transcripts: contains transcripts details summarised from
+        <track>.cuffcompare.tracking file
+
+    <track>_tracking: summarises number of experiments transfrags are found in
+                        Only present if multiple replicate
+
+    <track>_tracks:     list of samples compared/combined
     '''
 
     tmpfile = P.getTempFilename(dir=".")
@@ -1185,8 +1239,14 @@ def loadTranscriptComparison(infile, outfile):
 
     if os.path.exists(fn):
         for transfrag in Tophat.iterate_tracking(IOTools.openFile(fn, "r")):
+            # collect transcripts from each transfrag,
+            # filter out samples with no transcripts
+            numtranscripts = [x for x in transfrag.transcripts if x]
 
-            nexperiments = len([x for x in transfrag.transcripts if x])
+            # count number of gene_ids containing q1 - qXX
+            # qXX = identifier of samples where transcript is found
+            nexperiments = len([y for y in numtranscripts
+                               if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
 
             outf.write("%s\n" %
                        "\t".join((transfrag.transfrag_id,
@@ -1374,15 +1434,20 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
     if os.path.exists(fn):
         for transfrag in Tophat.iterate_tracking(IOTools.openFile(fn, "r")):
             if transfrag.transfrag_id in kept_transcripts:
-                nexperiments = len([x for x in transfrag.transcripts if x])
+                # collect transcripts from each transfrag,
+                # filter out samples with no transcripts
+                numtranscripts = [x for x in transfrag.transcripts if x]
 
-                outf.write("%s\n" %
-                           "\t".join((transfrag.transfrag_id,
-                                      transfrag.locus_id,
-                                      transfrag.ref_gene_id,
-                                      transfrag.ref_transcript_id,
-                                      transfrag.code,
-                                      str(nexperiments))))
+                #  number of gene_ids containing q1 - qXX
+                # qXX = identifier of samples where transcript is found
+                nexperiments = len([y for y in numtranscripts if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
+
+                outf.write("%s\n" % "\t".join((transfrag.transfrag_id,
+                                               transfrag.locus_id,
+                                               transfrag.ref_gene_id,
+                                               transfrag.ref_transcript_id,
+                                               transfrag.code,
+                                               str(nexperiments))))
 
                 outf3.write("%s" % transfrag.transfrag_id)
 
@@ -2070,7 +2135,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     | gzip
     > %(outfile)s
     '''
-
+    
     P.run()
 
 #########################################################################

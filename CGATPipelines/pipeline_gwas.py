@@ -1082,7 +1082,7 @@ def plotPcaResults(infiles, outfile):
     --fam-file=%(fam_file)s
     --group-labels=%(format_ethnicity_var)s
     --log=%(outfile)s.log
-    --output-file
+    --output-file=%(outfile)s
     %(pcs_file)s
     '''
 
@@ -1262,6 +1262,8 @@ def plotIbdHistogram(infile, outfile):
     '''
     plot the distribution of IBD estimates
     '''
+
+    job_memory = "300G"
 
     statement = '''
     cgat qcs2qc
@@ -1582,11 +1584,13 @@ else:
         --keep=%(gwas_keep)s
         --remove-individuals=%(gwas_exclude)s
         --association-method=assoc
-        --genotype-rate=0.1
-        --hardy-weinberg=0.000000000000001
-        --min-allele-frequency=0.001
+        --genotype-rate=%(gwas_geno)s
+        --hardy-weinberg=%(gwas_hwe)s
+        --min-allele-frequency=%(gwas_maf)s
+        --indiv-missing=%(gwas_mind)s
         --output-file-pattern=%(out_pattern)s
         --memory=%(mem)s
+        --subset-filter=%(gwas_filter)s
         -v 5
         %(plink_files)s
         > %(outfile)s.plink.log
@@ -1665,11 +1669,13 @@ def pcAdjustedAssociation(infiles, outfile):
     --keep=%(gwas_keep)s
     --remove-individuals=%(remove)s
     --association-method=%(gwas_model)s
-    --genotype-rate=0.05
-    --hardy-weinberg=1e-50
-    --min-allele-frequency=0.001
+    --genotype-rate=%(gwas_geno)s
+    --hardy-weinberg=%(gwas_hwe)s
+    --min-allele-frequency=%(gwas_maf)s
+    --indiv-missing=%(gwas_mind)s
     --output-file-pattern=%(out_pattern)s
     --memory=%(mem)s
+    --subset-filter=%(gwas_filter)s
     -v 5
     %(plink_files)s
     > %(outfile)s.plink.log
