@@ -133,7 +133,7 @@ get_cgat_env() {
 if [ $TRAVIS_INSTALL ] ; then
 
    CGAT_HOME=$TRAVIS_BUILD_DIR
-   CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
+   CONDA_INSTALL_TYPE="cgat-scripts-nosetests cgat-pipelines-nosetests"
    INSTALL_PYTHON_VERSION=$TRAVIS_PYTHON_VERSION
 
 else
@@ -301,6 +301,9 @@ if [ "$OS" != "travis" ] ; then
       # activate cgat environment
       source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 
+      # SLV: workaround until bx-python is available with Python 3
+      pip install bx-python
+
       # Set up other environment variables
       setup_env_vars
 
@@ -373,6 +376,10 @@ if [ $TRAVIS_INSTALL ] ; then
    # enable Conda env
    log "activating CGAT conda environment"
    source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
+
+   # SLV: workaround until bx-python is available with Python 3
+   log "pip-installing additional packages"
+   pip install bx-python
 
    # need to install the CGAT Code Collection as well
    log "install cgat scripts"
