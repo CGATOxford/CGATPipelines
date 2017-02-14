@@ -273,7 +273,7 @@ if [ "$CONDA_INSTALL_TYPE" == "cgat-scripts" ] ; then
 
 else
 
-      conda create -q -n $CONDA_INSTALL_TYPE $CONDA_INSTALL_TYPE python=$INSTALL_PYTHON_VERSION --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
+      conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE python=$INSTALL_PYTHON_VERSION --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
 
 fi
 
