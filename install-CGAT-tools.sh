@@ -310,7 +310,11 @@ if [ "$OS" != "travis" ] ; then
       # brute force: modify console_scripts variable/entry point for cgat command
       sed -i 's/CGATScripts/scripts/g' setup.py
 
+      # need to install the CGAT Code Collection as well
+      install_cgat_scripts
+
       # Python preparation
+      sed -i'' -e 's/install_requires=install_requires,//g' setup.py
       python setup.py develop
 
       DEV_RESULT=$?
@@ -360,6 +364,20 @@ fi # if travis install
 } # conda install
 
 
+# need to install the CGAT Code Collection as well
+install_cgat_scripts() {
+
+log "install cgat scripts"
+git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
+cd $CGAT_HOME/cgat-code-at-travis
+# remove install_requires (no longer required with conda package)
+sed -i'' -e '/REPO_REQUIREMENT/,/pass/d' setup.py
+sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
+python setup.py develop
+
+} # install_cgat_scripts
+
+
 # test code with conda install
 conda_test() {
 
@@ -382,14 +400,12 @@ if [ $TRAVIS_INSTALL ] ; then
    pip install bx-python MySQL-python CGATReport
 
    # need to install the CGAT Code Collection as well
-   log "install cgat scripts"
-   git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
-   cd $CGAT_HOME/cgat-code-at-travis
-   python setup.py develop
+   install_cgat_scripts
 
    # python preparation
    log "install CGAT code into conda environment"
    cd $CGAT_HOME
+   sed -i'' -e 's/install_requires=install_requires,//g' setup.py
    python setup.py develop
 
    log "starting tests"
@@ -426,6 +442,11 @@ else
          cd $CGAT_HOME/cgat-code
       fi
 
+      # need to install the CGAT Code Collection as well
+      install_cgat_scripts
+
+      # python preparation
+      sed -i'' -e 's/install_requires=install_requires,//g' setup.py
       python setup.py develop
       OUTPUT_DIR=`pwd`
 
