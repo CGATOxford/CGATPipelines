@@ -8,9 +8,11 @@ https://www.cgat.org/downloads/public/training/CGATTrainingSessions/2017-02-14-K
 
 No input is required, to run the pipeline the steps are:
 
-1. Build an empty folder in your "projects" directory
+1. Create an empty folder in your "projects" directory
 
-2. Inside this folder, run:
+2. Log on to cgath1
+
+3. Inside the empty folder, run:
     (replacing CGATPipelines with the path to your CGATPipelines directory)
 
     python CGATPipelines/pipeline_ruffus_example.py plot full
