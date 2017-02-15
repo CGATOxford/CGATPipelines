@@ -302,7 +302,9 @@ if [ "$OS" != "travis" ] ; then
       source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 
       # SLV: workaround until these Python packages are available with Python 3
-      pip install bx-python MySQL-python CGATReport
+      pip install bx-python
+      pip install MySQL-python
+      pip install CGATReport
 
       # Set up other environment variables
       setup_env_vars
@@ -397,7 +399,9 @@ if [ $TRAVIS_INSTALL ] ; then
 
    # SLV: workaround until these Python packages are available with Python 3
    log "pip-installing additional packages"
-   pip install bx-python MySQL-python CGATReport
+   pip install bx-python
+   pip install MySQL-python
+   pip install CGATReport
 
    # need to install the CGAT Code Collection as well
    install_cgat_scripts
