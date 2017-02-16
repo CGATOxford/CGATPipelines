@@ -1267,9 +1267,9 @@ def buildBroadPeakGenomeWindows(infile, outfile):
 
 
 @transform(["%s.call.bam" % x.asFile() for x in TRACKS],
-           regex("(.+)/(.+).call.bam"),
+           regex("(.+).call.bam"),
            add_inputs(buildBroadPeakGenomeWindows),
-           r"./broadpeak.dir/\2.bedgraph")
+           r"./broadpeak.dir/\1.bedgraph")
 def buildBroadPeakBedgraphFiles(infiles, outfile):
     logfile = outfile + ".log"
     overlap = str(float(PARAMS["broadpeak_read_length"]) /
