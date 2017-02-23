@@ -376,8 +376,15 @@ fi # if travis install
 install_cgat_scripts() {
 
 log "install cgat scripts"
-git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
-cd $CGAT_HOME/cgat-code-at-travis
+cd $CGAT_HOME
+
+if [ $TRAVIS_INSTALL ] ; then
+   git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
+   cd $CGAT_HOME/cgat-code-at-travis
+elif [ $JENKINS_INSTALL ] ; then
+   cd $CGAT_HOME/cgat
+fi
+
 # remove install_requires (no longer required with conda package)
 sed -i'' -e '/REPO_REQUIREMENT/,/pass/d' setup.py
 sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
@@ -414,7 +421,8 @@ if [ $TRAVIS_INSTALL ] || [ $JENKINS_INSTALL ] ; then
 
    # python preparation
    log "install CGAT code into conda environment"
-   cd $CGAT_HOME
+   [ $TRAVIS_INSTALL  ] && cd $CGAT_HOME
+   [ $JENKINS_INSTALL ] && cd $CGAT_HOME/CGATPipelines
    sed -i'' -e 's/install_requires=install_requires,//g' setup.py
    python setup.py develop
 
