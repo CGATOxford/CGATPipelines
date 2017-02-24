@@ -325,7 +325,7 @@ def loadPicardMetrics(infiles, outfile, suffix,
             continue
 
         if first:
-            outf.write(("%s\t%s" % ("track", lines[0])))
+            outf.write("%s\t%s" % ("track", lines[0]))
             fields = lines[0][:-1].split("\t")
         else:
             f = lines[0][:-1].split("\t")
@@ -336,7 +336,7 @@ def loadPicardMetrics(infiles, outfile, suffix,
 
         first = False
         for i in range(1, len(lines)):
-            outf.write(("%s\t%s" % (track, lines[i])))
+            outf.write("%s\t%s" % (track, lines[i]))
 
     outf.close()
 
