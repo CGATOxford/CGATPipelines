@@ -377,15 +377,9 @@ def peekParameters(workingdir,
             (-process.returncode, stderr))
 
     dump = None
-    for line in stdout.decode().split("\n"):
+    for line in stdout.split("\n"):
         if line.startswith("dump"):
-            # TS exec cannot change local variables in Python 3- See:
-            # http://stackoverflow.com/questions/15086040/behavior-of-exec-function-in-python-2-and-python-3
-            # Solution here is to pass a namespace to exec and extract
-            # from namespace
-            namespace = {}
-            exec(line, namespace)
-            dump = namespace['dump']
+            exec(line)
 
     # update interface
     if update_interface:

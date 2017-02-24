@@ -75,7 +75,7 @@ if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
     PIPELINE_SCRIPTS_DIR = os.path.join(sys.exec_prefix, "bin")
 
 # Global variable for configuration file data
-CONFIG = configparser.RawConfigParser()
+CONFIG = configparser.ConfigParser()
 
 
 class TriggeredDefaultFactory:
@@ -411,7 +411,7 @@ def loadParameters(filenames):
        A configuration dictionary.
 
     '''
-    config = configparser.RawConfigParser()
+    config = configparser.ConfigParser()
     config.read(filenames)
 
     p = configToDictionary(config)
