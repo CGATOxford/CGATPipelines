@@ -230,6 +230,7 @@ def configToDictionary(config):
     return p
 
 
+
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
                   site_ini=True,
@@ -324,6 +325,14 @@ def getParameters(filenames=["pipeline.ini", ],
         # turn on default dictionary
         TriggeredDefaultFactory.with_default = True
 
+    # Clear up ini files on the list that do not exist.
+    # Please note the use of list(filenames) to create
+    # a clone to iterate over as we remove items from
+    # the original list (to avoid unexpected results)
+    for fn in list(filenames):
+        if not os.path.exists(fn):
+            filenames.remove(fn)
+
     if site_ini:
         # read configuration from /etc/cgat/pipeline.ini
         fn = "/etc/cgat/pipeline.ini"
@@ -337,12 +346,6 @@ def getParameters(filenames=["pipeline.ini", ],
         if os.path.exists(fn):
             filenames.insert(0, fn)
 
-    # IMS: Several legacy scripts call this with a sting as input
-    # rather than a list. Check for this and correct
-
-    if isinstance(filenames, str):
-        filenames = [filenames]
-
     if default_ini:
         # The link between CGATPipelines and Pipeline.py
         # needs to severed at one point.
@@ -352,6 +355,14 @@ def getParameters(filenames=["pipeline.ini", ],
                          os.path.join(CGATPIPELINES_PIPELINE_DIR,
                                       'configuration',
                                       'pipeline.ini'))
+
+    # IMS: Several legacy scripts call this with a string as input
+    # rather than a list. Check for this and correct
+
+    if isinstance(filenames, str):
+        filenames = [filenames]
+
+    PARAMS['pipeline_ini'] = filenames
 
     CONFIG.read(filenames)
 
