@@ -8,15 +8,11 @@ language: python
 
 env:
   global:
-    - CGAT_TASK_STEPSIZE=100
-  matrix:
-    - CGAT_TASK_ID=1
-    - TEST_STYLE=1
-    - TEST_CMDLINE=1
-    - TEST_IMPORT=1
+    - TEST_ALL=1
 
 python:
   - "2.7"
+#  - "3.5"
 
 script: 
   - ./install-CGAT-tools.sh --travis

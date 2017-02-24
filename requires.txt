@@ -25,9 +25,9 @@ scipy>=0.11
 sphinx>=1.0.5
 sphinxcontrib-programoutput>=0.8
 sqlalchemy>=0.7.0
-# not in py3
 weblogo>=3.0
-ggplot>=0.6.5
+# not in py3
+ggplot>=0.11.5
 xlwt>=0.7.4
 pybedtools>=0.6.5
 pep8>=1.4.0

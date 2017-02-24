@@ -861,6 +861,7 @@ class SequenceCollectionProcessor(object):
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.1.fastq%(extension)s;
+                    checkpoint;
                     gunzip < %(infile2)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
@@ -881,6 +882,7 @@ class SequenceCollectionProcessor(object):
                     --log=%(outfile)s.log
                     %(compress_cmd)s
                     > %(tmpdir_fastq)s/%(track)s.1.fastq%(extension)s;
+                    checkpoint;
                     gunzip < %(infile2)s
                     | cgat fastq2fastq
                     --method=change-format --target-format=sanger
@@ -1584,7 +1586,7 @@ class BWA(Mapper):
             statement.append('''
             bwa aln %%(bwa_aln_options)s -t %%(bwa_threads)i
             %(index_prefix)s %(infiles)s
-            > %(tmpdir)s/%(track)s.sai 2>>%(outfile)s.bwa.log;
+            > %(tmpdir)s/%(track)s.sai 2>>%(outfile)s.bwa.log; checkpoint;
             bwa samse %%(bwa_samse_options)s %%(bwa_index_dir)s/%%(genome)s
             %(tmpdir)s/%(track)s.sai %(infiles)s
             | samtools view -bS -
@@ -1852,7 +1854,7 @@ class Bismark(Mapper):
             %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2.bam
             | awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
             $1=="@SQ" || $1=="@PG"' | samtools view -b - >
-            %%(outdir)s/%(track)s.bam;
+            %%(outdir)s/%(track)s.bam; checkpoint;
             mv %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2_SE_report.txt
             %%(outdir)s/%(track)s_bismark_bt2_SE_report.txt;''' % locals()
         elif infile.endswith(".fastq.1.gz"):
@@ -1860,7 +1862,7 @@ class Bismark(Mapper):
             %(tmpdir_fastq)s/%(base)s.fastq.1.gz_bismark_bt2_pe.bam
             | awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
             $1=="@SQ" || $1=="@PG"' | samtools view -b - >
-            %%(outdir)s/%(track)s.bam;
+            %%(outdir)s/%(track)s.bam; checkpoint;
             mv %(tmpdir_fastq)s/%(base)s.fastq.gz_bismark_bt2_PE_report.txt
             %%(outdir)s/%(track)s_bismark_bt2_SE_report.txt;''' % locals()
         elif infile.endswith(".sra"):
@@ -1872,7 +1874,7 @@ class Bismark(Mapper):
                     %(tmpdir_fastq)s/%(mapfile)s_bismark_bt2_pe.bam|
                     awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/ ||
                     $1=="@SQ" || $1=="@PG"' | samtools view -b - >
-                    %%(outdir)s/%(track)s.bam;
+                    %%(outdir)s/%(track)s.bam;checkpoint;
                     mv %(tmpdir_fastq)s/%(mapfile)s_bismark_bt2_PE_report.txt
                     %%(outdir)s/%(track)s_PE_report.txt;''' % locals()
                 else:
@@ -1880,7 +1882,7 @@ class Bismark(Mapper):
                     %(tmpdir_fastq)s/%(mapfile)s_bismark_bt2.bam|
                     awk -F" " '$14!~/^XM:Z:[zZhxUu\.]*[HX][zZhxUu\.]*[HX]/||
                     $1=="@SQ" || $1=="@PG"' | samtools view -b - >
-                    %%(outdir)s/%(track)s.bam;
+                    %%(outdir)s/%(track)s.bam;checkpoint;
                     mv %(tmpdir_fastq)s/%(mapfile)s_bismark_bt2_SE_report.txt
                     %%(outdir)s/%(track)s_SE_report.txt;''' % locals()
         else:
@@ -2354,10 +2356,10 @@ class Tophat2_fusion(Tophat2):
 
         statement = '''
         gzip < %(tmpdir_tophat)s/junctions.bed
-        > %(track)s.junctions.bed.gz;
-        mv %(tmpdir_tophat)s/logs %(outfile)s.logs;
-        mv %(tmpdir_tophat)s/accepted_hits.bam %(outfile)s;
-        mv %(tmpdir_tophat)s/fusions.out %%(fusions)s;
+        > %(track)s.junctions.bed.gz;checkpoint;
+        mv %(tmpdir_tophat)s/logs %(outfile)s.logs;checkpoint;
+        mv %(tmpdir_tophat)s/accepted_hits.bam %(outfile)s;checkpoint;
+        mv %(tmpdir_tophat)s/fusions.out %%(fusions)s;checkpoint;
         samtools index %(outfile)s;
         ''' % locals()
 
@@ -2555,7 +2557,7 @@ class Hisat(Mapper):
             --known-splicesite-infile %%(junctions)s
             > %(tmpdir_hisat)s/%(track)s
             --novel-splicesite-outfile %(outfile)s_novel_junctions
-            2>> %(outfile)s.log  ;
+            2>> %(outfile)s.log;
             ''' % locals()
 
         elif nfiles == 2:
@@ -2574,7 +2576,7 @@ class Hisat(Mapper):
             --known-splicesite-infile %%(junctions)s
             > %(tmpdir_hisat)s/%(track)s
             --novel-splicesite-outfile %(outfile)s_novel_junctions
-            2>> %(outfile)s.hisat.log  ;
+            2>> %(outfile)s.hisat.log;
             ''' % locals()
 
         else:
@@ -2629,7 +2631,9 @@ class Hisat(Mapper):
         samtools view -uS %(tmpdir_hisat)s/%(track)s
         %(strip_cmd)s
         | samtools sort - -o %(outfile)s 2>>%(outfile)s.hisat.log;
+        checkpoint;
         samtools index %(outfile)s;
+        checkpoint;
         rm -rf %(tmpdir_hisat)s;
         ''' % locals()
 
@@ -2940,10 +2944,15 @@ class STAR(Mapper):
 
         statement = '''
         cp %(tmpdir)s/Log.std.out %(outfile)s.std.log;
+        checkpoint;
         cp %(tmpdir)s/Log.final.out %(outfile)s.final.log;
+        checkpoint;
         cp %(tmpdir)s/SJ.out.tab %(outfile)s.junctions;
+        checkpoint;
         cat %(tmpdir)s/Log.out >> %(outfile)s.log;
+        checkpoint;
         cp %(tmpdir)s/Log.progress.out %(outfile)s.progress;
+        checkpoint;
         cat %(tmpdir)s/%(track)s.bam
         %(unique_cmd)s
         %(strip_cmd)s
@@ -3133,7 +3142,7 @@ class Bowtie(Mapper):
         --log=%(outfile)s.log
         %(unique_cmd)s
         %(strip_cmd)s
-        | samtools sort -o %(outfile)s;
+        | samtools sort -o %(outfile)s;checkpoint;
         samtools index %(outfile)s;
         ''' % locals()
 
@@ -3318,7 +3327,7 @@ class BowtieTranscripts(Mapper):
         statement = '''cat %(tmpdir_fastq)s/out.bam
              %(unique_cmd)s
              %(strip_cmd)s
-             | samtools sort -o %(outfile)s 2>>%(track)s.bwa.log;
+             | samtools sort -o %(outfile)s 2>>%(track)s.bwa.log;checkpoint;
              samtools index %(outfile)s;
              ''' % locals()
 
@@ -3554,6 +3563,7 @@ class Shortstack(Bowtie):
         %(unique_cmd)s
         %(strip_cmd)s
         | samtools sort -o %(outfile)s;
+        checkpoint;
         samtools index %(outfile)s;
         ''' % locals()
 
