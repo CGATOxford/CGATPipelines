@@ -1,3 +1,4 @@
+
 """PipelineRnaseq.py - Tasks for RNAseq analysis
 ==============================================
 
@@ -317,8 +318,7 @@ class FeatureCountsQuantifier(Quantifier):
         P.run()
 
         # parse output to extract counts
-        parse_table(self.sample, outfile_raw + ".gz",
-                    outfile, "%s.bam" % self.sample)
+        parse_table(self.sample, outfile_raw + ".gz", outfile, self.infile)
 
     def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
