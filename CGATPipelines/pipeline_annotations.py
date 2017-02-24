@@ -567,7 +567,7 @@ import collections
 from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
     suffix, regex, add_inputs
 
-from bx.bbi.bigwig_file import BigWigFile
+#from bx.bbi.bigwig_file import BigWigFile
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
