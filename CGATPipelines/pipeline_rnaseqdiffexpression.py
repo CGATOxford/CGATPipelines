@@ -493,6 +493,7 @@ def buildReferenceTranscriptome(infile, outfile):
     cgat gff2fasta
     --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
     --log=%(outfile)s.log > %(outfile)s;
+    checkpoint;
     samtools faidx %(outfile)s
     '''
 
@@ -838,15 +839,15 @@ else:
 
     SEQUENCEFILES_KALLISTO_OUTPUT = [
         r"kallisto.dir/\1/transcripts.tsv.gz",
-        r"kallisto.dir/\1/transcripts.tsv.gz"]
+        r"kallisto.dir/\1/genes.tsv.gz"]
 
     SEQUENCEFILES_SALMON_OUTPUT = [
         r"salmon.dir/\1/transcripts.tsv.gz",
-        r"salmon.dir/\1/transcripts.tsv.gz"]
+        r"salmon.dir/\1/genes.tsv.gz"]
 
     SEQUENCEFILES_SAILFISH_OUTPUT = [
         r"sailfish.dir/\1/transcripts.tsv.gz",
-        r"sailfish.dir/\1/transcripts.tsv.gz"]
+        r"sailfish.dir/\1/genes.tsv.gz"]
 ###################################################
 
 
@@ -1279,6 +1280,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 
     model = PARAMS['sleuth_model%s' % design_name]
     E.info(model)
+
     contrast = PARAMS['sleuth_contrast%s' % design_name]
     refgroup = PARAMS['sleuth_refgroup%s' % design_name]
 
