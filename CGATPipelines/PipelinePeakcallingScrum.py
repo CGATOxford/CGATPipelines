@@ -596,7 +596,7 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
         outbam = "%s.bam" % outfile
         shutil.copy(infile, outbam)
     out = IOTools.openFile(infile.replace(".bam", ".fraglengths"), "w")
-    out.write("frequency\tfrag_length\n")
+    out.write("frag_length\tfrequency\n")
     for key in fragment_length:
         out.write("%s\t%d\n" % (key, fragment_length[key]))
     out.close()

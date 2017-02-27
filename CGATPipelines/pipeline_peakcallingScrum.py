@@ -257,6 +257,7 @@ import shutil
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
+import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelinePeakcallingScrum as PipelinePeakcalling
 import CGAT.BamTools as Bamtools
 import CGAT.Database as DB
@@ -369,7 +370,7 @@ def connect():
 
 @transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
-	''' load design.tsv to database ''' 
+    ''' load design.tsv to database '''
     P.load(infile, outfile)
 
 
@@ -438,6 +439,12 @@ def filterChipBAMs(infile, outfiles):
                                    PARAMS['filters_keepint'])
 
 
+
+
+#############################################################################
+###### Filtering Stats and QC
+#############################################################################
+
 @merge((filterChipBAMs, filterInputBAMs), "post_filtering_read_counts.tsv")
 def mergeFilteringStats(infiles, outfile):
     '''
@@ -447,10 +454,10 @@ def mergeFilteringStats(infiles, outfile):
     unpaired: unpaired reads
     unmapped: unmapped reads
     lowqual: low quality reads
-    blacklist xxx: reads in the blacklist file xxx
+    blacklist_xxx: reads in the blacklist file xxx
     contigs: removal of contigs that match patterns specified in ini file
     '''
-
+    print infiles
     counts = [i[1] for i in infiles]
     bigtab = pd.DataFrame()
     for c in counts:
@@ -469,13 +476,15 @@ def mergeFilteringStats(infiles, outfile):
 
 @merge(mergeFilteringStats, "post_filtering_read_counts.load")
 def loadFilteringStats(infile, outfile):
-	'''load filtering stats'''
+    '''load filtering stats to database'''
     P.load(infile, outfile)
 
 
 @merge((filterChipBAMs, filterInputBAMs), "post_filtering_check.tsv")
 def mergeFilteringChecks(infiles, outfile):
-	'''take individual filering checks and merge them to produce single table'''
+    '''take individual filering checks that detail the number of reads in the 
+    filtered bam file that are found for each flag that should have set in the
+    filters and merge them to produce single table'''
 
     counts = [i[0].replace(".bam", ".filteringlog") for i in infiles]
     bigtab = pd.DataFrame()
@@ -490,8 +499,9 @@ def mergeFilteringChecks(infiles, outfile):
 
 @transform(mergeFilteringChecks, suffix(".tsv"), ".load")
 def loadFilteringChecks(infile, outfile):
-	'''load filtering stats to database '''
+    '''load filtering stats to database '''
     P.load(infile, outfile)
+
 
 
 @active_if(PARAMS['paired_end'])
@@ -508,10 +518,111 @@ def loadFragmentLengthDistributions(infiles, outfile):
         os.system("touch %s" % outfile)
 
 
-@follows(mergeFilteringChecks, loadFragmentLengthDistributions)
+
+@transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
+           ".idxstats")
+def getIdxstats(infiles, outfile):
+    '''gets idxstats for bam file so number of reads per chromosome can 
+    be plotted later'''
+    infile = infiles[0]
+    statement = '''samtools idxstats %(infile)s > %(outfile)s''' % locals()
+    P.run()
+
+
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(getIdxstats, "idxstats_reads_per_chromosome.load")
+def loadIdxstats(infiles, outfile):
+	'''merge idxstats files into single dataframe and load
+ 	to database
+
+    Loads tables into the database
+       * mapped_reads_per_chromosome
+
+    Arguments
+    ---------
+    infiles : list
+        list where each element is a string of the filename containing samtools 
+		idxstats output. Filename format is expected to be 'sample.idxstats'
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.'''
+
+	print infiles
+	print outfile 
+	PipelineMappingQC.loadIdxstats(infiles,outfile)
+
+
+@transform((filterChipBAMs, filterInputBAMs),
+           suffix(".bam"),
+           ".picard_stats")
+def buildPicardStats(infiles, outfile):
+    ''' build Picard alignment stats '''
+    infile = infiles[0]
+    reffile = os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa")
+
+
+    PipelineMappingQC.buildPicardAlignmentStats(infile,
+                                                outfile,
+                                                reffile)
+
+
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildPicardStats, "picard_stats.load")
+def loadPicardStats(infiles, outfile):
+    '''merge alignment stats into single tables.'''
+    PipelineMappingQC.loadPicardAlignmentStats(infiles, outfile)
+
+
+
+@follows(loadFilteringStats,
+         loadFilteringChecks,
+         loadFragmentLengthDistributions,
+         loadIdxstats,
+         loadPicardStats)
 def filtering():
     ''' dummy task to allow all the filtering of bams & collection of stats'''
     pass
+
+
+#### Make bigwigs of filtered bam files #####################################
+
+@transform((filterChipBAMs, filterInputBAMs),
+           suffix(".bam"),
+           ".bw")
+def buildBigWig(infile, outfile):
+    '''build wiggle files from bam files.
+
+    Generate :term:`bigWig` format file from :term:`bam` alignment file
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`bam` format
+    outfile : str
+       Output filename in :term:`bigwig` format
+    annotations_interface_contigs : str
+       :term:`PARAMS`
+       Input filename in :term:`bed` format
+
+    '''
+    inf = infile[0]
+    # scale by Million reads mapped
+    reads_mapped = Bamtools.getNumberOfAlignments(inf)
+    scale = 1000000.0 / float(reads_mapped)
+    tmpfile = P.getTempFilename()
+    contig_sizes = PARAMS["annotations_interface_contigs"]
+    job_memory = "3G"
+    statement = '''bedtools genomecov
+    -ibam %(inf)s
+    -g %(contig_sizes)s
+    -bg
+    -scale %(scale)f
+    > %(tmpfile)s;
+    checkpoint;
+    bedGraphToBigWig %(tmpfile)s %(contig_sizes)s %(outfile)s;
+    checkpoint;
+    rm -f %(tmpfile)s
+    '''
+    P.run()
 
 
 ###############################################################################
@@ -802,13 +913,10 @@ def loadInsertSizes(infile, outfile):
     P.load(infile, outfile)
 
 
+@follows(filtering)
 @follows(loadInsertSizes)
-@follows(loadFilteringStats)
 @follows(loadDesignTable)
 @follows(loadBamInputTable)
-@follows(loadFilteringChecks)
-@follows(makeBamInputTable)
-@follows(mergeInsertSizes)
 @transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),
            r"\1_bams.dir/\2.bam")
 def preprocessing(infile, outfile):
@@ -854,16 +962,11 @@ def callMacs2peaks(infiles, outfile):
         inputf = D[bam]
     insertsizef = "%s_insertsize.tsv" % (P.snip(bam))
 
-    if PARAMS['macs2_tag_size'] == 0:
-        tag_size = None
-    else:
-        tag_size = PARAMS['macs2_tag_size']
-
     peakcaller = PipelinePeakcalling.Macs2Peakcaller(
         threads=1,
         paired_end=PARAMS['paired_end'],
         tool_options=PARAMS['macs2_options'],
-        tagsize=tag_size)
+        tagsize=None)
 
     statement = peakcaller.build(bam, outfile,
                                  PARAMS['macs2_contigsfile'],
@@ -877,7 +980,6 @@ def callMacs2peaks(infiles, outfile):
 
 
 @follows(mkdir('sicer_narrow.dir'))
-@follows(mergeInsertSizes)
 @transform(preprocessing,
            regex("peakcalling_bams.dir/(.*).bam"),
            add_inputs(makeBamInputTable),
@@ -951,7 +1053,6 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
 
 
 @follows(mkdir('sicer_broad.dir'))
-@follows(mergeInsertSizes)
 @transform(preprocessing,
            regex("peakcalling_bams.dir/(.*).bam"),
            add_inputs(makeBamInputTable),
