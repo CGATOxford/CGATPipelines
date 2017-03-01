@@ -567,12 +567,7 @@ import collections
 from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
     suffix, regex, add_inputs
 
-try:
-    from bx.bbi.bigwig_file import BigWigFile
-    HAS_BX = True
-except ImportError:
-    HAS_BX = False
-
+from bx.bbi.bigwig_file import BigWigFile
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -969,7 +964,7 @@ def buildCpGBed(infile, outfile):
     '''
 
     job_memory = "10G"
-
+    
     statement = '''
     cgat fasta2bed
         --method=cpg
@@ -2986,9 +2981,4 @@ def publish_report():
 
 
 if __name__ == "__main__":
-
-    if not HAS_BX:
-        raise ImportError("""bx-python could not be imported
-        and it is required to build mapable regions""")
-
     sys.exit(P.main(sys.argv))
