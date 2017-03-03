@@ -303,7 +303,6 @@ class MyGeneInfoAnnotation(APIAnnotation):
         else:
             return 0
 
-
     def download(self, idlist, fields, scope, species):
         '''
         Gets information from MyGeneInfo.org for the list of genes pulled from
