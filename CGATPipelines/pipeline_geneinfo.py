@@ -142,7 +142,11 @@ def GetAndTranslateAllGenes(outfile):
     '''
     GeneAnnot = PipelineGeneInfo.EntrezGeneAnnotation(
         PARAMS['db_name'], PARAMS['entrez_email'])
-    entrezgenelist = GeneAnnot.download_all(PARAMS['entrez_host'])
+    if PARAMS['test'] == 1:
+        entrezgenelist = GeneAnnot.download_all(PARAMS['entrez_host'],
+                                                count=100)
+    else:
+        entrezgenelist = GeneAnnot.download_all(PARAMS['entrez_host'])
 
     # Generate a SymbolAnnotation object
     Sym = PipelineGeneInfo.SymbolAnnotation(PARAMS['my_gene_info_source'],
