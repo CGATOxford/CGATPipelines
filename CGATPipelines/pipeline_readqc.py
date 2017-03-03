@@ -204,7 +204,7 @@ if PARAMS.get("preprocessors", None):
                 outfile=outfile,
                 track=re.match(REGEX_TRACK, infile).groups()[0],
                 dbh=connect(),
-                contaminants_file=PARAMS['contaminants'])
+                contaminants_file=PARAMS['contaminants_path'])
 
         @merge(makeAdaptorFasta, "contaminants.fasta")
         def aggregateAdaptors(infiles, outfile):
@@ -248,6 +248,7 @@ if PARAMS.get("preprocessors", None):
                 PARAMS["trimmomatic_c_thresh"],
                 PARAMS["trimmomatic_min_adapter_len"],
                 PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
+
         elif PARAMS["trimmomatic_adapter"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
                 PARAMS["trimmomatic_adapter"],
@@ -355,10 +356,10 @@ def runFastqc(infiles, outfile):
     '''
     # MM: only pass the contaminants file list if requested by user,
     # do not make this the default behaviour
-    if PARAMS['add_contaminants']:
+    if PARAMS['use_custom_contaiminants']:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc",
-                                   contaminants=PARAMS['contaminants'],
+                                   contaminants=PARAMS['contaminants_path'],
                                    qual_format=PARAMS['qual_format'])
     else:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],

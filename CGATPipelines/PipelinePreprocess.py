@@ -77,7 +77,8 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     elif infile.endswith(".fastq.1.gz"):
         tracks = [track + "_fastq_1", track + "_fastq_2"]
     elif infile.endswith(".fastq.gz"):
-        tracks = [track + "_fastq"]
+        tracks = [track]
+
 
     found_contaminants = []
 

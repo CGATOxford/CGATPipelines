@@ -27,7 +27,7 @@ information how to use CGAT pipelines.
 
 In order to run all tests, simply enter an empty directory and type::
 
-   python <srcdir>/pipeline_testing.py make config
+   python <srcdir>/pipeline_testing.py config
 
 Edit the config files as required and then type::
 
@@ -73,7 +73,7 @@ with a ``#``).
 Some files will be different at every run, for example if they use
 some form of random initialization. Thus, the exact test can be
 relaxed for groups of files. Files matching the regular expression in
-``regex_linecount` will test if a file exists and the number of lines
+``regex_linecount`` will test if a file exists and the number of lines
 are identitical.  Files matching the regular expressions in
 ``regex_exist`` will thus only be tested if they exist or not.
 

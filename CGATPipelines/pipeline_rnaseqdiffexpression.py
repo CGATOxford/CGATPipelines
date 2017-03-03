@@ -493,6 +493,7 @@ def buildReferenceTranscriptome(infile, outfile):
     cgat gff2fasta
     --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
     --log=%(outfile)s.log > %(outfile)s;
+    checkpoint;
     samtools faidx %(outfile)s
     '''
 
@@ -838,15 +839,15 @@ else:
 
     SEQUENCEFILES_KALLISTO_OUTPUT = [
         r"kallisto.dir/\1/transcripts.tsv.gz",
-        r"kallisto.dir/\1/transcripts.tsv.gz"]
+        r"kallisto.dir/\1/genes.tsv.gz"]
 
     SEQUENCEFILES_SALMON_OUTPUT = [
         r"salmon.dir/\1/transcripts.tsv.gz",
-        r"salmon.dir/\1/transcripts.tsv.gz"]
+        r"salmon.dir/\1/genes.tsv.gz"]
 
     SEQUENCEFILES_SAILFISH_OUTPUT = [
         r"sailfish.dir/\1/transcripts.tsv.gz",
-        r"sailfish.dir/\1/transcripts.tsv.gz"]
+        r"sailfish.dir/\1/genes.tsv.gz"]
 ###################################################
 
 
@@ -1279,6 +1280,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 
     model = PARAMS['sleuth_model%s' % design_name]
     E.info(model)
+
     contrast = PARAMS['sleuth_contrast%s' % design_name]
     refgroup = PARAMS['sleuth_refgroup%s' % design_name]
 
@@ -1355,14 +1357,15 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 def getDESeqNormExp(infiles, outfiles):
     ''' Use the Deseq2 size factors method to obtain normalised
     expression values for summary plots '''
+    # currently DESeq expression factors is not working
+    # to normalise the expression values. In some workflows
+    # the columns produce infinity values. Have defaulted to
+    # total column until issue is identified
 
     transcripts_inf, genes_inf = infiles
     transcripts_outf, genes_outf = outfiles
 
-    if PARAMS["quantifiers"] != "featurecounts":
-        normalisation_method = "total-column"
-    else:
-        normalisation_method = "deseq-size-factors"
+    normalisation_method = "total-column"
 
     PipelineRnaseq.normaliseCounts(
         transcripts_inf, transcripts_outf, normalisation_method)
