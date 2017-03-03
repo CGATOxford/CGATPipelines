@@ -444,7 +444,7 @@ def loadSailfishTpm(infile, outfile):
 @follows(transformSailfishOutput,
          mergeSailfishRuns)
 @collate(transformSailfishOutput,
-         regex("tpm.dir/(.+)-(.+)-(.+).quant"),
+         regex("tpm.dir/(.+)_(.+)_(.+).quant"),
          r"tpm.dir/\1.counts")
 def mergeSailfishCounts(infiles, outfile):
     '''
@@ -486,7 +486,7 @@ def loadSailfishCounts(infile, outfile):
 
 BAMDIR = PARAMS['bam_dir']
 BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
-BAMREGEX = regex(r".*/(.+)-(.+)-(.+).bam$")
+BAMREGEX = regex(r".*/(.+)_(.+)_(.+).bam$")
 
 
 @follows(mkdir("dedup.dir"))
