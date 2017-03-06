@@ -240,7 +240,7 @@ class EntrezGeneAnnotation(EntrezAnnotation):
     def __init__(self, outdb, email):
         EntrezAnnotation.__init__(self, "entrezgene", outdb, email)
 
-    def download_all(self, host):
+    def download_all(self, host, count=1000000000):
         '''
         Gets all the Gene IDs for a particular host, specified in PARAMS, from
         Entrez Gene and returns them as a list.
@@ -249,7 +249,7 @@ class EntrezGeneAnnotation(EntrezAnnotation):
         term = '("alive"[Properties]) AND %s[Taxonomy ID]' % host
 
         Ent = Entrez.esearch(db="gene", term=term, retmode="text",
-                             retmax=1000000000)
+                             retmax=count)
         res = Entrez.read(Ent)
         Ent.close()
 
