@@ -1886,7 +1886,7 @@ def buildUTRExtension(infile, outfile):
             states = None
             try:
                 states = list(R('''states = Viterbi( hmm )'''))
-            except ri.RRuntimeError as msg:
+            except ri.RRuntimeError, msg:
                 counter.skipped_error += 1
                 new_utrs[gene_id] = Utr._make((old_utr, None, None, "fail"))
                 continue
