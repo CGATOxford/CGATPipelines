@@ -55,9 +55,6 @@ except ImportError:
 
 from multiprocessing.pool import ThreadPool
 
-# talking to mercurial
-import hgapi
-
 # talking to RabbitMQ
 try:
     import pika
@@ -116,6 +113,28 @@ def writeConfigFiles(pipeline_path, general_path):
             raise ValueError(
                 "default config file for `%s` not found in %s" %
                 (config_files, paths))
+
+
+def printConfigFiles():
+    '''
+        Print the list of .ini files used to configure the pipeline
+        along with their associated priorities.
+        Priority 1 is the highest.
+    '''
+
+    filenames = PARAMS['pipeline_ini']
+    print ("\n List of .ini files used to configure the pipeline")
+    s = len(filenames)
+    if s == 0:
+        print (" No ini files passed!")
+    elif s >= 1:
+        print (" %-11s: %s " % ("Priority", "File"))
+        for f in filenames:
+            if s == 1:
+                print (" (highest) %s: %s\n" % (s, f))
+            else:
+                print (" %-11s: %s " % (s, f))
+            s -= 1
 
 
 def clonePipeline(srcdir, destdir=None):
@@ -736,7 +755,7 @@ def main(args=sys.argv):
 
     parser.add_option("-s", "--set", dest="variables_to_set",
                       type="string", action="append",
-                      help="explicitely set paramater values "
+                      help="explicitly set paramater values "
                       "[default=%default].")
 
     parser.add_option("-c", "--checksums", dest="ruffus_checksums_level",
@@ -787,50 +806,39 @@ def main(args=sys.argv):
     # configuration files.
 
     PARAMS["dryrun"] = options.dry_run
-    if options.cluster_queue is not None:
-        PARAMS["cluster_queue"] = options.cluster_queue
-    if options.cluster_priority is not None:
-        PARAMS["cluster_priority"] = options.cluster_priority
+
+    # use cli_cluster_* keys in PARAMS to ensure highest priority
+    # of cluster_* options passed with the command-line
+    if options.cluster_memory_default is not None:
+        PARAMS["cli_cluster_memory_default"] = options.cluster_memory_default
+        PARAMS["cluster_memory_default"] = options.cluster_memory_default
+    if options.cluster_memory_resource is not None:
+        PARAMS["cli_cluster_memory_resource"] = options.cluster_memory_resource
+        PARAMS["cluster_memory_resource"] = options.cluster_memory_resource
     if options.cluster_num_jobs is not None:
+        PARAMS["cli_cluster_num_jobs"] = options.cluster_num_jobs
         PARAMS["cluster_num_jobs"] = options.cluster_num_jobs
     if options.cluster_options is not None:
+        PARAMS["cli_cluster_options"] = options.cluster_options
         PARAMS["cluster_options"] = options.cluster_options
     if options.cluster_parallel_environment is not None:
-        PARAMS["cluster_parallel_environment"] =\
-            options.cluster_parallel_environment
+        PARAMS["cli_cluster_parallel_environment"] = options.cluster_parallel_environment
+        PARAMS["cluster_parallel_environment"] = options.cluster_parallel_environment
+    if options.cluster_priority is not None:
+        PARAMS["cli_cluster_priority"] = options.cluster_priority
+        PARAMS["cluster_priority"] = options.cluster_priority
+    if options.cluster_queue is not None:
+        PARAMS["cli_cluster_queue"] = options.cluster_queue
+        PARAMS["cluster_queue"] = options.cluster_queue
+    if options.cluster_queue_manager is not None:
+        PARAMS["cli_cluster_queue_manager"] = options.cluster_queue_manager
+        PARAMS["cluster_queue_manager"] = options.cluster_queue_manager
 
     PARAMS["ruffus_checksums_level"] = options.ruffus_checksums_level
 
     for variables in options.variables_to_set:
         variable, value = variables.split("=")
         PARAMS[variable.strip()] = IOTools.str2val(value.strip())
-
-    version = None
-
-    try:
-        # this is for backwards compatibility
-        # get mercurial version
-        repo = hgapi.Repo(PARAMS["pipeline_scriptsdir"])
-        version = repo.hg_id()
-
-        status = repo.hg_status()
-        if status["M"] or status["A"]:
-            if not options.force:
-                raise ValueError(
-                    ("uncommitted change in code "
-                     "repository at '%s'. Either commit or "
-                     "use --force-output") % PARAMS["pipeline_scriptsdir"])
-            else:
-                E.warn("uncommitted changes in code repository - ignored ")
-        version = version[:-1]
-    except:
-        # try git:
-        try:
-            stdout, stderr = execute(
-                "git rev-parse HEAD", cwd=PARAMS["pipeline_scriptsdir"])
-        except:
-            stdout = "NA"
-        version = stdout
 
     if args:
         options.pipeline_action = args[0]
@@ -907,7 +915,6 @@ def main(args=sys.argv):
                 # session_mutex = manager.Lock()
                 E.info(E.GetHeader())
                 E.info("code location: %s" % PARAMS["pipeline_scriptsdir"])
-                E.info("code version: %s" % version)
                 E.info("Working directory is: %s" % PARAMS["workingdir"])
 
                 pipeline_run(
@@ -1015,6 +1022,7 @@ def main(args=sys.argv):
         print("Printing out pipeline parameters: ")
         for k in sorted(PARAMS):
             print(k, "=", PARAMS[k])
+        printConfigFiles()
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
@@ -1032,5 +1040,3 @@ def main(args=sys.argv):
                          options.pipeline_action)
 
     E.Stop()
-
-

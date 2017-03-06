@@ -46,7 +46,7 @@ except RuntimeError:
 
 
 def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
-    '''Sets up a Drmma job template. Currently SGE and SLURM are
+    '''Sets up a Drmma job template. Currently SGE, SLURM, Torque and PBSPro are
        supported'''
 
     if not job_memory:
@@ -165,6 +165,82 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
         jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
                                                            '.bashrc')})
 
+    elif queue_manager.lower() == "pbspro":
+
+        # PBS Pro docs
+        # http://www.pbsworks.com/PBSProduct.aspx?n=PBS-Professional&c=Overview-and-Capabilities
+        # http://technion.ac.il/usg/tamnun/PBSProUserGuide12.1.pdf
+
+        # DRMAA for PBS Pro is the same as for torque:
+        # http://apps.man.poznan.pl/trac/pbs-drmaa
+        # Webpages with some examples:
+        # https://wiki.galaxyproject.org/Admin/Config/Performance/Cluster#PBS
+        # https://sites.google.com/a/case.edu/hpc-upgraded-cluster/home/Software-Guide/pbs-drmaa
+        # https://albertsk.files.wordpress.com/2011/12/pbs.pdf
+
+        # PBS Pro has some differences with torque so separating
+
+        # Set environment variables in .bashrc:
+            # PBS_DRMAA_CONF to eg ~/.pbs_drmaa.conf
+            # DRMAA_LIBRARY_PATH to eg /xxx/libdrmaa.so
+
+        # PBSPro only takes the first 15 characters, throws uninformative error if longer.
+        # mem is maximum amount of RAM used by job; mem_free doesn't seem to be available.
+        spec = ["-N %s" % job_name[0:15],
+                "-l mem=%s" % job_memory]
+
+        # Leaving walltime to be specified by user as difficult to set dynamically and
+        # depends on site/admin configuration of default values. Likely means setting for
+        # longest job with trade-off of longer waiting times for resources to be
+        # available for other jobs.
+        if options["cluster_options"]:
+            if "mem" not in options["cluster_options"]:
+                spec.append("%(cluster_options)s")
+            elif "mem" in options["cluster_options"]:
+                spec = ["-N %s" % job_name[0:15]]
+                spec.append("%(cluster_options)s")
+
+        # if process has multiple threads, use a parallel environment:
+        # TO DO: error in fastqc build_report, var referenced before assignment.
+        # For now adding to workaround:
+        if 'job_threads' in options:
+            job_threads = options["job_threads"]
+        else:
+            job_threads = 1
+
+        multithread = 'job_threads' in options and options['job_threads'] > 1
+        if multithread:
+            # TO DO 'select=1' determines de number of nodes. Should go in a config file.
+            # mem is per node and maximum memory
+            # Site dependent but in general setting '#PBS -l select=NN:ncpus=NN:mem=NN{gb|mb}'
+            # is sufficient for parallel jobs (OpenMP, MPI).
+            # Also architecture dependent, jobs could be hanging if resource doesn't exist.
+            # TO DO: Kill if long waiting time?
+            spec = ["-N %s" % job_name[0:15],
+                    "-l select=1:ncpus=%s:mem=%s" % (job_threads, job_memory)]
+
+        if options["cluster_options"]:
+            if "mem" not in options["cluster_options"]:
+                spec.append("%(cluster_options)s")
+
+            elif "mem" in options["cluster_options"]:
+                raise ValueError('''mem resource specified twice, check ~/.cgat config file,
+                ini files, command line options, etc.''')
+
+        if "cluster_pe_queue" in options and multithread:
+            spec.append(
+                "-q %(cluster_pe_queue)s")
+        elif options['cluster_queue'] != "NONE":
+            spec.append("-q %(cluster_queue)s")
+            # TO DO: sort out in Parameters.py to allow none values for configparser:
+        elif options['cluster_queue'] == "NONE":
+            pass
+
+        # As for torque, there is no equivalent to sge -V option for pbs-drmaa:
+        jt.jobEnvironment = os.environ
+        jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
+                                                           '.bashrc')})
+
     else:
         raise ValueError("Queue manager %s not supported" % queue_manager)
 
@@ -256,6 +332,7 @@ def collectSingleJobFromCluster(session, job_id,
         # ignore message 24 in PBS code 24: drmaa: Job
         # finished but resource usage information and/or
         # termination status could not be provided.":
+
         if not msg.message.startswith("code 24"):
             raise
         retval = None

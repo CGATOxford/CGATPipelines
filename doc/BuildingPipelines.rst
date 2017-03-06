@@ -340,39 +340,60 @@ Configuration values
 Setting up configuration values
 --------------------------------
 
-Pipelines are configured via a configuration script. The following
-snippet can be included at the beginning of a pipeline to set it all
-up::
+There are different ways to pass on configuration values to pipelines.
+Here we explain the priority for all the possible options so you can
+choose the best one for your requirements.
+
+The pipeline goes *in order* through different configuration options
+to load configuration values and stores them in the :py:data:`PARAMS`
+dictionary. This order determines a priority so values read in the first
+place can be overwritten by values read in subsequent steps; i.e. values
+read lastly have higher priority.
+
+Here is the order in which the configuration values are read:
+
+1. Hard-coded values in :file:`CGATPipelines/Pipeline/Parameters.py`.
+2. Parameters stored in :file:`pipeline.ini` files in different locations.
+3. Variables declared in the ruffus tasks calling ``P.run()``;
+   e.g. ``job_memory=32G``
+4. ``cluster_*`` options specified in the command line;
+   e.g. ``python pipeline_example.py --cluster-parallel=dedicated make full``
+
+This means that configuration values for the cluster provided as
+command-line options will have the highest priority. Therefore::
+
+   python pipeline_example.py --cluster-parallel=dedicated make full
+
+will overwrite any ``cluster_parallel`` configuration values given
+in :file:`pipeline.ini` files. Type::
+
+   python pipeline_example.py --help
+
+to check the full list of available command-line options.
+
+You are encouraged to include the following snippet at the beginning
+of your pipeline script to setup proper configuration values for
+your analyses::
 
    # load options from the config file
-   import Pipeline as P
-   P.getParameters( 
-          ["%s.ini" % __file__[:-len(".py")],
-	  "../pipeline.ini",
-	  "pipeline.ini" ] )
-   PARAMS = P.PARAMS
+   import CGATPipelines.Pipeline as P
+   PARAMS =
+     P.getParameters(["%s/pipeline.ini" % os.path.splitext(__file__)[0]])
 
-Default values of configuration parameters will be read from a global
-configuration file that is part of the CGAT code base in
-:file:`CGATPipelines/configuration/pipeline.ini`.
+The method :meth:`Pipeline.getParameters` reads parameters from
+the :file:`pipeline.ini` located in the current :term:`working directory`
+and updates :py:data:`PARAMS`, a global dictionary of parameter values.
+It automatically guesses the type of parameters in the order of ``int()``,
+``float()`` or ``str()``. If a configuration variable is empty (``var=``),
+it will be set to ``None``.
 
-These values will be updated with the file named
-:file:`pipeline_<pipeline_name>.ini` in the :term:`source directory`.
+However, as explained above, there are other :file:`pipeline.ini`
+files that are read by the pipeline at start up. In order to get the
+priority of them all, you can run::
 
-Next, the file :file:`../pipeline.ini` will be read (if it exists) and
-configuration values that are specific to a certain project will
-overwrite default values.
+   python pipeline_example.py printconfig
 
-Finally, run specific configuration will be read from the file
-:file:`pipeline.ini` in the :term:`working directory`.
-
-The method :meth:`Pipeline.getParameters` reads parameters and updates
-a global dictionary of parameter values. It automatically guesses the
-type of parameters in the order of ``int()``, ``float()`` or
-``str()``.
-
-If a configuration variable is empty (``var=``), it will be set to
-``None``.
+to see a complete list of :file:`pipeline.ini` files and their priorities.
 
 Configuration values from another pipeline can be added in a separate
 namespace::

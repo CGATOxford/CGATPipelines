@@ -25,7 +25,8 @@ reference genome.
 From the sailfish and hisat output, a number of analyses are
 performed, either within the pipeline or during the reporting:
 
-- Proportion of reads aligned to annotated features (rRNA, protein coding, lincRNA etc)
+- Proportion of reads aligned to annotated features
+    (rRNA, protein coding, lincRNA etc)
 - Sequencing depth saturation curves Per Sample
 - Per-sample expression distributions
 - Strandedness assesment
@@ -798,7 +799,7 @@ def buildBAMStats(infile, outfile):
     else:
         fastq_option = ""
 
-    statement = '''python
+    statement = '''
     cgat bam2stats
          %(fastq_option)s
          --force-output
@@ -882,7 +883,8 @@ def buildBedContext(outfile):
 
     tmp_bed_sorted.close()
 
-    statement = '''sortBed  -i %(tmp_bed_sorted_filename)s | gzip > %(outfile)s'''
+    statement = '''sortBed  -i %(tmp_bed_sorted_filename)s
+    | gzip > %(outfile)s'''
 
     P.run()
 
@@ -896,7 +898,8 @@ def buildBedContext(outfile):
            add_inputs(buildBedContext),
            ".altcontextstats.tsv.gz")
 def buildAltContextStats(infiles, outfile):
-    ''' build mapping context stats of snoRNA, miRNA, lincRNA, protein coding '''
+    ''' build mapping context stats of snoRNA, miRNA,
+        lincRNA, protein coding '''
 
     infile, bed = infiles
 
@@ -950,7 +953,7 @@ def runSailfish(infiles, outfile):
     sailfish_bootstrap = 1
     sailfish_libtype = PARAMS["sailfish_libtype"]
     sailfish_options = PARAMS["sailfish_options"]
-    sailfish_options += "--geneMap %s" % transcript_map
+    sailfish_options += " --geneMap %s" % transcript_map
 
     m = PipelineMapping.Sailfish()
 
@@ -1068,7 +1071,9 @@ def loadPicardRnaSeqMetrics(infiles, outfiles):
 ###################################################################
 
 @transform(subsetRange,
-           regex("fastq.dir/highest_counts_subset_(\d+).fastq.1.gz"),
+           regex("fastq.dir/highest_counts_subset_(\d+)."
+                 "(fastq.1.gz|fastq.gz|fa.gz|sra|"
+                 "csfasta.gz|csfasta.F3.gz|export.txt.gz)"),
            add_inputs(indexForSailfish,
                       buildCodingGeneSet,
                       buildTranscriptGeneMap),
@@ -1084,7 +1089,7 @@ def runSailfishSaturation(infiles, outfile):
     sailfish_bootstrap = 20
     sailfish_libtype = PARAMS["sailfish_libtype"]
     sailfish_options = PARAMS["sailfish_options"]
-    sailfish_options += "--geneMap %s" % transcript_map
+    sailfish_options += " --geneMap %s" % transcript_map
 
     m = PipelineMapping.Sailfish()
 

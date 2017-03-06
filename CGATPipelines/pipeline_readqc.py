@@ -200,7 +200,7 @@ if PARAMS.get("preprocessors", None):
                 outfile=outfile,
                 track=re.match(REGEX_TRACK, infile).groups()[0],
                 dbh=connect(),
-                contaminants_file=PARAMS['contaminants'])
+                contaminants_file=PARAMS['contaminants_path'])
 
         @merge(makeAdaptorFasta, "contaminants.fasta")
         def aggregateAdaptors(infiles, outfile):
@@ -236,18 +236,18 @@ if PARAMS.get("preprocessors", None):
         '''
         trimmomatic_options = PARAMS["trimmomatic_options"]
 
-        if PARAMS["trimmomatic_adapter"]:
+        if PARAMS["auto_remove"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
-                PARAMS["trimmomatic_adapter"],
+                "contaminants.fasta",
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
                 PARAMS["trimmomatic_c_thresh"],
                 PARAMS["trimmomatic_min_adapter_len"],
                 PARAMS["trimmomatic_keep_both_reads"]) + trimmomatic_options
 
-        if PARAMS["auto_remove"]:
+        elif PARAMS["trimmomatic_adapter"]:
             trimmomatic_options = " ILLUMINACLIP:%s:%s:%s:%s:%s:%s " % (
-                "contaminants.fasta",
+                PARAMS["trimmomatic_adapter"],
                 PARAMS["trimmomatic_mismatches"],
                 PARAMS["trimmomatic_p_thresh"],
                 PARAMS["trimmomatic_c_thresh"],
@@ -262,7 +262,8 @@ if PARAMS.get("preprocessors", None):
         m = PipelinePreprocess.MasterProcessor(
             save=PARAMS["save"],
             summarize=PARAMS["summarize"],
-            threads=PARAMS["threads"])
+            threads=PARAMS["threads"],
+            qual_format=PARAMS['qual_format'])
 
         for tool in P.asList(PARAMS["preprocessors"]):
 
@@ -351,13 +352,16 @@ def runFastqc(infiles, outfile):
     '''
     # MM: only pass the contaminants file list if requested by user,
     # do not make this the default behaviour
-    if PARAMS['add_contaminants']:
+    if PARAMS['use_custom_contaiminants']:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
                                    outdir=PARAMS["exportdir"] + "/fastqc",
-                                   contaminants=PARAMS['contaminants'])
+                                   contaminants=PARAMS['contaminants_path'],
+                                   qual_format=PARAMS['qual_format'])
     else:
         m = PipelineMapping.FastQc(nogroup=PARAMS["readqc_no_group"],
-                                   outdir=PARAMS["exportdir"] + "/fastqc")
+                                   outdir=PARAMS["exportdir"] + "/fastqc",
+                                   qual_format=PARAMS['qual_format'])
+
     if PARAMS["general_reconcile"] == 1:
         infiles = infiles.replace("processed.dir/trimmed",
                                   "reconciled.dir/trimmed")

@@ -27,7 +27,7 @@ information how to use CGAT pipelines.
 
 In order to run all tests, simply enter an empty directory and type::
 
-   python <srcdir>/pipeline_testing.py make config
+   python <srcdir>/pipeline_testing.py config
 
 Edit the config files as required and then type::
 
@@ -73,7 +73,7 @@ with a ``#``).
 Some files will be different at every run, for example if they use
 some form of random initialization. Thus, the exact test can be
 relaxed for groups of files. Files matching the regular expression in
-``regex_linecount` will test if a file exists and the number of lines
+``regex_linecount`` will test if a file exists and the number of lines
 are identitical.  Files matching the regular expressions in
 ``regex_exist`` will thus only be tested if they exist or not.
 
@@ -299,6 +299,27 @@ def runTests(infile, outfile):
 
 @transform(runTests,
            suffix(".log"),
+           ".report")
+def runReports(infile, outfile):
+    '''run a pipeline report.'''
+
+    track = P.snip(outfile, ".report")
+
+    pipeline_name = PARAMS.get(
+        "%s_pipeline" % track,
+        "pipeline_" + track[len("test_"):])
+
+    statement = '''
+    (cd %(track)s.dir; python %(pipelinedir)s/%(pipeline_name)s.py
+    %(pipeline_options)s make build_report) >& %(outfile)s
+    '''
+
+    P.run(ignore_errors=True)
+
+
+@follows(runReports)
+@transform(runTests,
+           suffix(".log"),
            ".md5")
 def buildCheckSums(infile, outfile):
     '''build checksums for files in the build directory.
@@ -319,11 +340,10 @@ def buildCheckSums(infile, outfile):
     regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
     regex_pattern = pipes.quote(regex_pattern)
 
-    # ignore log files as time stamps will
-    # be different
     statement = '''find %(track)s.dir
     -type f
-    -not -regex ".*.log"
+    -not -regex ".*/report"
+    -not -regex ".*/_*"
     -regex %(regex_pattern)s
     -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
     | perl -p -e "s/ +/\\t/g"
@@ -354,11 +374,8 @@ def buildLineCounts(infile, outfile):
 
     regex_pattern = pipes.quote(regex_pattern)
 
-    # ignore log files as time stamps will
-    # be different
     statement = '''find %(track)s.dir
     -type f
-    -not -regex ".*.log"
     -regex %(regex_pattern)s
     -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
     | sort -k1,1
@@ -497,27 +514,12 @@ def loadReference(infile, outfile):
     P.load(infile, outfile, options="--add-index=file")
 
 
-@transform(runTests,
-           suffix(".log"),
-           ".report")
-def runReports(infile, outfile):
-    '''run a pipeline report.'''
-
-    track = P.snip(outfile, ".report")
-
-    pipeline_name = PARAMS.get(
-        "%s_pipeline" % track,
-        "pipeline_" + track[len("test_"):])
-
-    statement = '''
-    (cd %(track)s.dir; python %(pipelinedir)s/%(pipeline_name)s.py
-    %(pipeline_options)s make build_report) >& %(outfile)s
-    '''
-
-    P.run(ignore_errors=True)
+@follows(runTests, runReports)
+def run_components():
+    pass
 
 
-@follows(runTests, runReports, loadComparison, loadResults, loadReference)
+@follows(run_components, loadComparison, loadResults, loadReference)
 def full():
     pass
 
