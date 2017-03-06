@@ -28,12 +28,10 @@ Reference
 # for UCSC import
 import os
 import collections
-import MySQLdb
+import sqlalchemy
 import CGAT.Experiment as E
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
-
-
 import CGATPipelines.Pipeline as P
 
 
@@ -56,11 +54,12 @@ def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
     Database handle
 
     """
-    dbhandle = MySQLdb.Connect(host=host,
-                               user=user)
 
-    cc = dbhandle.cursor()
-    cc.execute("USE %s " % database)
+    dbhandle = sqlalchemy.create_engine(
+        "mysql://{user}:{database}@{host}".format(
+            host=host,
+            user=user,
+            database=database))
 
     return dbhandle
 

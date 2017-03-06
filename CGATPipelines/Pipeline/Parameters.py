@@ -32,10 +32,7 @@ import re
 import collections
 import os
 
-try:
-    import configparser
-except ImportError:
-    import ConfigParser as configparser
+import configparser
 
 import sys
 
@@ -75,7 +72,7 @@ if not os.path.exists(CGATPIPELINES_SCRIPTS_DIR):
     PIPELINE_SCRIPTS_DIR = os.path.join(sys.exec_prefix, "bin")
 
 # Global variable for configuration file data
-CONFIG = configparser.ConfigParser()
+CONFIG = configparser.SafeConfigParser()
 
 
 class TriggeredDefaultFactory:
@@ -230,7 +227,6 @@ def configToDictionary(config):
     return p
 
 
-
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
                   site_ini=True,
@@ -364,10 +360,19 @@ def getParameters(filenames=["pipeline.ini", ],
 
     PARAMS['pipeline_ini'] = filenames
 
-    CONFIG.read(filenames)
-
-    p = configToDictionary(CONFIG)
-
+    try:
+        CONFIG.read(filenames)
+        p = configToDictionary(CONFIG)
+    except configparser.InterpolationSyntaxError as ex:
+        E.warn(
+            "InterpolationSyntaxError when reading configuration file, "
+            "likely due to use of '%'. "
+            "Please quote '%' if ini interpolation is required. "
+            "Orginal error: {}".format(str(ex)))
+        CONFIG = configparser.RawConfigParser()
+        CONFIG.read(filenames)
+        p = configToDictionary(CONFIG)
+    
     # update with hard-coded PARAMS
     PARAMS.update(HARDCODED_PARAMS)
 
@@ -411,10 +416,20 @@ def loadParameters(filenames):
        A configuration dictionary.
 
     '''
-    config = configparser.ConfigParser()
-    config.read(filenames)
+    try:
+        config = configparser.SafeConfigParser()
+        config.read(filenames)
+        p = configToDictionary(config)
+    except configparser.InterpolationSyntaxError as ex:
+        E.warn(
+            "InterpolationSyntaxError when reading configuration file, "
+            "likely due to use of '%'. "
+            "Please quote '%' if ini interpolation is required. "
+            "Orginal error: {}".format(str(ex)))
+        config = configparser.RawConfigParser()
+        config.read(filenames)
+        p = configToDictionary(config)
 
-    p = configToDictionary(config)
     return p
 
 

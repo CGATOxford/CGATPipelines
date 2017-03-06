@@ -116,9 +116,9 @@ Code
 """
 import sys
 import os
-import MySQLdb
 import CGAT.Experiment as E
 import logging as L
+import CGATPipelines.PipelineUCSC as PipelineUCSC
 
 from ruffus import *
 
@@ -303,11 +303,10 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
     # individual ``rmsk`` tables (mm9) like chr1_rmsk, chr2_rmsk, ....
     # In order to do a single statement, the ucsc mysql database is
     # queried for tables that end in rmsk.
-    dbhandle = MySQLdb.Connect(host=PARAMS["ucsc_host"],
-                               user=PARAMS["ucsc_user"])
-
-    cc = dbhandle.cursor()
-    cc.execute("USE %s " % ucsc_database)
+    dbhandle = PipelineUCSC.connectToUCSC(
+        host=PARAMS["ucsc_host"],
+        user=PARAMS["ucsc_user"],
+        database=ucsc_database)
 
     cc = dbhandle.cursor()
     cc.execute("SHOW TABLES LIKE '%rmsk'")

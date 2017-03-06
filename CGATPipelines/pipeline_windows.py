@@ -148,7 +148,6 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
-
 ###################################################################
 # Helper functions mapping tracks to conditions, etc
 ###################################################################
