@@ -79,7 +79,6 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
     elif infile.endswith(".fastq.gz"):
         tracks = [track]
 
-
     found_contaminants = []
 
     for t in tracks:
@@ -100,9 +99,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
             found_contaminants.extend(cc.execute(query).fetchall())
         except sqlite3.OperationalError:
             E.warn("No table found for {}".format(t))
-		
-	print(found_contaminants)
-	
+
     if len(found_contaminants) == 0:
         P.touch(outfile)
         return
@@ -301,7 +298,6 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
 
 class ProcessTool(object):
     '''defines class attributes for a sequence utility tool
-
     Derived classes need to implement a :func:`ProcessTools.build`
     method.
 
