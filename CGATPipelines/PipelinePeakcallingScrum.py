@@ -395,8 +395,8 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
 
     if filters == ['']:
         cwd = os.getcwd()
-        index = inT + '.bai' 
-        index_out = bamout + '.bai'      
+        index = inT + '.bai'
+        index_out = bamout + '.bai'
         statement = """ln -s %(cwd)s/%(inT)s %(bamout)s; """
         statement += """ln -s %(cwd)s/%(index)s %(index_out)s; """
         statement += trackFilters("none", P.snip(inT), tabout)
@@ -471,7 +471,6 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
     # remove reads whose mate has been filtered out elsewhere
 
     T = P.getTempFilename(".")
-    print(bamout, filters, qual, pe, T, contigs_to_remove)
     checkBams(bamout, filters, qual, pe, T, contigs_to_remove, submit=True)
     if int(keep_intermediates) == 1:
         shutil.copy(bamout, bamout.replace(".bam", "_beforepaircheck.bam"))
@@ -480,9 +479,7 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
                 bamout.replace(".bam", ".filteringlog"))
 
     if os.path.exists(T):
-       print T
-       os.remove(T)
-       print 'file removed'
+        os.remove(T)
     sortIndex(bamout)
 
 
@@ -527,14 +524,14 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
     remove_contigs: set
         set of the contigs that should have been removed from the bam file
     '''
-    
+
     samfile = pysam.AlignmentFile(infile, 'rb')
     contigs_in_bam = samfile.references
     keep_contigs, remove_contigs = getWantedContigs(contigs_to_remove,
                                                     contigs_in_bam)
     sep = '.'
     logfile = sep.join([outfile, 'filteringlog'])
-    
+
     counter = collections.Counter()
     fragment_length = collections.Counter()
     d = collections.defaultdict(list)
@@ -617,7 +614,7 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
 
     filteringReport(counter, logfile)
     samfile.close()
-    
+
 
 def filteringReport(counter, logfile):
     '''
@@ -2348,16 +2345,16 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
     alltab['Experiment'] = alltab['Condition'] + "_" + alltab['Tissue']
 
     # find the "Conservative_Peak_List" for each experiment
-    alltab['Conservative_Peak_List'] = False
+    alltab['Conservative_Peak_List'] = 'False'
     replicates = alltab[alltab['Replicate_Type'] == 'replicate_consistency']
     for exp in set(replicates['Experiment'].values):
         subtab = replicates[replicates['Experiment'] == exp]
         m = max(subtab['Peaks_Passing_IDR'])
         val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
-        alltab.ix[val, 'Conservative_Peak_List'] = True
+        alltab.ix[val, 'Conservative_Peak_List'] = 'True'
 
     # find the "Optimal_Peak_List" for each experiment
-    alltab['Optimal_Peak_List'] = False
+    alltab['Optimal_Peak_List'] = 'False'
     for exp in set(alltab['Experiment'].values):
         subtab = alltab[((alltab['Experiment'] == exp) &
                          ((alltab['Replicate_Type'] == 'pooled_consistency') |
@@ -2365,7 +2362,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
                            'replicate_consistency')))]
         m = max(subtab['Peaks_Passing_IDR'])
         val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
-        alltab.ix[val, 'Optimal_Peak_List'] = True
+        alltab.ix[val, 'Optimal_Peak_List'] = 'True'
 
     alltab.to_csv(outfile, sep="\t", index=False)
 

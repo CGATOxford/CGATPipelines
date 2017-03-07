@@ -80,7 +80,7 @@ References
 ==========
 
 This pipeline follows closely the ENCODE3 version 1 peakprocessing pipeline
-described by Anshul Kundaje's group and the open source AQUAS TF ChIP-Seq 
+described by Anshul Kundaje's group and the open source AQUAS TF ChIP-Seq
 pipeline implemented by the Kundaje group:
     * (https://docs.google.com/document/d/1lG_Rd7fnYgRpSIqrIfuVlAz2dW1VaSQThzk836Db99c/edit#heading=h.9ecc41kilcvq)
     * (https://github.com/kundajelab/TF_chipseq_pipeline)
@@ -93,7 +93,7 @@ see:
     * (https://groups.google.com/forum/#!forum/idr-discuss)
 
 for ChIP and ATAC-Seq quality guidelines see:
-	* (https://www.encodeproject.org/data-standards/)
+    * (https://www.encodeproject.org/data-standards/)
 
 
 IDR Analysis
@@ -189,23 +189,23 @@ stages of the pipeline
 
 1) filtered_bams.dir
    ---------------------
-	Directory containing filtered bam files created by removing duplicates and 
-	filtering of origional bam files. These filtered bam files are then taken 
-	forward to IDR/peakcalling. If no filtering or deduplication is specified
-	in the ini file then this directory will contain symbolic links to the
-    origional bam files. 
+    Directory containing filtered bam files created by removing duplicates and
+    filtering of origional bam files. These filtered bam files are then taken
+    forward to IDR/peakcalling. If no filtering or deduplication is specified
+    in the ini file then this directory will contain symbolic links to the
+    origional bam files.
 
     Directory contains:
-			* :term:`bams` files (and thier indexes) that have been filtered
-			according to specifications in pipeline.ini
-		 	* a number of log files detailing the number of reads that have been
-            filtered out for each reason. 
-			* for paired-end samples a file with the frequency of fragment 
-			  lengths (the distance between the paired reads 5' start positions)
+            * :term:`bams` files (and thier indexes) that have been filtered
+            according to specifications in pipeline.ini
+            * a number of log files detailing the number of reads that have been
+            filtered out for each reason.
+            * for paired-end samples a file with the frequency of fragment
+              lengths (the distance between the paired reads 5' start positions)
 
 
 2) IDR.dir
-   -------
+    -------
     Directory conatining the output files from IDR analysis
     IDR is currently only set up to use with macs2 because this
     is recomended by the authors of IDR. If you require IDR for broad
@@ -213,7 +213,7 @@ stages of the pipeline
     These include the lists of reproducible peaks and stats and
     QC tables summarising the output of the IDR analysis
 
-	Directory contains:
+    Directory contains:
             * IDR_inputs.dir
     This directory contains the files that are
 
@@ -294,7 +294,8 @@ PARAMS.update(P.peekParameters(
 # load IDR parameters into a dictionary to pass to the IDR step
 # IDR requires multiple parameters from the PARAMS dictionary
 idrPARAMS = dict()
-#get IDR peakcaller (
+
+# get IDR peakcaller and params
 idrpc = PARAMS['peakcalling_idrpeakcaller']
 idrPARAMS['idrsuffix'] = PARAMS["%s_idrsuffix" % idrpc]
 idrPARAMS['idrcol'] = PARAMS["%s_idrcol" % idrpc]
@@ -315,7 +316,7 @@ idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 #    peakcalling.
 # 4. CHIPBAMS: a list of experimental bam files on which to call peaks on.
 
-# if design table is missing the input and chip bams  to empty list. This gets 
+# if design table is missing the input and chip bams  to empty list. This gets
 # round the import tests
 
 if os.path.exists("design.tsv"):
@@ -363,7 +364,7 @@ def connect():
 
 
 ###########################################################################
-# start of pipelined tasks 
+# start of pipelined tasks
 # 1) Preprocessing Steps - Filter bam files & generate bam stats
 ###########################################################################
 
@@ -390,12 +391,6 @@ def filterInputBAMs(infile, outfiles):
         secondary alignment reads
         reads below a mapping quality (MAPQ) score
         reads overlapping with blacklisted regions specified in bed file.
-
-	inputs
-
-
-	outputs
-
     '''
     filters = PARAMS['filters_bamfilters'].split(",")
     bedfiles = PARAMS['filters_bedfiles'].split(",")
@@ -439,17 +434,15 @@ def filterChipBAMs(infile, outfiles):
                                    PARAMS['filters_keepint'])
 
 
-
-
-#############################################################################
-###### Filtering Stats and QC
-#############################################################################
-@transform((filterChipBAMs, filterInputBAMs),suffix("_filtered.bam"),
-            [r"\1_filtered.bam",
-             r"\1_counts.tsv"])
-def filteredBams(infiles,outfiles):
-	''' dummy task to collect filtered bams and counts.tsv tables 
-	for imput and chip file for downstream QC & Stats'''
+# ############################################################################
+# ##### Filtering Stats and QC
+# ############################################################################
+@transform((filterChipBAMs, filterInputBAMs), suffix("_filtered.bam"),
+           [r"\1_filtered.bam",
+            r"\1_counts.tsv"])
+def filteredBams(infiles, outfiles):
+    ''' dummy task to collect filtered bams and counts.tsv tables
+    for imput and chip file for downstream QC & Stats'''
 
 
 @merge((filterChipBAMs, filterInputBAMs), "post_filtering_read_counts.tsv")
@@ -488,7 +481,7 @@ def loadFilteringStats(infile, outfile):
 
 @merge((filterChipBAMs, filterInputBAMs), "post_filtering_check.tsv")
 def mergeFilteringChecks(infiles, outfile):
-    '''take individual filering checks that detail the number of reads in the 
+    '''take individual filering checks that detail the number of reads in the
     filtered bam file that are found for each flag that should have set in the
     filters and merge them to produce single table'''
 
@@ -509,7 +502,6 @@ def loadFilteringChecks(infile, outfile):
     P.load(infile, outfile)
 
 
-
 @active_if(PARAMS['paired_end'])
 @transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
            "_fraglengths.load")
@@ -524,11 +516,10 @@ def loadFragmentLengthDistributions(infiles, outfile):
         os.system("touch %s" % outfile)
 
 
-
 @transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
            ".idxstats")
 def getIdxstats(infiles, outfile):
-    '''gets idxstats for bam file so number of reads per chromosome can 
+    '''gets idxstats for bam file so number of reads per chromosome can
     be plotted later'''
     infile = infiles[0]
     statement = '''samtools idxstats %(infile)s > %(outfile)s''' % locals()
@@ -538,8 +529,8 @@ def getIdxstats(infiles, outfile):
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(getIdxstats, "idxstats_reads_per_chromosome.load")
 def loadIdxstats(infiles, outfile):
-	'''merge idxstats files into single dataframe and load
- 	to database
+    '''merge idxstats files into single dataframe and load
+    to database
 
     Loads tables into the database
        * mapped_reads_per_chromosome
@@ -547,12 +538,12 @@ def loadIdxstats(infiles, outfile):
     Arguments
     ---------
     infiles : list
-        list where each element is a string of the filename containing samtools 
-		idxstats output. Filename format is expected to be 'sample.idxstats'
+        list where each element is a string of the filename containing samtools
+        idxstats output. Filename format is expected to be 'sample.idxstats'
     outfile : string
         Logfile. The table name will be derived from `outfile`.'''
 
-	PipelineMappingQC.loadIdxstats(infiles,outfile)
+    PipelineMappingQC.loadIdxstats(infiles, outfile)
 
 
 @transform((filterChipBAMs, filterInputBAMs),
@@ -562,7 +553,6 @@ def buildPicardStats(infiles, outfile):
     ''' build Picard alignment stats '''
     infile = infiles[0]
     reffile = os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa")
-
 
     PipelineMappingQC.buildPicardAlignmentStats(infile,
                                                 outfile,
@@ -576,7 +566,6 @@ def loadPicardStats(infiles, outfile):
     PipelineMappingQC.loadPicardAlignmentStats(infiles, outfile)
 
 
-
 @follows(loadFilteringStats,
          loadFilteringChecks,
          loadIdxstats,
@@ -586,7 +575,7 @@ def filtering():
     pass
 
 
-#### Make bigwigs of filtered bam files #####################################
+# ### Make bigwigs of filtered bam files #####################################
 
 @transform((filterChipBAMs, filterInputBAMs),
            suffix(".bam"),
@@ -630,7 +619,7 @@ def buildBigWig(infile, outfile):
 
 ###############################################################################
 #
-# 2) IDR  - preparation of files (pooled & pseudobams) for IDR 
+# 2) IDR  - preparation of files (pooled & pseudobams) for IDR
 #
 ###############################################################################
 
@@ -1167,7 +1156,7 @@ def peakcalling():
     '''
 
 ################################################################
-# 4) post peakcalling IDR Steps 
+# 4) post peakcalling IDR Steps
 ################################################################
 
 if PARAMS['IDR_run']:
@@ -1421,7 +1410,7 @@ def findConservativePeaks(infile, outfiles):
     '''function selects row from IDR_results.tsv that represents the
     conservative peak list'''
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Conservative_Peak_List'] == True]
+    cps = tab[tab['Conservative_Peak_List'] == 'True']
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
@@ -1440,7 +1429,7 @@ def findOptimalPeaks(infile, outfiles):
     '''function selects row from IDR_results.tsv that represents the
     optimal peak list'''
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Optimal_Peak_List'] == True]
+    cps = tab[tab['Optimal_Peak_List'] == 'True']
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
@@ -1497,7 +1486,7 @@ def makeCHIPQCInputTables(infiles, outfiles):
                     tab['Tissue'] + ".tsv")
     tab.to_csv(outfiles[1], sep="\t", index=None)
 
-# TODO 
+# TODO
 # @follows(mkdir("ChIPQC.dir"))
 # @transform(makeCHIPQCInputTable,regex("(.*)_(.*).tsv"), r'ChIPQC.dir/\1.pdf')
 # def runCHIPQC(infiles, outfiles):
