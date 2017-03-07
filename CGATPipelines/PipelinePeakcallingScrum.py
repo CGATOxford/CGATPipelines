@@ -393,51 +393,61 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
         os.mkdir("filtered_bams.dir")
     outT = P.getTempFilename("./filtered_bams.dir")
 
-    statement = """samtools sort %(inT)s -o %(outT)s.bam; """ % locals()
-    inT = outT
+    if filters == ['']:
+        cwd = os.getcwd()
+        index = inT + '.bai' 
+        index_out = bamout + '.bai'      
+        statement = """ln -s %(cwd)s/%(inT)s %(bamout)s; """
+        statement += """ln -s %(cwd)s/%(index)s %(index_out)s; """
+        statement += trackFilters("none", P.snip(inT), tabout)
+        P.run()
 
-    statement += trackFilters("none", inT, tabout)
+    else:
+        statement = """samtools sort %(inT)s -o %(outT)s.bam; """ % locals()
+        inT = outT
 
-    statement, inT = appendPicardFilters(statement, inT, tabout, filters, pe,
-                                         bamout)
-    statement, inT = appendSamtoolsFilters(statement, inT, tabout, filters,
-                                           qual, pe)
+        statement += trackFilters("none", inT, tabout)
 
-    # get statement for filtering contigs
-    if "contigs" in filters and contigs_to_remove:
-        samfile = pysam.AlignmentFile(infile, 'rb')
-        all_contigs = samfile.references
-        statement, inT = appendContigFilters(statement, inT, tabout, filters,
-                                             pe, contigs_to_remove, all_contigs)
+        statement, inT = appendPicardFilters(statement, inT, tabout, filters, pe,
+                                             bamout)
+        statement, inT = appendSamtoolsFilters(statement, inT, tabout, filters,
+                                               qual, pe)
 
-    if bedfiles != [""]:
-        statement, inT = appendBlacklistFilter(statement, inT, tabout,
-                                               bedfiles,
-                                               blthresh, pe)
+        # get statement for filtering contigs
+        if "contigs" in filters and contigs_to_remove:
+            samfile = pysam.AlignmentFile(infile, 'rb')
+            all_contigs = samfile.references
+            statement, inT = appendContigFilters(statement, inT, tabout, filters,
+                                                 pe, contigs_to_remove, all_contigs)
 
-    # I added isStripped to BamTools - this is commented out until it
-    # is merged (Katy)
-    # if int(strip) == 1 and BamTools.isStripped(inT) is False:
-    #     # strip sequence if requested
-    #     outT = P.getTempFilename(".")
-    #     statement += """python %%(scriptsdir)s/bam2bam.py
-    #                     -I %(inT)s.bam
-    #                     --strip-method=all
-    #                     --method=strip-sequence
-    #                     --log=%(bamout)s.log -S %(outT)s.bam;
-    #                     rm -f %(inT)s; """ % locals()
+        if bedfiles != [""]:
+            statement, inT = appendBlacklistFilter(statement, inT, tabout,
+                                                   bedfiles,
+                                                   blthresh, pe)
 
-    #     inT = outT
-    statement += """mv %(inT)s.bam %(bamout)s;
-                    rm -f %(inT)s;
-                    samtools index %(bamout)s""" % locals()
+        # I added isStripped to BamTools - this is commented out until it
+        # is merged (Katy)
+        # if int(strip) == 1 and BamTools.isStripped(inT) is False:
+        #     # strip sequence if requested
+        #     outT = P.getTempFilename(".")
+        #     statement += """python %%(scriptsdir)s/bam2bam.py
+        #                     -I %(inT)s.bam
+        #                     --strip-method=all
+        #                     --method=strip-sequence
+        #                     --log=%(bamout)s.log -S %(outT)s.bam;
+        #                     rm -f %(inT)s; """ % locals()
 
-    statement = statement.replace("\n", "")
+        #     inT = outT
+        statement += """mv %(inT)s.bam %(bamout)s;
+                        rm -f %(inT)s;
+                        samtools index %(bamout)s""" % locals()
 
-    if int(keep_intermediates) == 1:
-        statement = re.sub("rm -f \S+.bam;", "", statement)
+        statement = statement.replace("\n", "")
 
-    P.run()
+        if int(keep_intermediates) == 1:
+            statement = re.sub("rm -f \S+.bam;", "", statement)
+
+        P.run()
 
     # reformats the read counts into a table
     inf = [line.strip() for line in open(tabout).readlines()]
@@ -461,14 +471,18 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
     # remove reads whose mate has been filtered out elsewhere
 
     T = P.getTempFilename(".")
+    print(bamout, filters, qual, pe, T, contigs_to_remove)
     checkBams(bamout, filters, qual, pe, T, contigs_to_remove, submit=True)
     if int(keep_intermediates) == 1:
         shutil.copy(bamout, bamout.replace(".bam", "_beforepaircheck.bam"))
     shutil.move("%s.bam" % T, bamout)
     shutil.move("%s.filteringlog" % (T),
                 bamout.replace(".bam", ".filteringlog"))
+
     if os.path.exists(T):
-        os.remove(T)
+       print T
+       os.remove(T)
+       print 'file removed'
     sortIndex(bamout)
 
 
@@ -513,14 +527,14 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
     remove_contigs: set
         set of the contigs that should have been removed from the bam file
     '''
-
+    
     samfile = pysam.AlignmentFile(infile, 'rb')
     contigs_in_bam = samfile.references
     keep_contigs, remove_contigs = getWantedContigs(contigs_to_remove,
                                                     contigs_in_bam)
     sep = '.'
     logfile = sep.join([outfile, 'filteringlog'])
-
+    
     counter = collections.Counter()
     fragment_length = collections.Counter()
     d = collections.defaultdict(list)
@@ -603,7 +617,7 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
 
     filteringReport(counter, logfile)
     samfile.close()
-
+    
 
 def filteringReport(counter, logfile):
     '''
@@ -863,6 +877,7 @@ def mergeSortIndex(bamfiles, out):
     P.run()
     os.remove("%s.bam" % T1)
     os.remove(T1)
+    os.remove(T2)
 
 
 def sortIndex(bamfile):
@@ -892,6 +907,7 @@ def sortIndex(bamfile):
     mv %(T1)s.bam %(bamfile)s.bam;
     mv %(T1)s.bam.bai %(bamfile)s.bam.bai""" % locals()
     P.run()
+    os.remove(T1)
 
 
 def makeBamLink(currentname, newname):
@@ -2170,8 +2186,6 @@ def buildIDRStatement(infile1, infile2, outfile,
         outputfiletype = "broadPeak"
     else:
         outputfiletype = "narrowPeak"
-
-    T = P.getTempFilename(".")
 
     if test is True:
         idrstatement = """idr --version >>%(log)s;

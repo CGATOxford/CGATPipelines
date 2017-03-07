@@ -444,6 +444,13 @@ def filterChipBAMs(infile, outfiles):
 #############################################################################
 ###### Filtering Stats and QC
 #############################################################################
+@transform((filterChipBAMs, filterInputBAMs),suffix("_filtered.bam"),
+            [r"\1_filtered.bam",
+             r"\1_counts.tsv"])
+def filteredBams(infiles,outfiles):
+	''' dummy task to collect filtered bams and counts.tsv tables 
+	for imput and chip file for downstream QC & Stats'''
+
 
 @merge((filterChipBAMs, filterInputBAMs), "post_filtering_read_counts.tsv")
 def mergeFilteringStats(infiles, outfile):
@@ -457,7 +464,6 @@ def mergeFilteringStats(infiles, outfile):
     blacklist_xxx: reads in the blacklist file xxx
     contigs: removal of contigs that match patterns specified in ini file
     '''
-    print infiles
     counts = [i[1] for i in infiles]
     bigtab = pd.DataFrame()
     for c in counts:
@@ -546,8 +552,6 @@ def loadIdxstats(infiles, outfile):
     outfile : string
         Logfile. The table name will be derived from `outfile`.'''
 
-	print infiles
-	print outfile 
 	PipelineMappingQC.loadIdxstats(infiles,outfile)
 
 
@@ -575,7 +579,6 @@ def loadPicardStats(infiles, outfile):
 
 @follows(loadFilteringStats,
          loadFilteringChecks,
-         loadFragmentLengthDistributions,
          loadIdxstats,
          loadPicardStats)
 def filtering():
@@ -1294,6 +1297,7 @@ def runIDR(infile, outfile):
     P.run()
     lines = IOTools.openFile(T).readlines()
     os.remove(T)
+    os.remove('%s.log' % T)
 
     if len(lines) >= 20:
         statement = PipelinePeakcalling.buildIDRStatement(
@@ -1414,8 +1418,10 @@ def loadIDRQC(infile, outfile):
 @follows(mkdir("conservative_peaks.dir"))
 @split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
 def findConservativePeaks(infile, outfiles):
+    '''function selects row from IDR_results.tsv that represents the
+    conservative peak list'''
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Conservative_Peak_List'] == "True"]
+    cps = tab[tab['Conservative_Peak_List'] == True]
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
@@ -1431,8 +1437,10 @@ def findConservativePeaks(infile, outfiles):
 @follows(mkdir("optimal_peaks.dir"))
 @split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
 def findOptimalPeaks(infile, outfiles):
+    '''function selects row from IDR_results.tsv that represents the
+    optimal peak list'''
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Optimal_Peak_List'] == "True"]
+    cps = tab[tab['Optimal_Peak_List'] == True]
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
