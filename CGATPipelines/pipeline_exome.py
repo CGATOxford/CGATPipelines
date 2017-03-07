@@ -199,6 +199,9 @@ PARAMS = P.PARAMS
 INPUT_FORMATS = ("*.fastq.1.gz", "*.fastq.gz", "*.sra", "*.csfasta.gz")
 REGEX_FORMATS = regex(r"(\S+).(fastq.1.gz|fastq.gz|sra|csfasta.gz)")
 
+matches = glob.glob("*.fastq.1.gz") + glob.glob(
+    "*.fastq.gz") + glob.glob("*.sra") + glob.glob("*.csfasta.gz")
+
 
 def getGATKOptions():
     return "-l mem_free=1.4G"
@@ -324,7 +327,7 @@ def GATKReadGroups(infile, outfile):
     library = PARAMS["readgroup_library"]
     platform = PARAMS["readgroup_platform"]
     platform_unit = PARAMS["readgroup_platform_unit"]
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     PipelineExome.GATKReadGroups(infile, outfile, genome,
                                  library, platform,
                                  platform_unit, track)
@@ -362,7 +365,7 @@ def loadPicardDuplicateStatsLane(infiles, outfile):
 def GATKIndelRealignLane(infile, outfile):
     '''realigns around indels using GATK'''
     threads = PARAMS["gatk_threads"]
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     intervals = PARAMS["roi_intervals"]
     padding = PARAMS["roi_padding"]
     PipelineExome.GATKIndelRealign(infile, outfile, genome, intervals, padding,
@@ -381,7 +384,7 @@ def GATKBaseRecal(infile, outfile):
     outtrack = P.snip(os.path.basename(outfile), ".bam")
     dbsnp = PARAMS["gatk_dbsnp"]
     solid_options = PARAMS["gatk_solid_options"]
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     intervals = PARAMS["roi_intervals"]
     padding = PARAMS["roi_padding"]
     if PARAMS["targetted"]:
@@ -462,7 +465,7 @@ def GATKIndelRealignSample(infiles, outfile):
     '''realigns around indels using GATK'''
     infile, countfile = infiles
     threads = PARAMS["gatk_threads"]
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     intervals = PARAMS["roi_intervals"]
     padding = PARAMS["roi_padding"]
     countf = open(countfile, "r")
@@ -550,7 +553,7 @@ def loadXYRatio(infile, outfile):
            r"variants/\1.haplotypeCaller.g.vcf")
 def haplotypeCaller(infile, outfile):
     '''Call SNVs and indels using GATK HaplotypeCaller in individuals'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     job_options = getGATKOptions()
     job_threads = PARAMS["gatk_threads"]
     dbsnp = PARAMS["gatk_dbsnp"]
@@ -566,7 +569,7 @@ def haplotypeCaller(infile, outfile):
 @merge(haplotypeCaller, "variants/all_samples.vcf")
 def genotypeGVCFs(infiles, outfile):
     '''Joint genotyping of all samples together'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     inputfiles = " --variant ".join(infiles)
     options = PARAMS["gatk_genotype_options"]
     PipelineExome.genotypeGVCFs(inputfiles, outfile, genome, options)
@@ -599,7 +602,7 @@ def SelectExonicHapmapVariants(infile, outfile):
 def HapMapGenotype(infiles, outfile):
     '''Genotype HapMap SNPs using HaplotypeCaller in each individual'''
     infile, intervals = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     dbsnp = PARAMS["gatk_dbsnp"]
     padding = PARAMS["hapmap_padding"]
     options = PARAMS["hapmap_hc_options"]
@@ -707,7 +710,7 @@ def annotateVariantsSNPeff(infile, outfile):
            r"variants/all_samples.snpeff.table")
 def vcfToTableSnpEff(infile, outfile):
     '''Converts vcf to tab-delimited file'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     columns = PARAMS["annotation_snpeff_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -742,7 +745,7 @@ def listOfBAMs(infiles, outfile):
 def variantAnnotator(infiles, outfile):
     '''Annotate variant file using GATK VariantAnnotator'''
     vcffile, bamlist, snpeff_file = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     dbsnp = PARAMS["gatk_dbsnp"]
     annotations = PARAMS["gatk_variant_annotations"]
     PipelineExome.variantAnnotator(vcffile, bamlist, outfile, genome,
@@ -758,7 +761,7 @@ def variantAnnotator(infiles, outfile):
            r"variants/all_samples.snp_vqsr.recal")
 def variantRecalibratorSnps(infile, outfile):
     '''Create variant recalibration file'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     dbsnp = PARAMS["gatk_dbsnp"]
     job_options = getGATKOptions()
     job_threads = PARAMS["gatk_threads"]
@@ -782,7 +785,7 @@ def variantRecalibratorSnps(infile, outfile):
 def applyVariantRecalibrationSnps(infiles, outfile):
     '''Perform variant quality score recalibration using GATK '''
     vcf, recal, tranches = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     mode = 'SNP'
     PipelineExome.applyVariantRecalibration(vcf, recal, tranches,
                                             outfile, genome, mode)
@@ -796,7 +799,7 @@ def applyVariantRecalibrationSnps(infiles, outfile):
            r"variants/all_samples.vqsr.recal")
 def variantRecalibratorIndels(infile, outfile):
     '''Create variant recalibration file'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     job_options = getGATKOptions()
     job_threads = PARAMS["gatk_threads"]
     track = P.snip(outfile, ".recal")
@@ -818,7 +821,7 @@ def variantRecalibratorIndels(infile, outfile):
 def applyVariantRecalibrationIndels(infiles, outfile):
     '''Perform variant quality score recalibration using GATK '''
     vcf, recal, tranches = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     mode = 'INDEL'
     PipelineExome.applyVariantRecalibration(vcf, recal, tranches,
                                             outfile, genome, mode)
@@ -896,7 +899,7 @@ def annotateVariantsPhastcons(infile, outfile):
     '''Add annotations using SNPsift'''
     job_options = "-l mem_free=6G"
     job_threads = PARAMS["annotation_threads"]
-    genomeind = "%s/%s.fai" % (
+    genomeind = "%s/%s.fa.fai" % (
         PARAMS['general_genome_dir'],
         PARAMS['general_genome'])
     phastcons = PARAMS["annotation_phastcons"]
@@ -918,7 +921,11 @@ def annotateVariants1000G(infile, outfile):
     vcfs = []
     for f in os.listdir(PARAMS["annotation_tgdir"]):
         if f.endswith(".vcf.gz"):
-            vcfs.append("%s/%s" % (PARAMS['annotation_tgdir'], f))
+            if PARAMS['test'] == 1:
+                if "chr14" in f:
+                    vcfs.append("%s/%s" % (PARAMS['annotation_tgdir'], f))
+            else:
+                vcfs.append("%s/%s" % (PARAMS['annotation_tgdir'], f))
 
     T = P.getTempFilename(".")
     shutil.copy(infile, T)
@@ -1001,6 +1008,7 @@ def makeAnnotationsTables(infiles, outfile):
     TF = P.getTempFilename(".")
     samplename = bamname.replace(".realigned.bam",
                                  ".bam").replace("gatk/", "")
+
     statement = '''bcftools view -h %(inputvcf)s |
                    awk -F '=|,' '$1=="##INFO" || $1=="##FORMAT"
                    {printf("%%s\\t%%s\\n", $3, $9)}'
@@ -1024,7 +1032,13 @@ def makeAnnotationsTables(infiles, outfile):
     cstring = "\\t".join(cols)
     cstring = "%CHROM\\t%POS\\t%QUAL\\t%ID\\t%FILTER\\t%REF\\t\
                %ALT\\t[%GT]\\t" + cstring
-    statement = '''bcftools query -s %(samplename)s
+    if PARAMS['test'] == 1:
+        statement = '''bcftools query
+                   -f '%(cstring)s\\n'
+                   -i 'FILTER=="PASS" && GT!="0/0" && GT!="./."'
+                   %(inputvcf)s >> %(outfile)s'''
+    else:
+        statement = '''bcftools query -s %(samplename)s
                    -f '%(cstring)s\\n'
                    -i 'FILTER=="PASS" && GT!="0/0" && GT!="./."'
                    %(inputvcf)s >> %(outfile)s'''
@@ -1157,6 +1171,7 @@ def mergeAncestry(infiles, outfile):
     PipelineExomeAncestry.PlotAncestry(outfile)
 
 
+@active_if(len(matches) > 1)
 @merge((calculateAncestry, concatenateSNPs),
        ["all_samples.ped", "all_samples.map"])
 def makePed(infiles, outfiles):
@@ -1170,6 +1185,7 @@ def makePed(infiles, outfiles):
     PipelineExomeAncestry.MakePEDFile(infiles, outfiles)
 
 
+@active_if(len(matches) > 1)
 @transform(makePed, suffix(".ped"), ".ibs0")
 def runPlinkandKing(infiles, outfile):
     '''
@@ -1189,6 +1205,7 @@ def runPlinkandKing(infiles, outfile):
     P.run()
 
 
+@active_if(len(matches) > 1)
 @merge(runPlinkandKing, "family_estimate.tsv")
 def calculateFamily(infile, outfile):
     '''
@@ -1201,6 +1218,7 @@ def calculateFamily(infile, outfile):
     PipelineExomeAncestry.CalculateFamily(infile, outfile)
 
 
+@active_if(len(matches) > 1)
 @merge(makeAnnotationsTables, "sex_estimate.tsv")
 def calculateSex(infiles, outfile):
     '''
@@ -1215,29 +1233,33 @@ def calculateSex(infiles, outfile):
     PipelineExomeAncestry.CalculateSex(infiles, outfile, submit=True)
 
 
-@follows(mergeAncestry)
-@follows(calculateFamily)
-@follows(calculateSex)
 @merge((mergeAncestry, calculateFamily, calculateSex), "summary.tsv")
 def summarise(infiles, outfile):
     '''
     Builds a summary table for ancestry, family and sex.
     '''
     ancestry = pd.read_csv(infiles[0], sep="\t", header=None)
-    family = pd.read_csv(infiles[1], sep="\t", header=None)
-    sex = pd.read_csv(infiles[2], sep="\t", header=None)
-    ancestry[0] = [a[-1] for a in ancestry[0].str.split("/")]
-    family[0] = [a[-1] for a in family[0].str.split("/")]
-    sex[0] = [a[-1] for a in sex[0].str.split("/")]
-    sex = sex.drop([1, 2], 1)
-    sex.columns = ['id', 'sex', 'sex_significance']
-    family.columns = ['id', 'related_to', 'degree_relatedness']
-    family['degree_relatedness'] = family['degree_relatedness'].astype(int)
-    ancestry = ancestry.drop([2, 3, 4], 1)
-    ancestry.columns = ['id', 'ancestry']
-    summary = ancestry.merge(sex).merge(family, 'left')
-    summary = summary.fillna("NA")
-    summary.to_csv(outfile, sep="\t")
+    if len(matches) > 1:
+        family = pd.read_csv(infiles[1], sep="\t", header=None)
+        sex = pd.read_csv(infiles[2], sep="\t", header=None)
+        ancestry[0] = [a[-1] for a in ancestry[0].str.split("/")]
+        family[0] = [a[-1] for a in family[0].str.split("/")]
+        sex[0] = [a[-1] for a in sex[0].str.split("/")]
+        sex = sex.drop([1, 2], 1)
+        sex.columns = ['id', 'sex', 'sex_significance']
+        family.columns = ['id', 'related_to', 'degree_relatedness']
+        family['degree_relatedness'] = family['degree_relatedness'].astype(int)
+        ancestry = ancestry.drop([2, 3, 4], 1)
+        ancestry.columns = ['id', 'ancestry']
+        summary = ancestry.merge(sex).merge(family, 'left')
+        summary = summary.fillna("NA")
+        summary.to_csv(outfile, sep="\t")
+    else:
+        ancestry[0] = [a[-1] for a in ancestry[0].str.split("/")]
+        ancestry = ancestry.drop([2, 3, 4], 1)
+        ancestry.columns = ['id', 'ancestry']
+        ancestry = ancestry.fillna("NA")
+        ancestry.to_csv(outfile, sep="\t")
 
 
 @follows(summarise)
@@ -1312,31 +1334,37 @@ def familyFilterVariants(infiles, outfiles):
     Filter variants according to the output of calculateFamily -
     only variants shared by both members of a family will be kept.
     '''
-    infile = infiles[0][0]
+    if len(matches) > 1:
+        infile = infiles[0][0]
 
-    infilenam = infile.split("/")[-1]
-    infilestem = "/".join(infile.split("/")[:-1])
+        infilenam = infile.split("/")[-1]
+        infilestem = "/".join(infile.split("/")[:-1])
 
-    # figure out who is related to who
-    families = [line.strip().split("\t")[:2]
-                for line in IOTools.openFile(infiles[1]).readlines()]
-    infam = [line[0] for line in families] + [line[1] for line in families]
+        # figure out who is related to who
+        families = [line.strip().split("\t")[:2]
+                    for line in IOTools.openFile(infiles[1]).readlines()]
+        infam = [line[0] for line in families] + [line[1] for line in families]
 
-    # no relatives - copy the input file to the output file and generate
-    # a blank "failed" file
-    if infilenam not in infam or PARAMS['filtering_family'] == 0:
-        shutil.copy(infile, outfiles[0])
-        o = IOTools.openFile(outfiles[1], "w")
-        o.close()
+        # no relatives - copy the input file to the output file and generate
+        # a blank "failed" file
+        if infilenam not in infam or PARAMS['filtering_family'] == 0:
+            shutil.copy(infile, outfiles[0])
+            o = IOTools.openFile(outfiles[1], "w")
+            o.close()
+        else:
+            for line in families:
+                if infilenam in line:
+                    i = line.index(infilenam)
+                    if i == 0:
+                        infile2 = "%s/%s" % (infilestem, line[1])
+                    else:
+                        infile2 = "%s/%s" % (infilestem, line[0])
+            PipelineExome.filterFamily(infile, infile2, outfiles)
     else:
-        for line in families:
-            if infilenam in line:
-                i = line.index(infilenam)
-                if i == 0:
-                    infile2 = "%s/%s" % (infilestem, line[1])
-                else:
-                    infile2 = "%s/%s" % (infilestem, line[0])
-        PipelineExome.filterFamily(infile, infile2, outfiles)
+        infile = infiles[0][0]
+        shutil.copy(infile, outfiles[0])
+        out = IOTools.openFile(outfiles[1], "w")
+        out.close()
 
 
 @follows(familyFilterVariants)
@@ -1404,7 +1432,7 @@ def findGenes(infile, outfile):
     geneList = P.asList(PARAMS["annotation_genes_of_interest"])
     expression = '\'||SNPEFF_GENE_NAME==\''.join(geneList)
     statement = '''GenomeAnalysisTK -T VariantFiltration
-                   -R %%(bwa_index_dir)s/%%(genome)s.fa
+                   -R %%(genome_dir)s/%%(gatkgenome)s.fa
                    --variant %(infile)s
                    --filterExpression "SNPEFF_GENE_NAME=='%(expression)s'"
                    --filterName "GENE_OF_INTEREST" -o %(outfile)s''' % locals()
@@ -1424,7 +1452,7 @@ TABULATION_INPUT = {0: annotateVariantsVEP, 1: findGenes}
            r"variants/all_samples.snpsift.table")
 def vcfToTable(infile, outfile):
     '''Converts vcf to tab-delimited file'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1436,7 +1464,7 @@ def loadVariantAnnotation(infile, outfile):
     '''Load VCF annotations into database'''
     P.load(infile, outfile, options="--retry --ignore-empty")
 
-###############################################################################
+##############################################################################
 ###############################################################################
 ###############################################################################
 # Confirm parentage (do novo trios only)
@@ -1542,7 +1570,7 @@ def confirmParentage(infiles, outfile):
 def deNovoVariants(infiles, outfile):
     '''Filter de novo variants based on provided jexl expression'''
     job_options = getGATKOptions()
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     pedfile, infile = infiles
     pedigree = csv.DictReader(
         IOTools.openFile(pedfile), delimiter='\t', fieldnames=[
@@ -1561,7 +1589,7 @@ def deNovoVariants(infiles, outfile):
            r"variants/\1.filtered.table")
 def tabulateDeNovos(infile, outfile):
     '''Tabulate de novo variants'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1586,7 +1614,7 @@ def loadDeNovos(infile, outfile):
 def lowerStringencyDeNovos(infiles, outfile):
     '''Filter lower stringency de novo variants based on provided jexl
     expression'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     pedfile, infile = infiles
     pedigree = csv.DictReader(
         IOTools.openFile(pedfile), delimiter='\t', fieldnames=[
@@ -1606,7 +1634,7 @@ def lowerStringencyDeNovos(infiles, outfile):
            r"variants/\1.denovos.table")
 def tabulateLowerStringencyDeNovos(infile, outfile):
     '''Tabulate lower stringency de novo variants'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1634,7 +1662,7 @@ def loadLowerStringencyDeNovos(infile, outfile):
 def dominantVariants(infiles, outfile):
     '''Filter variants according to autosomal dominant disease model'''
     pedfile, infile = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     pedigree = csv.DictReader(open(pedfile), delimiter='\t',
                               fieldnames=['family', 'sample', 'father',
                                           'mother', 'sex', 'status'])
@@ -1667,7 +1695,7 @@ def dominantVariants(infiles, outfile):
            r"variants/\1.dominant.table")
 def tabulateDoms(infile, outfile):
     '''Tabulate dominant disease candidate variants'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1696,7 +1724,7 @@ def loadDoms(infile, outfile):
            r"variants/\1.recessive.vcf")
 def recessiveVariants(infiles, outfile):
     '''Filter variants according to autosomal recessive disease model'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     pedfile, infile = infiles
     pedigree = csv.DictReader(open(pedfile), delimiter='\t',
                               fieldnames=['family', 'sample', 'father',
@@ -1740,7 +1768,7 @@ def recessiveVariants(infiles, outfile):
            r"variants/\1.recessive.table")
 def tabulateRecs(infile, outfile):
     '''Tabulate potential homozygous recessive disease variants'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1768,7 +1796,7 @@ def loadRecs(infile, outfile):
 def xlinkedVariants(infiles, outfile):
     '''Find maternally inherited X chromosome variants in male patients'''
     track = P.snip(os.path.basename(outfile), ".vcf")
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     pedfile, infile = infiles
     pedigree = csv.DictReader(open(pedfile), delimiter='\t',
                               fieldnames=['family', 'sample', 'father',
@@ -1824,7 +1852,7 @@ def xlinkedVariants(infiles, outfile):
            r"variants/\1.xlinked.table")
 def tabulateXs(infile, outfile):
     '''Tabulate potential X-linked disease variants'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1856,7 +1884,7 @@ def loadXs(infile, outfile):
 def phasing(infiles, outfile):
     '''phase variants with GATK'''
     infile, pedfile, bamlist = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     statement = '''GenomeAnalysisTK -T PhaseByTransmission
                    -R %(genome)s
                    -V %(infile)s
@@ -1875,7 +1903,7 @@ def readbackedphasing(infiles, outfile):
     '''phase variants with ReadBackedPhasing'''
     job_memory = "32G"
     infile, bamlist = infiles
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     statement = '''GenomeAnalysisTK -T ReadBackedPhasing -nt 4
                    -R %(genome)s
                    -I %(bamlist)s
@@ -1934,7 +1962,7 @@ def candidateCoverage(infile, outfile):
     all_exons = PARAMS["coverage_all_exons"]
     candidates = PARAMS["coverage_candidates"]
     candidates = candidates.replace(",", " -e ")
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
     threshold = PARAMS["coverage_threshold"]
     statement = '''zcat %(all_exons)s | grep -e %(candidates)s
                    | awk '{print $1 ":" $4 "-" $5}' - | sed 's/chr//' - >
@@ -2005,6 +2033,13 @@ def loadVCFstats(infiles, outfile):
 # Targets
 
 
+@follows(loadVariantAnnotation,
+         finalVariantTables,
+         ancestry)
+def testFromVariantRecal():
+    pass
+
+
 @follows(loadROI,
          loadROI2Gene,
          loadSamples)
@@ -2041,7 +2076,8 @@ def callVariants():
 
 @follows(loadTableSnpEff,
          listOfBAMs,
-         loadVariantAnnotation)
+         loadVariantAnnotation,
+         finalVariantTables)
 def annotation():
     pass
 
@@ -2095,7 +2131,9 @@ def vcfstats():
          # sampleFeatures,
          callVariants,
          annotation,
-         filtering)
+         filtering,
+         ancestry,
+         makeAnnotationsTables)
 def full():
     pass
 
