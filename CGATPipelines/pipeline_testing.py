@@ -340,12 +340,8 @@ def buildCheckSums(infile, outfile):
     regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
     regex_pattern = pipes.quote(regex_pattern)
 
-    # ignore log files as time stamps will be different
-    # send stder to /dev/null to suppress:
-    # find: `test_annotations.dir/report': No such file or directory
     statement = '''find %(track)s.dir
     -type f
-    -not -regex ".*.log"
     -not -regex ".*/report"
     -not -regex ".*/_*"
     -regex %(regex_pattern)s
@@ -378,11 +374,8 @@ def buildLineCounts(infile, outfile):
 
     regex_pattern = pipes.quote(regex_pattern)
 
-    # ignore log files as time stamps will
-    # be different
     statement = '''find %(track)s.dir
     -type f
-    -not -regex ".*.log"
     -regex %(regex_pattern)s
     -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
     | sort -k1,1

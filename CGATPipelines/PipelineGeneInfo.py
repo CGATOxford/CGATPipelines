@@ -255,6 +255,7 @@ class EntrezGeneAnnotation(EntrezAnnotation):
 
         return res['IdList']
 
+
 class EntrezTaxonomyAnnotation(EntrezAnnotation):
     '''
     Entrez Taxonomy Annotation object
