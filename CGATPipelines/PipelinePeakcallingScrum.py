@@ -2345,7 +2345,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
     alltab['Experiment'] = alltab['Condition'] + "_" + alltab['Tissue']
 
     # find the "Conservative_Peak_List" for each experiment
-    alltab['Conservative_Peak_List'] = 'False'
+    alltab['Conservative_Peak_List'] = False
     replicates = alltab[alltab['Replicate_Type'] == 'replicate_consistency']
     for exp in set(replicates['Experiment'].values):
         subtab = replicates[replicates['Experiment'] == exp]
@@ -2354,7 +2354,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
         alltab.ix[val, 'Conservative_Peak_List'] = True
 
     # find the "Optimal_Peak_List" for each experiment
-    alltab['Optimal_Peak_List'] = 'False'
+    alltab['Optimal_Peak_List'] = False
     for exp in set(alltab['Experiment'].values):
         subtab = alltab[((alltab['Experiment'] == exp) &
                          ((alltab['Replicate_Type'] == 'pooled_consistency') |
