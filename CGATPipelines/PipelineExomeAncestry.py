@@ -395,6 +395,8 @@ def CalculateSex(infiles, outfile):
                 sig = "*"
             else:
                 sig = "-"
+        elif sex == "unknown":
+            sig = "-"
         else:
             if ((3 * std) - abs(dist) >= 0 or dist <= 0):
                 sig = "*"
