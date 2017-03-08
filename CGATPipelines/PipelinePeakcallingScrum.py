@@ -2345,16 +2345,16 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
     alltab['Experiment'] = alltab['Condition'] + "_" + alltab['Tissue']
 
     # find the "Conservative_Peak_List" for each experiment
-    alltab['Conservative_Peak_List'] = False
+    alltab['Conservative_Peak_List'] = 'No'
     replicates = alltab[alltab['Replicate_Type'] == 'replicate_consistency']
     for exp in set(replicates['Experiment'].values):
         subtab = replicates[replicates['Experiment'] == exp]
         m = max(subtab['Peaks_Passing_IDR'])
         val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
-        alltab.ix[val, 'Conservative_Peak_List'] = True
+        alltab.ix[val, 'Conservative_Peak_List'] = 'Yes'
 
     # find the "Optimal_Peak_List" for each experiment
-    alltab['Optimal_Peak_List'] = False
+    alltab['Optimal_Peak_List'] = 'No'
     for exp in set(alltab['Experiment'].values):
         subtab = alltab[((alltab['Experiment'] == exp) &
                          ((alltab['Replicate_Type'] == 'pooled_consistency') |
@@ -2362,7 +2362,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
                            'replicate_consistency')))]
         m = max(subtab['Peaks_Passing_IDR'])
         val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
-        alltab.ix[val, 'Optimal_Peak_List'] = True
+        alltab.ix[val, 'Optimal_Peak_List'] = 'Yes'
 
     alltab.to_csv(outfile, sep="\t", index=False)
 
