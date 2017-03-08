@@ -2351,7 +2351,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
         subtab = replicates[replicates['Experiment'] == exp]
         m = max(subtab['Peaks_Passing_IDR'])
         val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
-        alltab.ix[val, 'Conservative_Peak_List'] = 'True'
+        alltab.ix[val, 'Conservative_Peak_List'] = True
 
     # find the "Optimal_Peak_List" for each experiment
     alltab['Optimal_Peak_List'] = 'False'
@@ -2362,7 +2362,7 @@ def summariseIDR(infiles, outfile, pooledc, selfc, repc):
                            'replicate_consistency')))]
         m = max(subtab['Peaks_Passing_IDR'])
         val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
-        alltab.ix[val, 'Optimal_Peak_List'] = 'True'
+        alltab.ix[val, 'Optimal_Peak_List'] = True
 
     alltab.to_csv(outfile, sep="\t", index=False)
 

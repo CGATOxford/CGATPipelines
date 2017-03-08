@@ -1410,7 +1410,7 @@ def findConservativePeaks(infile, outfiles):
     '''function selects row from IDR_results.tsv that represents the
     conservative peak list'''
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Conservative_Peak_List'] == 'True']
+    cps = tab[tab['Conservative_Peak_List'] is True]
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
@@ -1429,7 +1429,7 @@ def findOptimalPeaks(infile, outfiles):
     '''function selects row from IDR_results.tsv that represents the
     optimal peak list'''
     tab = pd.read_csv(infile, sep="\t")
-    cps = tab[tab['Optimal_Peak_List'] == 'True']
+    cps = tab[tab['Optimal_Peak_List'] is True]
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
