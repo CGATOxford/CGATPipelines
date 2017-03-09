@@ -352,12 +352,12 @@ def collectSingleJobFromCluster(session, job_id,
 
         raise OSError(
             "-------------------------------------------------\n"
-            "Cluster job was aborted and/or failed to exit:\n"
-            "Job was aborted: %s \n"
-            "Job has exited: %s \n"
+            "Cluster job was aborted (%s) and/or failed (%s) "
+            "while running the following statement:\n"
+            "\n%s\n"
             "(Job may have been cancelled by the user or the scheduler)\n"
             "----------------------------------------------------------\n" %
-            (retval.wasAborted, retval.hasExited))
+            (retval.wasAborted, retval.hasExited, statement))
 
     try:
         os.unlink(job_path)
