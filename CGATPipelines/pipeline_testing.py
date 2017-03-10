@@ -364,7 +364,7 @@ def buildLineCounts(infile, outfile):
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
-        '%s_suffixes' % track,
+        '%s_regex_linecount' % track,
         PARAMS["suffixes"]))
 
     if len(suffixes) == 0:
@@ -382,8 +382,37 @@ def buildLineCounts(infile, outfile):
     > %(outfile)s'''
     P.run()
 
+@transform(runTests,
+           suffix(".log"),
+           ".exist")
+def checkFileExistence(infile, outfile):
+    '''check whether file exists.
 
-@collate((buildCheckSums, buildLineCounts),
+    Files are uncompressed before checking existence.
+    '''
+
+    track = P.snip(infile, ".log")
+
+    suffixes = P.asList(PARAMS.get(
+        '%s_regex_exist' % track,
+        PARAMS["suffixes"]))
+
+    if len(suffixes) == 0:
+        raise ValueError('no file types defined for test')
+
+    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
+
+    regex_pattern = pipes.quote(regex_pattern)
+
+    statement = '''find %(track)s.dir
+    -type f
+    -regex %(regex_pattern)s
+    | sort -k1,1
+    > %(outfile)s'''
+    P.run()
+
+
+@collate((buildCheckSums, buildLineCounts, checkFileExistence),
          regex("([^.]*).(.*)"),
          r"\1.stats")
 def mergeFileStatistics(infiles, outfile):
