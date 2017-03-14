@@ -412,6 +412,9 @@ def buildCDNAFasta(infile, outfile):
     '''
     dbname = outfile[:-len(".fasta")]
 
+    # perl statement to truncate ids from ENSPXXXX.1 to ENSPXXX.
+    # New notation introduced around Ensembl release 80
+    # Necessary for comparing to gtf work and backward compatibility.
     statement = '''gunzip
     < %(infile)s
     | perl -p -e 'if ("^>") { s/[\z\.].*//};'
@@ -439,6 +442,9 @@ def buildPeptideFasta(infile, outfile):
     '''
     dbname = outfile[:-len(".fasta")]
 
+    # perl statement to truncate ids from ENSPXXXX.1 to ENSPXXX.
+    # New notation introduced around Ensembl release 80
+    # Necessary for comparing to gtf work and backward compatibility.
     statement = '''gunzip
     < %(infile)s
     | perl -p -e 'if ("^>") { s/[\z\.].*//};'
@@ -837,11 +843,15 @@ def loadProteinStats(infile, outfile):
         options="--add-index=protein_id "
         "--map=protein_id:str")
 
+    # the awk statement truncates ids ENSPXXX.1 to ENSPXXX
+    # necessary for downstream compatibility (e.g. seleno list)
     statement = '''
     gunzip < %(infile)s
     | cgat fasta2fasta
     --method=filter
     --filter-method=min-length=1
+    | awk 'match($0, /(>ENS[A-Z]+[0-9]+)(\.[0-9])*(.*)/, a) {print a[1], a[3]}
+    !/^>/ {print}'
     | cgat fasta2table
     --log=%(outfile)s
     --sequence-type=aa
