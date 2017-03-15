@@ -331,25 +331,25 @@ def buildCheckSums(infile, outfile):
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
-        '%s_suffixes' % track,
-        PARAMS["suffixes"]))
+        '%s_suffixes' % track, ""))
 
     if len(suffixes) == 0:
-        raise ValueError('no file types defined for test')
-
-    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-    regex_pattern = pipes.quote(regex_pattern)
-
-    statement = '''find %(track)s.dir
-    -type f
-    -not -regex ".*/report"
-    -not -regex ".*/_*"
-    -regex %(regex_pattern)s
-    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
-    | perl -p -e "s/ +/\\t/g"
-    | sort -k1,1
-    > %(outfile)s'''
-    P.run()
+        E.info(" No checksums computed for %s" % track)
+    else:
+        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
+        regex_pattern = pipes.quote(regex_pattern)
+        E.debug(" Computing checksum for files "
+                "ending in %s" % ", ".join(suffixes))
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex ".*/report"
+        -not -regex ".*/_*"
+        -regex %(regex_pattern)s
+        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
+        | perl -p -e "s/ +/\\t/g"
+        | sort -k1,1
+        > %(outfile)s'''
+        P.run()
 
 
 @transform(runTests,
@@ -364,23 +364,23 @@ def buildLineCounts(infile, outfile):
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
-        '%s_regex_linecount' % track,
-        PARAMS["suffixes"]))
+        '%s_regex_linecount' % track, ""))
 
     if len(suffixes) == 0:
-        raise ValueError('no file types defined for test')
+        E.info(" No lines computed for %s" % track)
+    else:
+        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
+        regex_pattern = pipes.quote(regex_pattern)
+        E.debug(" Computing lines for files "
+                "ending in %s" % ", ".join(suffixes))
+        statement = '''find %(track)s.dir
+        -type f
+        -regex %(regex_pattern)s
+        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
+        | sort -k1,1
+        > %(outfile)s'''
+        P.run()
 
-    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-
-    regex_pattern = pipes.quote(regex_pattern)
-
-    statement = '''find %(track)s.dir
-    -type f
-    -regex %(regex_pattern)s
-    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
-    | sort -k1,1
-    > %(outfile)s'''
-    P.run()
 
 @transform(runTests,
            suffix(".log"),
@@ -394,22 +394,21 @@ def checkFileExistence(infile, outfile):
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
-        '%s_regex_exist' % track,
-        PARAMS["suffixes"]))
+        '%s_regex_exist' % track, ""))
 
     if len(suffixes) == 0:
-        raise ValueError('no file types defined for test')
-
-    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-
-    regex_pattern = pipes.quote(regex_pattern)
-
-    statement = '''find %(track)s.dir
-    -type f
-    -regex %(regex_pattern)s
-    | sort -k1,1
-    > %(outfile)s'''
-    P.run()
+        E.info(" No existence checked for %s" % track)
+    else:
+        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
+        regex_pattern = pipes.quote(regex_pattern)
+        E.debug(" Checking existence of files "
+                "ending in %s" % ", ".join(suffixes))
+        statement = '''find %(track)s.dir
+        -type f
+        -regex %(regex_pattern)s
+        | sort -k1,1
+        > %(outfile)s'''
+        P.run()
 
 
 @collate((buildCheckSums, buildLineCounts, checkFileExistence),
@@ -420,8 +419,7 @@ def mergeFileStatistics(infiles, outfile):
     infiles = " ".join(sorted(infiles))
 
     statement = '''
-    echo -e "file\\tnlines\\tmd5\\txxx" > %(outfile)s;
-    join -t $'\\t' %(infiles)s >> %(outfile)s'''
+    merge_testing_output.sh %(infiles)s >> %(outfile)s'''
     P.run()
 
 
