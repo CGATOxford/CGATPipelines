@@ -13,6 +13,7 @@ import re
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
+import pandas as pd
 
 PICARD_MEMORY = "5G"
 
