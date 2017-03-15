@@ -1531,5 +1531,100 @@ def publish():
     # publish web pages
     # P.publish_report(export_files=export_files)
 
+###############################################################
+# Notebook reports
+###############################################################
+
+
+
+@follows(filtering)
+@follows(mkdir('notebooks.dir'))
+@originate("notebooks.dir/1_peakcalling_filtering_Report.ipynb")
+def buildFilteringNotebook(outfile):
+    ''' copies ipnb from other location and runs through the analysis comparing
+    plotting and summarising filtering stats.''' 
+
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_filtering_Report.ipynb')
+
+    shutil.copyfile(notebook_path,outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+    
+    P.run()
+
+
+@follows(buildFilteringNotebook)
+@originate("notebooks.dir/2_filteredbam_reads_per_chr.ipynb")
+def buildReadsPerChrNotebook(outfile):
+    ''' copies ipnb from other location and runs through the analysis comparing
+    plotting and summarising filtering stats 
+
+    depends on notebook template in 'notebook_template_directory' that is
+    specified in ini file''' 
+
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_filtering_Report_reads_per_chr.ipynb')
+
+    shutil.copyfile(notebook_path,outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+    
+    P.run()
+
+@follows(buildReadsPerChrNotebook)
+@originate("notebooks.dir/3_peakcalling_filtering_Report_insert_sizes.ipynb")
+def buildReadsInsertSizeNotebook(outfile):
+    ''' copies ipnb from other location and runs through the analysis comparing
+    plotting and summarising insert sizes 
+
+    depends on notebook template in 'notebook_template_directory' that is
+    specified in ini file''' 
+
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_filtering_Report_insert_sizes.ipynb')
+
+    shutil.copyfile(notebook_path,outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+    
+    P.run()
+
+
+
+@follows(buildReadsInsertSizeNotebook)
+@originate("notebooks.dir/4_peakcalling_peakstats.ipynb")
+def buildPeakStatsNotebook(outfile):
+    ''' copies ipnb from other location and runs through the analysis comparing
+    plotting and summarising peakcalling stats 
+
+    depends on notebook template in 'notebook_template_directory' that is
+    specified in ini file''' 
+
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_peakstats.ipynb')
+
+    shutil.copyfile(notebook_path,outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+    
+    P.run()
+
+
+@follows(buildPeakStatsNotebook)
+@originate("notebooks.dir/0_peakcalling_report_contents.ipynb")
+def buildNotebooks(outfile):
+    ''' copies ipnb from other location and runs through the analysis comparing
+    plotting and summarising peakcalling stats 
+
+    depends on notebook template in 'notebook_template_directory' that is
+    specified in ini file''' 
+
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_report_contents.ipynb')
+
+    shutil.copyfile(notebook_path,outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+    
+    P.run()
+
+################################################################################
+
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
