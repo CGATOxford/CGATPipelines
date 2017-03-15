@@ -345,5 +345,11 @@ def MakeSubDBs(infile, outfile):
 def full():
     pass
 
+
+@follows(MakeSubDBs)
+def build_report():
+    pass
+
+
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

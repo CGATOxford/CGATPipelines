@@ -336,13 +336,17 @@ def buildReferenceGeneSet(infile, outfile):
     else:
         rna_file = None
 
+    if len(PARAMS['geneset_remove_contigs']) == 0:
+        geneset_remove_contigs = None
+    else:
+        geneset_remove_contigs = PARAMS['geneset_remove_contigs']
     gene_ids = PipelineMapping.mergeAndFilterGTF(
         infile,
         tmp_mergedfiltered,
         "%s.removed.gz" % outfile,
         genome=os.path.join(PARAMS["genome_dir"], PARAMS["genome"]),
         max_intron_size=PARAMS["max_intron_size"],
-        remove_contigs=PARAMS["geneset_remove_contigs"],
+        remove_contigs=geneset_remove_contigs,
         rna_file=rna_file)
 
     # Add tss_id and p_id
