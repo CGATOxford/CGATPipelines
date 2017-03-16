@@ -243,6 +243,7 @@ PARAMS.update(P.peekParameters(
     update_interface=True,
     restrict_interface=True))
 
+
 PipelineGeneset.PARAMS = PARAMS
 PipelineMappingQC.PARAMS = PARAMS
 
@@ -2109,6 +2110,37 @@ def loadContextStats(infiles, outfile):
     ''' load context mapping statistics into context_stats table '''
     PipelineWindows.loadSummarizedContextStats(infiles, outfile)
 
+
+@transform(MAPPINGTARGETS,
+           suffix(".bam"),
+           ".idxstats")
+def buildIdxstats(infile, outfile):
+    '''gets idxstats for bam file so number of reads per chromosome can
+    be plotted later'''
+
+    statement = '''samtools idxstats %(infile)s > %(outfile)s''' % locals()
+    P.run()
+
+
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildIdxstats, "idxstats_reads_per_chromosome.load")
+def loadIdxstats(infiles, outfile):
+    '''merge idxstats files into single dataframe and load
+    to database
+
+    Loads tables into the database
+       * mapped_reads_per_chromosome
+
+    Arguments
+    ---------
+    infiles : list
+        list where each element is a string of the filename containing samtools
+        idxstats output. Filename format is expected to be 'sample.idxstats'
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.'''
+
+    PipelineMappingQC.loadIdxstats(infiles, outfile)
+
 ###################################################################
 ###################################################################
 ###################################################################
@@ -2627,7 +2659,8 @@ def buildIGVSampleInformation(infiles, outfile):
          loadPicardStats,
          loadBAMStats,
          buildGeneProfiles,
-         loadContextStats)
+         loadContextStats,
+         loadIdxstats)
 def general_qc():
     pass
 
@@ -2638,7 +2671,8 @@ def general_qc():
          loadTranscriptLevelReadCounts,
          loadIntronLevelReadCounts,
          buildTranscriptProfiles,
-         loadPicardRnaSeqMetrics)
+         loadPicardRnaSeqMetrics,
+         loadIdxstats)
 def spliced_qc():
     pass
 
