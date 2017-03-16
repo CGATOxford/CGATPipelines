@@ -557,6 +557,7 @@ def reset(infile, outfile):
     to_cluster = False
 
     statement = '''
+    rm -rf prereq_*;
     rm -rf test_* _cache _static _templates _tmp report;
     rm -f *.log csvdb *.load *.tsv'''
     P.run()
