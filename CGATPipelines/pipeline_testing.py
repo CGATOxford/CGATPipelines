@@ -335,6 +335,7 @@ def buildCheckSums(infile, outfile):
 
     if len(suffixes) == 0:
         E.info(" No checksums computed for %s" % track)
+        IOTools.touchFile("%s.md5" % track)
     else:
         regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
         regex_pattern = pipes.quote(regex_pattern)
@@ -368,6 +369,7 @@ def buildLineCounts(infile, outfile):
 
     if len(suffixes) == 0:
         E.info(" No lines computed for %s" % track)
+        IOTools.touchFile("%s.lines" % track)
     else:
         regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
         regex_pattern = pipes.quote(regex_pattern)
@@ -398,6 +400,7 @@ def checkFileExistence(infile, outfile):
 
     if len(suffixes) == 0:
         E.info(" No existence checked for %s" % track)
+        IOTools.touchFile("%s.exist" % track)
     else:
         regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
         regex_pattern = pipes.quote(regex_pattern)
@@ -419,7 +422,9 @@ def mergeFileStatistics(infiles, outfile):
     infiles = " ".join(sorted(infiles))
 
     statement = '''
-    merge_testing_output.sh %(infiles)s >> %(outfile)s'''
+    %(pipeline_scriptsdir)s/merge_testing_output.sh
+    %(infiles)s
+    > %(outfile)s'''
     P.run()
 
 

@@ -23,11 +23,12 @@ linesfile=`echo $@ | sed 's/\s/\n/g' | grep lines`
 existfile=`echo $@ | sed 's/\s/\n/g' | grep exist`
 
 # check whether they can be read
-[ -z "$md5file" ] || [ ! -r $md5file ] || [ ! -s $md5file ] && md5check=1
-[ -z "$linesfile" ] || [ ! -r $linesfile ] || [ ! -s $linesfile ] && linescheck=1
-[ -z "$existfile" ] || [ ! -r $existfile ] || [ ! -s $existfile ] && existcheck=1
+md5check=0 && linescheck=0 && existcheck=0
+[ "$md5file" ] || [ ! -r $md5file ] || [ ! -s $md5file ] && md5check=1
+[ "$linesfile" ] || [ ! -r $linesfile ] || [ ! -s $linesfile ] && linescheck=1
+[ "$existfile" ] || [ ! -r $existfile ] || [ ! -s $existfile ] && existcheck=1
 
-if [ $md5check -a $linescheck -a $existcheck ] ; then
+if [ -z "$md5check" ] && [ -z "$linescheck" ] && [ -z "$existcheck" ] ; then
 
    echo
    echo " ERROR: one or more input files do not exist, are empty or cannot be read"
