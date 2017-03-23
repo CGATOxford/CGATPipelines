@@ -343,8 +343,8 @@ def buildCheckSums(infile, outfile):
                 "ending in %s" % ", ".join(suffixes))
         statement = '''find %(track)s.dir
         -type f
-        -not -regex ".*/report"
-        -not -regex ".*/_*"
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
         -regex %(regex_pattern)s
         -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
         | perl -p -e "s/ +/\\t/g"
@@ -377,6 +377,8 @@ def buildLineCounts(infile, outfile):
                 "ending in %s" % ", ".join(suffixes))
         statement = '''find %(track)s.dir
         -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
         -regex %(regex_pattern)s
         -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
         | sort -k1,1
@@ -408,6 +410,8 @@ def checkFileExistence(infile, outfile):
                 "ending in %s" % ", ".join(suffixes))
         statement = '''find %(track)s.dir
         -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
         -regex %(regex_pattern)s
         | sort -k1,1
         > %(outfile)s'''
