@@ -2287,7 +2287,8 @@ def plotLdExcludedEpistasis(infile, outfile):
            add_inputs([r"epistasis.dir/GwasHits.bed",
                        r"epistasis.dir/GwasHits.fam",
                        r"epistasis.dir/GwasHits.bim",
-                       mergeGenotypeAndCovariates]),
+                       mergeGenotypeAndCovariates,
+                       r"exclusions.dir/WholeGenome.gwas_exclude"]),
            r"epistasis.dir/\1.auto.R")
 def adjustedEpistasis(infiles, outfile):
     '''
@@ -2310,16 +2311,110 @@ def adjustedEpistasis(infiles, outfile):
     covar_file = infiles[1][3]
     covars = PARAMS['gwas_covars']
     all_covars = ",".join([covars, snp])
-
+    remove = infiles[1][4]
+    
     out_pattern = ".".join(outfile.split(".")[:-2])
 
     statement = '''
     R CMD Rserve --vanilla; checkpoint;
     cgat geno2assoc
-    --program=plinkdev
+    --program=plink2
     --input-file-format=plink_binary
     --phenotypes-file=%(data_phenotypes)s
     --pheno=%(format_pheno)s
+    --method=epistasis
+    --epistasis-method=adjusted
+    --epistasis-parameter=%(epistasis_plugin)s
+    --covariates-file=%(covar_file)s
+    --covariate-column=%(all_covars)s
+    --exclude-snps=%(ld_exclude)s
+    --remove-individuals=%(remove)s
+    --min-allele-freq=0.005
+    --output-file-pattern=%(out_pattern)s
+    --log=%(outfile)s.log
+    --memory=%(job_memory)s
+    %(plink_files)s
+    > %(outfile)s.plink.log
+    '''
+
+    P.run()
+
+
+@follows(adjustedEpistasis)
+@transform(adjustedEpistasis,
+           regex("epistasis.dir/(.+).auto.R"),
+           r"plots.dir/\1-epistasis_manhattan.png")
+def plotAdjustedEpistasis(infile, outfile):
+    '''
+    Generate a manhattan plot and QQplot
+    of the adjusted epistasis analysis
+    '''
+
+    job_memory = "4G"
+
+    plot_path = "_".join(outfile.split("_")[:-1])
+
+    statement = '''
+    cgat assoc2plot
+    --plot-type=epistasis
+    --resolution=chromosome
+    --log=%(outfile)s.log
+    --save-path=%(plot_path)s
+    %(infile)s
+    > %(outfile)s
+    '''
+
+    P.run()
+
+
+@jobs_limit(6)
+@follows(mergeGenotypeAndCovariates,
+         excludeLdVariants,
+         plotLdExcludedEpistasis,
+         plotAdjustedEpistasis,
+         mkdir("unadjusted_epistasis.dir"))
+@transform(excludeLdVariants,
+           regex("target_snps.dir/(.+).exclude"),
+           add_inputs([r"epistasis.dir/GwasHits.bed",
+                       r"epistasis.dir/GwasHits.fam",
+                       r"epistasis.dir/GwasHits.bim",
+                       mergeGenotypeAndCovariates,
+                       r"exclusions.dir/WholeGenome.gwas_exclude"]),
+           r"unadjusted_epistasis.dir/\1.auto.R")
+def unadjustedEpistasis(infiles, outfile):
+    '''
+    Test for epistasis between target SNPs
+    and SNPs of interest, without the population structure
+    adjustment.
+    '''
+
+    job_memory = "75G"
+    job_threads = 1
+
+    snp = infiles[0].split("/")[-1].split(".")[0]
+    ld_exclude = infiles[0]
+
+    bed_file = infiles[1][0]
+    fam_file = infiles[1][1]
+    bim_file = infiles[1][2]
+    plink_files = ",".join([bed_file, fam_file, bim_file])
+
+    covar_file = infiles[1][3]
+    # remove principal components variables f....
+    covars = ",".join([cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
+    all_covars = ",".join([covars, snp])
+    remove = infiles[1][4]
+    
+    out_pattern = ".".join(outfile.split(".")[:-2])
+
+    statement = '''
+    R CMD Rserve --vanilla; checkpoint;
+    cgat geno2assoc
+    --program=plink2
+    --input-file-format=plink_binary
+    --phenotypes-file=%(data_phenotypes)s
+    --pheno=%(format_pheno)s
+    --remove-individuals=%(remove)s
     --method=epistasis
     --epistasis-method=adjusted
     --epistasis-parameter=%(epistasis_plugin)s
@@ -2337,11 +2432,11 @@ def adjustedEpistasis(infiles, outfile):
     P.run()
 
 
-@follows(adjustedEpistasis)
-@transform(adjustedEpistasis,
-           regex("epistasis.dir/(.+).auto.R"),
-           r"plots.dir/\1-epistasis_manhattan.png")
-def plotAdjustedEpistasis(infile, outfile):
+@follows(unadjustedEpistasis)
+@transform(unadjustedEpistasis,
+           regex("unadjusted_epistasis.dir/(.+).auto.R"),
+           r"plots.dir/\1-unadjusted-epistasis_manhattan.png")
+def plotUnadjustedEpistasis(infile, outfile):
     '''
     Generate a manhattan plot and QQplot
     of the adjusted epistasis analysis
