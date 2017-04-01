@@ -2278,185 +2278,321 @@ def plotLdExcludedEpistasis(infile, outfile):
     P.run()
 
 
-@jobs_limit(6)
-@follows(mergeGenotypeAndCovariates,
-         excludeLdVariants,
-         plotLdExcludedEpistasis)
-@transform(excludeLdVariants,
-           regex("target_snps.dir/(.+).exclude"),
+# @jobs_limit(6)
+# @follows(mergeGenotypeAndCovariates,
+#          excludeLdVariants,
+#          plotLdExcludedEpistasis)
+# @transform(excludeLdVariants,
+#            regex("target_snps.dir/(.+).exclude"),
+#            add_inputs([r"epistasis.dir/GwasHits.bed",
+#                        r"epistasis.dir/GwasHits.fam",
+#                        r"epistasis.dir/GwasHits.bim",
+#                        mergeGenotypeAndCovariates,
+#                        r"exclusions.dir/WholeGenome.gwas_exclude"]),
+#            r"epistasis.dir/\1.auto.R")
+# def adjustedEpistasis(infiles, outfile):
+#     '''
+#     Test for epistasis between target SNPs
+#     and SNPs of interest, whilst adjusting for
+#     covariates.
+#     '''
+
+#     job_memory = "75G"
+#     job_threads = 1
+
+#     snp = infiles[0].split("/")[-1].split(".")[0]
+#     ld_exclude = infiles[0]
+
+#     bed_file = infiles[1][0]
+#     fam_file = infiles[1][1]
+#     bim_file = infiles[1][2]
+#     plink_files = ",".join([bed_file, fam_file, bim_file])
+
+#     covar_file = infiles[1][3]
+#     covars = PARAMS['gwas_covars']
+#     all_covars = ",".join([covars, snp])
+#     remove = infiles[1][4]
+
+#     out_pattern = ".".join(outfile.split(".")[:-2])
+
+#     statement = '''
+#     R CMD Rserve --vanilla; checkpoint;
+#     cgat geno2assoc
+#     --program=plink2
+#     --input-file-format=plink_binary
+#     --phenotypes-file=%(data_phenotypes)s
+#     --pheno=%(format_pheno)s
+#     --method=epistasis
+#     --epistasis-method=adjusted
+#     --epistasis-parameter=%(epistasis_plugin)s
+#     --covariates-file=%(covar_file)s
+#     --covariate-column=%(all_covars)s
+#     --exclude-snps=%(ld_exclude)s
+#     --remove-individuals=%(remove)s
+#     --min-allele-freq=0.005
+#     --output-file-pattern=%(out_pattern)s
+#     --log=%(outfile)s.log
+#     --memory=%(job_memory)s
+#     %(plink_files)s
+#     > %(outfile)s.plink.log
+#     '''
+
+#     P.run()
+
+
+# @follows(adjustedEpistasis)
+# @transform(adjustedEpistasis,
+#            regex("epistasis.dir/(.+).auto.R"),
+#            r"plots.dir/\1-epistasis_manhattan.png")
+# def plotAdjustedEpistasis(infile, outfile):
+#     '''
+#     Generate a manhattan plot and QQplot
+#     of the adjusted epistasis analysis
+#     '''
+
+#     job_memory = "4G"
+
+#     plot_path = "_".join(outfile.split("_")[:-1])
+
+#     statement = '''
+#     cgat assoc2plot
+#     --plot-type=epistasis
+#     --resolution=chromosome
+#     --log=%(outfile)s.log
+#     --save-path=%(plot_path)s
+#     %(infile)s
+#     > %(outfile)s
+#     '''
+
+#     P.run()
+
+
+#######################################################
+## Plink R interface for epistasis testing
+## unknown problem with this, can't figure it out
+## not clear if it is the R code or plink being weird
+## use cassi for adjusted/unadjusted epistasis testing
+## instead - uses LR test instead of Wald
+#######################################################
+
+@follows(convertToRawFormat)
+@transform("%s" % PARAMS['epistasis_set'],
+           regex("epistasis.dir/(.+).set"),
            add_inputs([r"epistasis.dir/GwasHits.bed",
-                       r"epistasis.dir/GwasHits.fam",
-                       r"epistasis.dir/GwasHits.bim",
-                       mergeGenotypeAndCovariates,
+                       r"covariates.dir/WholeGenome.covar",
                        r"exclusions.dir/WholeGenome.gwas_exclude"]),
-           r"epistasis.dir/\1.auto.R")
-def adjustedEpistasis(infiles, outfile):
+           r"epistasis.dir/\1.cov")
+def makeCassiFiles(infiles, outfile):
     '''
-    Test for epistasis between target SNPs
-    and SNPs of interest, whilst adjusting for
-    covariates.
+    Create two sets of files for cassi, the first input
+    bed,bim,fam files containing all GWAS hit region
+    variants, and the second with the appropriate
+    individuals covariates.  cassi does not do the
+    inplace filtering and joining that plink does
+    so files need to be matched exactly for individuals
     '''
 
-    job_memory = "75G"
-    job_threads = 1
+    job_memory = "60G"
 
-    snp = infiles[0].split("/")[-1].split(".")[0]
-    ld_exclude = infiles[0]
+    snp_file = infiles[0]
+    bed_file = infiles[1][0].rstrip(".bed")
+    covar_file = infiles[1][1]
+    exclude = infiles[1][2]
 
-    bed_file = infiles[1][0]
-    fam_file = infiles[1][1]
-    bim_file = infiles[1][2]
-    plink_files = ",".join([bed_file, fam_file, bim_file])
-
-    covar_file = infiles[1][3]
-    covars = PARAMS['gwas_covars']
-    all_covars = ",".join([covars, snp])
-    remove = infiles[1][4]
+    out_pattern = outfile.rstrip(".cov")
     
-    out_pattern = ".".join(outfile.split(".")[:-2])
-
     statement = '''
-    R CMD Rserve --vanilla; checkpoint;
-    cgat geno2assoc
-    --program=plink2
-    --input-file-format=plink_binary
-    --phenotypes-file=%(data_phenotypes)s
-    --pheno=%(format_pheno)s
-    --method=epistasis
-    --epistasis-method=adjusted
-    --epistasis-parameter=%(epistasis_plugin)s
-    --covariates-file=%(covar_file)s
-    --covariate-column=%(all_covars)s
-    --exclude-snps=%(ld_exclude)s
-    --remove-individuals=%(remove)s
-    --min-allele-freq=0.005
-    --output-file-pattern=%(out_pattern)s
-    --log=%(outfile)s.log
-    --memory=%(job_memory)s
-    %(plink_files)s
-    > %(outfile)s.plink.log
+    plink2
+    --bfile %(bed_file)s
+    --covar %(covar_file)s
+    --remove %(exclude)s
+    --extract %(snp_file)s
+    --make-bed
+    --out %(out_pattern)s
     '''
 
     P.run()
 
 
-@follows(adjustedEpistasis)
-@transform(adjustedEpistasis,
-           regex("epistasis.dir/(.+).auto.R"),
-           r"plots.dir/\1-epistasis_manhattan.png")
-def plotAdjustedEpistasis(infile, outfile):
+
+@follows(convertToRawFormat,
+         makeCassiFiles)
+@transform("epistasis.dir/GwasHits*",
+           regex("epistasis.dir/(.+).bed"),
+           add_inputs([r"epistasis.dir/\1.bed",
+                       r"covariates.dir/WholeGenome.covar",
+                       r"exclusions.dir/WholeGenome.gwas_exclude"]),
+           r"epistasis.dir/\1-cassi.bed")
+def makeOtherCassiFiles(infiles, outfile):
     '''
-    Generate a manhattan plot and QQplot
-    of the adjusted epistasis analysis
+    Create two sets of files for cassi, the first input
+    bed,bim,fam files containing all GWAS hit region
+    variants, and the second with the appropriate
+    individuals covariates.  cassi does not do the
+    inplace filtering and joining that plink does
+    so files need to be matched exactly for individuals
     '''
 
-    job_memory = "4G"
+    job_memory = "60G"
 
-    plot_path = "_".join(outfile.split("_")[:-1])
+    bed_file = infiles[0].rstrip(".bed")
+    covar = infiles[1][1]
+    exclude = infiles[1][2]
 
+    out_pattern = outfile.rstrip(".bed")
+    
     statement = '''
-    cgat assoc2plot
-    --plot-type=epistasis
-    --resolution=chromosome
-    --log=%(outfile)s.log
-    --save-path=%(plot_path)s
-    %(infile)s
-    > %(outfile)s
+    plink2
+    --bfile %(bed_file)s
+    --remove %(exclude)s
+    --make-bed
+    --covar %(covar)s
+    --out %(out_pattern)s
     '''
 
     P.run()
 
 
-@jobs_limit(6)
 @follows(mergeGenotypeAndCovariates,
          excludeLdVariants,
          plotLdExcludedEpistasis,
-         plotAdjustedEpistasis,
+         makeCassiFiles,
+         makeOtherCassiFiles,
          mkdir("unadjusted_epistasis.dir"))
-@transform(excludeLdVariants,
-           regex("target_snps.dir/(.+).exclude"),
-           add_inputs([r"epistasis.dir/GwasHits.bed",
-                       r"epistasis.dir/GwasHits.fam",
-                       r"epistasis.dir/GwasHits.bim",
-                       mergeGenotypeAndCovariates,
-                       r"exclusions.dir/WholeGenome.gwas_exclude"]),
-           r"unadjusted_epistasis.dir/\1.auto.R")
-def unadjustedEpistasis(infiles, outfile):
+@transform(makeCassiFiles,
+           regex("epistasis.dir/(.+).cov"),
+           add_inputs([r"epistasis.dir/GwasHits-cassi.bed",
+                       r"epistasis.dir/\1.bed"]),
+           r"epistasis.dir/\1.cassi.epi")
+def testAdjustedEpistasis(infiles, outfile):
     '''
-    Test for epistasis between target SNPs
-    and SNPs of interest, without the population structure
-    adjustment.
-    '''
+    Use cassi to test for epistasis between a set of input target
+    variants of interest, and all other input variants.
 
-    job_memory = "75G"
+    Epistasis testing is by a likelihood ratio test of the full
+    model with interaction terms vs. the reduced model with only
+    the main effects
+    '''
+    # make cassi is in your $PATH
+    # use the direct cassi interface for now,
+    # maybe wrap up into geno2assoc.py at a later date
+
+    job_memory = "150G"
     job_threads = 1
 
-    snp = infiles[0].split("/")[-1].split(".")[0]
-    ld_exclude = infiles[0]
-
-    bed_file = infiles[1][0]
-    fam_file = infiles[1][1]
-    bim_file = infiles[1][2]
-    plink_files = ",".join([bed_file, fam_file, bim_file])
-
-    covar_file = infiles[1][3]
-    # remove principal components variables f....
-    covars = ",".join([cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
-    all_covars = ",".join([covars, snp])
-    remove = infiles[1][4]
+    bed1_file = infiles[1][0]
+    bed2_file = infiles[1][1]
     
-    out_pattern = ".".join(outfile.split(".")[:-2])
+    covar_file = infiles[0]
 
     statement = '''
-    R CMD Rserve --vanilla; checkpoint;
-    cgat geno2assoc
-    --program=plink2
-    --input-file-format=plink_binary
-    --phenotypes-file=%(data_phenotypes)s
-    --pheno=%(format_pheno)s
-    --remove-individuals=%(remove)s
-    --method=epistasis
-    --epistasis-method=adjusted
-    --epistasis-parameter=%(epistasis_plugin)s
-    --covariates-file=%(covar_file)s
-    --covariate-column=%(all_covars)s
-    --exclude-snps=%(ld_exclude)s
-    --min-allele-freq=0.005
-    --output-file-pattern=%(out_pattern)s
-    --log=%(outfile)s.log
-    --memory=%(job_memory)s
-    %(plink_files)s
-    > %(outfile)s.plink.log
+    cassi
+    -i %(bed1_file)s
+    -i2 %(bed2_file)s
+    -mem1
+    -lr
+    -lr-covar %(covar_file)s
+    -lr-covar-name %(gwas_covars)s
+    -rsq
+    -dprime
+    -lr-th 1.0
+    -max 30000000
+    -o %(outfile)s
     '''
 
     P.run()
 
 
-@follows(unadjustedEpistasis)
-@transform(unadjustedEpistasis,
-           regex("unadjusted_epistasis.dir/(.+).auto.R"),
-           r"plots.dir/\1-unadjusted-epistasis_manhattan.png")
-def plotUnadjustedEpistasis(infile, outfile):
-    '''
-    Generate a manhattan plot and QQplot
-    of the adjusted epistasis analysis
-    '''
+# @jobs_limit(6)
+# @follows(mergeGenotypeAndCovariates,
+#          excludeLdVariants,
+#          plotLdExcludedEpistasis,
+#          plotAdjustedEpistasis,
+#          mkdir("unadjusted_epistasis.dir"))
+# @transform(excludeLdVariants,
+#            regex("target_snps.dir/(.+).exclude"),
+#            add_inputs([r"epistasis.dir/GwasHits.bed",
+#                        r"epistasis.dir/GwasHits.fam",
+#                        r"epistasis.dir/GwasHits.bim",
+#                        mergeGenotypeAndCovariates,
+#                        r"exclusions.dir/WholeGenome.gwas_exclude"]),
+#            r"unadjusted_epistasis.dir/\1.auto.R")
+# def unadjustedEpistasis(infiles, outfile):
+#     '''
+#     Test for epistasis between target SNPs
+#     and SNPs of interest, without the population structure
+#     adjustment.
+#     '''
 
-    job_memory = "4G"
+#     job_memory = "75G"
+#     job_threads = 1
 
-    plot_path = "_".join(outfile.split("_")[:-1])
+#     snp = infiles[0].split("/")[-1].split(".")[0]
+#     ld_exclude = infiles[0]
 
-    statement = '''
-    cgat assoc2plot
-    --plot-type=epistasis
-    --resolution=chromosome
-    --log=%(outfile)s.log
-    --save-path=%(plot_path)s
-    %(infile)s
-    > %(outfile)s
-    '''
+#     bed_file = infiles[1][0]
+#     fam_file = infiles[1][1]
+#     bim_file = infiles[1][2]
+#     plink_files = ",".join([bed_file, fam_file, bim_file])
 
-    P.run()
+#     covar_file = infiles[1][3]
+#     # remove principal components variables f....
+#     covars = ",".join([cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
+#     all_covars = ",".join([covars, snp])
+#     remove = infiles[1][4]
+
+#     out_pattern = ".".join(outfile.split(".")[:-2])
+
+#     statement = '''
+#     R CMD Rserve --vanilla; checkpoint;
+#     cgat geno2assoc
+#     --program=plink2
+#     --input-file-format=plink_binary
+#     --phenotypes-file=%(data_phenotypes)s
+#     --pheno=%(format_pheno)s
+#     --remove-individuals=%(remove)s
+#     --method=epistasis
+#     --epistasis-method=adjusted
+#     --epistasis-parameter=%(epistasis_plugin)s
+#     --covariates-file=%(covar_file)s
+#     --covariate-column=%(all_covars)s
+#     --exclude-snps=%(ld_exclude)s
+#     --min-allele-freq=0.005
+#     --output-file-pattern=%(out_pattern)s
+#     --log=%(outfile)s.log
+#     --memory=%(job_memory)s
+#     %(plink_files)s
+#     > %(outfile)s.plink.log
+#     '''
+
+#     P.run()
+
+
+# @follows(testUnadjustedEpistasis)
+# @transform(testUnadjustedEpistasis,
+#            regex("unadjusted_epistasis.dir/(.+).auto.R"),
+#            r"plots.dir/\1-unadjusted-epistasis_manhattan.png")
+# def plotUnadjustedEpistasis(infile, outfile):
+#     '''
+#     Generate a manhattan plot and QQplot
+#     of the adjusted epistasis analysis
+#     '''
+
+#     job_memory = "4G"
+
+#     plot_path = "_".join(outfile.split("_")[:-1])
+
+#     statement = '''
+#     cgat assoc2plot
+#     --plot-type=epistasis
+#     --resolution=chromosome
+#     --log=%(outfile)s.log
+#     --save-path=%(plot_path)s
+#     %(infile)s
+#     > %(outfile)s
+#     '''
+
+#     P.run()
 
 
 # ----------------------------------------------------------------------------------------#
