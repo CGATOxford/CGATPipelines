@@ -2417,7 +2417,7 @@ def makeCassiFiles(infiles, outfile):
 
 @follows(convertToRawFormat,
          makeCassiFiles)
-@transform("epistasis.dir/GwasHits*",
+@transform("epistasis.dir/GwasHits.bed",
            regex("epistasis.dir/(.+).bed"),
            add_inputs([r"epistasis.dir/\1.bed",
                        r"covariates.dir/WholeGenome.covar",
@@ -2502,6 +2502,88 @@ def testAdjustedEpistasis(infiles, outfile):
 
     P.run()
 
+
+@follows(testAdjustedEpistasis)
+@transform(testAdjustedEpistasis,
+           regex("epistasis.dir/(.+).cassi.epi"),
+           r"plots.dir/\1-epistasis_manhattan.png")
+def plotAdjustedEpistasis(infile, outfile):
+    '''
+    Generate a manhattan plot and QQplot
+    of the adjusted epistasis analysis
+    '''
+
+    job_memory = "4G"
+
+    plot_path = "_".join(outfile.split("_")[:-1])
+
+    statement = '''
+    cgat assoc2plot
+    --plot-type=epistasis
+    --file-format=cassi_covar
+    --resolution=chromosome
+    --log=%(outfile)s.log
+    --save-path=%(plot_path)s
+    %(infile)s
+    > %(outfile)s
+    '''
+
+    P.run()
+
+    
+@follows(mergeGenotypeAndCovariates,
+         excludeLdVariants,
+         plotLdExcludedEpistasis,
+         makeCassiFiles,
+         makeOtherCassiFiles,
+         testAdjustedEpistasis,
+         mkdir("unadjusted_epistasis.dir"))
+@transform(makeCassiFiles,
+           regex("epistasis.dir/(.+).cov"),
+           add_inputs([r"epistasis.dir/GwasHits-cassi.bed",
+                       r"epistasis.dir/\1.bed"]),
+           r"epistasis.dir/\1_unadjusted.cassi.epi")
+def testUnadjustedEpistasis(infiles, outfile):
+    '''
+    Use cassi to test for epistasis between a set of input target
+    variants of interest, and all other input variants,
+    without principal component covariates.
+
+    Epistasis testing is by a likelihood ratio test of the full
+    model with interaction terms vs. the reduced model with only
+    the main effects
+    '''
+    # make cassi is in your $PATH
+    # use the direct cassi interface for now,
+    # maybe wrap up into geno2assoc.py at a later date
+
+    job_memory = "150G"
+    job_threads = 1
+
+    bed1_file = infiles[1][0]
+    bed2_file = infiles[1][1]
+
+    covars = ",".join([cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
+    all_covars = ",".join([covars])
+    
+    covar_file = infiles[0]
+
+    statement = '''
+    cassi
+    -i %(bed1_file)s
+    -i2 %(bed2_file)s
+    -mem1
+    -lr
+    -lr-covar %(covar_file)s
+    -lr-covar-name %(covars)s
+    -rsq
+    -dprime
+    -lr-th 1.0
+    -max 30000000
+    -o %(outfile)s
+    '''
+
+    P.run()
 
 # @jobs_limit(6)
 # @follows(mergeGenotypeAndCovariates,
