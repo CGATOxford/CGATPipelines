@@ -497,7 +497,7 @@ def run(**kwargs):
             job_ids, filenames = [], []
 
             for statement in statement_list:
-                E.debug("running statement:\n%s" % statement)
+                E.info("running statement:\n%s" % statement)
 
                 job_path = _writeJobScript(statement, job_memory, job_name, shellfile)
 
@@ -584,7 +584,7 @@ def run(**kwargs):
             return
 
         for statement in statement_list:
-            E.debug("running statement:\n%s" % statement)
+            E.info("running statement:\n%s" % statement)
 
             # process substitution <() and >() does not
             # work through subprocess directly. Thus,
