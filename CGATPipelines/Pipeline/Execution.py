@@ -143,7 +143,7 @@ def execute(statement, **kwargs):
 
     kwargs = dict(list(PARAMS.items()) + list(kwargs.items()))
 
-    E.debug("running %s" % (statement % kwargs))
+    E.info("running %s" % (statement % kwargs))
 
     if "cwd" not in kwargs:
         cwd = PARAMS["workingdir"]
@@ -532,7 +532,7 @@ def run(**kwargs):
         else:
 
             statement = buildStatement(**options)
-            E.debug("running statement:\n%s" % statement)
+            E.info("running statement:\n%s" % statement)
 
             if options.get("dryrun", False):
                 return
