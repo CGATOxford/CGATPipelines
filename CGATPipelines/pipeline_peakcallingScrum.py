@@ -960,6 +960,7 @@ def callMacs2peaks(infiles, outfile):
         tool_options=PARAMS['macs2_options'],
         tagsize=None)
 
+    job_memory = "10G"
     statement = peakcaller.build(bam, outfile,
                                  PARAMS['macs2_contigsfile'],
                                  inputf, insertsizef, PARAMS['IDR_run'],
@@ -1623,6 +1624,31 @@ def buildNotebooks(outfile):
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
     
     P.run()
+
+
+def runNotebook(infile,outfile):
+    ''' function that copies a template jupyter notebook specified by infile to
+    a location and name specified by outfile, the copied notebook is then run 
+    to output an html file that can be used as a report
+   
+    Parameters
+    ----------
+    infile : str
+       Input filename and path of template jupyter notebook
+    outfile : str
+       Output filename and path to location the template jupyter notebook will
+       be copied to. 
+
+	additonal outputs
+    -----------------
+	 :term:`html` output of the jupyter notebook
+    '''
+
+    shutil.copyfile(infile,outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+    
+    P.run()
+
 
 ################################################################################
 
