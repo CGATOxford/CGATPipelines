@@ -412,9 +412,12 @@ def buildCDNAFasta(infile, outfile):
     '''
     dbname = outfile[:-len(".fasta")]
 
+    # perl statement to truncate ids from ENSPXXXX.1 to ENSPXXX.
+    # New notation introduced around Ensembl release 80
+    # Necessary for comparing to gtf work and backward compatibility.
     statement = '''gunzip
     < %(infile)s
-    | perl -p -e 'if ("^>") { s/ .*//};'
+    | perl -p -e 'if ("^>") { s/[\z\.].*//};'
     | cgat index_fasta
        --force-output
     %(dbname)s -
@@ -439,9 +442,12 @@ def buildPeptideFasta(infile, outfile):
     '''
     dbname = outfile[:-len(".fasta")]
 
+    # perl statement to truncate ids from ENSPXXXX.1 to ENSPXXX.
+    # New notation introduced around Ensembl release 80
+    # Necessary for comparing to gtf work and backward compatibility.
     statement = '''gunzip
     < %(infile)s
-    | perl -p -e 'if ("^>") { s/ .*//};'
+    | perl -p -e 'if ("^>") { s/[\z\.].*//};'
     | cgat index_fasta
        --force-output
     %(dbname)s -
@@ -492,12 +498,11 @@ def loadPeptideSequences(infile, outfile):
 def buildCDSFasta(infiles, outfile):
     '''output CDS sequences.
 
-    This method works by taking the CDNA and peptide sequence of a
+    This used to work by taking the CDNA and peptide sequence of a
     particular transcript and aligning them in order to remove any
     frameshifts.
-
-    .. note::
-       This method is untested.
+    It relied on a deprecated library and has been removed.
+    FUNCTIONALITY MISSING
 
     Arguments
     ---------
@@ -520,37 +525,6 @@ def buildCDSFasta(infiles, outfile):
     > %(dbname)s.log
     '''
     P.run()
-
-    tmpfile = P.getTempFile(".")
-
-    dbhandle = sqlite3.connect(PARAMS["database_name"])
-    cc = dbhandle.cursor()
-    tmpfile.write("protein_id\ttranscript_id\n")
-    tmpfile.write("\n".join(
-        ["%s\t%s" % x for x in
-         cc.execute(
-             "SELECT DISTINCT protein_id, transcript_id "
-             "FROM transcript_info")]))
-    tmpfile.write("\n")
-
-    tmpfile.close()
-
-    tmpfilename = tmpfile.name
-
-    statement = '''
-    cgat peptides2cds
-           --peptides-fasta-file=%(infile_peptides_fasta)s
-           --cdnas=%(infile_cdnas)s
-           --map=%(tmpfilename)s
-           --output-format=fasta
-           --log=%(outfile)s.log
-    | cgat index_fasta
-    %(dbname)s --force-output -
-    > %(dbname)s.log
-    '''
-
-    P.run()
-    os.unlink(tmpfilename)
 
 
 def loadGeneStats(infile, outfile):
@@ -869,11 +843,15 @@ def loadProteinStats(infile, outfile):
         options="--add-index=protein_id "
         "--map=protein_id:str")
 
+    # the awk statement truncates ids ENSPXXX.1 to ENSPXXX
+    # necessary for downstream compatibility (e.g. seleno list)
     statement = '''
     gunzip < %(infile)s
     | cgat fasta2fasta
     --method=filter
     --filter-method=min-length=1
+    | awk 'match($0, /(>ENS[A-Z]+[0-9]+)(\.[0-9])*(.*)/, a) {print a[1], a[3]}
+    !/^>/ {print}'
     | cgat fasta2table
     --log=%(outfile)s
     --sequence-type=aa

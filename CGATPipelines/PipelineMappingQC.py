@@ -13,7 +13,6 @@ import re
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
-import pandas as pd
 
 PICARD_MEMORY = "5G"
 
@@ -737,7 +736,7 @@ def loadPicardRnaSeqMetrics(infiles, outfiles):
 def loadIdxstats(infiles, outfile):
     '''take list of file paths to samtools idxstats output files
     and merge to create single dataframe containing mapped reads per
-    contig for each track. This dataframeis then loaded into
+    contig for each track. This dataframe is then loaded into
     database.
 
     Loads tables into the database

@@ -904,7 +904,7 @@ def annotateVariantsPhastcons(infile, outfile):
         PARAMS['general_genome'])
     phastcons = PARAMS["annotation_phastcons"]
     intout = outfile.replace("samples", "samples_phastc")
-    statement = """cp %(genomeind)s %(phastcons)s/genome.fai;
+    statement = """ln -sf %(genomeind)s %(phastcons)s/genome.fai;
                    SnpSift.sh phastCons %(phastcons)s %(infile)s >
                    %(outfile)s;"""
     P.run()
