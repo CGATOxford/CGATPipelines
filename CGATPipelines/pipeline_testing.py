@@ -140,7 +140,7 @@ Some pipelines depend on the output of other pipelines, most notable
 is :doc:`pipeline_annotations`. To run a set of pipelines before other
 pipelines name them in the option ``prerequisites``, for example::
 
-   prerequisites=test_annnotations
+   prerequisites=prereq_annnotations
 
 Pipeline output
 ===============
