@@ -2,7 +2,7 @@
 pipeline_peakcalling.py - Produce Peaklist from Bam Files
 ===================================================
 
-:Author: Katy Brown, Charlie George & Adam Cribbs
+:Author: Charlie George, Katy Brown
 :Release: $Id$
 :Date: |today|
 :Tags: Python
