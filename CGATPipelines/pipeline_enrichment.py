@@ -343,7 +343,7 @@ def foregroundsVsBackgrounds(infiles, outfiles):
 
 @follows(mkdir("cytoscape.dir"))
 @transform(foregroundsVsBackgrounds,
-           regex("results.dir/(.*)(_go|_reactome|_humancyc)(.tsv)"),
+           regex("results.dir/(.*)(_go|_reactome)(.tsv)"),
            r"cytoscape.dir/\1\2.tsv")
 def makeCytoscapeInputs(infiles, outfile):
     infile = infiles[1]
