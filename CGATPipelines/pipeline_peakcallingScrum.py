@@ -1538,20 +1538,19 @@ def publish():
 ###############################################################
 
 
-
 @follows(filtering)
 @follows(mkdir('notebooks.dir'))
 @originate("notebooks.dir/1_peakcalling_filtering_Report.ipynb")
 def buildFilteringNotebook(outfile):
     ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising filtering stats.''' 
+    plotting and summarising filtering stats.'''
 
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_filtering_Report.ipynb')
 
-    shutil.copyfile(notebook_path,outfile)
+    shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
-    
+
     P.run()
 
 
@@ -1559,53 +1558,53 @@ def buildFilteringNotebook(outfile):
 @originate("notebooks.dir/2_filteredbam_reads_per_chr.ipynb")
 def buildReadsPerChrNotebook(outfile):
     ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising filtering stats 
+    plotting and summarising filtering stats
 
     depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file''' 
+    specified in ini file'''
 
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_filtering_Report_reads_per_chr.ipynb')
 
-    shutil.copyfile(notebook_path,outfile)
+    shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
-    
+
     P.run()
+
 
 @follows(buildReadsPerChrNotebook)
 @originate("notebooks.dir/3_peakcalling_filtering_Report_insert_sizes.ipynb")
 def buildReadsInsertSizeNotebook(outfile):
     ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising insert sizes 
+    plotting and summarising insert sizes
 
     depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file''' 
+    specified in ini file'''
 
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_filtering_Report_insert_sizes.ipynb')
 
-    shutil.copyfile(notebook_path,outfile)
+    shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
-    
-    P.run()
 
+    P.run()
 
 
 @follows(buildReadsInsertSizeNotebook)
 @originate("notebooks.dir/4_peakcalling_peakstats.ipynb")
 def buildPeakStatsNotebook(outfile):
     ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising peakcalling stats 
+    plotting and summarising peakcalling stats
 
     depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file''' 
+    specified in ini file'''
 
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_peakstats.ipynb')
 
-    shutil.copyfile(notebook_path,outfile)
+    shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
-    
+
     P.run()
 
 
@@ -1613,41 +1612,41 @@ def buildPeakStatsNotebook(outfile):
 @originate("notebooks.dir/0_peakcalling_report_contents.ipynb")
 def buildNotebooks(outfile):
     ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising peakcalling stats 
+    plotting and summarising peakcalling stats
 
     depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file''' 
+    specified in ini file'''
 
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_report_contents.ipynb')
 
-    shutil.copyfile(notebook_path,outfile)
+    shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
-    
+
     P.run()
 
 
-def runNotebook(infile,outfile):
+def runNotebook(infile, outfile):
     ''' function that copies a template jupyter notebook specified by infile to
-    a location and name specified by outfile, the copied notebook is then run 
+    a location and name specified by outfile, the copied notebook is then run
     to output an html file that can be used as a report
-   
+
     Parameters
     ----------
     infile : str
        Input filename and path of template jupyter notebook
     outfile : str
        Output filename and path to location the template jupyter notebook will
-       be copied to. 
+       be copied to.
 
-	additonal outputs
+    additonal outputs
     -----------------
-	 :term:`html` output of the jupyter notebook
+    :term:`html` output of the jupyter notebook
     '''
 
-    shutil.copyfile(infile,outfile)
+    shutil.copyfile(infile, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
-    
+
     P.run()
 
 
