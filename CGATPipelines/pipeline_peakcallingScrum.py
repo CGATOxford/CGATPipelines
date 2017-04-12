@@ -958,9 +958,10 @@ def callMacs2peaks(infiles, outfile):
         threads=1,
         paired_end=PARAMS['paired_end'],
         tool_options=PARAMS['macs2_options'],
-        tagsize=None)
+        tagsize=None,
+        force_single_end=PARAMS['macs2_force_single_end'])
 
-    job_memory = "10G"
+    job_memory = "50G"
     statement = peakcaller.build(bam, outfile,
                                  PARAMS['macs2_contigsfile'],
                                  inputf, insertsizef, PARAMS['IDR_run'],

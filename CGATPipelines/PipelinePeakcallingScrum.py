@@ -1136,6 +1136,7 @@ class Peakcaller(object):
             peaks_cmd, compress_cmd, postprocess_cmd, prepareIDR_cmd,
             loadDatatoDatabase))
 
+
         return full_cmd
 
     def summarise(self, infile):
@@ -1172,10 +1173,14 @@ class Macs2Peakcaller(Peakcaller):
                  threads=1,
                  paired_end=True,
                  tool_options=None,
-                 tagsize=None):
+                 tagsize=None,
+                 force_single_end=None):
+
         super(Macs2Peakcaller, self).__init__(threads, paired_end,
                                               tool_options)
         self.tagsize = tagsize
+        self.force_single_end = force_single_end
+
 
     def callPeaks(self, infile,  outfile, controlfile=None):
         '''
@@ -1244,11 +1249,14 @@ class Macs2Peakcaller(Peakcaller):
         options = " ".join(options)
 
         # Check the paired_end paramter is correct
-        if self.paired_end:
+        if self.paired_end and self.force_single_end:
+                format_options = '--format=BAM'
+        elif self.paired_end:
             if not BamTools.isPaired(infile):
                 raise ValueError(
                     "paired end has been specified but "
                     "BAM is not paired %" % infile)
+            
             format_options = '--format=BAMPE'
         else:
             format_options = '--format=BAM'
@@ -1262,7 +1270,6 @@ class Macs2Peakcaller(Peakcaller):
         --treatment %(infile)s
         --verbose=10
         --name=%(outfile)s
-        --qvalue=%%(macs2_max_qvalue)s
         --bdg
         --SPMR
         %(options)s
@@ -1537,10 +1544,14 @@ class Macs2Peakcaller(Peakcaller):
         statement = ''
         idrout = "%s_IDRpeaks" % outfile
         narrowpeaks = "%s_peaks.%s" % (outfile, idrsuffix)
+        tmpfile = P.getTempFilename()
         col = idrcol
-        statement += '''sort -h -r -k%(col)i,%(col)i %(narrowpeaks)s |
-        head -%(idrc)s > %(idrout)s;''' % locals()
+        statement += '''sort -h -r -k%(col)i,%(col)i %(narrowpeaks)s 
+        > %(tmpfile)s;
+        head -%(idrc)s %(tmpfile)s > %(idrout)s;
+        rm -rf %(tmpfile)s;''' % locals()
         return statement
+
 
     def summarise(self, infile):
         '''
