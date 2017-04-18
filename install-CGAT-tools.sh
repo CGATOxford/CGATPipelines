@@ -326,10 +326,6 @@ if [[ "$OS" != "travis" ]] ; then
       pip install MySQL-python
       pip install CGATReport
 
-      # SLV: workaround to
-      # https://github.com/conda/conda/issues/4955
-      conda install -f htslib=1.3 --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
-
       # Set up other environment variables
       setup_env_vars
 
@@ -433,10 +429,6 @@ if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
    pip install bx-python
    pip install MySQL-python
    pip install CGATReport
-
-   # SLV: workaround to
-   # https://github.com/conda/conda/issues/4955
-   conda install -f htslib=1.3 --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
 
    # need to install the CGAT Code Collection as well
    install_cgat_scripts
@@ -775,6 +767,14 @@ if [[ $INSTALL_SCRIPTS ]] && [[ $INSTALL_DEVEL ]] ; then
 
    echo
    echo " Incorrect input arguments: mixing --cgat-scripts and --cgat-devel is not permitted."
+   echo " Installation aborted. Please run -h option."
+   echo
+   exit 1
+
+elif [[ ! $INSTALL_SCRIPTS  ]] && [[ ! $INSTALL_DEVEL ]] ; then
+
+   echo
+   echo " Error: you need to either specify --cgat-scripts or --cgat-devel."
    echo " Installation aborted. Please run -h option."
    echo
    exit 1
