@@ -270,7 +270,7 @@ class FeatureCountsQuantifier(Quantifier):
         else:
             raise ValueError("level must be gene_id or transcript_id!")
 
-        tmpdir = P.getTempFilename()
+        tmpdir = P.getTempDir()
 
         # need to unzip the annotations for featureCounts
         annotations_tmp = os.path.join(tmpdir,
@@ -1886,7 +1886,7 @@ def buildUTRExtension(infile, outfile):
             states = None
             try:
                 states = list(R('''states = Viterbi( hmm )'''))
-            except ri.RRuntimeError, msg:
+            except ri.RRuntimeError as msg:
                 counter.skipped_error += 1
                 new_utrs[gene_id] = Utr._make((old_utr, None, None, "fail"))
                 continue

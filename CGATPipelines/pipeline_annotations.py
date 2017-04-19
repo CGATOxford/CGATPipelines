@@ -567,7 +567,7 @@ import collections
 from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
     suffix, regex, add_inputs
 
-from bx.bbi.bigwig_file import BigWigFile
+import pyBigWig
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -1893,8 +1893,7 @@ def buildMapableRegions(infiles, outfile):
 
     max_distance = kmersize // 2
 
-    f = open(infile)
-    bw = BigWigFile(file=f)
+    bw = pyBigWig.open(infile)
 
     def _iter_mapable_regions(bw, contig, size):
 
@@ -1906,7 +1905,7 @@ def buildMapableRegions(infiles, outfile):
         last_start, start = None, None
 
         for window_start in range(0, size, window_size):
-            values = bw.get(contig, window_start, window_start + window_size)
+            values = bw.intervals(contig, window_start, window_start + window_size)
             if values is None:
                 continue
 

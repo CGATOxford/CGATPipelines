@@ -109,7 +109,7 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.pngmath',
               'sphinx.ext.ifconfig',
               'sphinx.ext.intersphinx',
-              
+              'CGATReport.only_directives',
               'CGATReport.report_directive',
               'sphinx.ext.inheritance_diagram',
               'CGATReport.errors_directive',

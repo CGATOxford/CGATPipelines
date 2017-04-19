@@ -166,8 +166,6 @@ import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import sys
 import CGATPipelines.PipelineGSEnrichment as PipelineEnrichment
-import CGAT.IOTools as IOTools
-import pandas as pd
 
 
 # load options from the config file
@@ -339,28 +337,6 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 int(PARAMS['stats_ngenes']),
                                                 PARAMS['id_type'],
                                                 submit=True)
-
-
-@follows(mkdir("cytoscape.dir"))
-@transform(foregroundsVsBackgrounds,
-           regex("results.dir/(.*)(_go|_reactome)(.tsv)"),
-           r"cytoscape.dir/\1\2.tsv")
-def makeCytoscapeInputs(infiles, outfile):
-    infile = infiles[1]
-    T = P.getTempFilename(".")
-    statement = """
-    awk -F "\\t" '{printf("%%%%s\\t%%%%s\\t%%%%s\\t%%%%s\\t+1\\n",\
-    $1, $11, $7, $8)}' %(infile)s > %(T)s""" % locals()
-    P.run()
-    typ = infile.split("_")[-2]
-    E.info(typ)
-    keep = [line.strip() for line in
-            IOTools.openFile(PARAMS['cytoscape_%s' % typ]).readlines()]
-    tab = pd.read_csv(T, sep="\t")
-    tab = tab[tab['term_id'].isin(keep)]
-    tab.columns = ['ID', 'Description', 'pvalue', 'padj', 'Phenotype']
-    tab.to_csv(outfile, sep="\t", index=None)
-    os.remove(T)
 
 
 @follows(foregroundsVsBackgrounds)

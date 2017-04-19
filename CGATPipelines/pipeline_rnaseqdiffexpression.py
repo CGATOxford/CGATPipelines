@@ -1512,7 +1512,7 @@ def expressionSummaryPlots(infiles, logfiles):
 ###################################################
 
 
-@follows(count, expressionSummaryPlots,
+@follows(expressionSummaryPlots,
          loadDifferentialExpression,
          loadNormalisedExpression,)
 def full():
