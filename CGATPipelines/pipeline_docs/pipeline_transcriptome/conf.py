@@ -64,7 +64,7 @@ sphinxreport_images=( ( "hires", "hires.png", 200),
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.doctest', 'sphinx.ext.coverage', 
               'sphinx.ext.pngmath', 'sphinx.ext.ifconfig',
-              'CGATReport.only_directives', 
+               
               'CGATReport.report_directive', 'CGATReport.inheritance_diagram',
               'CGATReport.errors_directive',
               'CGATReport.roles' ]

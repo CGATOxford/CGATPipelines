@@ -11,8 +11,13 @@ env:
     - TEST_ALL=1
 
 python:
+<<<<<<< HEAD
 #  - "2.7"
   - "3.5"
+=======
+  - "2.7"
+#  - "3.5"
+>>>>>>> master
 
 script: 
   - ./install-CGAT-tools.sh --travis
