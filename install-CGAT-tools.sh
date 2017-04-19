@@ -168,9 +168,9 @@ else
       INSTALL_PYTHON_VERSION=2
    fi
 
-   if [[ "$INSTALL_SCRIPTS" == "1" ]] ; then
+   if [[ $INSTALL_SCRIPTS ]] ; then
       CONDA_INSTALL_TYPE="cgat-scripts-devel"
-   elif [[ "$INSTALL_DEVEL" == "1" ]] ; then
+   elif [[ $INSTALL_DEVEL ]] ; then
       CONDA_INSTALL_TYPE="cgat-scripts-devel"
    elif [[ $INSTALL_TEST ]] || [[ $INSTALL_UPDATE ]] ; then
       if [[ -d $CGAT_HOME/conda-install ]] ; then
@@ -323,12 +323,12 @@ if [[ "$OS" != "travis" ]] ; then
 
       # SLV: workaround until these Python packages are available with Python 3
       pip install bx-python
-      # pip install MySQL-python # Not available in Python 3
+      pip install MySQL-python
       pip install CGATReport
 
       # SLV: workaround to
       # https://github.com/conda/conda/issues/4955
-      conda install -f htslib=1.3 --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
+      conda install -f pysam=0.10 htslib=1.3 --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
 
       # Set up other environment variables
       setup_env_vars
@@ -431,12 +431,12 @@ if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
    # SLV: workaround until these Python packages are available with Python 3
    log "pip-installing additional packages"
    pip install bx-python
-   # pip install MySQL-python # Not available in Python 3
+   pip install MySQL-python
    pip install CGATReport
 
    # SLV: workaround to
    # https://github.com/conda/conda/issues/4955
-   conda install -f htslib=1.3 --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
+   conda install -f pysam=0.10 htslib=1.3 --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
 
    # need to install the CGAT Code Collection as well
    install_cgat_scripts
@@ -771,16 +771,21 @@ do
 done # while-loop
 
 # sanity checks
-if [[ $INSTALL_SCRIPTS ]] && [[ $INSTALL_DEVEL ]] ; then
-
-   echo
-   echo " Incorrect input arguments: mixing --cgat-scripts and --cgat-devel is not permitted."
-   echo " Installation aborted. Please run -h option."
-   echo
-   exit 1
-
+if [[ ! $TRAVIS_INSTALL ]] && [[ ! $JENKINS_INSTALL ]] ; then
+    if [[ $INSTALL_SCRIPTS ]] && [[ $INSTALL_DEVEL ]] ; then
+       echo
+       echo " Incorrect input arguments: mixing --cgat-scripts and --cgat-devel is not permitted."
+       echo " Installation aborted. Please run -h option."
+       echo
+       exit 1
+    elif [[ ! $INSTALL_SCRIPTS  ]] && [[ ! $INSTALL_DEVEL ]] ; then
+       echo
+       echo " Error: you need to either specify --cgat-scripts or --cgat-devel."
+       echo " Installation aborted. Please run -h option."
+       echo
+       exit 1
+    fi
 fi
-
 
 # perform actions according to the input parameters processed
 if [[ $TRAVIS_INSTALL ]] ; then
