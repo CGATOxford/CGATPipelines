@@ -140,7 +140,7 @@ Some pipelines depend on the output of other pipelines, most notable
 is :doc:`pipeline_annotations`. To run a set of pipelines before other
 pipelines name them in the option ``prerequisites``, for example::
 
-   prerequisites=test_annnotations
+   prerequisites=prereq_annnotations
 
 Pipeline output
 ===============
@@ -331,25 +331,26 @@ def buildCheckSums(infile, outfile):
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
-        '%s_suffixes' % track,
-        PARAMS["suffixes"]))
+        '%s_suffixes' % track, ""))
 
     if len(suffixes) == 0:
-        raise ValueError('no file types defined for test')
-
-    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-    regex_pattern = pipes.quote(regex_pattern)
-
-    statement = '''find %(track)s.dir
-    -type f
-    -not -regex ".*/report"
-    -not -regex ".*/_*"
-    -regex %(regex_pattern)s
-    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
-    | perl -p -e "s/ +/\\t/g"
-    | sort -k1,1
-    > %(outfile)s'''
-    P.run()
+        E.info(" No checksums computed for %s" % track)
+        IOTools.touchFile("%s.md5" % track)
+    else:
+        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
+        regex_pattern = pipes.quote(regex_pattern)
+        E.debug(" Computing checksum for files "
+                "ending in %s" % ", ".join(suffixes))
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
+        -regex %(regex_pattern)s
+        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
+        | perl -p -e "s/ +/\\t/g"
+        | sort -k1,1
+        > %(outfile)s'''
+        P.run()
 
 
 @transform(runTests,
@@ -364,26 +365,60 @@ def buildLineCounts(infile, outfile):
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
-        '%s_suffixes' % track,
-        PARAMS["suffixes"]))
+        '%s_regex_linecount' % track, ""))
 
     if len(suffixes) == 0:
-        raise ValueError('no file types defined for test')
+        E.info(" No lines computed for %s" % track)
+        IOTools.touchFile("%s.lines" % track)
+    else:
+        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
+        regex_pattern = pipes.quote(regex_pattern)
+        E.debug(" Computing lines for files "
+                "ending in %s" % ", ".join(suffixes))
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
+        -regex %(regex_pattern)s
+        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
+        | sort -k1,1
+        > %(outfile)s'''
+        P.run()
 
-    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
 
-    regex_pattern = pipes.quote(regex_pattern)
+@transform(runTests,
+           suffix(".log"),
+           ".exist")
+def checkFileExistence(infile, outfile):
+    '''check whether file exists.
 
-    statement = '''find %(track)s.dir
-    -type f
-    -regex %(regex_pattern)s
-    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
-    | sort -k1,1
-    > %(outfile)s'''
-    P.run()
+    Files are uncompressed before checking existence.
+    '''
+
+    track = P.snip(infile, ".log")
+
+    suffixes = P.asList(PARAMS.get(
+        '%s_regex_exist' % track, ""))
+
+    if len(suffixes) == 0:
+        E.info(" No existence checked for %s" % track)
+        IOTools.touchFile("%s.exist" % track)
+    else:
+        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
+        regex_pattern = pipes.quote(regex_pattern)
+        E.debug(" Checking existence of files "
+                "ending in %s" % ", ".join(suffixes))
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
+        -regex %(regex_pattern)s
+        | sort -k1,1
+        > %(outfile)s'''
+        P.run()
 
 
-@collate((buildCheckSums, buildLineCounts),
+@collate((buildCheckSums, buildLineCounts, checkFileExistence),
          regex("([^.]*).(.*)"),
          r"\1.stats")
 def mergeFileStatistics(infiles, outfile):
@@ -391,8 +426,9 @@ def mergeFileStatistics(infiles, outfile):
     infiles = " ".join(sorted(infiles))
 
     statement = '''
-    echo -e "file\\tnlines\\tmd5\\txxx" > %(outfile)s;
-    join -t $'\\t' %(infiles)s >> %(outfile)s'''
+    %(pipeline_scriptsdir)s/merge_testing_output.sh
+    %(infiles)s
+    > %(outfile)s'''
     P.run()
 
 
@@ -530,6 +566,7 @@ def reset(infile, outfile):
     to_cluster = False
 
     statement = '''
+    rm -rf prereq_* ctmp*;
     rm -rf test_* _cache _static _templates _tmp report;
     rm -f *.log csvdb *.load *.tsv'''
     P.run()
