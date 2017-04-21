@@ -166,11 +166,8 @@ else:
     else:
         DATADIR = PARAMS['data']
 
-USER = os.environ['USER']
-base_dir = "/ifs/devel"
-end_dir = "/cgat/scripts"
-PARAMS['cgat_scripts'] = "/".join([base_dir, USER,
-                                   end_dir])
+CODE_LOCATION =  example=os.path.dirname(E.__file__)
+PARAMS['cgat_scripts'] = re.sub(r'CGAT.*', 'scripts', CODE_LOCATION)
 
 # --------------------------------------
 FASTQ_SUFFIXES = ("*.fastq.1.gz",
