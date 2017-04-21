@@ -166,7 +166,7 @@ else:
     else:
         DATADIR = PARAMS['data']
 
-CODE_LOCATION =  example=os.path.dirname(E.__file__)
+CODE_LOCATION = os.path.dirname(E.__file__)
 PARAMS['cgat_scripts'] = re.sub(r'CGAT.*', 'scripts', CODE_LOCATION)
 
 # --------------------------------------
