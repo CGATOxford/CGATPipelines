@@ -72,9 +72,9 @@ class IntervalsSummaryTable(DefaultTracker):
             fdr_value = "%.3g" % data[4]
         else:
             fdr_value = "%s" % data[4]
-        fdata = list(map(str, data[0:4])) + [fdr_value]
+        fdata = map(str, data[0:4]) + [fdr_value]
 
-        return odict(list(zip(("nintervals", "avg(length)", "min(length)", "max(length)", "max reported %s" % fdr_col_head), fdata)))
+        return odict(zip(("nintervals", "avg(length)", "min(length)", "max(length)", "max reported %s" % fdr_col_head), fdata))
 
 
 class PeaksSummaryTable(PeaksIntervals, IntervalsSummaryTable):
@@ -106,7 +106,7 @@ class IntervalsSummary(DefaultTracker):
             return
         data = self.getFirstRow(
             "SELECT COUNT(*), AVG(end-start), MIN(end-start), MAX(end-start) as VARCHAR FROM %(table)s")
-        return odict(list(zip(("nintervals", "avg(length)", "min(length)", "max(length)"), data)))
+        return odict(zip(("nintervals", "avg(length)", "min(length)", "max(length)"), data))
 
 
 class PeaksSummary(PeaksIntervals, IntervalsSummary):
@@ -299,7 +299,7 @@ class LengthVsAverageValue(DefaultTracker):
 
         data = self.get(
             "SELECT length, avgval FROM %(table)s")
-        return odict(list(zip(("length", "avgval"), list(zip(*data)))))
+        return odict(zip(("length", "avgval"), zip(*data)))
 
 
 class PeaksLengthVsAverageValue(PeaksIntervals, LengthVsAverageValue):
@@ -332,7 +332,7 @@ class LengthVsPeakValue(DefaultTracker):
 
         data = self.get(
             "SELECT length, peakval FROM %(table)s")
-        return odict(list(zip(("length", "peakval"), list(zip(*data)))))
+        return odict(zip(("length", "peakval"), zip(*data)))
 
 
 class PeaksLengthVsPeakValue(PeaksIntervals, LengthVsPeakValue):
@@ -387,7 +387,7 @@ class IntervalList(DefaultTracker):
             pos = "`%(contig)s:%(start)i..%(end)i <http://genome.ucsc.edu/cgi-bin/hgTracks?db=%(ucsc_genome)s&position=%(contig)s:%(start)i..%(end)i>`_" \
                 % locals()
             n[str(id)] = odict(
-                list(zip(self.mColumnsFixed + self.mColumnsVariable, (pos, end - start,) + d[4:])))
+                zip(self.mColumnsFixed + self.mColumnsVariable, (pos, end - start,) + d[4:]))
 
         return n
 
@@ -418,9 +418,9 @@ class IntervalListFull(DefaultTracker):
           ORDER BY i.peakval DESC''' % locals()
 
         data = self.get(statement)
-        return odict(list(zip(
+        return odict(zip(
             ("contig", "start", "end", "peakval", "avgval"),
-            list(zip(*data)))))
+            zip(*data)))
 
 ##########################################################################
 ##########################################################################

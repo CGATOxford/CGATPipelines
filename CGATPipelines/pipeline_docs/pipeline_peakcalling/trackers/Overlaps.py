@@ -135,8 +135,8 @@ _overlap_tables = {
 
 # the order of the base classes is important
 # also: make sure that these are new-style classes
-for a, aa in list(_overlap_analysis.items()):
-    for b, bb in list(_overlap_tables.items()):
+for a, aa in _overlap_analysis.items():
+    for b, bb in _overlap_tables.items():
         n = "%s%s" % (b, a)
         globals()[n] = type(n, (bb, aa), {})
 
@@ -157,7 +157,7 @@ class OverlapVersusPeakval(DefaultTracker):
     def __call__(self, track, slice=None):
         data = self.get(
             "SELECT pexons_union, pexons_ovl FROM %(track)s_%(tablename)s" % locals())
-        return odict(list(zip(("recall", "reproducibility"), list(zip(*data)))))
+        return odict(zip(("recall", "reproducibility"), zip(*data)))
 
 
 class OverlapROC(DefaultTracker):
@@ -232,7 +232,7 @@ class OverlapROC(DefaultTracker):
             roc_data.sort()
             roc_data.reverse()
 
-            roc = list(zip(*Stats.computeROC(roc_data)))
+            roc = zip(*Stats.computeROC(roc_data))
             result[field] = odict((("FPR", roc[0]), (field, roc[1])))
 
         return result

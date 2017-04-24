@@ -1,5 +1,0 @@
-SampleID	Tissue	Factor	Condition	Treatment	Replicate	bamReads	ControlID	bamControl
-D1_K4_J4	Th17	K4	J4	J4	1	Donor1-Th17_K4me3_J4.bam	D1_K4_input	Donor1-Th17_input_DMSO.bam
-D1_K4_DMSO	Th17	K4	DMSO	DMSO	1	Donor1-Th17_K4me3_DMSO.bam	D1_K4_input	Donor1-Th17_input_DMSO.bam
-D2_K4_DMSO	Th17	K4	DMSO	DMSO	2	Donor2-Th17_K4_DMSO1.bam	D2_K4_input	Donor2-Th17_input_DMSO1.bam
-D2_K4_J4	Th17	K4	J4	J4	2	Donor2-Th17_K4_J41.bam	D2_K4_input	Donor2-Th17_input_DMSO1.bam
