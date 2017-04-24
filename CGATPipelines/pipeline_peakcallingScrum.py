@@ -344,6 +344,14 @@ else:
     PARAMS['paired_end'] = False
 
 
+########################################################################
+# Set template notebooks dir
+########################################################################
+
+if PARAMS['notebook_template_dir'] == '': 
+    PARAMS['notebook_template_dir'] = '/'.join([PARAMS['pipelinedir'], 
+                                      'pipeline_docs/pipeline_peakcallingScrum/notebooks'])
+
 #########################################################################
 # Connect to database
 #########################################################################
@@ -542,7 +550,6 @@ def loadIdxstats(infiles, outfile):
         idxstats output. Filename format is expected to be 'sample.idxstats'
     outfile : string
         Logfile. The table name will be derived from `outfile`.'''
-
     PipelineMappingQC.loadIdxstats(infiles, outfile)
 
 
@@ -562,16 +569,19 @@ def buildPicardStats(infiles, outfile):
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildPicardStats, "picard_stats.load")
 def loadPicardStats(infiles, outfile):
-    '''merge alignment stats into single tables.'''
+    '''merge alignment stats into single tables.
+    '''
     PipelineMappingQC.loadPicardAlignmentStats(infiles, outfile)
 
 
 @follows(loadFilteringStats,
          loadFilteringChecks,
          loadIdxstats,
-         loadPicardStats)
+         loadPicardStats, 
+         loadFragmentLengthDistributions)
 def filtering():
-    ''' dummy task to allow all the filtering of bams & collection of stats'''
+    ''' dummy task to allow all the filtering of bams & collection of stats
+    '''
     pass
 
 
@@ -832,11 +842,11 @@ elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] == 1:
         pass
 
 
-@follows(makeIDRInputBams)
-@follows(filterInputBAMs)
-@follows(makePooledBams)
-@follows(makePooledInputs)
-@follows(makePseudoBams)
+@follows(makeIDRInputBams,
+         filterInputBAMs,
+         makePooledBams,
+         makePooledInputs,
+         makePseudoBams)
 @originate("peakcalling_bams_and_inputs.tsv")
 def makeBamInputTable(outfile):
     '''
@@ -905,10 +915,10 @@ def loadInsertSizes(infile, outfile):
     P.load(infile, outfile)
 
 
-@follows(filtering)
-@follows(loadInsertSizes)
-@follows(loadDesignTable)
-@follows(loadBamInputTable)
+@follows(filtering,
+         loadInsertSizes,
+         loadDesignTable,
+         loadBamInputTable)
 @transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),
            r"\1_bams.dir/\2.bam")
 def preprocessing(infile, outfile):
@@ -1538,13 +1548,15 @@ def publish():
 ###############################################################
 
 
+
 @follows(filtering)
 @follows(mkdir('notebooks.dir'))
 @originate("notebooks.dir/1_peakcalling_filtering_Report.ipynb")
 def buildFilteringNotebook(outfile):
-    ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising filtering stats.'''
-
+    ''' copies ipython notebook template from directory 
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising filtering stats
+    '''
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_filtering_Report.ipynb')
 
@@ -1557,12 +1569,10 @@ def buildFilteringNotebook(outfile):
 @follows(buildFilteringNotebook)
 @originate("notebooks.dir/2_filteredbam_reads_per_chr.ipynb")
 def buildReadsPerChrNotebook(outfile):
-    ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising filtering stats
-
-    depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file'''
-
+    ''' copies ipython notebook template from directory 
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising reads per chromosome from idxstats output.
+    '''
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_filtering_Report_reads_per_chr.ipynb')
 
@@ -1572,18 +1582,16 @@ def buildReadsPerChrNotebook(outfile):
     P.run()
 
 
+@active_if(PARAMS['paired_end'])
 @follows(buildReadsPerChrNotebook)
 @originate("notebooks.dir/3_peakcalling_filtering_Report_insert_sizes.ipynb")
 def buildReadsInsertSizeNotebook(outfile):
-    ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising insert sizes
-
-    depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file'''
-
+    ''' copies ipython notebook template from directory 
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising insertsize distribution. Only active for PE bams.
+    '''
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_filtering_Report_insert_sizes.ipynb')
-
     shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
 
@@ -1593,15 +1601,12 @@ def buildReadsInsertSizeNotebook(outfile):
 @follows(buildReadsInsertSizeNotebook)
 @originate("notebooks.dir/4_peakcalling_peakstats.ipynb")
 def buildPeakStatsNotebook(outfile):
-    ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising peakcalling stats
-
-    depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file'''
-
+    ''' copies ipython notebook template from directory 
+    specified in ini  'notebook_template_dir' and runs through the analysis
+    summarising peaknumbers.
+    '''
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_peakstats.ipynb')
-
     shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
 
@@ -1610,45 +1615,27 @@ def buildPeakStatsNotebook(outfile):
 
 @follows(buildPeakStatsNotebook)
 @originate("notebooks.dir/0_peakcalling_report_contents.ipynb")
-def buildNotebooks(outfile):
-    ''' copies ipnb from other location and runs through the analysis comparing
-    plotting and summarising peakcalling stats
-
-    depends on notebook template in 'notebook_template_directory' that is
-    specified in ini file'''
+def buildNotebookIndex(outfile):
+    '''copies ipython notebook template from directory 
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising reads per chromosome from idxstats output'''
 
     notebook_path = os.path.join(PARAMS['notebook_template_dir'],
                                  'template_peakcalling_report_contents.ipynb')
-
     shutil.copyfile(notebook_path, outfile)
     statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
 
     P.run()
 
 
-def runNotebook(infile, outfile):
-    ''' function that copies a template jupyter notebook specified by infile to
-    a location and name specified by outfile, the copied notebook is then run
-    to output an html file that can be used as a report
-
-    Parameters
-    ----------
-    infile : str
-       Input filename and path of template jupyter notebook
-    outfile : str
-       Output filename and path to location the template jupyter notebook will
-       be copied to.
-
-    additonal outputs
-    -----------------
-    :term:`html` output of the jupyter notebook
-    '''
-
-    shutil.copyfile(infile, outfile)
-    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
-
-    P.run()
-
+@follows(buildFilteringNotebook,
+         buildReadsPerChrNotebook,
+         buildReadsInsertSizeNotebook,
+         buildPeakStatsNotebook,
+         buildNotebookIndex)
+def buildNotebooks():
+    '''build notebooks'''
+    pass
 
 ################################################################################
 

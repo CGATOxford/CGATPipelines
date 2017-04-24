@@ -2726,3 +2726,58 @@ def readTable(tabfile):
     pairs = zip(chips, inputs)
     D = dict(pairs)
     return D
+
+
+def countPeaks(contig, start, end, samfiles, offsets=None):
+    '''compute peak parameters within a genomic interval.
+
+    If offsets are given, tags are shifted by `offset` / 2 and
+    extended by `offset` / 2.
+
+    Arguments
+    ---------
+    contig : string
+        Chromosome
+    start : int
+        Start coordinate, 0-based
+    end : int
+        End coordinate, 0-based, position after end of interval
+    samfiles : list
+        List of pysam file handles to :term:`bam` formatted files.
+    offsets : list
+        Peak shifts to apply to reads
+
+    Returns
+    -------
+    nresidues_in_peaks : int
+        Number of bases with maximum read counts.
+    peakcenter : int
+        Position of maximum tag density.
+    length : int
+        Size of interval.
+    avgval : int
+        Average tag density in interval
+    peakval : int
+        Maximum tag density in interval.
+    nreads : int
+        Number of tags contained in interval.
+
+    CG: THIS FUNCTION WAS COPIED FROM OLD PipelinePeakcalling to maintain 
+    compatability for pipeline_intervals.py. Could be removed if functionality
+    no longer needed.
+    '''
+
+    nreads, counts = getCounts(contig, start, end, samfiles, offsets)
+
+    length = end - start
+    avgval = numpy.mean(counts)
+    peakval = max(counts)
+
+    # set other peak parameters
+    peaks = numpy.array(list(range(0, length)))[counts >= peakval]
+    npeaks = len(peaks)
+    # peakcenter is median coordinate between peaks
+    # such that it is a valid peak in the middle
+    peakcenter = start + peaks[npeaks // 2]
+
+    return npeaks, peakcenter, length, avgval, peakval, nreads
