@@ -166,12 +166,6 @@ else:
     else:
         DATADIR = PARAMS['data']
 
-USER = os.environ['USER']
-base_dir = "/ifs/devel"
-end_dir = "/cgat/scripts"
-PARAMS['cgat_scripts'] = "/".join([base_dir, USER,
-                                   end_dir])
-
 # --------------------------------------
 FASTQ_SUFFIXES = ("*.fastq.1.gz",
                   "*.fastq.2.gz",
@@ -219,7 +213,7 @@ def makeSplicedCatalog(infile, outfile):
     '''
 
     statement = '''
-    python %(cgat_scripts)s/cgat_fasta2cDNA.py
+    cgat cgat_fasta2cDNA.py
     --log=%(outfile)s.log
     %(infile)s
     > %(outfile)s
@@ -287,7 +281,7 @@ def makeSailfishIndex(infile, outfile):
     outdir = "/".join(outfile.split("/")[:-1])
     job_threads = 8
     statement = '''
-    python %(cgat_scripts)s/fastq2tpm.py
+    cgat fastq2tpm.py
     --method=make_index
     --program=sailfish
     --index-fasta=%(infile)s
@@ -328,7 +322,7 @@ if PARAMS['paired']:
         job_memory = "1.5G"
 
         statement = '''
-        python %(cgat_scripts)s/fastq2tpm.py
+        cgat fastq2tpm.py
         --log=%(out_dir)s.log
         --program=sailfish
         --method=quant
@@ -367,7 +361,7 @@ else:
         count_file = "/".join([out_dir, "quant.sf"])
 
         statement = '''
-        python %(cgat_scripts)s/fastq2tpm.py
+        cgat fastq2tpm.py
         --log=%(outfile)s.log
         --program=sailfish
         --method=quant
@@ -654,7 +648,7 @@ def getContextStats(outfile):
     '''
 
     statement = '''
-    python %(cgat_scripts)s/extract_stats.py
+    cgat extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -673,7 +667,7 @@ def getAlignmentStats(outfile):
     '''
 
     statement = '''
-    python %(cgat_scripts)s/extract_stats.py
+    cgat extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -692,7 +686,7 @@ def getPicardAlignStats(outfile):
     '''
 
     statement = '''
-    python %(cgat_scripts)s/extract_stats.py
+    cgat extract_stats.py
     --log=%(outfile)s.log
     --task=extract_table
     --database=%(mapping_db)s
@@ -712,7 +706,7 @@ if PARAMS['paired']:
         '''
 
         statement = '''
-        python %(cgat_scripts)s/extract_stats.py
+        cgat extract_stats.py
         --log=%(outfile)s.log
         --task=extract_table
         --database=%(mapping_db)s
@@ -735,7 +729,7 @@ def getDuplicationStats(outfile):
     '''
 
     statement = '''
-    python %(cgat_scripts)s/extract_stats.py
+    cgat extract_stats.py
     --log=%(outfile)s.log
     --task=extract_table
     --database=%(mapping_db)s
@@ -758,7 +752,7 @@ def getCoverageStats(outfile):
     '''
 
     statement = '''
-    python %(cgat_scripts)s/extract_stats.py
+    cgat extract_stats.py
     --task=extract_table
     --log=%(outfile)s.log
     --database=%(mapping_db)s
@@ -817,7 +811,7 @@ def cleanQcTable(infile, outfile):
     '''
 
     statement = '''
-    python %(cgat_scripts)s/extract_stats.py
+    cgat extract_stats.py
     --task=clean_table
     --log=%(outfile)s.log
     %(infile)s
