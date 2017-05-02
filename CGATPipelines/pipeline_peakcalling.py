@@ -349,6 +349,7 @@ else:
 
 
 if PARAMS['notebook_template_dir'] == '':
+    print 'gets here'
     PARAMS['notebook_template_dir'] = '/'.join([PARAMS['pipelinedir'],
                                                 'pipeline_docs/pipeline_peakcalling/notebooks'])
 
