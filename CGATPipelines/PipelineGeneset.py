@@ -850,7 +850,7 @@ def loadProteinStats(infile, outfile):
     | cgat fasta2fasta
     --method=filter
     --filter-method=min-length=1
-    | awk 'match($0, /(>ENS[A-Z]+[0-9]+)(\.[0-9])*(.*)/, a) {print a[1], a[3]}
+    | awk 'match($0, /(>[a-zA-Z]+[0-9]+)(\.[0-9])*(.*)/, a) {print a[1], a[3]}
     !/^>/ {print}'
     | cgat fasta2table
     --log=%(outfile)s
