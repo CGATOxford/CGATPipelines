@@ -777,12 +777,16 @@ def loadIdxstats(infiles, outfile):
         df = df.append(reformatted_df, ignore_index=True)
         df.set_index('region', inplace=True)
         df1 = df[['mapped']].T
+        #set track as index
+        df1.set_index('track', inplace=True)
         dfs.append(df1)
 
     # merge dataframes into single table
     master_df = pd.concat(dfs)
     master_df.drop('*', axis=1, inplace=True)
-    master_df.to_csv(outf, sep='\t', index=False)
+    #transform dataframe to avoid reaching column limit
+    master_df=master_df.T
+    master_df.to_csv(outf, sep='\t', index=True)
     outf.close()
 
     P.load(outf.name,
