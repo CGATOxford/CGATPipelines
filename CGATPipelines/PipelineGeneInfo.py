@@ -247,6 +247,8 @@ class EntrezGeneAnnotation(EntrezAnnotation):
         '''
         # Limited to IDs which are current and not obsolete (i.e. "alive")
         term = '("alive"[Properties]) AND %s[Taxonomy ID]' % host
+        if count == 100:
+            term += ' AND "matches ensembl"[Properties]'
 
         Ent = Entrez.esearch(db="gene", term=term, retmode="text",
                              retmax=count)
