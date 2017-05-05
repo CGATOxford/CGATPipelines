@@ -1115,10 +1115,10 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     dbh = connect()
     cc = dbh.cursor()
     cc.execute("SELECT * FROM windows_counts")
-    #data = cc.fetchall()
+    # data = cc.fetchall()
 
     # transpose, remove interval_id column
-    #data = list(zip(*data))
+    # data = list(zip(*data))
     if infile.split(".")[-1] == "gz":
         compression = "gzip"
     else:
@@ -1128,25 +1128,25 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
                              compression=compression,
                              index_col=0, header=0)
 
-    new_columns = [x.replace("-", "_", 3) for x in data.columns] 
+    new_columns = [x.replace("-", "_", 3) for x in data.columns]
     data.columns = new_columns
     columns = [x[0] for x in cc.description]
     # columns = [data.columns]
     E.warn(columns)
     map_track2input = mapTrack2Input(columns)
     take_tracks = [y for x, y in enumerate(columns) if y in map_track2input]
-    E.warn([y for x,y in enumerate(columns) if y in map_track2input])
+    E.warn([y for x, y in enumerate(columns) if y in map_track2input])
     take_input = [y for x, y in enumerate(
         columns) if y in list(map_track2input.values()) and y is not None]
 
     # build data frame
     E.warn(take_tracks)
     E.warn(take_input)
-    #dataframe = pandas.DataFrame(
+    # dataframe = pandas.DataFrame(
     #    dict([(columns[x], data[x]) for x in take_tracks]))
     dataframe = data[[x for x in take_tracks]]
     dataframe = dataframe.astype('float64')
-    #dataframe_input = pandas.DataFrame(
+    # dataframe_input = pandas.DataFrame(
     #   dict([(columns[x], data[x]) for x in take_input]))
     dataframe_input = data[[q for q in take_input]]
 

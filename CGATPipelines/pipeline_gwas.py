@@ -2368,11 +2368,11 @@ def plotLdExcludedEpistasis(infile, outfile):
 
 
 #######################################################
-## Plink R interface for epistasis testing
-## unknown problem with this, can't figure it out
-## not clear if it is the R code or plink being weird
-## use cassi for adjusted/unadjusted epistasis testing
-## instead - uses LR test instead of Wald
+# Plink R interface for epistasis testing
+# unknown problem with this, can't figure it out
+# not clear if it is the R code or plink being weird
+# use cassi for adjusted/unadjusted epistasis testing
+# instead - uses LR test instead of Wald
 #######################################################
 
 @follows(convertToRawFormat)
@@ -2400,7 +2400,7 @@ def makeCassiFiles(infiles, outfile):
     exclude = infiles[1][2]
 
     out_pattern = outfile.rstrip(".cov")
-    
+
     statement = '''
     plink2
     --bfile %(bed_file)s
@@ -2412,7 +2412,6 @@ def makeCassiFiles(infiles, outfile):
     '''
 
     P.run()
-
 
 
 @follows(convertToRawFormat,
@@ -2440,7 +2439,7 @@ def makeOtherCassiFiles(infiles, outfile):
     exclude = infiles[1][2]
 
     out_pattern = outfile.rstrip(".bed")
-    
+
     statement = '''
     plink2
     --bfile %(bed_file)s
@@ -2483,7 +2482,7 @@ def testAdjustedEpistasis(infiles, outfile):
 
     bed1_file = infiles[1][0]
     bed2_file = infiles[1][1]
-    
+
     covar_file = infiles[0]
 
     statement = '''
@@ -2531,7 +2530,7 @@ def plotAdjustedEpistasis(infile, outfile):
 
     P.run()
 
-    
+
 @follows(mergeGenotypeAndCovariates,
          excludeLdVariants,
          plotLdExcludedEpistasis,
@@ -2566,7 +2565,7 @@ def testUnadjustedEpistasis(infiles, outfile):
 
     covars = ",".join([cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
     all_covars = ",".join([covars])
-    
+
     covar_file = infiles[0]
 
     statement = '''
