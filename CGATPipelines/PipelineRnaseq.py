@@ -141,6 +141,8 @@ def estimateSleuthMemory(bootstraps, samples, transcripts):
 def findColumnPosition(infile, column):
     ''' find the position in the header of the specified column
     The returned value is one-based (e.g for bash cut)'''
+
+    column_ix = None
     with IOTools.openFile(infile, "r") as inf:
         while True:
             header = inf.readline()
@@ -283,6 +285,7 @@ class FeatureCountsQuantifier(Quantifier):
         # reads must map to the feature
         # for legacy reasons look at feature_counts_paired
         if BamTools.isPaired(bamfile):
+            paired = True
             # select paired end mode, additional options
             paired_options = "-p -B"
             # sort by read name
@@ -292,6 +295,7 @@ class FeatureCountsQuantifier(Quantifier):
                 checkpoint; """ % locals()
             bamfile = bam_tmp
         else:
+            paired = False
             paired_options = ""
             paired_processing = ""
 
@@ -319,7 +323,10 @@ class FeatureCountsQuantifier(Quantifier):
         P.run()
 
         # parse output to extract counts
-        parse_table(self.sample, outfile_raw + ".gz", outfile, self.infile)
+        if paired:
+            parse_table(self.sample, outfile_raw + ".gz", outfile, bam_tmp)
+        else:
+            parse_table(self.sample, outfile_raw + ".gz", outfile, bamfile)
 
     def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
@@ -394,8 +401,8 @@ class Gtf2tableQuantifier(Quantifier):
         self.run_gtf2table(level="gene_id")
 
 
-class AF_Quantifier(Quantifier):
-    ''' Parent class for all alignment-free quantification methods'''
+class Transcript_Quantifier(Quantifier):
+    ''' Parent class for all transcript-level quantification methods'''
 
     def run_gene(self):
         ''' Aggregate transcript counts to generate gene-level counts
@@ -415,7 +422,7 @@ class AF_Quantifier(Quantifier):
             self.gene_outfile, compression="gzip", sep="\t")
 
 
-class KallistoQuantifier(AF_Quantifier):
+class KallistoQuantifier(Transcript_Quantifier):
     ''' quantifier class to run kallisto'''
 
     def run_transcript(self):
@@ -449,7 +456,7 @@ class KallistoQuantifier(AF_Quantifier):
                     self.transcript_outfile, 'est_counts')
 
 
-class SailfishQuantifier(AF_Quantifier):
+class SailfishQuantifier(Transcript_Quantifier):
     ''' quantifier class to run sailfish'''
 
     def run_transcript(self):
@@ -478,7 +485,7 @@ class SailfishQuantifier(AF_Quantifier):
         convertFromFishToBear(outfile)
 
 
-class SalmonQuantifier(AF_Quantifier):
+class SalmonQuantifier(Transcript_Quantifier):
     '''quantifier class to run salmon'''
     def run_transcript(self):
         fastqfile = self.infile
@@ -506,6 +513,40 @@ class SalmonQuantifier(AF_Quantifier):
                     self.transcript_outfile, 'NumReads')
 
         convertFromFishToBear(outfile)
+
+
+class StringtieQuantifier(Transcript_Quantifier):
+    '''quantifier class to run stringtie'''
+
+    def run_transcript(self):
+        annotations = self.annotations
+        bamfile = self.infile
+        outfile = self.transcript_outfile
+
+        job_threads = self.job_threads
+        job_memory = self.job_memory
+
+        stringtie_options = self.options
+
+        sample = self.sample
+
+        if annotations.endswith(".gz"):
+            annotations = "<( zcat %s)" % annotations
+        
+        statement = '''
+        stringtie -G %(annotations)s
+        %(bamfile)s
+        -eb %(outdir)s
+        %(stringtie_options)s
+        > /dev/null
+        2> %(outdir)s.log'''
+
+
+        P.run()
+
+        # parse the output to extract the counts
+        #parse_table(self.sample, outfile,
+        #            self.transcript_outfile, 'NumReads')
 
 
 @cluster_runnable
@@ -861,7 +902,7 @@ def quantifyWithStringTie(gtffile, bamfile, outdir):
 
     Parameters
     ----------
-
+    
     quant_threads: int
         Number of threads to use
     quant_options: string
@@ -1056,8 +1097,7 @@ def runFeatureCounts(annotations_file,
     tmpdir = P.getTempDir()
     annotations_tmp = os.path.join(tmpdir,
                                    'geneset.gtf')
-    bam_tmp = os.path.join(tmpdir,
-                           os.path.basename(bamfile))
+    
 
     # -p -B specifies count fragments rather than reads, and both
     # reads must map to the feature
@@ -1066,6 +1106,10 @@ def runFeatureCounts(annotations_file,
         # select paired end mode, additional options
         paired_options = "-p -B"
         # sort by read name
+
+        bam_tmp = os.path.join(tmpdir,
+                               os.path.basename(bamfile))
+
         paired_processing = \
             """samtools
             sort -@ %(job_threads)i -n -o %(bam_tmp)s %(bamfile)s;
