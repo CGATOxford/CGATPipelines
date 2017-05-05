@@ -49,10 +49,10 @@ import CGAT.IndexedFasta as IndexedFasta
 import pandas as pd
 from CGATPipelines.Pipeline import cluster_runnable
 import numpy as np
-import pandas.rpy.common as com
 from rpy2.robjects import r
 from rpy2.robjects.packages import importr
 from rpy2.robjects.vectors import FloatVector
+from rpy2.robjects import pandas2ri
 # AH: this causes an import error:
 # AssertionError: PipelineRrbs scripts/modules - ImportError: Conflict when converting R symbol in the package "stats" to a Python symbol (format.perc -> format_perc while there is already format_perc)
 # best only to import when needed in individual methods
@@ -121,7 +121,7 @@ def plotReadBias(infile, outfile):
             line += 1
     final_df = pd.concat([df, df2, df3])
     final_df.index = list(range(len(final_df['context'])))
-    r_dataframe = com.convert_to_r_dataframe(final_df)
+    r_dataframe = pandas2ri.py2ri(final_df)
 
     plot1_out = (P.snip(outfile, ".read_position.tsv") +
                  "_read_position_methylation_bias.png")
@@ -558,7 +558,7 @@ def mergeCpGAnnotations(meth_inf, prom_inf, repeat_inf, hcne_inf, dmr_inf,
 def plotCpGAnnotations(infile, outfile_hist, outfile_box):
     ''' make histogram and boxplots for the CpGs facetted per annotation'''
     df = pd.read_table(infile, sep="\t")
-    r_df = com.convert_to_r_dataframe(df)
+    r_df = pandas2ri.py2ri(df)
 
     plotter = r('''
     function(df){
@@ -925,7 +925,7 @@ def calculateM3DStat(infile, outfile, design,
     ncols = len(samples)
     samples = '","'.join(samples)
     conditions = '","'.join(conditions)
-    r_df = com.convert_to_r_dataframe(df)
+    r_df = pandas2ri.py2ri(df)
 
     out = open(outfile, "w")
     out.write("ncols: %s\n" % ncols)
@@ -1070,8 +1070,8 @@ def calculateM3DSpikepvalue(infiles, outfile, design):
     between.to_csv(outfile, index=False, header=True, sep="\t")
     within.to_csv(outfile_within, index=False, header=True, sep="\t")
 
-    r_between_melt = com.convert_to_r_dataframe(between)
-    r_within_melt = com.convert_to_r_dataframe(within)
+    r_between_melt = pandas2ri.py2ri(between)
+    r_within_melt = pandas2ri.py2ri(within)
 
     # move plotting to reporting. output an aggregated df.
     base = "power.dir/M3D"
@@ -1180,8 +1180,8 @@ def calculateM3Dpvalue(infiles, outfile, pair):
     between.to_csv(outfile, index=False, header=True, sep="\t")
     within.to_csv(outfile_within, index=False, header=True, sep="\t")
 
-    r_between_melt = com.convert_to_r_dataframe(between)
-    r_within_melt = com.convert_to_r_dataframe(within)
+    r_between_melt = pandas2ri.py2ri(between)
+    r_within_melt = pandas2ri.py2ri(within)
 
     # move plotting to report. i.e. output a merged dataframe with a
     # "cluster" column
@@ -1248,7 +1248,7 @@ def calculateBiSeqStat(infile, outfile):
     '''calculate BiSeq stats from dataframe'''
     # assumes meth columns will be named *-*-*-meth
     df = pd.read_csv(infile, sep="\t")
-    r_df = com.convert_to_r_dataframe(df)
+    r_df = pandas2ri.py2ri(df)
     samples = [re.sub(".perc", "", x) for x in df.columns
                if re.match(".*perc", x)]
     conditions = [x.split("-")[1] for x in samples]
@@ -1340,7 +1340,7 @@ def summaryPlots(infile, outfile):
     header = [re.sub("-", "_", x) for x in df.columns.values.tolist()]
     df.columns = header
 
-    r_dataframe = com.convert_to_r_dataframe(df)
+    r_dataframe = pandas2ri.py2ri(df)
 
     base = outfile
     gr = importr('grDevices')
@@ -1427,7 +1427,7 @@ def summaryPlots(infile, outfile):
     header = [re.sub("_perc", "", x) for x in df.columns.values.tolist()]
     df.columns = header
 
-    r_dataframe_meth_freq = com.convert_to_r_dataframe(df_meth_freq)
+    r_dataframe_meth_freq = pandas2ri.py2ri(df_meth_freq)
 
     # re-write with subfunctions in r function to reduce length of code
     # each plot is repeated twice!
@@ -1830,8 +1830,8 @@ def spikeInClustersPlotM3D(infile, outfile, groups):
     between_df = concat_df.ix[:, between]
     within_df = concat_df.ix[:, within]
 
-    r_df_between = com.convert_to_r_dataframe(between_df)
-    r_df_within = com.convert_to_r_dataframe(within_df)
+    r_df_between = pandas2ri.py2ri(between_df)
+    r_df_within = pandas2ri.py2ri(within_df)
     base = P.snip(infile, ".out")
     PowerPlot = r('''library(ggplot2)
                   library(reshape)
