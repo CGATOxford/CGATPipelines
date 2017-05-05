@@ -2446,6 +2446,7 @@ def makeOtherCassiFiles(infiles, outfile):
     --bfile %(bed_file)s
     --remove %(exclude)s
     --make-bed
+    --min-allele-frequency=0.005
     --covar %(covar)s
     --out %(out_pattern)s
     '''
