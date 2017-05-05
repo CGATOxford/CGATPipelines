@@ -964,7 +964,7 @@ def buildCpGBed(infile, outfile):
     '''
 
     job_memory = "10G"
-    
+
     statement = '''
     cgat fasta2bed
         --method=cpg
