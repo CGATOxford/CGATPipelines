@@ -230,6 +230,36 @@ def configToDictionary(config):
     return p
 
 
+def input_validation(PARAMS):
+    for key, value in PARAMS.iteritems():
+        value = str(value)
+        
+        # validate input files listed in PARAMS
+        if value.startswith("/"):
+            if os.path.exists(value):
+                pass
+            else:
+                E.warn("WARNING path does not exist %s" % (value))
+                
+        # validate whether files exists that dont start with /
+        pat = re.compile('\.gtf|\.gz')
+        if pat.search(value): 
+            if os.path.exists(value):
+                pass
+            else:
+                E.warn("WARNING file does not exist %s" % (value))
+    while True:
+        start_pipeline = raw_input('''
+    ###################################################
+    Please check the WARNING messages and if you are 
+    happy then enter Y to continue or n to abort running
+    the pipeline.
+    ####################################################''')
+        if start_pipeline == "Y" or start_pipeline == "y":
+            break
+        if start_pipeline == "N" or start_pipeline == "n":
+            raise ValueError("You have stopped the pipeline")
+
 
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
@@ -391,6 +421,13 @@ def getParameters(filenames=["pipeline.ini", ],
 
     # make sure that the dictionary reference has not changed
     assert id(PARAMS) == old_id
+
+    # add input validation to check that all of the directories
+    # and files exist, provide warnings and then ask the user to
+    # specify whether they are comfortable to continue
+
+    input_validation(dict(PARAMS))
+
     return PARAMS
 
 
