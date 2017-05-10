@@ -239,7 +239,8 @@ def input_validation(PARAMS):
             if os.path.exists(value):
                 pass
             else:
-                E.warn("WARNING path does not exist %s" % (value))
+                E.warn('''%s: the %s path does not exist
+                ''' % (key, value))
                 
         # validate whether files exists that dont start with /
         pat = re.compile('\.gtf|\.gz')
@@ -247,18 +248,30 @@ def input_validation(PARAMS):
             if os.path.exists(value):
                 pass
             else:
-                E.warn("WARNING file does not exist %s" % (value))
+                E.warn('''%s: the %s file does exist
+                '''% (key, value))
     while True:
         start_pipeline = raw_input('''
-    ###################################################
-    Please check the WARNING messages and if you are 
-    happy then enter Y to continue or n to abort running
-    the pipeline.
-    ####################################################''')
-        if start_pipeline == "Y" or start_pipeline == "y":
+        ###########################################################
+
+        Please check the WARNING messages and if you are
+        happy then enter Y to continue or n to abort running
+        the pipeline.
+
+        ###########################################################
+        ''')
+        if start_pipeline.lower() == "y":
             break
-        if start_pipeline == "N" or start_pipeline == "n":
-            raise ValueError("You have stopped the pipeline")
+        if start_pipeline.lower() == "n":
+            raise ValueError('''
+            #######################################################
+
+            You have stopped the pipeline, please make sure you
+            check that file paths and names are correctly specified
+            in the pipeline.ini
+
+            #######################################################
+            ''')
 
 
 def getParameters(filenames=["pipeline.ini", ],
