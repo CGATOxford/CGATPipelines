@@ -459,13 +459,6 @@ def getParameters(filenames=["pipeline.ini", ],
     # make sure that the dictionary reference has not changed
     assert id(PARAMS) == old_id
 
-    # add input validation to check that all of the directories
-    # and files exist, provide warnings and then ask the user to
-    # specify whether they are comfortable to continue
-
-    if isTest() is False:
-        inputValidation(dict(PARAMS))
-
     return PARAMS
 
 
