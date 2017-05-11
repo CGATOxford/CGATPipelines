@@ -261,7 +261,7 @@ class DEXSeq(Splicer):
         countsdir = self.countsdir
         model = self.model
         gff = self.gtf
-        dexseq_fdr = 0.5
+        dexseq_fdr = 0.05
 
         statement = '''
         python %%(scriptsdir)s/counts2table.py
