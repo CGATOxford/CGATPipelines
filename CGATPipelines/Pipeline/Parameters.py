@@ -230,7 +230,7 @@ def configToDictionary(config):
     return p
 
 
-def input_validation(PARAMS):
+def inputValidation(PARAMS):
     for key, value in PARAMS.iteritems():
         value = str(value)
         
@@ -439,7 +439,8 @@ def getParameters(filenames=["pipeline.ini", ],
     # and files exist, provide warnings and then ask the user to
     # specify whether they are comfortable to continue
 
-    input_validation(dict(PARAMS))
+    if not only_import:
+        inputValidation(dict(PARAMS))
 
     return PARAMS
 
