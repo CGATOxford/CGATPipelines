@@ -231,9 +231,25 @@ def configToDictionary(config):
 
 
 def inputValidation(PARAMS):
+
+    missing_statement = "A missing value in the pipeline.ini was detected"
+    question_statement = "A ? was detected: please add a value in the ini file"
+    num_missing_value = 0
+    num_question_value = 0
+
     for key, value in PARAMS.iteritems():
+
         value = str(value)
-        
+
+        # check for missing values
+        if value == "":
+            num_missing_value += 1
+
+        # check for a question mark in the dictironary (indicates
+        # that there is a missing input parameter)
+        if "?" in value:
+            num_question_value += 1
+
         # validate input files listed in PARAMS
         if value.startswith("/"):
             if os.path.exists(value):
@@ -241,15 +257,23 @@ def inputValidation(PARAMS):
             else:
                 E.warn('''%s: the %s path does not exist
                 ''' % (key, value))
-                
-        # validate whether files exists that dont start with /
+
+        # validate whether files exists that dont start with "/"
+        # exist
         pat = re.compile('\.gtf|\.gz')
-        if pat.search(value): 
+        if pat.search(value):
             if os.path.exists(value):
                 pass
             else:
                 E.warn('''%s: the %s file does exist
-                '''% (key, value))
+                ''' % (key, value))
+
+    if num_missing_value > 0:
+        E.warn(missing_statement)
+
+    if num_question_value > 0:
+        E.warn(question_statement)
+
     while True:
         start_pipeline = raw_input('''
         ###########################################################
