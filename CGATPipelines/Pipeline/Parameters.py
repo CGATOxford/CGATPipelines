@@ -439,7 +439,7 @@ def getParameters(filenames=["pipeline.ini", ],
     # and files exist, provide warnings and then ask the user to
     # specify whether they are comfortable to continue
 
-    if not only_import:
+    if only_import is not False:
         inputValidation(dict(PARAMS))
 
     return PARAMS
