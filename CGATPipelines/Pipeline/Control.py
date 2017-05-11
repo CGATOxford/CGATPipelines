@@ -81,7 +81,7 @@ from CGATPipelines.Pipeline.Utils import isTest, getCaller, getCallerLocals
 from CGATPipelines.Pipeline.Execution import execute, startSession,\
     closeSession
 from CGATPipelines.Pipeline.Local import getProjectName, getPipelineName
-
+from CGATPipelines.Pipeline.Parameters import inputValidation
 # Set from Pipeline.py
 PARAMS = {}
 
@@ -856,7 +856,7 @@ def main(args=sys.argv):
     # and files exist, provide warnings and then ask the user to
     # specify whether they are comfortable to continue
     if options.input_validation:
-       P.inputValidation(PARAMS)
+       inputValidation(PARAMS)
 
     if options.pipeline_action == "check":
         counter, requirements = Requirements.checkRequirementsFromAllModules()
