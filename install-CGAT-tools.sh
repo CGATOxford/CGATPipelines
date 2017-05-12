@@ -149,13 +149,13 @@ get_cgat_env() {
 if [[ $TRAVIS_INSTALL ]] ; then
 
    CGAT_HOME=$TRAVIS_BUILD_DIR
-   CONDA_INSTALL_TYPE="cgat-pipelines-nosetests cgat-scripts-nosetests"
+   CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
    INSTALL_PYTHON_VERSION=$TRAVIS_PYTHON_VERSION
 
 elif [[ $JENKINS_INSTALL ]] ; then
 
    CGAT_HOME=$WORKSPACE
-   CONDA_INSTALL_TYPE="cgat-pipelines-nosetests cgat-scripts-nosetests"
+   CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
    INSTALL_PYTHON_VERSION=$JENKINS_PYTHON_VERSION
 
 else
@@ -169,9 +169,9 @@ else
    fi
 
    if [[ $INSTALL_SCRIPTS ]] ; then
-      CONDA_INSTALL_TYPE="cgat-scripts-devel"
+      CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
    elif [[ $INSTALL_DEVEL ]] ; then
-      CONDA_INSTALL_TYPE="cgat-scripts-devel"
+      CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
    elif [[ $INSTALL_TEST ]] || [[ $INSTALL_UPDATE ]] ; then
       if [[ -d $CGAT_HOME/conda-install ]] ; then
          AUX=`find $CGAT_HOME/conda-install/envs/cgat-* -maxdepth 0`
@@ -293,7 +293,7 @@ if [[ "$CONDA_INSTALL_TYPE" == "cgat-scripts" ]] ; then
 
 else
 
-      conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE python=$INSTALL_PYTHON_VERSION gcc --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
+   conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE python=$INSTALL_PYTHON_VERSION gcc --override-channels --channel conda-forge --channel defaults --channel r --channel bioconda --yes
 
 fi
 
@@ -306,16 +306,17 @@ if [[ "$OS" != "travis" ]] ; then
 
    if [[ $INSTALL_DEVEL ]] ; then
 
+      cd $CGAT_HOME
+
       if [[ $INSTALL_ZIP ]] ; then
 	 # get the latest version from Git Hub in zip format
-	 cd $CGAT_HOME
-         wget --no-check-certificate https://github.com/CGATOxford/cgat/archive/master.zip
+         wget https://github.com/CGATOxford/CGATPipelines/archive/master.zip
          unzip master.zip
-	 cd cgat-master/
+	 cd CGATPipelines-master/
       else
          # get latest version from Git Hub with git clone
-         git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code
-         cd $CGAT_HOME/cgat-code
+         git clone https://github.com/CGATOxford/CGATPipelines.git
+         cd CGATPipelines/
       fi
 
       # activate cgat environment
@@ -324,7 +325,6 @@ if [[ "$OS" != "travis" ]] ; then
       # SLV: workaround until these Python packages are available with Python 3
       pip install bx-python
       pip install MySQL-python
-      pip install CGATReport
 
       # Set up other environment variables
       setup_env_vars
@@ -336,7 +336,8 @@ if [[ "$OS" != "travis" ]] ; then
       install_cgat_scripts
 
       # Python preparation
-      sed -i'' -e 's/install_requires=install_requires,//g' setup.py
+      sed -i'' -e '/REPO_REQUIREMENT/,/pass/d' setup.py
+      sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
       python setup.py develop
 
       DEV_RESULT=$?
@@ -347,7 +348,7 @@ if [[ "$OS" != "travis" ]] ; then
          echo " Installation did not finish properly. "
          echo 
          echo " Please submit this issue via Git Hub: "
-         echo " https://github.com/CGATOxford/cgat/issues "
+         echo " https://github.com/CGATOxford/CGATPipelines/issues "
 	 echo
 
          print_env_vars
@@ -362,7 +363,7 @@ if [[ "$OS" != "travis" ]] ; then
       echo " Installation did not finish properly. "
       echo
       echo " Please submit this issue via Git Hub: "
-      echo " https://github.com/CGATOxford/cgat/issues "
+      echo " https://github.com/CGATOxford/CGATPipelines/issues "
       echo
 
       print_env_vars
@@ -390,19 +391,30 @@ fi # if travis install
 install_cgat_scripts() {
 
 log "install cgat scripts"
+
+OLDWD=`pwd`
 cd $CGAT_HOME
 
 if [[ $TRAVIS_INSTALL ]] ; then
-   git clone https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-code-at-travis
-   cd $CGAT_HOME/cgat-code-at-travis
+   git clone https://github.com/CGATOxford/cgat.git cgat-code-at-travis
+   cd cgat-code-at-travis ;
 elif [[ $JENKINS_INSTALL ]] ; then
-   cd $CGAT_HOME/cgat
+   cd cgat ;
+else
+   wget https://github.com/CGATOxford/cgat/archive/master.zip
+   unzip master.zip
+   rm master.zip
+   mv cgat-master cgat
+   cd cgat ;
 fi
 
 # remove install_requires (no longer required with conda package)
 sed -i'' -e '/REPO_REQUIREMENT/,/pass/d' setup.py
 sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
 python setup.py develop
+
+# go back to old working directory
+cd $OLDWD
 
 } # install_cgat_scripts
 
@@ -428,7 +440,6 @@ if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
    log "pip-installing additional packages"
    pip install bx-python
    pip install MySQL-python
-   pip install CGATReport
 
    # need to install the CGAT Code Collection as well
    install_cgat_scripts
@@ -542,7 +553,7 @@ if [[ ! $? -eq 0 ]] ; then
    echo " There was a problem updating the installation. "
    echo 
    echo " Please submit this issue via Git Hub: "
-   echo " https://github.com/CGATOxford/cgat/issues "
+   echo " https://github.com/CGATOxford/CGATPipelines/issues "
    echo 
 
 else 
@@ -627,7 +638,7 @@ echo " To uninstall the CGAT code:"
 echo " ./install-CGAT-tools.sh --uninstall [--location </full/path/to/folder/without/trailing/slash>]"
 echo
 echo " Please submit any issues via Git Hub:"
-echo " https://github.com/CGATOxford/cgat/issues"
+echo " https://github.com/CGATOxford/CGATPipelines/issues"
 echo
 exit 1
 } # help_message
