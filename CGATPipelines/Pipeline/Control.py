@@ -81,7 +81,7 @@ from CGATPipelines.Pipeline.Utils import isTest, getCaller, getCallerLocals
 from CGATPipelines.Pipeline.Execution import execute, startSession,\
     closeSession
 from CGATPipelines.Pipeline.Local import getProjectName, getPipelineName
-
+from CGATPipelines.Pipeline.Parameters import inputValidation
 # Set from Pipeline.py
 PARAMS = {}
 
@@ -778,6 +778,11 @@ def main(args=sys.argv):
                       help="RabbitMQ host to send log messages to "
                       "[default=%default].")
 
+    parser.add_option("--input-validation", dest="input_validation",
+                      action="store_true",
+                      help="perform input validation before starting "
+                      "[default=%default].")
+
     parser.set_defaults(
         pipeline_action=None,
         pipeline_format="svg",
@@ -793,7 +798,8 @@ def main(args=sys.argv):
         is_test=False,
         ruffus_checksums_level=0,
         rabbitmq_host="saruman",
-        rabbitmq_exchange="ruffus_pipelines")
+        rabbitmq_exchange="ruffus_pipelines",
+        input_validation=False)
 
     (options, args) = E.Start(parser,
                               add_cluster_options=True)
@@ -806,6 +812,7 @@ def main(args=sys.argv):
     # configuration files.
 
     PARAMS["dryrun"] = options.dry_run
+    PARAMS["input_validation"] = options.input_validation
 
     # use cli_cluster_* keys in PARAMS to ensure highest priority
     # of cluster_* options passed with the command-line
@@ -844,6 +851,12 @@ def main(args=sys.argv):
         options.pipeline_action = args[0]
         if len(args) > 1:
             options.pipeline_targets.extend(args[1:])
+
+    # add input validation to check that all of the directories
+    # and files exist, provide warnings and then ask the user to
+    # specify whether they are comfortable to continue
+    if options.input_validation:
+       inputValidation(PARAMS)
 
     if options.pipeline_action == "check":
         counter, requirements = Requirements.checkRequirementsFromAllModules()

@@ -230,6 +230,90 @@ def configToDictionary(config):
     return p
 
 
+def inputValidation(PARAMS):
+    '''Inspects the PARAMS dictionary looking for problematic input values.
+
+    So far we just check that:
+
+        * input parameters are not empty
+
+        * input parameters do not contain the "?" character (used as a
+          placeholder in different pipelines)
+
+        * if the input is a file, check whether it exists and
+          is readable
+    '''
+
+    num_missing = 0
+    num_questions = 0
+
+    E.info('''=== Input Validation starts ===''')
+
+    for key, value in sorted(PARAMS.iteritems()):
+
+        key   = str(key)
+        value = str(value)
+
+        # check for missing values
+        if value == "":
+            E.warn('"{}" is empty, is that expected?'.format(key))
+            num_missing += 1
+
+        # check for a question mark in the dictironary (indicates
+        # that there is a missing input parameter)
+        if "?" in value:
+            E.warn('"{}" is not defined (?), is that expected?'.format(key))
+            num_questions += 1
+
+        # validate input files listed in PARAMS
+        if (value.startswith("/") \
+           or value.endswith(".gz") \
+           or value.endswith(".gtf")) \
+           and "," not in value:
+
+            if os.access(value, os.R_OK):
+                pass
+            else:
+                E.warn('"{}": "{}" is not readable'.format(key, value))
+
+    if num_missing == 0 and num_questions == 0:
+        while True:
+            confirmation = raw_input('''
+            ##########################################################
+
+            Your input data seems all correct, congratulations!
+
+            Do you want to continue running the pipeline? (y/n)
+
+            ##########################################################
+
+            ''')
+            if confirmation.lower() == "y":
+                E.info('=== Input Validation ends ===')
+                break
+            elif confirmation.lower() == "n":
+                E.info('=== Input Validation ends ===')
+                E.info('Pipeline aborted.')
+                sys.exit(0)
+    else:
+        while True:
+            start_pipeline = raw_input('''
+            ###########################################################
+
+            Please check the WARNING messages and if you are
+            happy then enter "y" to continue or "n" to abort running
+            the pipeline.
+
+            ###########################################################
+            ''')
+            if start_pipeline.lower() == "y":
+                E.info('=== Input Validation ends ===')
+                break
+            if start_pipeline.lower() == "n":
+                E.info('=== Input Validation ends ===')
+                E.info('Pipeline aborted.')
+                sys.exit(0)
+
 
 def getParameters(filenames=["pipeline.ini", ],
                   defaults=None,
@@ -391,6 +475,7 @@ def getParameters(filenames=["pipeline.ini", ],
 
     # make sure that the dictionary reference has not changed
     assert id(PARAMS) == old_id
+
     return PARAMS
 
 
