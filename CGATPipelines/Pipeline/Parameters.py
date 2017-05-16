@@ -231,71 +231,88 @@ def configToDictionary(config):
 
 
 def inputValidation(PARAMS):
+    '''Inspects the PARAMS dictionary looking for problematic input values.
 
-    missing_statement = "A missing value in the pipeline.ini was detected"
-    question_statement = "A ? was detected: please add a value in the ini file"
-    num_missing_value = 0
-    num_question_value = 0
+    So far we just check that:
 
-    for key, value in PARAMS.iteritems():
+        * input parameters are not empty
 
+        * input parameters do not contain the "?" character (used as a
+          placeholder in different pipelines)
+
+        * if the input is a file, check whether it exists and
+          is readable
+    '''
+
+    num_missing = 0
+    num_questions = 0
+
+    E.info('''=== Input Validation starts ===''')
+
+    for key, value in sorted(PARAMS.iteritems()):
+
+        key   = str(key)
         value = str(value)
 
         # check for missing values
         if value == "":
-            num_missing_value += 1
+            E.warn('"{}" is empty, is that expected?'.format(key))
+            num_missing += 1
 
         # check for a question mark in the dictironary (indicates
         # that there is a missing input parameter)
         if "?" in value:
-            num_question_value += 1
+            E.warn('"{}" is not defined (?), is that expected?'.format(key))
+            num_questions += 1
 
         # validate input files listed in PARAMS
-        if value.startswith("/"):
-            if os.path.exists(value):
+        if (value.startswith("/") \
+           or value.endswith(".gz") \
+           or value.endswith(".gtf")) \
+           and "," not in value:
+
+            if os.access(value, os.R_OK):
                 pass
             else:
-                E.warn('''%s: the %s path does not exist
-                ''' % (key, value))
+                E.warn('"{}": "{}" is not readable'.format(key, value))
 
-        # validate whether files exists that dont start with "/"
-        # exist
-        pat = re.compile('\.gtf|\.gz')
-        if pat.search(value):
-            if os.path.exists(value):
-                pass
-            else:
-                E.warn('''%s: the %s file does exist
-                ''' % (key, value))
+    if num_missing == 0 and num_questions == 0:
+        while True:
+            confirmation = raw_input('''
+            ##########################################################
 
-    if num_missing_value > 0:
-        E.warn(missing_statement)
+            Your input data seems all correct, congratulations!
 
-    if num_question_value > 0:
-        E.warn(question_statement)
+            Do you want to continue running the pipeline? (y/n)
 
-    while True:
-        start_pipeline = raw_input('''
-        ###########################################################
+            ##########################################################
 
-        Please check the WARNING messages and if you are
-        happy then enter Y to continue or n to abort running
-        the pipeline.
-
-        ###########################################################
-        ''')
-        if start_pipeline.lower() == "y":
-            break
-        if start_pipeline.lower() == "n":
-            raise ValueError('''
-            #######################################################
-
-            You have stopped the pipeline, please make sure you
-            check that file paths and names are correctly specified
-            in the pipeline.ini
-
-            #######################################################
             ''')
+            if confirmation.lower() == "y":
+                E.info('=== Input Validation ends ===')
+                break
+            elif confirmation.lower() == "n":
+                E.info('=== Input Validation ends ===')
+                E.info('Pipeline aborted.')
+                sys.exit(0)
+    else:
+        while True:
+            start_pipeline = raw_input('''
+            ###########################################################
+
+            Please check the WARNING messages and if you are
+            happy then enter "y" to continue or "n" to abort running
+            the pipeline.
+
+            ###########################################################
+            ''')
+            if start_pipeline.lower() == "y":
+                E.info('=== Input Validation ends ===')
+                break
+            if start_pipeline.lower() == "n":
+                E.info('=== Input Validation ends ===')
+                E.info('Pipeline aborted.')
+                sys.exit(0)
 
 
 def getParameters(filenames=["pipeline.ini", ],
