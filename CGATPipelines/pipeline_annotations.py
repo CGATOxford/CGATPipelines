@@ -567,6 +567,7 @@ import re
 import os
 import glob
 import collections
+import pandas as pd
 from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
     suffix, regex, add_inputs
 
@@ -654,12 +655,13 @@ def buildContigSizes(infile, outfile):
 
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
-    outs = IOTools.openFile(outfile, "w")
+    contigs = []
 
     for contig, size in fasta.getContigSizes(with_synonyms=False).items():
-        outs.write("%s\t%i\n" % (contig, size))
-
-    outs.close()
+        contigs.append([contig, size])
+    df_contig = pd.DataFrame(contigs, columns=['contigs', 'size'])
+    df_contig.sort_values('contigs', inplace=True)
+    df_contig.to_csv(outfile, sep="\t", header=False, index=False)
 
 
 @follows(mkdir('assembly.dir'))
@@ -1702,6 +1704,7 @@ def buildIntergenicRegions(infiles, outfile):
     infile, contigs = infiles
 
     statement = '''zcat %(infile)s
+    | sort -k1,1 -k2,2n
     | complementBed -i stdin -g %(contigs)s
     | gzip
     > %(outfile)s'''
