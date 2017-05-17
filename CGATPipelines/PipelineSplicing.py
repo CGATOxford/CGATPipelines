@@ -79,7 +79,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 
 
 class Splicer(object):
-    ''' base clase for DS experiments '''
+    ''' base class for DS experiments '''
 
     def __init__(self, gtf=None, executable=None):
         if gtf:
