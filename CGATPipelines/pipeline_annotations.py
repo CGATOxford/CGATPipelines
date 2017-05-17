@@ -663,6 +663,7 @@ def buildContigSizes(infile, outfile):
     df_contig.sort_values('contigs', inplace=True)
     df_contig.to_csv(outfile, sep="\t", header=False, index=False)
 
+
 @follows(mkdir('assembly.dir'))
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
        PARAMS['interface_contigs_bed'])
@@ -693,7 +694,6 @@ def buildContigBed(infile, outfile):
 
     outs.close()
 
-    
 
 @follows(mkdir('assembly.dir'))
 @files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
