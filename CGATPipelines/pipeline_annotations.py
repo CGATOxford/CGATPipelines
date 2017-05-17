@@ -61,7 +61,10 @@ appropriate locations of the auxiliary files. See especially:
     files (``filename_gtf``, filename_pep``, ``filename_cdna``)
 
 2 section ``[general]`` with the location of the indexed genomic
-    fasta files to use and the name of the genome (default=``hg19``),
+    fasta files to use and the name of the genome, as well as the
+    genome assembly report obtained from NCBI for mapping between
+    UCSC and ENSEMBL contigs. This can be obtained from:
+    https://www.ncbi.nlm.nih.gov/assembly
     see :doc:`../modules/IndexedFasta`.
 
 3 section ``[ucsc]`` with the name of the database to use (default=``hg19``).
@@ -670,7 +673,7 @@ def buildContigBed(infile, outfile):
     Parameters
     ----------
     infile : str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the `genome` :term:`fasta` file
 
     Returns
@@ -703,7 +706,7 @@ def buildUngappedContigBed(infile, outfiles):
     Parameters
     ----------
     infile: str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the `genome` :term:`fasta` file
 
     assembly_gaps_min_size: int
@@ -772,7 +775,7 @@ def buildGenomeInformation(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from ``PARAMS`` variable to retrieve
+      infile is constructed from ``PARAMS`` variable to retrieve
       the ``genome`` :term:`fasta` file
 
     Returns
@@ -821,7 +824,7 @@ def buildGenomeGCSegmentation(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the ``genome`` :term:`fasta` file
 
     segmentation_window_size: int
@@ -870,7 +873,7 @@ def runGenomeGCProfile(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from ``PARAMS`` variable to retrieve
+      infile is constructed from ``PARAMS`` variable to retrieve
       the ``genome`` :term:`fasta` file
 
     segmentation_min_length: int
@@ -953,7 +956,7 @@ def buildCpGBed(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the `genome` :term:`fasta` file
 
     Returns
@@ -985,8 +988,8 @@ def buildCpGBed(infile, outfile):
 # -----------------------------------------------------------------
 # ENSEMBL gene set
 @follows(mkdir('ensembl.dir'))
-@files(PARAMS["ensembl_filename_gtf"], PARAMS['interface_geneset_all_gtf'])
-def buildGeneSet(infile, outfile):
+@files((PARAMS["ensembl_filename_gtf"], PARAMS["general_assembly_report"]), PARAMS['interface_geneset_all_gtf'])
+def buildGeneSet(infiles, outfile):
     '''output sanitized ENSEMBL geneset.
 
     This method outputs an ENSEMBL gene set after some sanitizing steps:
@@ -999,21 +1002,22 @@ def buildGeneSet(infile, outfile):
 
     Arguments
     ---------
-    infile : string
+    infiles : tuple
        ENSEMBL geneset in :term:`gtf` format.
+       NCBI Assembly report in `txt` format.
     outfile : string
        geneset in :term:`gtf` format.
 
     '''
+    gtf_file, assembly_report = infiles
 
-    statement = ['''zcat %(infile)s
+    statement = ['''zcat %(gtf_file)s
     | grep 'transcript_id'
     | cgat gff2gff
     --method=sanitize
-    --sanitize-method=genome
+    --sanitize-method=ucsc
     --skip-missing
-    --genome-file=%(genome_dir)s/%(genome)s
-    --log=%(outfile)s.log
+    --assembly-report=%(assembly_report)s
     ''']
 
     if PARAMS["ensembl_remove_contigs"]:
