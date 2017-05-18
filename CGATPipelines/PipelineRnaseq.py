@@ -563,7 +563,6 @@ def makeExpressionSummaryPlots(counts_inf, design_inf, logfile):
         counts_log10.zNormalise(inplace=True)
 
         log.write("plot heatmap: %s\n" % heatmap_outfile)
-        counts_log10.table.to_csv(plot_prefix + "log10temp.tsv", sep="\t")
         counts_log10.heatmap(heatmap_outfile, zscore=True)
 
 
@@ -1123,7 +1122,7 @@ def buildExpressionStats(
     outdir : string
         Output directory for diagnostic plots.
     regex : string
-        Regular expression to extract experimentxfal information
+        Regular expression to extract experimental information
         from table name.
     """
 
@@ -1588,8 +1587,8 @@ def runCuffdiff(bamfiles,
 Utr = collections.namedtuple("Utr", "old new max status")
 
 
-def buildUTRExtension(infile, exportdir, outfile):
-    '''build ne`w utrs by building and fitting an HMM
+def buildUTRExtension(infile, outfile):
+    '''build new utrs by building and fitting an HMM
     to reads upstream and downstream of known genes.
 
     Known problems
@@ -1656,8 +1655,6 @@ def buildUTRExtension(infile, exportdir, outfile):
     ---------
     infile : string
         Output of :func:`buildGeneLevelReadExtension`
-    exportdir: string
-        term:`PARAMS` Exportdir
     outfile : string
         Output filename
 
@@ -1679,7 +1676,7 @@ def buildUTRExtension(infile, exportdir, outfile):
     infiles = [infile + ".readextension_upstream_sense.tsv.gz",
                infile + ".readextension_downstream_sense.tsv.gz"]
 
-    outdir = os.path.join(exportdir, "utr_extension")
+    outdir = os.path.join(PARAMS["exportdir"], "utr_extension")
 
     R('''suppressMessages(library(RColorBrewer))''')
     R('''suppressMessages(library(MASS))''')

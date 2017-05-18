@@ -391,11 +391,6 @@ P.getParameters(
      "../pipeline.ini",
      "pipeline.ini"])
 
-# add configuration values from associated pipelines
-#
-# 1. pipeline_annotations: any parameters will be added with the
-#    prefix "annotations_". The interface will be updated with
-#    "annotations_dir" to point to the absolute path names.
 PARAMS = P.PARAMS
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
@@ -553,7 +548,6 @@ def buildSalmonIndex(infile, outfile):
        provide specific options e.g. --force --threads N
     outfile: str
        path to output file
->>>>>>> master
     '''
 
     job_memory = "2G"
@@ -578,7 +572,6 @@ def buildSailfishIndex(infile, outfile):
     Builds a sailfish index for the reference transcriptome
     Parameters
     ----------
-
     infile: str
        path to reference transcriptome - fasta file containing transcript
        sequences
