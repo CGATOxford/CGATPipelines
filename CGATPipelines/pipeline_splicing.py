@@ -195,61 +195,12 @@ DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 @files(PARAMS["annotations_interface_geneset_all_gtf"],
        "geneset.gtf")
 def buildGtf(infile, outfile):
-    '''creates a gtf
+    '''creates a gtf'''
 
-    This takes ensembl annotations (geneset_all.gtf.gz) and writes out
-    all entries that have a 'source' match to "rRNA" or 'contig' match
-    to "chrM" for use as a mask.
+    outdir = os.getcwd()
+    statement = "gunzip -c %(infile)s > %(outdir)s/%(outfile)s"
 
-    Parameters
-    ----------
-
-    infile : string
-        :term:`gtf` file of ensembl annotations e.g. geneset_all.gtf.gz
-
-    annotations_interface_table_gene_info : string
-        :term:`PARAMS` gene_info table in annotations database - set
-        in pipeline.ini in annotations directory
-
-    annotations_interface_table_gene_stats : string
-        :term:`PARAMS` gene_stats table in annotations database
-        - set in pipeline.ini in annotations directory
-
-    outfile : string
-
-        A :term:`gtf` file for use as "mask file" for cufflinks.  This
-        is created by filtering infile for certain transcripts e.g.
-        rRNA or chrM transcripts and writing them to outfile
-
-    '''
-
-    dbh = connect()
-
-    try:
-        select = dbh.execute("""SELECT DISTINCT gene_id FROM %s
-        WHERE gene_biotype = 'rRNA';""" % os.path.basename(
-            PARAMS["annotations_interface_table_gene_info"]))
-        rrna_list = [x[0] for x in select]
-    except sqlite3.OperationalError as e:
-        E.warn("can't select rRNA annotations, error='%s'" % str(e))
-        rrna_list = []
-
-    try:
-        select2 = dbh.execute("""SELECT DISTINCT gene_id FROM %s
-        WHERE contig = 'chrM';""" % os.path.basename(
-            PARAMS["annotations_interface_table_gene_stats"]))
-        chrM_list = [x[0] for x in select2]
-    except sqlite3.OperationalError as e:
-        E.warn("can't select rRNA annotations, error='%s'" % str(e))
-        chrM_list = []
-
-    geneset = IOTools.openFile(infile)
-    outf = IOTools.openFile(outfile, "wb")
-    for entry in GTF.iterator(geneset):
-        if entry.gene_id not in rrna_list or entry.gene_id not in chrM_list:
-            outf.write(str(entry))
-
-    outf.close()
+    P.run()
 
 
 @transform(buildGtf,
@@ -359,12 +310,14 @@ def runMATS(infile, outfile):
     '''run rMATS.'''
 
     gtffile = os.path.abspath("geneset.gtf")
+    strand = PARAMS["MATS_libtype"]
 
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
     PipelineSplicing.runRMATS(gtffile=gtffile, designfile=infile,
-                              pvalue=PARAMS["MATS_cutoff"], outfile=outfile)
+                              pvalue=PARAMS["MATS_cutoff"],
+                              strand=strand, outfile=outfile)
 
 
 @follows(runMATS)
@@ -399,6 +352,7 @@ def runDEXSeq(infile,
     gfffile = os.path.abspath("geneset.gff")
     dexseq_fdr = 0.05
     model = PARAMS["DEXSeq_model"]
+    contrast = PARAMS["DEXSeq_contrast"]
 
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
@@ -412,6 +366,7 @@ def runDEXSeq(infile,
     --fdr=%(dexseq_fdr)s
     --model=%(model)s
     --dexseq-counts-dir=%(countsdir)s
+    --contrast=%(contrast)s
     --dexseq-flattened-file=%(gfffile)s;
     ''' % locals()
 

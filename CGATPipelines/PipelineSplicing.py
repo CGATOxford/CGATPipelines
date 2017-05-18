@@ -1,3 +1,4 @@
+
 #########################################################################
 #
 #   MRC FGU Computational Genomics Group
@@ -64,7 +65,7 @@ import CGAT.Expression as Expression
 import CGATPipelines.Pipeline as P
 
 
-def runRMATS(gtffile, designfile, pvalue, outfile):
+def runRMATS(gtffile, designfile, pvalue, strand, outfile):
     '''DEExperiment object to generate differential splicing events
     using rMATS
     '''
@@ -83,11 +84,12 @@ def runRMATS(gtffile, designfile, pvalue, outfile):
     -o %(outfile)s
     -len %(readlength)s
     -c %(pvalue)s
+    -libType %(strand)s
     ''' % locals()
 
     # Specify paired design
     if design.has_pairs:
-        statement += "-analysis P "
+        statement += '''analysis P '''
 
     # Get Insert Size Statistics if Paired End Reads
     if BamTools.isPaired(design.samples[0]+".bam"):
