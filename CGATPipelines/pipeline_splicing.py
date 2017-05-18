@@ -125,11 +125,9 @@ import sqlite3
 from rpy2.robjects import r as R
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
-import CGAT.Expression as Expression
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
-import CGAT.Counts as Counts
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineSplicing as PipelineSplicing
 
@@ -267,7 +265,8 @@ def buildGff(infile, outfile):
     '''Creates a gff for DEXSeq
 
     This takes the gtf and flattens it to an exon based input
-    required by DEXSeq
+    required by DEXSeq. The required python script is provided by DEXSeq
+    and uses HTSeqCounts.
 
     Parameters
     ----------
@@ -280,10 +279,12 @@ def buildGff(infile, outfile):
 
     ps = PYTHONSCRIPTSDIR
 
-    statement = '''python %(ps)s/dexseq_prepare_annotation.py %(infile)s %(outfile)s'''
+    statement = '''python %(ps)s/dexseq_prepare_annotation.py
+                %(infile)s %(outfile)s'''
     P.run()
 
 
+@mkdir("counts.dir")
 @transform(glob.glob("*.bam"),
            regex("(\S+).bam"),
            add_inputs(buildGff),
@@ -335,7 +336,7 @@ def aggregateExonCounts(infiles, outfile):
     Parameters
     ---------
     infiles : list
-        a list of `tsv.gz` files from the feature_counts.dir that were the
+        a list of `tsv.gz` files from the feature_countsle.dir that were the
         output from feature counts
     outfile : string
         a filename denoting the file containing a matrix of counts with genes
@@ -359,24 +360,33 @@ def aggregateExonCounts(infiles, outfile):
 @mkdir("results.dir/rMATS")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/rMATS/\1.dir")
+           r"results.dir/rMATS/\1.dir/summary.txt")
 def runMATS(infile, outfile):
     '''run rMATS.'''
-
-    if not os.path.exists(outfile):
-        os.makedirs(outfile)
 
     gtffile = os.path.abspath("geneset.gtf")
 
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    m = PipelineSplicing.rMATS(gtf=gtffile, design=infile,
-                               pvalue=PARAMS["MATS_cutoff"])
+    PipelineSplicing.runRMATS(gtffile=gtffile, designfile=infile,
+                              pvalue=PARAMS["MATS_cutoff"], outfile=outfile)
 
-    statement = m.build(outfile)
 
-    P.run()
+@follows(runMATS)
+@mkdir("results.dir/sashimi")
+@transform(runMATS,
+           regex("results.dir/rMATS/(\S+).dir/summary.txt"),
+           add_inputs(r"\1.design.tsv"),
+           r"results.dir/sashimi/\1.dir")
+def runSashimi(infiles, outfile):
+
+    infile, design = infiles
+    gtffile = os.path.abspath("geneset.gtf")
+
+    splice_events = ["SE", "A5SS", "A3SS", "MXE", "RI"]
+    for event in splice_events:
+        PipelineSplicing.rmats2sashimi(infile, design, gtffile, event, outfile)
 
 
 @follows(aggregateExonCounts)
@@ -393,19 +403,28 @@ def runDEXSeq(infile,
 
     countsdir = "counts.dir/"
     gfffile = os.path.abspath("geneset.gff")
+    dexseq_fdr = 0.05
+    model = PARAMS["DEXSeq_model"]
 
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    m = PipelineSplicing.DEXSeq(gtf=gfffile, design=infile, countsdir=countsdir,
-                                model=PARAMS["DEXSeq_model"])
-
-    statement = m.build(outfile)
+    statement = '''
+    python %%(scriptsdir)s/counts2table.py
+    --design-tsv-file=%(infile)s
+    --output-filename-pattern=%(outfile)s/
+    --log=%(outfile)s/DEXSeq.log
+    --method=dexseq
+    --fdr=%(dexseq_fdr)s
+    --model=%(model)s
+    --dexseq-counts-dir=%(countsdir)s
+    --dexseq-flattened-file=%(gfffile)s;
+    ''' % locals()
 
     P.run()
 
 
-@follows(runMATS)
+@follows(runSashimi)
 def full():
     pass
 
