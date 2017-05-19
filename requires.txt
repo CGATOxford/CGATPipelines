@@ -28,7 +28,7 @@ toposort>=1.5
 mygene>=3.0.0
 
 # note: does not install as a requirement, but directly via pip is ok
-pyBigWig>=0.3.3
+# pyBigWig>=0.3.3
 
 ruffus>=2.4
 scipy>=0.11
