@@ -10,11 +10,11 @@
 suffix="${1##*.}"
 
 fn=$1
-printf "%s\t" $fn
+printf "%s\t" "$fn"
 shift
 
 if [[ $suffix = 'gz' ]]; then
-    zcat $fn | grep -v '^#' | "$@"
+    zcat "$fn" | grep -v '^#' | "$@"
 else
-    cat $fn | grep -v '^#' | "$@"
+    cat "$fn" | grep -v '^#' | "$@"
 fi
