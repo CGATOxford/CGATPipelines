@@ -134,15 +134,13 @@ def rmats2sashimi(infile, designfile, gtffile, event, outfile):
     outfile2 = outfile + "/" + event
 
     results = "%s/MATS_output/%s.MATS.JunctionCountOnly.txt" % (os.path.dirname(infile), event)
-    E.warn(results)
-    E.warn(group1)
-    E.warn(group2)
-    E.warn(event)
-    E.warn(group1name)
-    E.warn(group2name)
-    E.warn(outfile2)
 
-    statement = '''rmats2sashimiplot
+    statement = '''cat
+    %(results)s|grep -v NA > nona_%(results)s;
+    checkpoint;
+    '''
+
+    statement += '''rmats2sashimiplot
     -b1 %(group1)s
     -b2 %(group2)s
     -t %(event)s
