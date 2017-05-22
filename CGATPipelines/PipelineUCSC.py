@@ -93,8 +93,7 @@ def getRepeatsFromUCSC(dbhandle,
     # individual ``rmsk`` tables (mm9) like chr1_rmsk, chr2_rmsk, ....
     # In order to do a single statement, the ucsc mysql database is
     # queried for tables that end in rmsk.
-    cc = dbhandle.cursor()
-    cc.execute("SHOW TABLES LIKE '%rmsk'")
+    cc = dbhandle.execute("SHOW TABLES LIKE '%%rmsk'")
     tables = [x[0] for x in cc.fetchall()]
     if len(tables) == 0:
         raise ValueError("could not find any `rmsk` tables")
@@ -104,7 +103,6 @@ def getRepeatsFromUCSC(dbhandle,
 
     for table in tables:
 
-        cc = dbhandle.cursor()
         sql = """SELECT genoName, 'repeat', 'exon', genoStart+1, genoEnd,
         '.', strand, '.',
         CONCAT('class \\"', repClass, '\\"; family \\"',
@@ -119,7 +117,7 @@ def getRepeatsFromUCSC(dbhandle,
         sql = sql % locals()
 
         E.debug("executing sql statement: %s" % sql)
-        cc.execute(sql)
+        cc = dbhandle.execute(sql)
         for data in cc.fetchall():
             tmpfile.write("\t".join(map(str, data)) + "\n")
 
@@ -175,8 +173,7 @@ def getRefSeqFromUCSC(dbhandle, outfile, remove_duplicates=False):
     duplicates = set()
 
     if remove_duplicates:
-        cc = dbhandle.cursor()
-        cc.execute("""SELECT name, COUNT(*) AS c FROM refGene
+        cc = dbhandle.execute("""SELECT name, COUNT(*) AS c FROM refGene
         WHERE chrom NOT LIKE '%_random'
         GROUP BY name HAVING c > 1""")
         duplicates = set([x[0] for x in cc.fetchall()])
@@ -195,8 +192,7 @@ def getRefSeqFromUCSC(dbhandle, outfile, remove_duplicates=False):
 
     outf = IOTools.openFile(outfile, "w")
 
-    cc = dbhandle.cursor()
-    cc.execute(statement)
+    cc = dbhandle.execute(statement)
 
     SQLResult = collections.namedtuple(
         'Result',
@@ -274,7 +270,6 @@ def getCpGIslandsFromUCSC(dbhandle, outfile):
        Filename of output file in :term:`bed` format.
     '''
 
-    cc = dbhandle.cursor()
     table = "cpgIslandExt"
     sql = """SELECT chrom, chromStart, chromEnd, name
     FROM %(table)s ORDER by chrom, chromStart"""
@@ -282,7 +277,7 @@ def getCpGIslandsFromUCSC(dbhandle, outfile):
 
     E.debug("executing sql statement: %s" % sql)
     try:
-        cc.execute(sql)
+        cc = dbhandle.execute(sql)
         outfile = IOTools.openFile(outfile, "w")
         for data in cc.fetchall():
             outfile.write("\t".join(map(str, data)) + "\n")
