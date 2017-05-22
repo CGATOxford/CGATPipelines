@@ -212,7 +212,7 @@ def setupTests(infile, outfile):
     track = P.snip(outfile, ".tgz")
 
     if os.path.exists(track + ".dir"):
-        raise OSError('directory %s.dir already exists' % track)
+        raise OSError('directory %s.dir already exists, please delete' % track)
 
     # create directory
     os.mkdir(track + ".dir")
