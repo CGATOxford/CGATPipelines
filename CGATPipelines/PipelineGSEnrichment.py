@@ -723,7 +723,7 @@ class FlatFileParser(AnnotationParser):
         TermsToOnt = dict()
         Tname = None
         isas = set()
-        with IOTools.openFile(self.options['ont']) as infile:
+        with IOTools.openFile(self.options['ont'], encoding="utf-8") as infile:
             for line in infile:
                 line = line.strip()
                 if line.startswith("id"):
