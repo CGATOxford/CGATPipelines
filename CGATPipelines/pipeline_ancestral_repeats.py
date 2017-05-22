@@ -308,19 +308,17 @@ def importRepeatsFromUCSC(infile, outfile, ucsc_database, repeattypes, genome):
         user=PARAMS["ucsc_user"],
         database=ucsc_database)
 
-    cc = dbhandle.cursor()
-    cc.execute("SHOW TABLES LIKE '%rmsk'")
+    cc = dbhandle.execute("SHOW TABLES LIKE '%%rmsk'")
     tables = [x[0] for x in cc.fetchall()]
     if len(tables) == 0:
         raise ValueError("could not find any `rmsk` tables")
 
-    tmpfile = P.getTempFile(".")
+    tmpfile = P.getTempFile(shared=True)
 
     total_repeats = 0
     for table in tables:
         E.info("%s: loading repeats from %s" % (ucsc_database, table))
-        cc = dbhandle.cursor()
-        cc.execute(
+        cc = dbhandle.execute(
             """SELECT genoName, 'repeat', 'exon', genoStart+1, genoEnd, '.',
             strand, '.',
             CONCAT('class \\"', repClass, '\\"; family \\"', repFamily, '\\";')
