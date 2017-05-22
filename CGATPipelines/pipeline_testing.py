@@ -328,6 +328,7 @@ def buildCheckSums(infile, outfile):
     as gzip stores meta information such as the time stamp.
     '''
 
+    to_cluster = False
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
@@ -362,6 +363,7 @@ def buildLineCounts(infile, outfile):
     Files are uncompressed before computing the number of lines.
     '''
 
+    to_cluster = False
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
@@ -395,6 +397,7 @@ def checkFileExistence(infile, outfile):
     Files are uncompressed before checking existence.
     '''
 
+    to_cluster = False
     track = P.snip(infile, ".log")
 
     suffixes = P.asList(PARAMS.get(
@@ -423,6 +426,8 @@ def checkFileExistence(infile, outfile):
          r"\1.stats")
 def mergeFileStatistics(infiles, outfile):
     '''merge all file statistics.'''
+
+    to_cluster = False
     infiles = " ".join(sorted(infiles))
 
     statement = '''
@@ -438,6 +443,7 @@ def compareCheckSums(infiles, outfile):
     '''compare checksum files against existing reference data.
     '''
 
+    to_cluster = False
     outf = IOTools.openFile(outfile, "w")
     outf.write("\t".join((
         ("track", "status",
@@ -563,6 +569,7 @@ def full():
 @files(None, 'reset.log')
 def reset(infile, outfile):
     '''remove all data in pipeline.'''
+
     to_cluster = False
 
     statement = '''

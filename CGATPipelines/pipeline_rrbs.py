@@ -168,7 +168,6 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 
 from rpy2.robjects import R
 import numpy as np
-import pandas.rpy.common as com
 ###################################################
 ###################################################
 ###################################################
