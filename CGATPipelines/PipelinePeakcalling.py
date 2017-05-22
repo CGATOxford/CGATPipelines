@@ -267,15 +267,14 @@ def getCounts(contig, start, end, samfiles, offsets=[]):
 
                 rend = rstart + shift
                 rstart = max(0, rstart - start)
-                rend = min(length, rend - start)
+                rend = max(0, min(length, rend - start))
                 counts[rstart:rend] += 1
-
     else:
         for samfile in samfiles:
             for read in samfile.fetch(contig, start, end):
                 nreads += 1
                 rstart = max(0, read.pos - start)
-                rend = min(length, read.pos - start + read.rlen)
+                rend = max(0, min(length, read.pos - start + read.rlen))
                 counts[rstart:rend] += 1
     return nreads, counts
 
