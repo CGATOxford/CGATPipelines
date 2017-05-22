@@ -56,7 +56,7 @@ def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
     """
 
     dbhandle = sqlalchemy.create_engine(
-        "mysql://{user}:{database}@{host}".format(
+        "mysql://{user}@{host}/{database}".format(
             host=host,
             user=user,
             database=database))
