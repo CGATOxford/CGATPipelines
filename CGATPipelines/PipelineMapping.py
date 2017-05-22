@@ -209,7 +209,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
 
     c = E.Counter()
 
-    outf = gzip.open(outfile, "w")
+    outf = IOTools.openFile(outfile, "w")
 
     E.info("filtering by contig and removing long introns")
     contigs = set(IndexedFasta.IndexedFasta(genome).getContigs())
