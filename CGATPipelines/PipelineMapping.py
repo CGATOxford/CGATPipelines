@@ -1169,7 +1169,7 @@ class FastqScreen(Mapper):
             raise ValueError(
                 "unexpected number read files to map: %i " % nfiles)
 
-        statement = '''fastq_screen %%(fastq_screen_options)s
+        statement = '''fastq_screen %%(fastq_screen_options)s --threads=%%(fastq_screen_threads)s
                     --outdir %%(outdir)s --conf %%(tempdir)s/fastq_screen.conf
                     %(input_files)s;''' % locals()
         return statement
