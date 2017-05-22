@@ -2001,8 +2001,10 @@ if PARAMS["genome"].startswith("hg"):
             os.remove(outfile)
             # MM: this is hard-coded - the URL can (and has) changed, so
             # this should be defined in the pipeline config file
-        statement = '''wget http://www.genome.gov/admin/gwascatalog.txt
-        -O %(outfile)s'''
+            # AH: Moved to EBI, download needs to be updated
+        statement = '''curl https://www.genome.gov/admin/gwascatalog.txt 
+        | sed 's/[\d128-\d255]//g'
+        > %(outfile)s'''
         P.run()
 
     @merge(downloadGWASCatalog, PARAMS["interface_gwas_catalog_bed"])
@@ -2031,7 +2033,8 @@ if PARAMS["genome"].startswith("hg"):
           :term:`BED` format file of GWAS catalog entries
         '''
 
-        reader = csv.DictReader(IOTools.openFile(infile), dialect="excel-tab")
+        reader = csv.DictReader(IOTools.openFile(infile),
+                                dialect="excel-tab")
 
         tracks = collections.defaultdict(lambda: collections.defaultdict(list))
 
@@ -2939,7 +2942,7 @@ def summary():
          ensembl,
          ucsc,
          geneset,
-         fasta,
+         # fasta,   # AH disabled for now, peptides2cds missing
          ontologies,
          annotations,
          enrichment,
