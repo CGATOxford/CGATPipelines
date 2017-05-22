@@ -183,7 +183,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
     ---------
     infile : string
        Input filename in :term:`gtf` format
-#    outfile : string
+    outfile : string
        Output filename in :term:`gtf` format
     logfile : string
        Output filename for logging information.
@@ -343,8 +343,8 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     outfile : string
        Output filename in :term:`gtf` format
     """
-    tmpfile1 = P.getTempFilename(".")
-    tmpfile2 = P.getTempFilename(".")
+    tmpfile1 = P.getTempFilename(shared=True)
+    tmpfile2 = P.getTempFilename(shared=True)
 
     #################################################
     E.info("adding tss_id and p_id")
@@ -361,14 +361,19 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     # files
     job_memory = "5G"
 
+    if infile.endswith(".gz"):
+        cat = "zcat"
+    else:
+        cat = "cat"
+    
     statement = '''
-    cuffcompare -r <( gunzip < %(infile)s )
+    cuffcompare -r <( %(cat)s %(infile)s )
          -T
          -s %(genome)s.fa
          -o %(tmpfile1)s
-         <( gunzip < %(infile)s )
-         <( gunzip < %(infile)s )
-    > %(outfile)s.log
+         <( %(cat)s %(infile)s )
+         <( %(cat)s %(infile)s )
+    >& %(outfile)s.log
     '''
     P.run()
 
@@ -421,10 +426,10 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     PipelineGeneset.sortGTF(tmpfile2, outfile)
 
     # make sure tmpfile1 is NEVER empty
-    assert tmpfile1
-    for x in glob.glob(tmpfile1 + "*"):
-        os.unlink(x)
-    os.unlink(tmpfile2)
+    # assert tmpfile1
+    # for x in glob.glob(tmpfile1 + "*"):
+    #     os.unlink(x)
+    # os.unlink(tmpfile2)
 
 
 class SequenceCollectionProcessor(object):
