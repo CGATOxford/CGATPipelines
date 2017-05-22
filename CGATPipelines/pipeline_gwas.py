@@ -2376,7 +2376,7 @@ def plotLdExcludedEpistasis(infile, outfile):
 #######################################################
 
 @follows(convertToRawFormat)
-@transform("%s" % PARAMS['epistasis_set'],
+@transform("%s.set" % PARAMS['epistasis_set'],
            regex("epistasis.dir/(.+).set"),
            add_inputs([r"epistasis.dir/GwasHits.bed",
                        r"covariates.dir/WholeGenome.covar",
@@ -2413,16 +2413,43 @@ def makeCassiFiles(infiles, outfile):
 
     P.run()
 
-
+# split by chromosome first
 
 @follows(convertToRawFormat,
          makeCassiFiles)
-@transform("epistasis.dir/GwasHits.bed",
+@subdivide("epistasis.dir/GwasHits.bed",
            regex("epistasis.dir/(.+).bed"),
-           add_inputs([r"epistasis.dir/\1.bed",
+           add_inputs(r"epistasis.dir/\1.bim"),
+           r"epistasis.dir/split_chromosomes.txt")
+def splitByChromosome(infiles, outfile):
+    '''
+    Split cassi plink format files by chromosome
+    to make parallelisation easier.
+    '''
+
+    bim_file = infiles[1]
+    plink_prefix = infiles[0].rstrip(".bed")
+
+    statement = '''
+  
+    for chr in `awk '{print $1}' %(bim_file)s | uniq` ;
+    do plink2 --bfile %(plink_prefix)s --chr $chr --make-bed --out epistasis.dir/chr$chr\.epi_cassi ;
+    done;
+    touch %(outfile)s
+    '''
+
+    P.run()
+
+
+@follows(convertToRawFormat,
+         makeCassiFiles,
+         splitByChromosome)
+@transform("epistasis.dir/*.epi_cassi.bed",
+           regex("epistasis.dir/chr(.+).epi_cassi.bed"),
+           add_inputs([r"epistasis.dir/chr\1.epi_cassi.bed",
                        r"covariates.dir/WholeGenome.covar",
                        r"exclusions.dir/WholeGenome.gwas_exclude"]),
-           r"epistasis.dir/\1-cassi.bed")
+           r"epistasis.dir/chr\1-cassi.bed")
 def makeOtherCassiFiles(infiles, outfile):
     '''
     Create two sets of files for cassi, the first input
@@ -2431,6 +2458,7 @@ def makeOtherCassiFiles(infiles, outfile):
     individuals covariates.  cassi does not do the
     inplace filtering and joining that plink does
     so files need to be matched exactly for individuals
+    Need to break this down by chromosome.
     '''
 
     job_memory = "60G"
@@ -2446,7 +2474,7 @@ def makeOtherCassiFiles(infiles, outfile):
     --bfile %(bed_file)s
     --remove %(exclude)s
     --make-bed
-    --min-allele-frequency=0.005
+    --maf 0.005
     --covar %(covar)s
     --out %(out_pattern)s
     '''
@@ -2456,14 +2484,13 @@ def makeOtherCassiFiles(infiles, outfile):
 
 @follows(mergeGenotypeAndCovariates,
          excludeLdVariants,
-         plotLdExcludedEpistasis,
          makeCassiFiles,
          makeOtherCassiFiles,
          mkdir("unadjusted_epistasis.dir"))
-@transform(makeCassiFiles,
-           regex("epistasis.dir/(.+).cov"),
-           add_inputs([r"epistasis.dir/GwasHits-cassi.bed",
-                       r"epistasis.dir/\1.bed"]),
+@transform(makeOtherCassiFiles,
+           regex("epistasis.dir/(.+)-cassi.bed"),
+           add_inputs([makeCassiFiles,
+                       r"%s.bed" % PARAMS['epistasis_set']]),
            r"epistasis.dir/\1.cassi.epi")
 def testAdjustedEpistasis(infiles, outfile):
     '''
@@ -2481,10 +2508,10 @@ def testAdjustedEpistasis(infiles, outfile):
     job_memory = "150G"
     job_threads = 1
 
-    bed1_file = infiles[1][0]
-    bed2_file = infiles[1][1]
+    bed2_file = infiles[0]
+    bed1_file = infiles[1][1]
     
-    covar_file = infiles[0]
+    covar_file = infiles[1][0]
 
     statement = '''
     cassi
@@ -2534,7 +2561,6 @@ def plotAdjustedEpistasis(infile, outfile):
     
 @follows(mergeGenotypeAndCovariates,
          excludeLdVariants,
-         plotLdExcludedEpistasis,
          makeCassiFiles,
          makeOtherCassiFiles,
          testAdjustedEpistasis,
