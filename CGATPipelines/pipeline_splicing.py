@@ -131,6 +131,13 @@ import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineSplicing as PipelineSplicing
 
+
+###################################################################
+###################################################################
+###################################################################
+# Load options and annotations
+###################################################################
+
 # load options from the config file
 PARAMS = P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
@@ -138,10 +145,6 @@ PARAMS = P.getParameters(
      "pipeline.ini"])
 
 # add configuration values from associated pipelines
-#
-# 1. pipeline_annotations: any parameters will be added with the
-#    prefix "annotations_". The interface will be updated with
-#    "annotations_dir" to point to the absolute path names.
 PARAMS = P.PARAMS
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
@@ -158,8 +161,12 @@ PYTHONSCRIPTSDIR = R('''
     f()''').tostring()
 
 
-# -----------------------------------------------
+###################################################################
+###################################################################
+###################################################################
 # Utility functions
+###################################################################
+
 def connect():
     '''Connect to database (sqlite by default)
 
@@ -187,9 +194,12 @@ Sample = PipelineTracks.AutoSample
 DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.design.tsv"), "(\S+).design.tsv")
 
-# ---------------------------------------------------
-# Specific pipeline tasks
 
+###################################################################
+###################################################################
+###################################################################
+# DEXSeq workflow
+###################################################################
 
 @mkdir("results.dir")
 @files(PARAMS["annotations_interface_geneset_all_gtf"],
@@ -294,50 +304,6 @@ def aggregateExonCounts(infiles, outfile):
     P.run()
 
 
-@mkdir("results.dir/rMATS")
-@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
-           regex("(\S+).design.tsv"),
-           add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
-           [r"results.dir/rMATS/\1.dir/MATS_output/%s.MATS.JunctionCountOnly.txt" % x for x in ["SE", "A5SS", "A3SS", "MXE", "RI"]])
-def runMATS(infiles, outfile):
-    '''run rMATS.'''
-
-    design, gtffile = infiles
-    tmpgff = P.getTempFilename(".")
-    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
-    P.run()
-
-    strand = PARAMS["MATS_libtype"]
-
-    # job_threads = PARAMS["MATS_threads"]
-    # job_memory = PARAMS["MATS_memory"]
-
-    PipelineSplicing.runRMATS(gtffile=tmpgff, designfile=infile,
-                              pvalue=PARAMS["MATS_cutoff"],
-                              strand=strand, outfile=outfile)
-
-    os.unlink(tmpgff)
-
-
-
-@mkdir("results.dir/sashimi")
-@transform(runMATS,
-           regex("results.dir/rMATS/(\S+).dir/MATS_output/(\S+).MATS.JunctionCountOnly.txt"),
-           add_inputs(r"\1.design.tsv", PARAMS["annotations_interface_geneset_all_gtf"]),
-           r"results.dir/sashimi/\1.dir/\2")
-def runSashimi(infiles, outfile):
-
-    infile, design, gtffile = infiles
-    tmpgff = P.getTempFilename(".")
-    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
-    P.run()
-    fdr = PARAMS["MATS_fdr"]
-
-    PipelineSplicing.rmats2sashimi(infile, design, tmpgff, fdr, outfile)
-
-    os.unlink (tmpgff)
-
-
 @follows(aggregateExonCounts)
 @mkdir("results.dir/DEXSeq")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
@@ -374,6 +340,61 @@ def runDEXSeq(infile,
 
     P.run()
 
+
+###################################################################
+###################################################################
+###################################################################
+# rMATS workflow
+###################################################################
+
+@mkdir("results.dir/rMATS")
+@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
+           regex("(\S+).design.tsv"),
+           add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
+           [r"results.dir/rMATS/\1.dir/MATS_output/%s.MATS.JunctionCountOnly.txt" % x for x in ["SE", "A5SS", "A3SS", "MXE", "RI"]])
+def runMATS(infiles, outfile):
+    '''run rMATS.'''
+
+    design, gtffile = infiles
+    tmpgff = P.getTempFilename(".")
+    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
+    P.run()
+
+    strand = PARAMS["MATS_libtype"]
+
+    # job_threads = PARAMS["MATS_threads"]
+    # job_memory = PARAMS["MATS_memory"]
+
+    PipelineSplicing.runRMATS(gtffile=tmpgff, designfile=infile,
+                              pvalue=PARAMS["MATS_cutoff"],
+                              strand=strand, outfile=outfile)
+
+    os.unlink(tmpgff)
+
+
+@mkdir("results.dir/sashimi")
+@transform(runMATS,
+           regex("results.dir/rMATS/(\S+).dir/MATS_output/(\S+).MATS.JunctionCountOnly.txt"),
+           add_inputs(r"\1.design.tsv", PARAMS["annotations_interface_geneset_all_gtf"]),
+           r"results.dir/sashimi/\1.dir/\2")
+def runSashimi(infiles, outfile):
+
+    infile, design, gtffile = infiles
+    tmpgff = P.getTempFilename(".")
+    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
+    P.run()
+    fdr = PARAMS["MATS_fdr"]
+
+    PipelineSplicing.rmats2sashimi(infile, design, tmpgff, fdr, outfile)
+
+    os.unlink(tmpgff)
+
+
+###################################################################
+###################################################################
+###################################################################
+# Pipeline management
+###################################################################
 
 @follows(runSashimi)
 def full():
