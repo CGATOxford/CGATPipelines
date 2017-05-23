@@ -193,19 +193,7 @@ DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
 
 @mkdir("results.dir")
 @files(PARAMS["annotations_interface_geneset_all_gtf"],
-       "geneset.gtf")
-def buildGtf(infile, outfile):
-    '''creates a gtf'''
-
-    outdir = os.getcwd()
-    statement = "gunzip -c %(infile)s > %(outdir)s/%(outfile)s"
-
-    P.run()
-
-
-@transform(buildGtf,
-           suffix(".gtf"),
-           ".gff")
+       "geneset_flat.gff")
 def buildGff(infile, outfile):
     '''Creates a gff for DEXSeq
 
@@ -222,11 +210,16 @@ def buildGff(infile, outfile):
     outfile : string
         A :term:`gff` file for use in DEXSeq'''
 
-    ps = PYTHONSCRIPTSDIR
-
-    statement = '''python %(ps)s/dexseq_prepare_annotation.py
-                %(infile)s %(outfile)s'''
+    tmpgff = P.getTempFilename(".")
+    statement = "gunzip -c %(infile)s > %(tmpgff)s"
     P.run()
+
+    ps = PYTHONSCRIPTSDIR
+    statement = '''python %(ps)s/dexseq_prepare_annotation.py
+                %(tmpgff)s %(outfile)s'''
+    P.run()
+
+    os.unlink(tmpgff)
 
 
 @mkdir("counts.dir")
@@ -301,39 +294,48 @@ def aggregateExonCounts(infiles, outfile):
     P.run()
 
 
-@follows(buildGtf)
 @mkdir("results.dir/rMATS")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/rMATS/\1.dir/summary.txt")
-def runMATS(infile, outfile):
+           add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
+           [r"results.dir/rMATS/\1.dir/MATS_output/%s.MATS.JunctionCountOnly.txt" % x for x in ["SE", "A5SS", "A3SS", "MXE", "RI"]])
+def runMATS(infiles, outfile):
     '''run rMATS.'''
 
-    gtffile = os.path.abspath("geneset.gtf")
+    design, gtffile = infiles
+    tmpgff = P.getTempFilename(".")
+    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
+    P.run()
+
     strand = PARAMS["MATS_libtype"]
 
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    PipelineSplicing.runRMATS(gtffile=gtffile, designfile=infile,
+    PipelineSplicing.runRMATS(gtffile=tmpgff, designfile=infile,
                               pvalue=PARAMS["MATS_cutoff"],
                               strand=strand, outfile=outfile)
 
+    os.unlink(tmpgff)
 
-@follows(runMATS)
+
+
 @mkdir("results.dir/sashimi")
 @transform(runMATS,
-           regex("results.dir/rMATS/(\S+).dir/summary.txt"),
-           add_inputs(r"\1.design.tsv"),
-           r"results.dir/sashimi/\1.dir")
+           regex("results.dir/rMATS/(\S+).dir/MATS_output/(\S+).MATS.JunctionCountOnly.txt"),
+           add_inputs(r"\1.design.tsv", PARAMS["annotations_interface_geneset_all_gtf"]),
+           r"results.dir/sashimi/\1.dir/\2")
 def runSashimi(infiles, outfile):
 
-    infile, design = infiles
-    gtffile = os.path.abspath("geneset.gtf")
+    infile, design, gtffile = infiles
+    tmpgff = P.getTempFilename(".")
+    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
+    P.run()
+    fdr = PARAMS["MATS_fdr"]
 
-    splice_events = ["SE", "A5SS", "A3SS", "MXE", "RI"]
-    for event in splice_events:
-        PipelineSplicing.rmats2sashimi(infile, design, gtffile, event, outfile)
+    PipelineSplicing.rmats2sashimi(infile, design, tmpgff, fdr, outfile)
+
+    os.unlink (tmpgff)
 
 
 @follows(aggregateExonCounts)

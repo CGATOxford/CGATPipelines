@@ -111,7 +111,7 @@ def runRMATS(gtffile, designfile, pvalue, strand, outfile):
     P.run()
 
 
-def rmats2sashimi(infile, designfile, gtffile, event, outfile):
+def rmats2sashimi(infile, designfile, gtffile, FDR, outfile):
 
     Design = Expression.ExperimentalDesign(designfile)
     if len(Design.groups) != 2:
@@ -131,23 +131,20 @@ def rmats2sashimi(infile, designfile, gtffile, event, outfile):
     group2 = ",".join(["%s.bam" % x for x in g2])
     group1name = Design.groups[0]
     group2name = Design.groups[1]
-    outfile2 = outfile + "/" + event
-
-    results = "%s/MATS_output/%s.MATS.JunctionCountOnly.txt" % (os.path.dirname(infile), event)
+    event = os.path.basename(os.path.normpath(outfile))
 
     statement = '''cat
-    %(results)s|grep -v NA > nona_%(results)s;
+    %(infile)s|grep -v NA|
+    awk '$20 < %(FDR)s' > %(infile)s_sig.txt;
     checkpoint;
-    '''
-
-    statement += '''rmats2sashimiplot
+    rmats2sashimiplot
     -b1 %(group1)s
     -b2 %(group2)s
     -t %(event)s
-    -e %(results)s
+    -e %(infile)s_sig.txt
     -l1 %(group1name)s
     -l2 %(group2name)s
-    -o %(outfile2)s
+    -o %(outfile)s; checkpoint;
     ''' % locals()
 
     P.run()
