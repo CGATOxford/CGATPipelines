@@ -111,7 +111,7 @@ def runRMATS(gtffile, designfile, pvalue, strand, outfile):
     P.run()
 
 
-def rmats2sashimi(infile, designfile, gtffile, FDR, outfile):
+def rmats2sashimi(infile, designfile, FDR, outfile):
 
     Design = Expression.ExperimentalDesign(designfile)
     if len(Design.groups) != 2:
@@ -138,12 +138,12 @@ def rmats2sashimi(infile, designfile, gtffile, FDR, outfile):
     awk '$20 < %(FDR)s' > %(infile)s_sig.txt;
     checkpoint;
     rmats2sashimiplot
-    -b1 %(group1)s
-    -b2 %(group2)s
+    --b1 %(group1)s
+    --b2 %(group2)s
     -t %(event)s
     -e %(infile)s_sig.txt
-    -l1 %(group1name)s
-    -l2 %(group2name)s
+    --l1 %(group1name)s
+    --l2 %(group2name)s
     -o %(outfile)s; checkpoint;
     ''' % locals()
 

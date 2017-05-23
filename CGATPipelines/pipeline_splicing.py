@@ -375,19 +375,14 @@ def runMATS(infiles, outfile):
 @mkdir("results.dir/sashimi")
 @transform(runMATS,
            regex("results.dir/rMATS/(\S+).dir/MATS_output/(\S+).MATS.JunctionCountOnly.txt"),
-           add_inputs(r"\1.design.tsv", PARAMS["annotations_interface_geneset_all_gtf"]),
+           add_inputs(r"\1.design.tsv"),
            r"results.dir/sashimi/\1.dir/\2")
 def runSashimi(infiles, outfile):
 
-    infile, design, gtffile = infiles
-    tmpgff = P.getTempFilename(".")
-    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
-    P.run()
+    infile, design = infiles
     fdr = PARAMS["MATS_fdr"]
 
-    PipelineSplicing.rmats2sashimi(infile, design, tmpgff, fdr, outfile)
-
-    os.unlink(tmpgff)
+    PipelineSplicing.rmats2sashimi(infile, design, fdr, outfile)
 
 
 ###################################################################
