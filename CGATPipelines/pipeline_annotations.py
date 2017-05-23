@@ -593,7 +593,8 @@ PARAMS = P.getParameters(
 
 # add automatically created files to the interface.  This is required
 # when the pipeline is peek'ed.  The statement below will
-# add the fellowing to the dictionary:
+# add the following to the dictionary:
+#
 # "geneset.dir/lincrna_gene_tss.bed.gz" maps to
 # "interface_geneset_lincrna_gene_tss_bed"
 PARAMS.update(dict([

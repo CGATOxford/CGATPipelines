@@ -468,7 +468,7 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                               sym2ensembl, ['ensemblg',
                                             'symbol_%s' % self.ohost],
                               'ensemblg2symbol_%s.tsv' % self.ohost)
-        ens2symdf = pd.DataFrame(zip(ensembl2sym, sym2ensembl),
+        ens2symdf = pd.DataFrame(list(zip(ensembl2sym, sym2ensembl)),
                                  columns=['ensemblg',
                                           'symbol_%s' % self.ohost])
         res = self.translate(ens2symdf, 'symbol_%s' % self.ohost,

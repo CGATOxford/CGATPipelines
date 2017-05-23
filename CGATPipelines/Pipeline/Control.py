@@ -372,8 +372,10 @@ def peekParameters(workingdir,
     if process.returncode != 0:
         raise OSError(
             ("Child was terminated by signal %i: \n"
-             "The stderr was: \n%s\n") %
-            (-process.returncode, stderr))
+             "Statement: %s\n"
+             "The stderr was: \n%s\n"
+             "Stdout: %s") %
+            (-process.returncode, statement, stderr, stdout))
 
     # subprocess only accepts encoding argument in py >= 3.6 so
     # decode here.

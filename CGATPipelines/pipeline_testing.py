@@ -151,7 +151,7 @@ Code
 ====
 
 """
-from ruffus import *
+from ruffus import files, transform, suffix, follows, merge, collate, regex, mkdir
 import sys
 import pipes
 import os
@@ -175,7 +175,6 @@ P.getParameters(
      "pipeline.ini"])
 
 PARAMS = P.PARAMS
-
 
 # obtain prerequisite generic data
 @files([(None, "%s.tgz" % x)
@@ -317,6 +316,47 @@ def runReports(infile, outfile):
     P.run(ignore_errors=True)
 
 
+def compute_file_metrics(regex_patterns, infile, outfile, metric):
+    """apply a tool to compute metrics on a list of files matching
+    regex_pattern."""
+
+    if regex_patterns is None:
+        E.info("No metrics computed for %s".format(outfile))
+        IOTools.touchFile(outfile)
+        return
+    
+    track = P.snip(infile, ".log")
+    
+    # convert regex patterns to a suffix match:
+    # prepend a .*
+    # append a $
+    regex_pattern = " -or ".join(["-regex .*{}$".format(pipes.quote(x)) for x in P.asList(regex_patterns)])
+
+    E.debug("applying metric {} to files matching {}".format(metric,
+                                                             regex_pattern))
+
+    if metric == "file":
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
+        \( %(regex_pattern)s \)
+        | sort -k1,1
+        > %(outfile)s'''
+    else:
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
+        \( %(regex_pattern)s \)
+        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} %(metric)s \;
+        | perl -p -e "s/ +/\\t/g"
+        | sort -k1,1
+        > %(outfile)s'''
+        
+    P.run()
+
+
 @follows(runReports)
 @transform(runTests,
            suffix(".log"),
@@ -327,30 +367,12 @@ def buildCheckSums(infile, outfile):
     Files are uncompressed before computing the checksum
     as gzip stores meta information such as the time stamp.
     '''
-
     track = P.snip(infile, ".log")
-
-    suffixes = P.asList(PARAMS.get(
-        '%s_suffixes' % track, ""))
-
-    if len(suffixes) == 0:
-        E.info(" No checksums computed for %s" % track)
-        IOTools.touchFile("%s.md5" % track)
-    else:
-        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-        regex_pattern = pipes.quote(regex_pattern)
-        E.debug(" Computing checksum for files "
-                "ending in %s" % ", ".join(suffixes))
-        statement = '''find %(track)s.dir
-        -type f
-        -not -regex '.*\/report.*'
-        -not -regex '.*\/_.*'
-        -regex %(regex_pattern)s
-        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
-        | perl -p -e "s/ +/\\t/g"
-        | sort -k1,1
-        > %(outfile)s'''
-        P.run()
+    compute_file_metrics(
+        PARAMS.get('%s_regex_md5' % track, None),
+        infile,
+        outfile,
+        "md5sum")
 
 
 @transform(runTests,
@@ -361,29 +383,12 @@ def buildLineCounts(infile, outfile):
 
     Files are uncompressed before computing the number of lines.
     '''
-
     track = P.snip(infile, ".log")
-
-    suffixes = P.asList(PARAMS.get(
-        '%s_regex_linecount' % track, ""))
-
-    if len(suffixes) == 0:
-        E.info(" No lines computed for %s" % track)
-        IOTools.touchFile("%s.lines" % track)
-    else:
-        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-        regex_pattern = pipes.quote(regex_pattern)
-        E.debug(" Computing lines for files "
-                "ending in %s" % ", ".join(suffixes))
-        statement = '''find %(track)s.dir
-        -type f
-        -not -regex '.*\/report.*'
-        -not -regex '.*\/_.*'
-        -regex %(regex_pattern)s
-        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
-        | sort -k1,1
-        > %(outfile)s'''
-        P.run()
+    compute_file_metrics(
+        PARAMS.get('%s_regex_linecount' % track, None),
+        infile,
+        outfile,
+        "wc -l")
 
 
 @transform(runTests,
@@ -394,30 +399,14 @@ def checkFileExistence(infile, outfile):
 
     Files are uncompressed before checking existence.
     '''
-
     track = P.snip(infile, ".log")
+    compute_file_metrics(
+        PARAMS.get('%s_regex_exist' % track, None),
+        infile,
+        outfile,
+        metric="file")
 
-    suffixes = P.asList(PARAMS.get(
-        '%s_regex_exist' % track, ""))
-
-    if len(suffixes) == 0:
-        E.info(" No existence checked for %s" % track)
-        IOTools.touchFile("%s.exist" % track)
-    else:
-        regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-        regex_pattern = pipes.quote(regex_pattern)
-        E.debug(" Checking existence of files "
-                "ending in %s" % ", ".join(suffixes))
-        statement = '''find %(track)s.dir
-        -type f
-        -not -regex '.*\/report.*'
-        -not -regex '.*\/_.*'
-        -regex %(regex_pattern)s
-        | sort -k1,1
-        > %(outfile)s'''
-        P.run()
-
-
+    
 @collate((buildCheckSums, buildLineCounts, checkFileExistence),
          regex("([^.]*).(.*)"),
          r"\1.stats")

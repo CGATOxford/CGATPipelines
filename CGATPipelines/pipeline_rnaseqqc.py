@@ -851,8 +851,6 @@ def buildBedContext(outfile):
 
     tmp_bed_sorted_filename = P.getTempFilename(shared=True)
 
-    tmp_bed_sorted = IOTools.openFile(tmp_bed_sorted_filename, "w")
-
     sql_statements = [
         '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "lincRNA"
         FROM gene_info GI
@@ -875,16 +873,17 @@ def buildBedContext(outfile):
         ON GI.gene_id=GTF.gene_id
         WHERE GI.gene_biotype == "protein_coding"''']
 
-    for sql_statement in sql_statements:
-        state = dbh.execute(sql_statement)
+    with IOTools.openFile(tmp_bed_sorted_filename, "w") as tmp_bed_sorted:
+        for sql_statement in sql_statements:
+            state = dbh.execute(sql_statement)
+            for line in state:
+                tmp_bed_sorted.write(("%s\n") % "\t".join(map(str, line)))
 
-        for line in state:
-            tmp_bed_sorted.write(("%s\n") % "\t".join(map(str, line)))
-
-    tmp_bed_sorted.close()
-
-    statement = '''sortBed  -i %(tmp_bed_sorted_filename)s
-    | gzip > %(outfile)s'''
+    statement = '''
+    sort -k1,1 -k2,2n -k3,3n
+    < %(tmp_bed_sorted_filename)s
+    | bgzip
+    > %(outfile)s'''
 
     P.run()
 
@@ -1476,13 +1475,7 @@ def summariseBias(infiles, outfile):
         return pd.Series([(x - array_min) / (array_max - array_min) for x in array])
 
     def bin2floats(qcut_bin):
-        qcut_bin2 = qcut_bin.replace("(", "[").replace(")", "]")
-        try:
-            qcut_list = eval(qcut_bin2, {'__builtins__': None}, {})
-            return qcut_list
-        except:
-            print("FAILED!!! qcut_bin: ", qcut_bin2)
-            return None
+        return [qcut_bin.left, qcut_bin.right]
 
     def aggregate_by_factor(df, attribute, sample_names, bins, function):
 

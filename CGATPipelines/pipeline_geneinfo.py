@@ -1,11 +1,7 @@
-"""
-====================
+"""====================
 Gene Info Pipeline
 ====================
 
-:Author: Katy Brown
-:Release: $Id$
-:Date: |today|
 :Tags: Python
 
 Overview
@@ -81,6 +77,7 @@ mygene.info provides many regularly updated annotations via its API
   as listed in the pipeline.ini
 
 DataMineAnnotation
+
 Communicates with the "mine" databases - humanmine.org, mousemine.org,
 ratmine.org etc. which provide many annotations for these species
 
@@ -88,10 +85,10 @@ ratmine.org etc. which provide many annotations for these species
 - MGIAnnotation - mouse phenotype annotation (based on homologous genes)
 
 OntologyAnnotation
+
 Communicates with the obolibrary (obo foundry) API for hierarchical
-ontology annotations.
-Can be used to download and parse any OWL formatted ontology available
-on this site.
+ontology annotations.  Can be used to download and parse any OWL
+formatted ontology available on this site.
 
 """
 

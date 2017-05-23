@@ -364,7 +364,7 @@ def getParameters(filenames=["pipeline.ini", ],
         CONFIG.read(filenames)
         p = configToDictionary(CONFIG)
     except configparser.InterpolationSyntaxError as ex:
-        E.warn(
+        E.debug(
             "InterpolationSyntaxError when reading configuration file, "
             "likely due to use of '%'. "
             "Please quote '%' if ini interpolation is required. "

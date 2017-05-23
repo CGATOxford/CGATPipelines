@@ -621,7 +621,7 @@ def getTranscript2GeneMap(outfile):
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("transcript_id\tgene_id\n")
-        for key, value in transcript2gene_dict.iteritems():
+        for key, value in sorted(transcript2gene_dict.items()):
             outf.write("%s\t%s\n" % (key, value))
 
 
@@ -1467,6 +1467,9 @@ def loadDifferentialExpression(infiles, outfiles):
     P.load(infiles[1], outfiles[1])
 
 
+# AH: it seems that this task is executed twice (ruffus bug?) and can
+# cause table exist error.
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(NORMTARGETS,
            regex("DEresults.dir/(\S+)/(\S+)_normalised_transcripts_expression.tsv.gz"),
            [r"DEresults.dir/\1/\2_normalised_transcripts_expression.load",
