@@ -52,6 +52,9 @@ def checkDepedencies(pipeline):
     if not os.access(pipeline, os.R_OK):
         raise IOError("Pipeline %s was not found\n" % pipeline)
 
+    if os.path.isdir(pipeline):
+        raise IOError("The given input is a folder, and must be a script\n")
+
     # parse pipeline script
     statement = '''awk '/statement =/,/P.run()/ {print}' %s
                    | grep -v '#'
@@ -81,11 +84,15 @@ def checkDepedencies(pipeline):
         raise OSError(
             "Child was terminated by signal %i: \n"
             "The stderr was: \n%s\n%s\n" %
-             (-process.returncode, stderr, statement))
+            (-process.returncode, stderr, statement))
+
+    # check awk command output
+    if len(stdout) == 0:
+        raise Exception("The given input does not contain P.run() statements.")
 
     # check awk command output
     #print stdout
-
+ 
     # dictionary where:
     # key = program name
     # value = number of times it has been called
@@ -97,7 +104,7 @@ def checkDepedencies(pipeline):
         if len(clean_slice) > 0:
             for command in clean_slice.split("|"):
                 # take program name
-                groups  = re.match("^\s*(\w+)", command)
+                groups = re.match("^\s*(\w+)", command)
                 if groups is not None:
                     # program name is first match
                     prog_name = groups.group(0)
@@ -106,7 +113,7 @@ def checkDepedencies(pipeline):
                     if prog_name not in deps:
                         deps[prog_name] = 1
                     else:
-                        deps[prog_name]+= 1
+                        deps[prog_name] += 1
 
     # list of unmet dependencies
     check_path_failures = []
@@ -146,7 +153,7 @@ def main(argv=None):
     # print dictionary ordered by value
     if options.summary:
         for k in sorted(deps, key=deps.get, reverse=True):
-            print('\nProgram: {0!s} used {1} time(s)'.format(k,deps[k]))
+            print('\nProgram: {0!s} used {1} time(s)'.format(k, deps[k]))
 
     n_failures = len(check_path_failures)
     if n_failures == 0:
