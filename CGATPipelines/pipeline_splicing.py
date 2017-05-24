@@ -394,7 +394,8 @@ def runSashimi(infiles, outfile):
 # Pipeline management
 ###################################################################
 
-@follows(runSashimi)
+@follows(runSashimi,
+         runDEXSeq)
 def full():
     pass
 
