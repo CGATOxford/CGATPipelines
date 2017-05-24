@@ -307,7 +307,7 @@ def aggregateExonCounts(infiles, outfile):
 @follows(aggregateExonCounts)
 @mkdir("results.dir/DEXSeq")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
-           regex("(\S+).tsv"),
+           regex("(\S+).design.tsv"),
            r"results.dir/DEXSeq/\1.dir")
 def runDEXSeq(infile,
               outfile):
@@ -317,10 +317,12 @@ def runDEXSeq(infile,
         os.makedirs(outfile)
 
     countsdir = "counts.dir/"
-    gfffile = os.path.abspath("geneset.gff")
+    gfffile = os.path.abspath("geneset_flat.gff")
     dexseq_fdr = 0.05
-    model = PARAMS["DEXSeq_model"]
-    contrast = PARAMS["DEXSeq_contrast"]
+    design = infile.split('.')[0]
+    model = PARAMS["DEXSeq_model_%s" % design]
+    contrast = PARAMS["DEXSeq_contrast_%s" % design]
+    refgroup = PARAMS["DEXSeq_refgroup_%s" % design]
 
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
@@ -335,6 +337,7 @@ def runDEXSeq(infile,
     --model=%(model)s
     --dexseq-counts-dir=%(countsdir)s
     --contrast=%(contrast)s
+    -r %(refgroup)s
     --dexseq-flattened-file=%(gfffile)s;
     ''' % locals()
 
