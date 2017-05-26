@@ -230,10 +230,12 @@ def configToDictionary(config):
     return p
 
 
-def inputValidation(PARAMS):
+def inputValidation(PARAMS, pipeline_script=""):
     '''Inspects the PARAMS dictionary looking for problematic input values.
 
     So far we just check that:
+
+        * all required 3rd party tools are on the PATH
 
         * input parameters are not empty
 
@@ -244,10 +246,37 @@ def inputValidation(PARAMS):
           is readable
     '''
 
+    E.info('''=== Input Validation starts ===''')
+    E.info(''' Checking 3rd party dependencies ''')
+
+    ### check 3rd party dependencies ###
+    if len(pipeline_script) > 0:
+        # this import requires the PYTHONPATH in the following order
+        # PYTHONPATH=<src>/CGATPipelines:<src>/cgat
+        import scripts.cgat_check_deps as cd
+        deps, check_path_failures = cd.checkDepedencies(pipeline_script)
+        # print info about dependencies
+        if len(deps) == 0:
+            print('\nNo dependencies found.\n')
+        else:
+        # print dictionary ordered by value
+            for k in sorted(deps, key=deps.get, reverse=True):
+                print('\nProgram: {0!s} used {1} time(s)'.format(k, deps[k]))
+
+            n_failures = len(check_path_failures)
+            if n_failures == 0:
+                print('\nCongratulations! All required programs are available on your PATH\n')
+            else:
+                print('\nThe following programs are not on your PATH')
+                for p in check_path_failures:
+                    print('\n{0!s}'.format(p))
+                print
+
+    ### check PARAMS ###
     num_missing = 0
     num_questions = 0
 
-    E.info('''=== Input Validation starts ===''')
+    E.info(''' Checking pipeline configuration ''')
 
     for key, value in sorted(PARAMS.iteritems()):
 
@@ -256,13 +285,13 @@ def inputValidation(PARAMS):
 
         # check for missing values
         if value == "":
-            E.warn('"{}" is empty, is that expected?'.format(key))
+            print('\n"{}" is empty, is that expected?'.format(key))
             num_missing += 1
 
         # check for a question mark in the dictironary (indicates
         # that there is a missing input parameter)
         if "?" in value:
-            E.warn('"{}" is not defined (?), is that expected?'.format(key))
+            print('\n"{}" is not defined (?), is that expected?'.format(key))
             num_questions += 1
 
         # validate input files listed in PARAMS
@@ -274,7 +303,7 @@ def inputValidation(PARAMS):
             if os.access(value, os.R_OK):
                 pass
             else:
-                E.warn('"{}": "{}" is not readable'.format(key, value))
+                print('\n"{}": "{}" is not readable'.format(key, value))
 
     if num_missing == 0 and num_questions == 0:
         while True:

@@ -852,11 +852,9 @@ def main(args=sys.argv):
         if len(args) > 1:
             options.pipeline_targets.extend(args[1:])
 
-    # add input validation to check that all of the directories
-    # and files exist, provide warnings and then ask the user to
-    # specify whether they are comfortable to continue
+    # see inputValidation function in Parameters.py
     if options.input_validation:
-       inputValidation(PARAMS)
+       inputValidation(PARAMS, sys.argv[0])
 
     if options.pipeline_action == "check":
         counter, requirements = Requirements.checkRequirementsFromAllModules()
