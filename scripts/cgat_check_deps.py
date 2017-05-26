@@ -74,13 +74,12 @@ def checkDepedencies(pipeline):
            hasattr(node.targets[0], 'id') and \
            node.targets[0].id == "statement" and \
            hasattr(node.value, 's'):
-#        if hasattr(node, 'targets') and hasattr(node.targets[0], 'id') and node.targets[0].id == "statement":
-             statement = node.value.s
-             # clean up statement, code copied from Execution module of Pipeline.py
-             statement = " ".join(re.sub("\t+", " ", statement).split("\n")).strip()
-             if statement.endswith(";"):
-                 statement = statement[:-1]
-             statements.append(statement)
+            statement = node.value.s
+            # clean up statement, code copied from Execution module of Pipeline.py
+            statement = " ".join(re.sub("\t+", " ", statement).split("\n")).strip()
+            if statement.endswith(";"):
+                statement = statement[:-1]
+            statements.append(statement)
 
     # dictionary where:
     # key = program name
@@ -94,13 +93,13 @@ def checkDepedencies(pipeline):
                   'attach',
                   'insert',
                   'module',
+                  'checkpoint',
                   'for']
 
     for statement in statements:
         for command in statement.split("|"):
-            print "COMMAND: ", command
-            # take program name
-            groups = re.match("^\s*(\w+)", command)
+            # take program name, thanks http://pythex.org/
+            groups = re.match("^\s*([\w|\-|\.]+)", command)
             if groups is not None:
                 # program name is first match
                 prog_name = groups.group(0)
