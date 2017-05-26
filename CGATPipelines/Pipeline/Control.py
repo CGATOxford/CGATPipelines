@@ -856,7 +856,7 @@ def main(args=sys.argv):
     # and files exist, provide warnings and then ask the user to
     # specify whether they are comfortable to continue
     if options.input_validation:
-       inputValidation(PARAMS)
+       inputValidation(PARAMS, sys.argv[0])
 
     if options.pipeline_action == "check":
         counter, requirements = Requirements.checkRequirementsFromAllModules()
