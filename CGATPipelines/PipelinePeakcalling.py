@@ -152,6 +152,9 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
             > %(outT)s.bam; rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
             statement += trackFilters(filt, outT, tabout)
             i += 1
+        else:
+            outT = inT 
+            statement += "" 
 
     statement = statement.replace("\n", "")
     return statement, outT
@@ -420,7 +423,7 @@ def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
             statement, inT = appendContigFilters(statement, inT, tabout, filters,
                                                  pe, contigs_to_remove, all_contigs)
 
-        if bedfiles != [""]:
+        if "blacklist" in filters and bedfiles != [""]:
             statement, inT = appendBlacklistFilter(statement, inT, tabout,
                                                    bedfiles,
                                                    blthresh, pe)
@@ -1521,11 +1524,11 @@ class Macs2Peakcaller(Peakcaller):
         output to provide an input for IDR.
         This involves taking column "idrcol" (currently recommended - column 8
         from the .narrowPeaks or .broadPeaks file), sorting from highest
-        to lowest and taking the top n hits (currently recommended 125000).
+        to lowest and taking the top n hits (currently recommended 500000).
 
         Example Statement
         sort -h -r -k8,8 K9-13-2_filtered_pseudo_2.macs2_peaks.broadPeak |
-        head -125000 > K9-13-2_filtered_pseudo_2.macs2_IDRpeaks
+        head -500000 > K9-13-2_filtered_pseudo_2.macs2_IDRpeaks
 
         Parameters
         ----------
@@ -1544,7 +1547,7 @@ class Macs2Peakcaller(Peakcaller):
         narrowpeaks = "%s_peaks.%s" % (outfile, idrsuffix)
         tmpfile = P.getTempFilename()
         col = idrcol
-        statement += '''sort -h -r -k%(col)i,%(col)i %(narrowpeaks)s
+        statement += '''sort -k%(col)igr,%(col)igr %(narrowpeaks)s
         > %(tmpfile)s;
         head -%(idrc)s %(tmpfile)s > %(idrout)s;
         rm -rf %(tmpfile)s;''' % locals()
@@ -2193,6 +2196,7 @@ def buildIDRStatement(infile1, infile2, outfile,
         outputfiletype = "narrowPeak"
 
     if test is True:
+        # this statement only returns the merged peak list to check length
         idrstatement = """idr --version >>%(log)s;
                           idr
                           --samples %(infile1)s %(infile2)s

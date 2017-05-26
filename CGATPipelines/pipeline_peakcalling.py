@@ -1288,6 +1288,7 @@ def runIDR(infile, outfile):
         idrthresh = PARAMS['IDR_softthresh_replicateconsistency']
         options += " %s" % PARAMS['IDR_options_replicateconsistency']
 
+    # Make the statement to run the test and check merged peak list length
     T = P.getTempFilename(".")
     statement = PipelinePeakcalling.buildIDRStatement(
         infile1, infile2,
@@ -1302,6 +1303,7 @@ def runIDR(infile, outfile):
     os.remove(T)
     os.remove('%s.log' % T)
 
+    # actually run the IDR
     if len(lines) >= 20:
         statement = PipelinePeakcalling.buildIDRStatement(
             infile1, infile2,
@@ -1335,7 +1337,7 @@ def filterIDR(infile, outfiles):
     Input is filtered based on whether it passes the soft IDR thresholds
     provided in the pipeline.ini.  Peaks which pass this threshold
     with have a score in the "globalIDR" column which is greater
-    than -log(soft_threshold) where soft_threshold is the soft threshold
+    than -log10(soft_threshold) where soft_threshold is the soft threshold
     provided in the pipeline.ini.
     Column headings are added and output is sorted by signalValue.
     '''
@@ -1365,7 +1367,11 @@ def filterIDR(infile, outfiles):
                                "rep2_chromStart", "rep2_chromEnd",
                                "rep2_signalValue", "rep2_summit"]
 
-        IDRdataP = IDRdata[IDRdata['score'] == 1000]
+        #this code might change in python3 -> be aware!! 
+        IDRsoftthresh_transformed = -math.log(0.05)/math.log(10)
+
+
+        IDRdataP = IDRdata[IDRdata['globalIDR'] >= 1000]
         IDRdataF = IDRdata[IDRdata['score'] != 1000]
 
         IDRdataP = IDRdataP.sort_values('signalValue', ascending=False)
