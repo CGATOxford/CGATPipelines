@@ -235,6 +235,8 @@ def inputValidation(PARAMS, pipeline_script=""):
 
     So far we just check that:
 
+        * all required 3rd party tools are on the PATH
+
         * input parameters are not empty
 
         * input parameters do not contain the "?" character (used as a
