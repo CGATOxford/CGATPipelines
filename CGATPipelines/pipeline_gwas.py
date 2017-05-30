@@ -2531,9 +2531,36 @@ def testAdjustedEpistasis(infiles, outfile):
 
 
 @follows(testAdjustedEpistasis)
-@transform(testAdjustedEpistasis,
-           regex("epistasis.dir/(.+).cassi.epi"),
-           r"plots.dir/\1-epistasis_manhattan.png")
+@collate(testAdjustedEpistasis,
+         regex("epistasis.dir/(.+).(.+).epi"),
+         r"epistasis.dir/split_\2.txt")
+def aggregateCassiResults(infiles, outfile):
+    '''
+    The output for cassi is split over chromosomes,
+    and each file contains one chromosome but many target SNPs.
+    Therefore results need to be aggregated by target SNP.
+    '''
+
+    join_files = ",".join(infiles)
+    out_dir = "/".join(outfile.split("/")[:-1])
+    
+    statement = '''
+    cgat assoc2assoc
+    --task=process_epi
+    --file-format=cassi
+    --output-directory=%(out_dir)s
+    --log=%(outfile)s.log
+    %(join_files)s
+    > %(outfile)s
+    '''
+
+    P.run()
+    
+
+@follows(aggregateCassiResults)
+@transform("epistasis.dir/*_cassi.epi",
+           regex("epistasis.dir/(.+)_cassi.epi"),
+           r"plots.dir/\1-cassi_epistasis_manhattan.png")
 def plotAdjustedEpistasis(infile, outfile):
     '''
     Generate a manhattan plot and QQplot
