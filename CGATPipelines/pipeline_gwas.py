@@ -2564,10 +2564,10 @@ def plotAdjustedEpistasis(infile, outfile):
          makeOtherCassiFiles,
          testAdjustedEpistasis,
          mkdir("unadjusted_epistasis.dir"))
-@transform(makeCassiFiles,
-           regex("epistasis.dir/(.+).cov"),
-           add_inputs([r"epistasis.dir/GwasHits-cassi.bed",
-                       r"epistasis.dir/\1.bed"]),
+@transform(makeOtherCassiFiles,
+           regex("epistasis.dir/(.+)-cassi.bed"),
+           add_inputs([makeCassiFiles,
+                       r"%s.bed" % PARAMS['epistasis_set']]),
            r"epistasis.dir/\1_unadjusted.cassi.epi")
 def testUnadjustedEpistasis(infiles, outfile):
     '''
@@ -2586,22 +2586,18 @@ def testUnadjustedEpistasis(infiles, outfile):
     job_memory = "150G"
     job_threads = 1
 
+    bed2_file = infiles[0]
+    bed1_file = infiles[1][1]
+    
     bed1_file = infiles[1][0]
     bed2_file = infiles[1][1]
-
-    covars = ",".join([cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
-    all_covars = ",".join([covars])
-
-    covar_file = infiles[0]
 
     statement = '''
     cassi
     -i %(bed1_file)s
     -i2 %(bed2_file)s
-    -mem1
+    -mem2
     -lr
-    -lr-covar %(covar_file)s
-    -lr-covar-name %(covars)s
     -rsq
     -dprime
     -lr-th 1.0
