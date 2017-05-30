@@ -2430,7 +2430,6 @@ def splitByChromosome(infiles, outfile):
     plink_prefix = infiles[0].rstrip(".bed")
 
     statement = '''
-  
     for chr in `awk '{print $1}' %(bim_file)s | uniq` ;
     do plink2 --bfile %(plink_prefix)s --chr $chr --make-bed --out epistasis.dir/chr$chr\.epi_cassi ;
     done;
@@ -2509,7 +2508,7 @@ def testAdjustedEpistasis(infiles, outfile):
 
     bed2_file = infiles[0]
     bed1_file = infiles[1][1]
-    
+
     covar_file = infiles[1][0]
 
     statement = '''
@@ -2543,7 +2542,7 @@ def aggregateCassiResults(infiles, outfile):
 
     join_files = ",".join(infiles)
     out_dir = "/".join(outfile.split("/")[:-1])
-    
+
     statement = '''
     cgat assoc2assoc
     --task=process_epi
@@ -2555,7 +2554,7 @@ def aggregateCassiResults(infiles, outfile):
     '''
 
     P.run()
-    
+
 
 @follows(aggregateCassiResults)
 @transform("epistasis.dir/*_cassi.epi",
@@ -2615,7 +2614,7 @@ def testUnadjustedEpistasis(infiles, outfile):
 
     bed2_file = infiles[0]
     bed1_file = infiles[1][1]
-    
+
     bed1_file = infiles[1][0]
     bed2_file = infiles[1][1]
 
