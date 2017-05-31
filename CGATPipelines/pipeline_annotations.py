@@ -1589,7 +1589,6 @@ def buildGeneTSS(infile, outfile):
     """
 
     statement = """gunzip < %(infile)s
-    | cgat gtf2gtf --method=sort --sort-order=gene
     | cgat gtf2gtf
     --method=merge-transcripts
     --log=%(outfile)s.log
