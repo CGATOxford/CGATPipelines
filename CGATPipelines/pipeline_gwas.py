@@ -2531,7 +2531,7 @@ def testAdjustedEpistasis(infiles, outfile):
 
 @follows(testAdjustedEpistasis)
 @collate(testAdjustedEpistasis,
-         regex("epistasis.dir/(.+).(.+).epi"),
+         regex("epistasis.dir/(.+)\.(.+).epi"),
          r"epistasis.dir/split_\2.txt")
 def aggregateCassiResults(infiles, outfile):
     '''
