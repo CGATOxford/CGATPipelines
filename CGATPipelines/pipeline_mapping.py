@@ -386,9 +386,9 @@ def identifyProteinCodingGenes(outfile):
 
 
 @active_if(SPLICED_MAPPING)
-@transform(buildReferenceGeneSet,
-           suffix("reference.gtf.gz"),
-           "refflat.txt")
+@follows(mkdir("geneset.dir"))
+@merge(PARAMS["annotations_interface_geneset_all_gtf"],
+       "geneset.dir/refflat.txt")
 def buildRefFlat(infile, outfile):
     '''build flat geneset for Picard RnaSeqMetrics.
     '''

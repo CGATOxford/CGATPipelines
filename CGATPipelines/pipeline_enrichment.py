@@ -313,8 +313,8 @@ def buildStandardBackground(infiles, outfile):
          formatter(".+/(?P<NAM>.*).tsv"),
          "annotations.dir/*_genestoterms.tsv",
          formatter(".+/(?P<NAM>.*)_genestoterms.tsv"),
-         [r'results.dir/{NAM[0][0]}_v_{NAM[1][0]}_{NAM[2][0]}.tsv',
-          r'results.dir/{NAM[0][0]}_v_{NAM[1][0]}_{NAM[2][0]}_sig.tsv'])
+         [r'results.dir/{NAM[0][0]}_v_{NAM[1][0]}_{NAM[2][0]}_all_results.tsv',
+          r'results.dir/{NAM[0][0]}_v_{NAM[1][0]}_{NAM[2][0]}_sig_results.tsv'])
 def foregroundsVsBackgrounds(infiles, outfiles):
     '''
     Takes every possible set of one foreground, one background and one

@@ -10,7 +10,7 @@
 suffix="${1##*.}"
 
 fn=$1
-printf "%s\t" $fn
+printf "%s\t" "$fn"
 shift
 
 if [[ $suffix = 'gz' ]]; then
@@ -20,5 +20,5 @@ elif [[ $suffix = 'bam' ]]; then
     # files are used
     samtools view  $fn | "$@"
 else
-    cat $fn | grep -v '^#' | "$@"
+    cat "$fn" | grep -v '^#' | "$@"
 fi

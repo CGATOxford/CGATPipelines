@@ -10,6 +10,7 @@ Reference
 import CGAT.Experiment as E
 import os
 import re
+import pandas
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
@@ -731,3 +732,64 @@ def loadPicardRnaSeqMetrics(infiles, outfiles):
     else:
         with open(outfile_histogram, "w") as ofh:
             ofh.write("No histograms detected, no data loaded.")
+
+
+def loadIdxstats(infiles, outfile):
+    '''take list of file paths to samtools idxstats output files
+    and merge to create single dataframe containing mapped reads per
+    contig for each track. This dataframe is then loaded into
+    database.
+
+    Loads tables into the database
+        * idxstats_reads_per_chromosome
+
+    Arguments
+    ---------
+    infiles : list
+        list where each element is a string of the filename containing samtools
+        idxstats output. Filename format is expected to be 'sample.idxstats'
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.
+    '''
+
+    outf = P.getTempFile(".")
+    dfs = []
+    for f in infiles:
+        track = P.snip(f, ".idxstats").split('/')[-1]
+
+        if not os.path.exists(f):
+            E.warn("File %s missing" % f)
+            continue
+
+        # reformat idx stats
+        df = pandas.read_csv(f, sep='\t', header=None)
+        df.columns = ['region', 'length', 'mapped', 'unmapped']
+
+        # calc total reads mapped & unmappedpep
+        total_reads = df.unmapped.sum() + df.mapped.sum()
+        total_mapped_reads = df.mapped.sum()
+
+        reformatted_df = pandas.DataFrame([['total_mapped_reads', total_mapped_reads],
+                                           ['total_reads', total_reads],
+                                           ['track', track]], columns=(['region', 'mapped']))
+
+        # reformat the df
+        df = df.append(reformatted_df, ignore_index=True)
+        df.set_index('region', inplace=True)
+        df1 = df[['mapped']].T
+        # set track as index
+        df1.set_index('track', inplace=True)
+        dfs.append(df1)
+
+    # merge dataframes into single table
+    master_df = pandas.concat(dfs)
+    master_df.drop('*', axis=1, inplace=True)
+    # transform dataframe to avoid reaching column limit
+    master_df = master_df.T
+    master_df.to_csv(outf, sep='\t', index=True)
+    outf.close()
+
+    P.load(outf.name,
+           outfile,
+           options="--ignore-empty --add-index=track")
+    os.unlink(outf.name)

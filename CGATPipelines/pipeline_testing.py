@@ -418,6 +418,8 @@ def checkFileExistence(infile, outfile):
          r"\1.stats")
 def mergeFileStatistics(infiles, outfile):
     '''merge all file statistics.'''
+
+    to_cluster = False
     infiles = " ".join(sorted(infiles))
 
     statement = '''
@@ -433,6 +435,7 @@ def compareCheckSums(infiles, outfile):
     '''compare checksum files against existing reference data.
     '''
 
+    to_cluster = False
     outf = IOTools.openFile(outfile, "w")
     outf.write("\t".join((
         ("track", "status",
@@ -582,6 +585,7 @@ def full():
 @files(None, 'reset.log')
 def reset(infile, outfile):
     '''remove all data in pipeline.'''
+
     to_cluster = False
 
     statement = '''
