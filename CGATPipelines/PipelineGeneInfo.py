@@ -145,7 +145,7 @@ class APIAnnotation(object):
 
             # build parts of the SQL statement
             cnamestring = ",".join(cnames)
-            cnamestypes = ",".join([" ".join(z) for z in zip(cnames, ctypes)])
+            cnamestypes = ",".join([" ".join(z) for z in sorted(zip(cnames, ctypes))])
             qs = ",".join("?" * len(cnames))
 
             # create the table with the appropriate columns and column types
@@ -188,7 +188,7 @@ class APIAnnotation(object):
         useful to have it available easily later - this stores a basic
         tab delimited file containing this information.
         '''
-        df = pd.DataFrame(list(zip(genelist1, genelist2)), columns=cnames)
+        df = pd.DataFrame(sorted(zip(genelist1, genelist2)), columns=cnames)
         df.to_csv(out, sep="\t", index=False)
 
     def getTranslation(self, translation):
@@ -370,7 +370,7 @@ class SymbolAnnotation(MyGeneInfoAnnotation):
         for item in list(res.items()):
             entrez.append(item[0])
             symbol.append(item[1])
-        df = pd.DataFrame(list(zip(entrez, symbol)),
+        df = pd.DataFrame(sorted(zip(entrez, symbol)),
                           columns=['entrez', 'symbol_%s' % self.ohost])
         # df = self.translate(df, 'entrez', 'ensemblg')
         self.resultspd['entrez2symbol_%s$geneid' % self.ohost] = df
@@ -449,17 +449,17 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                                 p2g.append(L['protein'])
         # load everything into the self.resultsz dictionary so that
         # self.loadZippedTables will put it into the database
-        self.resultsz['ensemblg2symbol_%s$geneid' % self.ohost] = [list(
+        self.resultsz['ensemblg2symbol_%s$geneid' % self.ohost] = [sorted(
             zip(ensembl2sym,
                 sym2ensembl)), ['ensemblg',
                                 'symbol_%s' % self.ohost],
                                 ['int', 'varchar(25)']]
 
-        self.resultsz['ensemblg2ensemblt$other'] = [list(zip(g2t, t2g)),
+        self.resultsz['ensemblg2ensemblt$other'] = [sorted(zip(g2t, t2g)),
                                                     ['ensemblg', 'ensemblt'],
                                                     ['varchar(25)',
                                                      'varchar(25)']]
-        self.resultsz['ensemblg2ensemblp$other'] = [list(zip(g2p, p2g)),
+        self.resultsz['ensemblg2ensemblp$other'] = [sorted(zip(g2p, p2g)),
                                                     ['ensemblg', 'ensemblp'],
                                                     ['varchar(25)',
                                                      'varchar(25)']]
@@ -468,7 +468,7 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
                               sym2ensembl, ['ensemblg',
                                             'symbol_%s' % self.ohost],
                               'ensemblg2symbol_%s.tsv' % self.ohost)
-        ens2symdf = pd.DataFrame(list(zip(ensembl2sym, sym2ensembl)),
+        ens2symdf = pd.DataFrame(sorted(zip(ensembl2sym, sym2ensembl)),
                                  columns=['ensemblg',
                                           'symbol_%s' % self.ohost])
         res = self.translate(ens2symdf, 'symbol_%s' % self.ohost,
@@ -476,8 +476,8 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
         self.storeTranslation(res['ensemblg'], res['entrez'],
                               ['ensemblg', 'entrez'], "ensemblg2entrez.tsv")
 
-        self.resultsz['ensemblg2entrez$geneid'] = [list(zip(res['ensemblg'],
-                                                            res['entrez'])),
+        self.resultsz['ensemblg2entrez$geneid'] = [sorted(zip(res['ensemblg'],
+                                                              res['entrez'])),
                                                    ['ensemblg', 'entrez'],
                                                    ['varchar(25)',
                                                     'varchar(25)']]
@@ -535,7 +535,7 @@ class GoAnnotation(MyGeneInfoAnnotation):
                                     godict[subterm].append(L[subterm])
                                 else:
                                     godict[subterm].append("")
-        dfs = pd.DataFrame(list(zip(entrez2go, allgoids)),
+        dfs = pd.DataFrame(sorted(zip(entrez2go, allgoids)),
                            columns=['symbol_%s' % self.ohost, 'go'])
         results = self.translate(dfs, 'symbol_%s' % self.ohost, 'ensemblg')
         # add the ensemblg to go term dataframe to resultspd for
@@ -543,8 +543,8 @@ class GoAnnotation(MyGeneInfoAnnotation):
         self.resultspd['ensemblg2go$annot'] = results
         # add the metadata to the resultsz dictionary for
         # self.loadZippedTables() to load into the database.
-        self.resultsz['go$details'] = [list(zip(goids, gotypes, godict['term'],
-                                                godict['evidence'])),
+        self.resultsz['go$details'] = [sorted((goids, gotypes, godict['term'],
+                                               godict['evidence'])),
                                        ['go',
                                         'gotype',
                                         'goterm',
@@ -611,7 +611,7 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
             D["%s_name" % db] = []
 
         # for each entrez id in the pathway dictionary
-        for q in list(pathwaydict.keys()):
+        for q in sorted(pathwaydict.keys()):
             # for each of the requested annotation types
             for db in typelist:
                 idset = set()
@@ -634,8 +634,8 @@ class PathwayAnnotation(MyGeneInfoAnnotation):
             entrez2ids = D["%s_entrez2ids" % db]
             id = D["%s_id" % db]
             name = D["%s_name" % db]
-            identrez = list(zip(entrez2ids, ids2entrez))
-            idname = list(zip(id, name))
+            identrez = sorted(zip(entrez2ids, ids2entrez))
+            idname = sorted(zip(id, name))
             dfs = pd.DataFrame(identrez, columns=['symbol_%s' % self.ohost,
                                                   db])
             dfs = self.translate(dfs, 'symbol_%s' % self.ohost, 'ensemblg')
@@ -731,7 +731,7 @@ class HomologeneAnnotation(MyGeneInfoAnnotation):
         # types
         for host in entrezdict:
             # zip original species entrez and other species entrez
-            R = list(zip(entrezdict[host][0], entrezdict[host][1]))
+            R = sorted(zip(entrezdict[host][0], entrezdict[host][1]))
             # transalate original species entrez into ensemblg
             R = pd.DataFrame(R, columns=[
                 'symbol_%s' % self.ohost, 'entrez_%s' % host])
@@ -893,7 +893,7 @@ class DataMineAnnotation(APIAnnotation):
             other.append(tuple(k2))
 
         # translate symbols into ensemblg IDs in the original species
-        dfs = pd.DataFrame(list(zip(symbols, terms)),
+        dfs = pd.DataFrame(sorted(zip(symbols, terms)),
                            columns=['symbol_%s' % self.ohost, 'term'])
         dfs = self.translate(dfs, 'symbol_%s' % self.ohost, 'ensemblg')
         # use views to generate column names
@@ -1041,7 +1041,7 @@ class OntologyAnnotation(APIAnnotation):
             for v in vals:
                 klist.append(key.replace("_", ":"))
                 vlist.append(v.replace("_", ":"))
-        self.resultsz['%s$ont' % self.prefix] = [list(zip(klist, vlist)),
+        self.resultsz['%s$ont' % self.prefix] = [sorted(zip(klist, vlist)),
                                                  ['id', 'subclass_of'],
                                                  ['varchar(250)',
                                                   'varchar(250)']]

@@ -15,6 +15,10 @@ shift
 
 if [[ $suffix = 'gz' ]]; then
     zcat $fn | grep -v '^#' | "$@"
+elif [[ $suffix = 'bam' ]]; then
+    # do not include header, as file path might differ if temp
+    # files are used
+    samtools view  $fn | "$@"
 else
     cat $fn | grep -v '^#' | "$@"
 fi
