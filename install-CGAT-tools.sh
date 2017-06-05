@@ -440,12 +440,9 @@ if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
    # SLV: workaround until these Python packages are available with Python 3
    log "pip-installing additional packages"
    pip install bx-python
-<<<<<<< HEAD
-   # pip install MySQL-python # Not available in Python 3
+   # MySQL-python Not available in Python 3
+   # pip install MySQL-python  
    pip install CGATReport
-=======
-   pip install MySQL-python
->>>>>>> master
 
    # need to install the CGAT Code Collection as well
    install_cgat_scripts
