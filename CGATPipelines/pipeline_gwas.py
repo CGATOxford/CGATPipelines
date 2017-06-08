@@ -2376,11 +2376,32 @@ def plotLdExcludedEpistasis(infile, outfile):
 #######################################################
 
 @follows(convertToRawFormat)
+@collate(excludeLdVariants,
+         regex("target_snps.dir/(.+).exclude"),
+         r"target_snps.dir/all_snps.exclude")
+def mergeLdExclusions(infiles, outfile):
+    '''
+    Merge together all of the LD exclusions for
+    epistasis testing with cassi
+    '''
+
+    exclude = " ".join(infiles)
+
+    statement = '''
+    cat %(exclude)s >> %(outfile)s
+    '''
+
+    P.run()
+
+
+@follows(convertToRawFormat,
+         mergeLdExclusions)
 @transform("%s.set" % PARAMS['epistasis_set'],
            regex("epistasis.dir/(.+).set"),
            add_inputs([r"epistasis.dir/GwasHits.bed",
                        r"covariates.dir/WholeGenome.covar",
-                       r"exclusions.dir/WholeGenome.gwas_exclude"]),
+                       r"exclusions.dir/WholeGenome.gwas_exclude",
+                       mergeLdExclusions]),
            r"epistasis.dir/\1.cov")
 def makeCassiFiles(infiles, outfile):
     '''
@@ -2398,6 +2419,7 @@ def makeCassiFiles(infiles, outfile):
     bed_file = infiles[1][0].rstrip(".bed")
     covar_file = infiles[1][1]
     exclude = infiles[1][2]
+    ld_snps = infiles[1][3]
 
     out_pattern = outfile.rstrip(".cov")
 
@@ -2407,6 +2429,7 @@ def makeCassiFiles(infiles, outfile):
     --covar %(covar_file)s
     --remove %(exclude)s
     --extract %(snp_file)s
+    --exclude %(ld_snps)s
     --make-bed
     --out %(out_pattern)s
     '''
@@ -2418,7 +2441,8 @@ def makeCassiFiles(infiles, outfile):
          makeCassiFiles)
 @subdivide("epistasis.dir/GwasHits.bed",
            regex("epistasis.dir/(.+).bed"),
-           add_inputs(r"epistasis.dir/\1.bim"),
+           add_inputs([r"epistasis.dir/\1.bim",
+                       mergeLdExclusions]),
            r"epistasis.dir/split_chromosomes.txt")
 def splitByChromosome(infiles, outfile):
     '''
@@ -2426,12 +2450,13 @@ def splitByChromosome(infiles, outfile):
     to make parallelisation easier.
     '''
 
-    bim_file = infiles[1]
+    bim_file = infiles[1][0]
     plink_prefix = infiles[0].rstrip(".bed")
+    exclude = infiles[1][1]
 
     statement = '''
     for chr in `awk '{print $1}' %(bim_file)s | uniq` ;
-    do plink2 --bfile %(plink_prefix)s --chr $chr --make-bed --out epistasis.dir/chr$chr\.epi_cassi ;
+    do plink2 --bfile %(plink_prefix)s --chr $chr --exclude %(exclude)s  --make-bed --out epistasis.dir/chr$chr\.epi_cassi ;
     done;
     touch %(outfile)s
     '''
