@@ -286,19 +286,12 @@ conda update -q conda --yes
 conda info -a
 
 log "installing conda CGAT environment"
-# keep rpy2-2.4 for production scripts
-if [[ "$CONDA_INSTALL_TYPE" == "cgat-scripts" ]] ; then
-
-   conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE gcc=4.8.3 rpy2=2.4 --override-channels --channel https://conda.binstar.org/cgat --channel defaults --channel https://conda.binstar.org/r --yes
-
-else
-
-   conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE python=$INSTALL_PYTHON_VERSION gcc --override-channels --channel bioconda --channel r --channel defaults --channel conda-forge --yes
-
-fi
+# SLV workaround until problems are resolved for:
+# * Latest R 3.3.2 available in conda: Problems with icu here https://travis-ci.org/CGATOxford/cgat/builds/240711411 and here https://github.com/ContinuumIO/anaconda-issues/issues/1403
+# * Latest pysam works with the CGAT code: the gff3 support is broken, best not to use 0.11.2 for now (AH comment)
+conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE python=$INSTALL_PYTHON_VERSION pysam=0.11.1 r=3.3.1 gcc --override-channels --channel bioconda --channel r --channel defaults --channel conda-forge --yes
 
 log "installing CGAT code into conda environment"
-
 # if installation is 'devel' (outside of travis), checkout latest version from github
 if [[ "$OS" != "travis" ]] ; then
 
