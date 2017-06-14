@@ -355,12 +355,12 @@ def runDEXSeq(infile,
            regex("(\S+).design.tsv"),
            add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
            [r"results.dir/rMATS/\1.dir/MATS_output/%s.MATS.JunctionCountOnly.txt" % x for x in ["SE", "A5SS", "A3SS", "MXE", "RI"]])
-def runMATS(infiles, outfile):
+def runMATS(infile, outfiles):
     '''run rMATS.'''
 
-    design, gtffile = infiles
+    design, gtffile = infile
     tmpgff = P.getTempFilename(".")
-    statement = "gunzip -c %(gtffile)s > %(tmpgff)s"
+    statement = "gunzip -c %(gtffile)s > %(tmpgff)s" % locals()
     P.run()
 
     strand = PARAMS["MATS_libtype"]
@@ -368,9 +368,9 @@ def runMATS(infiles, outfile):
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    PipelineSplicing.runRMATS(gtffile=tmpgff, designfile=infile,
+    PipelineSplicing.runRMATS(gtffile=tmpgff, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
-                              strand=strand, outfile=outfile)
+                              strand=strand, outfiles=outfiles)
 
     os.unlink(tmpgff)
 
@@ -386,6 +386,14 @@ def runSashimi(infiles, outfile):
     fdr = PARAMS["MATS_fdr"]
 
     PipelineSplicing.rmats2sashimi(infile, design, fdr, outfile)
+
+
+@transform(runMATS,
+           regex("results.dir/rMATS/(\S+).dir/MATS_output/(\S+).MATS.JunctionCountOnly.txt"),
+           r"results.dir/rMATS/\1.dir/\1_\2_JunctionCountOnly.load")
+def loadMATS(infile, outfile):
+    '''load RMATS results into relational database'''
+    P.load(infile, outfile)
 
 
 ###################################################################

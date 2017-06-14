@@ -1,10 +1,10 @@
-.. _rMATSpipeline:
+.. _Splicing pipeline:
 
 ===================================
-rMATS pipeline
+Splicing pipeline
 ===================================
 
-Welcome to the CGAT_ rMATS pipeline.
+Welcome to the CGAT_ Splicing pipeline.
 
 The table of contents below points towards the pipeline results. This
 is followed by an overview errors and warnings in the report and the
