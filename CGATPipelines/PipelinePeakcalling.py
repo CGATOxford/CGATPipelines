@@ -115,14 +115,22 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
        list of filters to apply - this list is searched for
        unmapped, unpaired, secondary, lowqual
     pe: bool
-        1 = paired end, 0 = single end
-    outfile: str
+        True = paired end, False = single end
+        NOTE: will not work with 0 or 1 has to be True or False
+    outT: str
         path to output file
-    contigs: str
-        string containing list of contigs to keep in the bam e.g. "chr1 chr2"
+
+    Outputs
+    -------
+    statement: str
+        command line statement for filtering using samtools flags
+    outT: str
+        file path to the outfile to be used for next filtering step
     '''
     i = 0
     j = 0
+    infile = inT
+    outT = ''
     string = ""
 
     for filt in filters:
@@ -139,22 +147,27 @@ def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
                 continue
         elif filt == "lowqual":
             string = '-q %(qual)i' % locals()
+        else:
+            string = ''
         # append any new samtools filters to this list
         if filt in ["unmapped", "unpaired", "lowqual", "secondary"]:
+            j += 1
             if i == 0:
-                outT = P.getTempFilename("./filtered_bams.dir")
+                outT = P.getTempFilename(".")
             else:
                 inT = outT
-                outT = P.getTempFilename("./filtered_bams.dir")
-
+                outT = P.getTempFilename(".")
             # filter to a temporary file, remove the original temporary file
             statement += """samtools view -b %(string)s %(inT)s.bam
             > %(outT)s.bam; rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
             statement += trackFilters(filt, outT, tabout)
             i += 1
         else:
-            outT = inT 
-            statement += "" 
+            statement += ""
+
+    # if no samtools flag filters return the origional infile as outT
+    if j == 0:
+        outT = infile
 
     statement = statement.replace("\n", "")
     return statement, outT

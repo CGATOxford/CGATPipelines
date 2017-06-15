@@ -250,6 +250,7 @@ import sys
 import os
 import re
 import csv
+import math
 import sqlite3
 import glob
 import shutil
@@ -324,6 +325,7 @@ if os.path.exists("design.tsv"):
     INPUTBAMS = list(set(df['bamControl'].values))
     CHIPBAMS = list(set(df['bamReads'].values))
 
+
 else:
     E.warn("design.tsv is not located within the folder")
     INPUTBAMS = []
@@ -349,7 +351,6 @@ else:
 
 
 if PARAMS['notebook_template_dir'] == '':
-    print 'gets here'
     PARAMS['notebook_template_dir'] = '/'.join([PARAMS['pipelinedir'],
                                                 'pipeline_docs/pipeline_peakcalling/notebooks'])
 
@@ -1198,6 +1199,7 @@ def getIDRInputs(infile, outfile):
 
     output
     copy of _IDRpeak files in 'peaks_for_IDR.dir'
+
     '''
     IDRpeaks = "%s_IDRpeaks" % infile
     shutil.copy(IDRpeaks, outfile)
@@ -1240,7 +1242,7 @@ def splitForIDR(infile, outfiles):
     output =
     dummy file to act as placeholder for ruffus
     updated "IDR_pairs.tsv" file
-    containainf tissue and condition information and
+    containaing tissue and condition information and
     the name of IDR output file
     '''
     pairs = pd.read_csv(infile, sep="\t")
@@ -1340,8 +1342,42 @@ def filterIDR(infile, outfiles):
     than -log10(soft_threshold) where soft_threshold is the soft threshold
     provided in the pipeline.ini.
     Column headings are added and output is sorted by signalValue.
+
+    outfile name is split and looked up in database to find the appropriate
+    threshold type to set the filtering threshold
+
+    NOTE CG MAY2017 - There is a bug in the IDR output file which means filtering
+    on the threshold score does not give you the same number that is output by
+    IDR itself- this code is the closest to get to it until they push the fix it
+    only really effects a few peaks so its not really something to worry about
+
     '''
     IDRdata = pd.read_csv(infile, sep="\t", header=None)
+
+    # use filenane of infile to look at the IDR_comparision type
+    x = P.snip(infile, '.tsv')
+    x = x.split('/')[1]
+    x = x.split('_v_')
+    file1 = 'peaks_for_IDR.dir/%s.IDRpeaks' % x[0]
+    file2 = 'peaks_for_IDR.dir/%s.IDRpeaks' % x[1]
+
+    conn = sqlite3.connect(PARAMS['database_name'])
+    c = conn.cursor()
+    x = c.execute("SELECT IDR_comparison_type FROM IDR_pairs WHERE file1 = '%s' AND file2 = '%s'" % (file1, file2))
+    x = x.fetchall()
+
+    if len(x) != 1:
+        E.warn("""incorrect pairing of IDR output and IDR_comparision
+               type for filtering!!!""")
+    else:
+        IDR_comparision_type = str(x[0][0])
+
+    if IDR_comparision_type == 'self_consistency':
+        idrthresh = PARAMS['IDR_softthresh_selfconsistency']
+    elif IDR_comparision_type == "pooled_consistency":
+        idrthresh = PARAMS['IDR_softthresh_pooledconsistency']
+    elif IDR_comparision_type == "replicate_consistency":
+        idrthresh = PARAMS['IDR_softthresh_replicateconsistency']
 
     if 'FAILED' in IDRdata[0][0]:
         IDRdata.to_csv(outfiles[0], sep="\t")
@@ -1367,12 +1403,14 @@ def filterIDR(infile, outfiles):
                                "rep2_chromStart", "rep2_chromEnd",
                                "rep2_signalValue", "rep2_summit"]
 
-        #this code might change in python3 -> be aware!! 
-        IDRsoftthresh_transformed = -math.log(0.05)/math.log(10)
+        # this code might change in python3 -> be aware!!
 
+        # CG: this uses global idr column to filter on - requires idr code to
+        # be modified so that it does not round idr output (line 334 - Jun17)
+        idr_score_threshold = -math.log(idrthresh, 10)
 
-        IDRdataP = IDRdata[IDRdata['globalIDR'] >= 1000]
-        IDRdataF = IDRdata[IDRdata['score'] != 1000]
+        IDRdataP = IDRdata[IDRdata['globalIDR'] >= idr_score_threshold]
+        IDRdataF = IDRdata[IDRdata['globalIDR'] < idr_score_threshold]
 
         IDRdataP = IDRdataP.sort_values('signalValue', ascending=False)
         IDRdataF = IDRdataF.sort_values('signalValue', ascending=False)
