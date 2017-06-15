@@ -1090,8 +1090,10 @@ def mapTrack2Input(tracks):
     return map_track2input
 
 
-@transform(loadWindowsTagCounts,
-           suffix(".load"),
+@follows(loadWindowsTagCounts,
+         aggregateWindowsTagCounts)
+@transform(aggregateWindowsTagCounts,
+           suffix(".tsv.gz"),
            "_l2foldchange_input.tsv.gz")
 def buildWindowsFoldChangesPerInput(infile, outfile):
     '''
@@ -1108,27 +1110,48 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     '''
 
     # get all data
+    # don't use the database! only 10,000 windows are
+    # loaded!!
     dbh = connect()
     cc = dbh.cursor()
     cc.execute("SELECT * FROM windows_counts")
-    data = cc.fetchall()
+    # data = cc.fetchall()
 
     # transpose, remove interval_id column
-    data = list(zip(*data))
-    columns = [x[0] for x in cc.description]
+    # data = list(zip(*data))
+    if infile.split(".")[-1] == "gz":
+        compression = "gzip"
+    else:
+        compression = None
 
+    data = pandas.read_table(infile, sep="\t",
+                             compression=compression,
+                             index_col=0, header=0)
+
+    new_columns = [x.replace("-", "_", 3) for x in data.columns]
+    data.columns = new_columns
+    columns = [x[0] for x in cc.description]
+    # columns = [data.columns]
+    E.warn(columns)
     map_track2input = mapTrack2Input(columns)
-    take_tracks = [x for x, y in enumerate(columns) if y in map_track2input]
-    take_input = [x for x, y in enumerate(
+    take_tracks = [y for x, y in enumerate(columns) if y in map_track2input]
+    E.warn([y for x, y in enumerate(columns) if y in map_track2input])
+    take_input = [y for x, y in enumerate(
         columns) if y in list(map_track2input.values()) and y is not None]
 
     # build data frame
-    dataframe = pandas.DataFrame(
-        dict([(columns[x], data[x]) for x in take_tracks]))
+    E.warn(take_tracks)
+    E.warn(take_input)
+    # dataframe = pandas.DataFrame(
+    #    dict([(columns[x], data[x]) for x in take_tracks]))
+    dataframe = data[[x for x in take_tracks]]
     dataframe = dataframe.astype('float64')
-    dataframe_input = pandas.DataFrame(
-        dict([(columns[x], data[x]) for x in take_input]))
+    # dataframe_input = pandas.DataFrame(
+    #   dict([(columns[x], data[x]) for x in take_input]))
+    dataframe_input = data[[q for q in take_input]]
 
+    E.warn(dataframe.index)
+    # raise ValueError("break here")
     # add pseudocounts
     pseudocount = 1
     for column in dataframe.columns:
@@ -1138,6 +1161,8 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
 
     # compute normalization ratios
     # total_input / total_column
+    # MM: note that the input in pipeline.ini needs to be the same
+    # as the dataframe header, not the actual filename
     ratios = {}
     for column in dataframe.columns:
         i = map_track2input[column]
@@ -1159,7 +1184,7 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     dataframe = numpy.log2(dataframe)
 
     dataframe.to_csv(IOTools.openFile(outfile, "w"),
-                     sep="\t", index=False)
+                     sep="\t", index_label="Window")
 
 
 @transform(loadWindowsTagCounts,
