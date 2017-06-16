@@ -54,8 +54,8 @@ complete test setup::
    # multiple targets can be specified as a comma separated list.
    target=full
 
-   # filename suffixes to test
-   suffixes=gtf.gz,bed.gz,tsv.gz,bam,nreads
+   # filename suffixes to checksum
+   regex_md5=gtf.gz,bed.gz,tsv.gz,bam,nreads
 
    # regular expression of files to be excluded from
    # test for difference. Use | to separate multiple
@@ -84,7 +84,7 @@ To define a default test for a pipeline, simply name the
 test ``test_<pipeline name>``, for example::
 
    [test_mapping]
-   suffixes=gtf.gz,bed.gz,tsv.gz,bam,nreads
+   regex_md5=gtf.gz,bed.gz,tsv.gz,bam,nreads
 
 Note that setting the ``target`` and ``pipeline`` options is
 not necessary in this case as the default values suffice.
@@ -322,18 +322,17 @@ def compute_file_metrics(infile, outfile, metric, suffixes):
     regex_pattern."""
 
     if suffixes is None or len(suffixes) == 0:
-        E.info("No metrics computed for %s".format(outfile))
+        E.info("No metrics computed for {}".format(outfile))
         IOTools.touchFile(outfile)
         return
 
     track = P.snip(infile, ".log")
-    gz_suffixes = ["{}.gz".format(x) for x in suffixes]
     
     # convert regex patterns to a suffix match:
     # prepend a .*
     # append a $
     regex_pattern = " -or ".join(["-regex .*{}$".format(pipes.quote(x))
-                                  for x in suffixes + gz_suffixes])
+                                  for x in suffixes])
 
     E.debug("applying metric {} to files matching {}".format(metric,
                                                              regex_pattern))
@@ -375,8 +374,7 @@ def buildCheckSums(infile, outfile):
         infile,
         outfile,
         metric="md5sum",
-        suffixes=P.asList(PARAMS["general_suffixes"]) +
-        P.asList(PARAMS.get('%s_suffixes' % track, "")))
+        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_md5' % track, ""))))
 
 
 @transform(runTests,
@@ -392,8 +390,7 @@ def buildLineCounts(infile, outfile):
         infile,
         outfile,
         metric="wc -l",
-        suffixes=P.asList(PARAMS["general_suffixes"]) +
-        P.asList(PARAMS.get('%s_suffixes' % track, "")))
+        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_linecount' % track, ""))))
 
 
 @transform(runTests,
@@ -409,8 +406,7 @@ def checkFileExistence(infile, outfile):
         infile,
         outfile,
         metric="file",
-        suffixes=P.asList(PARAMS["general_suffixes"]) +
-        P.asList(PARAMS.get('%s_suffixes' % track, "")))
+        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_exist' % track, ""))))
 
     
 @collate((buildCheckSums, buildLineCounts, checkFileExistence),
@@ -466,6 +462,10 @@ def compareCheckSums(infiles, outfile):
         if regex_linecount:
             regex_linecount = re.compile("|".join(P.asList(regex_linecount)))
 
+        regex_md5 = PARAMS.get('%s_regex_md5' % track, None)
+        if regex_md5:
+            regex_md5 = re.compile("|".join(P.asList(regex_md5)))
+
         if not os.path.exists(reffile):
             raise ValueError('no reference data defined for %s' % track)
 
@@ -512,12 +512,21 @@ def compareCheckSums(infiles, outfile):
             same_lines = set()
             
         # remainder - check md5
-        dd = cmp_data['md5'][different] != ref_data['md5'][different]
-        different_md5 = set(dd.index[dd])
-        
-        dd = (cmp_data['md5'][different] ==
-              ref_data['md5'][different])
-        same_md5 = set(dd.index[dd])
+        if regex_md5:
+            check_md5 = [x for x in different
+                         if regex_md5.search(x)]
+
+            dd = (cmp_data['md5'][check_md5] !=
+                 ref_data['md5'][check_md5])
+            different_md5 = set(dd.index[dd])
+
+            dd = (cmp_data['md5'][check_md5] ==
+                  ref_data['md5'][check_md5])
+            same_md5 = set(dd.index[dd])
+
+        else:
+            different_md5 = set()
+            same_md5 = set()
 
         if len(missing) + len(extra) + \
            len(different_md5) + len(different_lines) == 0:
