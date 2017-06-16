@@ -11,9 +11,9 @@ import scipy.stats as stats
 from CGATPipelines.Pipeline import cluster_runnable
 import CGAT.Experiment as E
 import ast as ast
+import numpy as np
 from toposort import toposort_flatten
 r.packages.importr("hpar")
-import numpy as np
 
 
 robjects.r('''
