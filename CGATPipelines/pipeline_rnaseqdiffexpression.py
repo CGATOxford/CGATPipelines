@@ -1458,26 +1458,20 @@ def NormaliseExpression():
     pass
 
 
-@transform(DETARGETS,
-           regex("DEresults.dir/(\S+)/(\S+)_(\S+)_transcripts_results.tsv"),
-           [r"DEresults.dir/\1_\2_\3_transcripts_results.load",
-            r"DEresults.dir/\1_\2_\3_genes_results.load"])
+# AH: see below
+@merge(DETARGETS, "differential_expression.load")
 def loadDifferentialExpression(infiles, outfiles):
-    P.load(infiles[0], outfiles[0])
-    P.load(infiles[1], outfiles[1])
-
+    for infile in IOTools.flatten(infiles):
+        outfile = P.snip(infile, ".tsv") + ".load"
+        P.load(infile, outfile)
 
 # AH: it seems that this task is executed twice (ruffus bug?) and can
-# cause table exist error.
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
-@transform(NORMTARGETS,
-           regex("DEresults.dir/(\S+)/(\S+)_normalised_transcripts_expression.tsv.gz"),
-           [r"DEresults.dir/\1/\2_normalised_transcripts_expression.load",
-            r"DEresults.dir/\1/\2_normalised_genes_expression.load"])
+# cause table exist error. Use a sequential load.
+@merge(NORMTARGETS, "normalised_expression.load")
 def loadNormalisedExpression(infiles, outfiles):
-    P.load(infiles[0], outfiles[0])
-    P.load(infiles[1], outfiles[1])
-
+    for infile in IOTools.flatten(infiles):
+        outfile = P.snip(infile, ".tsv.gz") + ".load"
+        P.load(infile, outfile)
 
 ###################################################
 # Summary plots
