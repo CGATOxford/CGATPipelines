@@ -454,11 +454,11 @@ def compareCheckSums(infiles, outfile):
          "files_different_lines"))) + "\n")
 
     for infile in infiles:
+        E.info("working on {}".format(infile))
         track = P.snip(infile, ".stats")
 
         logfile = track + ".log"
-        last_line = IOTools.getLastLine(logfile)
-        job_finished = last_line.startswith("# job finished")
+        job_finished = IOTools.isComplete(logfile)
 
         reffile = track + ".ref"
 
@@ -471,6 +471,10 @@ def compareCheckSums(infiles, outfile):
         if regex_linecount:
             regex_linecount = re.compile("|".join(P.asList(regex_linecount)))
 
+        regex_ignore = PARAMS.get('%s_regex_ignore' % track, None)
+        if regex_ignore:
+            regex_ignore = re.compile("|".join(P.asList(regex_ignore)))
+
         if not os.path.exists(reffile):
             raise ValueError('no reference data defined for %s' % track)
 
@@ -482,9 +486,19 @@ def compareCheckSums(infiles, outfile):
                                    sep="\t",
                                    index_col=0)
 
-        shared_files = set(cmp_data.index).intersection(ref_data.index)
-        missing = set(ref_data.index).difference(cmp_data.index)
-        extra = set(cmp_data.index).difference(ref_data.index)
+        # apply ignore pattern before everything
+        cmp_data_files = set(cmp_data.index)
+        ref_data_files = set(ref_data.index)
+
+        if regex_ignore:
+            cmp_data_files = set([x for x in cmp_data_files
+                                  if regex_ignore.search(x)])
+            ref_data_files = set([x for x in cmp_data_files
+                                  if regex_ignore.search(x)])
+
+        shared_files = cmp_data_files.intersection(ref_data_files)
+        missing = ref_data_files.difference(cmp_data_files)
+        extra = cmp_data_files.difference(ref_data_files)
 
         different = set(shared_files)
 
@@ -534,8 +548,8 @@ def compareCheckSums(infiles, outfile):
             track,
             status,
             job_finished,
-            len(cmp_data),
-            len(ref_data),
+            len(cmp_data_files),
+            len(ref_data_files),
             len(missing),
             len(extra),
             len(different_md5) + len(different_lines),
