@@ -121,6 +121,7 @@ from ruffus import *
 import sys
 import os
 import glob
+import shutil
 import sqlite3
 from rpy2.robjects import r as R
 import CGAT.BamTools as BamTools
@@ -383,7 +384,7 @@ def permuteMATS(infile, outfiles, outdir):
 @transform(permuteMATS,
            regex("results.dir/rMATS/(\S+).dir/permutations/(\S+).dir"),
            add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
-           r"results.dir/rMATS/\1.dir/permutations/\2.dir/SE.MATS.JunctionCountOnly.txt",
+           r"results.dir/rMATS/\1.dir/permutations/\2.dir/MATS_output/SE.MATS.JunctionCountOnly.txt",
            r"\1.design.tsv")
 def runPermuteMATS(infiles, outfiles, design):
 
@@ -395,6 +396,14 @@ def runPermuteMATS(infiles, outfiles, design):
     PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
                               strand=strand, outfile=outfiles, permute=1)
+
+
+@transform(runPermuteMATS,
+           regex("results.dir/rMATS/(\S+).dir/permutations/(\S+).dir/MATS_output/SE.MATS.JunctionCountOnly.txt"),
+           r"results.dir/rMATS/\1.dir/permutations/\2.dir/clean.tsv")
+def cleanPermuteMATS(infiles, outfiles):
+    shutil.rmtree(os.path.basename(outfile) + "/SAMPLE_1")
+    shutil.rmtree(os.path.basename(outfile) + "/SAMPLE_2")
 
 
 @mkdir("results.dir/sashimi")
