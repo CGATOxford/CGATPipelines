@@ -1279,6 +1279,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 
     model = PARAMS['sleuth_model%s' % design_name]
     E.info(model)
+    reduced_model = PARAMS['sleuth_reduced_model%s' % design_name]
 
     contrast = PARAMS['sleuth_contrast%s' % design_name]
     refgroup = PARAMS['sleuth_refgroup%s' % design_name]
@@ -1313,6 +1314,12 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
     --sleuth-counts-dir=%(quantifier)s.dir
     --reference-group=%(refgroup)s
     --de-test=%(detest)s
+    '''
+    if detest == "lrt":
+        statement += '''
+        --reduced-model=%(reduced_model)s
+        '''
+    statement += '''
     -v 0
     >%(transcript_out)s
     '''
@@ -1344,8 +1351,15 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
         --reference-group=%(refgroup)s
         --gene-biomart=%(sleuth_gene_biomart)s
         --de-test=%(detest)s
+        '''
+        if detest == "lrt":
+            statement += '''
+            --reduced-model=%(reduced_model)s
+            '''
+        statement += '''
         -v 0
-        >%(gene_out)s'''
+        >%(transcript_out)s
+        '''
 
         P.run()
 
