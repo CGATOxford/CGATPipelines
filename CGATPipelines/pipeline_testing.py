@@ -54,8 +54,8 @@ complete test setup::
    # multiple targets can be specified as a comma separated list.
    target=full
 
-   # filename suffixes to checksum
-   regex_md5=gtf.gz,bed.gz,tsv.gz,bam,nreads
+   # filename suffixes to test
+   suffixes=gtf.gz,bed.gz,tsv.gz,bam,nreads
 
    # regular expression of files to be excluded from
    # test for difference. Use | to separate multiple
@@ -84,7 +84,7 @@ To define a default test for a pipeline, simply name the
 test ``test_<pipeline name>``, for example::
 
    [test_mapping]
-   regex_md5=gtf.gz,bed.gz,tsv.gz,bam,nreads
+   suffixes=gtf.gz,bed.gz,tsv.gz,bam,nreads
 
 Note that setting the ``target`` and ``pipeline`` options is
 not necessary in this case as the default values suffice.
@@ -277,8 +277,7 @@ def runTest(infile, outfile):
         for pipeline_target in pipeline_targets:
             statements.append(template_statement % pipeline_target)
         P.run(ignore_errors=True)
-
-
+    
 # @follows(setupTests)
 # @files([("%s.tgz" % x, "%s.log" % x)
 #         for x in P.asList(PARAMS.get("prerequisites", ""))])
@@ -322,17 +321,18 @@ def compute_file_metrics(infile, outfile, metric, suffixes):
     regex_pattern."""
 
     if suffixes is None or len(suffixes) == 0:
-        E.info("No metrics computed for {}".format(outfile))
+        E.info("No metrics computed for %s".format(outfile))
         IOTools.touchFile(outfile)
         return
 
     track = P.snip(infile, ".log")
+    gz_suffixes = ["{}.gz".format(x) for x in suffixes]
     
     # convert regex patterns to a suffix match:
     # prepend a .*
     # append a $
     regex_pattern = " -or ".join(["-regex .*{}$".format(pipes.quote(x))
-                                  for x in suffixes])
+                                  for x in suffixes + gz_suffixes])
 
     E.debug("applying metric {} to files matching {}".format(metric,
                                                              regex_pattern))
@@ -374,7 +374,8 @@ def buildCheckSums(infile, outfile):
         infile,
         outfile,
         metric="md5sum",
-        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_md5' % track, ""))))
+        suffixes=P.asList(PARAMS["general_suffixes"]) +
+        P.asList(PARAMS.get('%s_suffixes' % track, "")))
 
 
 @transform(runTests,
@@ -390,7 +391,8 @@ def buildLineCounts(infile, outfile):
         infile,
         outfile,
         metric="wc -l",
-        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_linecount' % track, ""))))
+        suffixes=P.asList(PARAMS["general_suffixes"]) +
+        P.asList(PARAMS.get('%s_suffixes' % track, "")))
 
 
 @transform(runTests,
@@ -406,7 +408,8 @@ def checkFileExistence(infile, outfile):
         infile,
         outfile,
         metric="file",
-        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_exist' % track, ""))))
+        suffixes=P.asList(PARAMS["general_suffixes"]) +
+        P.asList(PARAMS.get('%s_suffixes' % track, "")))
 
     
 @collate((buildCheckSums, buildLineCounts, checkFileExistence),
@@ -435,6 +438,7 @@ def compareCheckSums(infiles, outfile):
     outf = IOTools.openFile(outfile, "w")
     outf.write("\t".join((
         ("track", "status",
+         "job_finished",
          "nfiles", "nref",
          "missing", "extra",
          "different",
@@ -451,6 +455,11 @@ def compareCheckSums(infiles, outfile):
 
     for infile in infiles:
         track = P.snip(infile, ".stats")
+
+        logfile = track + ".log"
+        last_line = IOTools.getLastLine(logfile)
+        job_finished = last_line.startswith("# job finished")
+
         reffile = track + ".ref"
 
         # regular expression of files to test only for existence
@@ -461,10 +470,6 @@ def compareCheckSums(infiles, outfile):
         regex_linecount = PARAMS.get('%s_regex_linecount' % track, None)
         if regex_linecount:
             regex_linecount = re.compile("|".join(P.asList(regex_linecount)))
-
-        regex_md5 = PARAMS.get('%s_regex_md5' % track, None)
-        if regex_md5:
-            regex_md5 = re.compile("|".join(P.asList(regex_md5)))
 
         if not os.path.exists(reffile):
             raise ValueError('no reference data defined for %s' % track)
@@ -512,24 +517,15 @@ def compareCheckSums(infiles, outfile):
             same_lines = set()
             
         # remainder - check md5
-        if regex_md5:
-            check_md5 = [x for x in different
-                         if regex_md5.search(x)]
+        dd = cmp_data['md5'][different] != ref_data['md5'][different]
+        different_md5 = set(dd.index[dd])
+        
+        dd = (cmp_data['md5'][different] ==
+              ref_data['md5'][different])
+        same_md5 = set(dd.index[dd])
 
-            dd = (cmp_data['md5'][check_md5] !=
-                  ref_data['md5'][check_md5])
-            different_md5 = set(dd.index[dd])
-
-            dd = (cmp_data['md5'][check_md5] ==
-                  ref_data['md5'][check_md5])
-            same_md5 = set(dd.index[dd])
-
-        else:
-            different_md5 = set()
-            same_md5 = set()
-
-        if len(missing) + len(extra) + \
-           len(different_md5) + len(different_lines) == 0:
+        if job_finished and (len(missing) + len(extra) + \
+           len(different_md5) + len(different_lines) == 0):
             status = "OK"
         else:
             status = "FAIL"
@@ -537,6 +533,7 @@ def compareCheckSums(infiles, outfile):
         outf.write("\t".join(map(str, (
             track,
             status,
+            job_finished,
             len(cmp_data),
             len(ref_data),
             len(missing),
