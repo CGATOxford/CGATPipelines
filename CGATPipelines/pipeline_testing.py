@@ -517,7 +517,7 @@ def compareCheckSums(infiles, outfile):
                          if regex_md5.search(x)]
 
             dd = (cmp_data['md5'][check_md5] !=
-                 ref_data['md5'][check_md5])
+                  ref_data['md5'][check_md5])
             different_md5 = set(dd.index[dd])
 
             dd = (cmp_data['md5'][check_md5] ==
