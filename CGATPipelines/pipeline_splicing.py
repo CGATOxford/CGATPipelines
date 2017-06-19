@@ -426,6 +426,8 @@ def loadMATS(infile, outfile):
 ###################################################################
 
 @follows(runSashimi,
+         runPermuteMATS,
+         loadMATS,
          runDEXSeq)
 def full():
     pass
