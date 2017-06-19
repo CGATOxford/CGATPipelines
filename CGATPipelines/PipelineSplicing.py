@@ -78,40 +78,31 @@ def runRMATS(gtffile, designfile, pvalue, strand, outdir, permute=0):
 
     group1 = ",".join(
         ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[0])])
+    with open(outdir + "/b1.txt", "w") as f:
+        f.write(group1)
     group2 = ",".join(
         ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[1])])
+    with open(outdir + "/b2.txt", "w") as f:
+        f.write(group1)
     readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
 
     statement = '''rMATS
-    -b1 %(group1)s
-    -b2 %(group2)s
-    -gtf <(gunzip -c %(gtffile)s)
-    -o %(outdir)s
-    -len %(readlength)s
-    -c %(pvalue)s
-    -libType %(strand)s
+    --b1 %(outdir)s/b1.txt
+    --b2 %(outdir)s/b2.txt
+    --gtf <(gunzip -c %(gtffile)s)
+    --od %(outdir)s
+    --readLength %(readlength)s
+    --cstat %(pvalue)s
+    --libType %(strand)s
     ''' % locals()
 
     # Specify paired design
     if design.has_pairs:
         statement += '''-analysis P '''
 
-    # Get Insert Size Statistics if Paired End Reads
+    # if Paired End Reads
     if BamTools.isPaired(design.samples[0]+".bam"):
-        inserts1 = [BamTools.estimateInsertSizeDistribution(sample+".bam",
-                                                            10000)
-                    for sample in design.getSamplesInGroup(design.groups[0])]
-        inserts2 = [BamTools.estimateInsertSizeDistribution(sample+".bam",
-                                                            10000)
-                    for sample in design.getSamplesInGroup(design.groups[1])]
-        r1 = ",".join(map(str, [item[0] for item in inserts1]))
-        sd1 = ",".join(map(str, [item[1] for item in inserts1]))
-        r2 = ",".join(map(str, [item[0] for item in inserts2]))
-        sd2 = ",".join(map(str, [item[1] for item in inserts2]))
-
-        statement += '''-t paired
-        -r1 %(r1)s -r2 %(r2)s
-        -sd1 %(sd1)s -sd2 %(sd2)s''' % locals()
+        statement += '''-t paired''' % locals()
 
     P.run()
 

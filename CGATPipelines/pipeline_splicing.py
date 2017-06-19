@@ -188,7 +188,6 @@ class MySample(PipelineTracks.Sample):
 TRACKS = PipelineTracks.Tracks(MySample).loadFromDirectory(
     glob.glob("*.bam"), "(\S+).bam")
 
-
 Sample = PipelineTracks.AutoSample
 DESIGNS = PipelineTracks.Tracks(Sample).loadFromDirectory(
     glob.glob("*.design.tsv"), "(\S+).design.tsv")
@@ -308,8 +307,7 @@ def aggregateExonCounts(infiles, outfile):
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
            r"results.dir/DEXSeq/\1.dir")
-def runDEXSeq(infile,
-              outfile):
+def runDEXSeq(infile, outfile):
     '''
     '''
     if not os.path.exists(outfile):
@@ -353,13 +351,15 @@ def runDEXSeq(infile,
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
            add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
-           [r"results.dir/rMATS/\1.dir/MATS_output/%s.MATS.JunctionCountOnly.txt" % x for x in ["SE", "A5SS", "A3SS", "MXE", "RI"]])
+           [r"results.dir/rMATS/\1.dir/%s.MATS.JC.txt" % x for x in ["SE", "A5SS", "A3SS", "MXE", "RI"]])
 def runMATS(infile, outfiles):
     '''run rMATS.'''
 
     design, gtffile = infile
     strand = PARAMS["MATS_libtype"]
-    outdir = os.path.dirname(os.path.dirname(outfiles[0]))
+    outdir = os.path.dirname(outfiles[0])
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
@@ -385,7 +385,7 @@ def permuteMATS(infile, outfiles, outdir):
 @transform(permuteMATS,
            regex("results.dir/rMATS/(\S+).dir/permutations/(\S+).dir"),
            add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
-           r"results.dir/rMATS/\1.dir/permutations/\2.dir/MATS_output/SE.MATS.JunctionCountOnly.txt",
+           r"results.dir/rMATS/\1.dir/permutations/\2.dir/SE.MATS.JC.txt",
            r"\1.design.tsv")
 def runPermuteMATS(infiles, outfiles, design):
 
@@ -399,17 +399,9 @@ def runPermuteMATS(infiles, outfiles, design):
                               strand=strand, outdir=directory, permute=1)
 
 
-@transform(runPermuteMATS,
-           regex("results.dir/rMATS/(\S+).dir/permutations/(\S+).dir/MATS_output/SE.MATS.JunctionCountOnly.txt"),
-           r"results.dir/rMATS/\1.dir/permutations/\2.dir/clean.tsv")
-def cleanPermuteMATS(infiles, outfiles):
-    shutil.rmtree(os.path.basename(outfile) + "/SAMPLE_1")
-    shutil.rmtree(os.path.basename(outfile) + "/SAMPLE_2")
-
-
 @mkdir("results.dir/sashimi")
 @transform(runMATS,
-           regex("results.dir/rMATS/(\S+).dir/MATS_output/(\S+).MATS.JunctionCountOnly.txt"),
+           regex("results.dir/rMATS/(\S+).dir/(\S+).MATS.JC.txt"),
            add_inputs(r"\1.design.tsv"),
            r"results.dir/sashimi/\1.dir/\2")
 def runSashimi(infiles, outfile):
@@ -421,8 +413,8 @@ def runSashimi(infiles, outfile):
 
 
 @transform(runMATS,
-           regex("results.dir/rMATS/(\S+).dir/MATS_output/(\S+).MATS.JunctionCountOnly.txt"),
-           r"results.dir/rMATS/\1.dir/\1_\2_JunctionCountOnly.load")
+           regex("results.dir/rMATS/(\S+).dir/(\S+).MATS.JC.txt"),
+           r"results.dir/rMATS/\1.dir/\1_\2_JC.load")
 def loadMATS(infile, outfile):
     '''load RMATS results into relational database'''
     P.load(infile, outfile)
