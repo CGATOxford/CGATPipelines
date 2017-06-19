@@ -121,7 +121,6 @@ from ruffus import *
 import sys
 import os
 import glob
-import shutil
 import sqlite3
 from rpy2.robjects import r as R
 import CGAT.BamTools as BamTools
