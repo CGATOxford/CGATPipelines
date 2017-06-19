@@ -59,17 +59,23 @@ Requirements:
 
 from ruffus import *
 import os
+import random
+import itertools
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
 import CGAT.Expression as Expression
 import CGATPipelines.Pipeline as P
 
 
-def runRMATS(gtffile, designfile, pvalue, strand, outfile):
+def runRMATS(gtffile, designfile, pvalue, strand, outfile, permute=0):
     '''DEExperiment object to generate differential splicing events
     using rMATS
     '''
     design = Expression.ExperimentalDesign(designfile)
+    if permute == 1:
+        design.table.group = random.choice(list(
+                             itertools.permutations(design.table.group)))
+
     group1 = ",".join(
         ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[0])])
     group2 = ",".join(
@@ -80,7 +86,7 @@ def runRMATS(gtffile, designfile, pvalue, strand, outfile):
     statement = '''rMATS
     -b1 %(group1)s
     -b2 %(group2)s
-    -gtf <(gunzip %(gtffile)s)
+    -gtf <(gunzip -c %(gtffile)s)
     -o %(outfile)s
     -len %(readlength)s
     -c %(pvalue)s

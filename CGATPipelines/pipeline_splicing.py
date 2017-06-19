@@ -392,13 +392,9 @@ def runPermuteMATS(infiles, outfiles, design):
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    # permutes experimental design table
-    design.table.group = random.choice(list(
-                         itertools.permutations(design.table.group)))
-
     PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
-                              strand=strand, outfile=outfiles)
+                              strand=strand, outfile=outfiles, permute=1)
 
 
 @mkdir("results.dir/sashimi")
