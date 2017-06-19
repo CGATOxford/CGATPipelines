@@ -359,12 +359,13 @@ def runMATS(infile, outfiles):
 
     design, gtffile = infile
     strand = PARAMS["MATS_libtype"]
+    outdir = os.path.dirname(os.path.dirname(outfiles[0]))
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
     PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
-                              strand=strand, outfiles=outfiles)
+                              strand=strand, outdir=outdir)
 
 
 @follows(runMATS)
@@ -395,7 +396,7 @@ def runPermuteMATS(infiles, outfiles, design):
 
     PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
-                              strand=strand, outfile=outfiles, permute=1)
+                              strand=strand, outdir=directory, permute=1)
 
 
 @transform(runPermuteMATS,

@@ -67,7 +67,7 @@ import CGAT.Expression as Expression
 import CGATPipelines.Pipeline as P
 
 
-def runRMATS(gtffile, designfile, pvalue, strand, outfile, permute=0):
+def runRMATS(gtffile, designfile, pvalue, strand, outdir, permute=0):
     '''DEExperiment object to generate differential splicing events
     using rMATS
     '''
@@ -81,13 +81,12 @@ def runRMATS(gtffile, designfile, pvalue, strand, outfile, permute=0):
     group2 = ",".join(
         ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[1])])
     readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
-    # outfile = os.path.dirname(os.path.dirname(outfiles[0]))
 
     statement = '''rMATS
     -b1 %(group1)s
     -b2 %(group2)s
     -gtf <(gunzip -c %(gtffile)s)
-    -o %(outfile)s
+    -o %(outdir)s
     -len %(readlength)s
     -c %(pvalue)s
     -libType %(strand)s
