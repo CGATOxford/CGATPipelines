@@ -1282,6 +1282,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 
     contrast = PARAMS['sleuth_contrast%s' % design_name]
     refgroup = PARAMS['sleuth_refgroup%s' % design_name]
+    detest = PARAMS['sleuth_detest']
     transcripts = os.path.join("geneset.dir",
                                P.snip(PARAMS['geneset'], ".gtf.gz") + ".fa")
 
@@ -1311,6 +1312,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
     --contrast=%(contrast)s
     --sleuth-counts-dir=%(quantifier)s.dir
     --reference-group=%(refgroup)s
+    --de-test=%(detest)s
     -v 0
     >%(transcript_out)s
     '''
@@ -1341,6 +1343,7 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
         --sleuth-counts-dir=%(quantifier)s.dir
         --reference-group=%(refgroup)s
         --gene-biomart=%(sleuth_gene_biomart)s
+        --de-test=%(detest)s
         -v 0
         >%(gene_out)s'''
 
