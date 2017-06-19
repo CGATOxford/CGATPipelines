@@ -125,8 +125,6 @@ import sqlite3
 from rpy2.robjects import r as R
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
-import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineSplicing as PipelineSplicing
@@ -330,7 +328,7 @@ def runDEXSeq(infile,
     statement = '''
     python %%(scriptsdir)s/counts2table.py
     --design-tsv-file=%(infile)s
-    --output-filename-pattern=%(outfile)s/
+    --output-filename-pattern=%(outfile)s/%(design)s
     --log=%(outfile)s/DEXSeq.log
     --method=dexseq
     --fdr=%(dexseq_fdr)s
@@ -359,20 +357,48 @@ def runMATS(infile, outfiles):
     '''run rMATS.'''
 
     design, gtffile = infile
-    tmpgff = P.getTempFilename(".")
-    statement = "gunzip -c %(gtffile)s > %(tmpgff)s" % locals()
-    P.run()
-
     strand = PARAMS["MATS_libtype"]
-
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
 
-    PipelineSplicing.runRMATS(gtffile=tmpgff, designfile=design,
+    PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
                               strand=strand, outfiles=outfiles)
 
-    os.unlink(tmpgff)
+
+@follows(runMATS)
+@active_if(PARAMS["permute"] == 1)
+@subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
+           regex("(\S+).design.tsv"),
+           r"results.dir/rMATS/\1.dir/permutations/run*.dir",
+           r"results.dir/rMATS/\1.dir/permutations")
+def permuteMATS(infile, outfiles, outdir):
+
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+    for i in range(0, PARAMS["permutations"]):
+        os.makedirs("%s/run%i.dir" % (outdir, i))
+
+
+@transform(permuteMATS,
+           regex("results.dir/rMATS/(\S+).dir/permutations/(\S+).dir"),
+           add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
+           r"results.dir/rMATS/\1.dir/permutations/\2.dir/SE.MATS.JunctionCountOnly.txt",
+           r"\1.design.tsv")
+def runPermuteMATS(infiles, outfiles, design):
+
+    directory, gtffile = infiles
+    strand = PARAMS["MATS_libtype"]
+    # job_threads = PARAMS["MATS_threads"]
+    # job_memory = PARAMS["MATS_memory"]
+
+    # permutes experimental design table
+    design.table.group = random.choice(list(
+                         itertools.permutations(design.table.group)))
+
+    PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
+                              pvalue=PARAMS["MATS_cutoff"],
+                              strand=strand, outfile=outfiles)
 
 
 @mkdir("results.dir/sashimi")

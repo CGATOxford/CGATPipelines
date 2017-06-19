@@ -45,7 +45,7 @@ counts-based differential expression tools.
 Usage
 -----
 
-
+ru
 Documentation
 -------------
 
@@ -65,7 +65,7 @@ import CGAT.Expression as Expression
 import CGATPipelines.Pipeline as P
 
 
-def runRMATS(gtffile, designfile, pvalue, strand, outfiles):
+def runRMATS(gtffile, designfile, pvalue, strand, outfile):
     '''DEExperiment object to generate differential splicing events
     using rMATS
     '''
@@ -75,12 +75,12 @@ def runRMATS(gtffile, designfile, pvalue, strand, outfiles):
     group2 = ",".join(
         ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[1])])
     readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
-    outfile = os.path.dirname(outfiles[1])
+    # outfile = os.path.dirname(os.path.dirname(outfiles[0]))
 
     statement = '''rMATS
     -b1 %(group1)s
     -b2 %(group2)s
-    -gtf %(gtffile)s
+    -gtf <(gunzip %(gtffile)s)
     -o %(outfile)s
     -len %(readlength)s
     -c %(pvalue)s
@@ -89,7 +89,7 @@ def runRMATS(gtffile, designfile, pvalue, strand, outfiles):
 
     # Specify paired design
     if design.has_pairs:
-        statement += '''analysis P '''
+        statement += '''-analysis P '''
 
     # Get Insert Size Statistics if Paired End Reads
     if BamTools.isPaired(design.samples[0]+".bam"):
