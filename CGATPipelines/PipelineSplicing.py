@@ -83,7 +83,7 @@ def runRMATS(gtffile, designfile, pvalue, strand, outdir, permute=0):
     group2 = ",".join(
         ["%s.bam" % x for x in design.getSamplesInGroup(design.groups[1])])
     with open(outdir + "/b2.txt", "w") as f:
-        f.write(group1)
+        f.write(group2)
     readlength = BamTools.estimateTagSize(design.samples[0]+".bam")
 
     statement = '''rMATS
@@ -96,13 +96,13 @@ def runRMATS(gtffile, designfile, pvalue, strand, outdir, permute=0):
     --libType %(strand)s
     ''' % locals()
 
-    # Specify paired design
-    if design.has_pairs:
-        statement += '''-analysis P '''
-
     # if Paired End Reads
     if BamTools.isPaired(design.samples[0]+".bam"):
         statement += '''-t paired''' % locals()
+
+    statement += '''
+    > %(outdir)s/%(designfile)s.log
+    '''
 
     P.run()
 
@@ -140,7 +140,8 @@ def rmats2sashimi(infile, designfile, FDR, outfile):
     -e %(infile)s_sig.txt
     --l1 %(group1name)s
     --l2 %(group2name)s
-    -o %(outfile)s; checkpoint;
+    -o %(outfile)s
+    > %(outfile)s/%(event)s.log
     ''' % locals()
 
     P.run()

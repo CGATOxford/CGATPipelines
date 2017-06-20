@@ -407,6 +407,8 @@ def runSashimi(infiles, outfile):
 
     infile, design = infiles
     fdr = PARAMS["MATS_fdr"]
+    if not os.path.exists(outfile):
+        os.makedirs(outfile)
 
     PipelineSplicing.rmats2sashimi(infile, design, fdr, outfile)
 
