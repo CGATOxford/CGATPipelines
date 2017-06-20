@@ -93,7 +93,7 @@ Requirements:
 
 * samtools
 * DEXSeq
-* rMATS
+* rMATS-turbo
 * pysam
 
 Pipeline output
@@ -370,9 +370,35 @@ def runMATS(infile, outfiles):
 
 @transform(runMATS,
            regex("results.dir/rMATS/(\S+).dir/(\S+).MATS.JC.txt"),
-           r"results.dir/rMATS/\1.dir/\1_\2_JC.load")
+           r"results.dir/rMATS/rMATS_\1_\2_JC.load")
 def loadMATS(infile, outfile):
     '''load RMATS results into relational database'''
+    P.load(infile, outfile)
+
+
+@collate(runMATS,
+         regex("results.dir/rMATS/(\S+).dir/\S+.MATS.JC.txt"),
+         r"results.dir/rMATS/rMATS_\1_results.summary")
+def collateMATS(infiles, outfile):
+    indir = os.path.dirname(infiles[1])
+    collate = []
+    with open(indir+"/b1.txt", "r") as f:
+        collate.append(f.readline())
+    with open(indir+"/b2.txt", "r") as f:
+        collate.append(f.readline())
+    for event in ["SE", "A5SS", "A3SS", "MXE", "RI"]:
+        temp = pd.read_csv("%s/%s.MATS.JC.txt" %
+                           (indir, event), sep='\t')
+        collate.append(str(len(temp[temp['FDR'] < PARAMS['MATS_fdr']])))
+    with open(outfile, "w") as f:
+        f.write("Group1\tGroup2\tSE\tA5SS\tA3SS\tMXE\tRI\n")
+        f.write('\t'.join(collate))
+
+
+@transform(collateMATS,
+           suffix(".summary"),
+           ".load")
+def loadCollateMATS(infile, outfile):
     P.load(infile, outfile)
 
 
@@ -427,7 +453,7 @@ def runPermuteMATS(infiles, outfile, design):
 
 @collate(runPermuteMATS,
          regex("results.dir/rMATS/(\S+).dir/permutations/\S+.dir/result.tsv"),
-         r"results.dir/rMATS/\1.dir/permutations.summary")
+         r"results.dir/rMATS/rMATS_\1_permutations.summary")
 def collatePermuteMATS(infiles, outfile):
     collate = []
     for infile in infiles:
@@ -464,6 +490,7 @@ def runSashimi(infiles, outfile):
 ###################################################################
 
 @follows(loadMATS,
+         loadCollateMATS,
          loadPermuteMATS,
          runSashimi,
          runDEXSeq)
