@@ -155,6 +155,7 @@ from ruffus import files, transform, suffix, follows, merge, collate, regex, mkd
 import sys
 import pipes
 import os
+import glob
 import re
 import tarfile
 import pandas
@@ -225,7 +226,7 @@ def setupTests(infile, outfile):
     statement = '''
     (cd %(track)s.dir;
     python %(pipelinedir)s/%(pipeline_name)s.py
-    %(pipeline_options)s config) >& %(outfile)s.log
+    %(pipeline_options)s config) >& %(outfile)s_config.log
     '''
     P.run()
 
@@ -267,16 +268,19 @@ def runTest(infile, outfile):
     template_statement = '''
     (cd %%(track)s.dir;
     python %%(pipelinedir)s/%%(pipeline_name)s.py
-    %%(pipeline_options)s make %s) >& %%(outfile)s
+    %%(pipeline_options)s make %s) >& %%(track)s_%s.log
     '''
     if len(pipeline_targets) == 1:
-        statement = template_statement % pipeline_targets[0]
+        statement = template_statement % (pipeline_targets[0],
+                                          pipeline_targets[0])
         P.run(ignore_errors=True)
     else:
         statements = []
         for pipeline_target in pipeline_targets:
-            statements.append(template_statement % pipeline_target)
+            statements.append(template_statement % (pipeline_target, pipeline_target))
         P.run(ignore_errors=True)
+
+    P.touch(outfile)
     
 # @follows(setupTests)
 # @files([("%s.tgz" % x, "%s.log" % x)
@@ -457,8 +461,12 @@ def compareCheckSums(infiles, outfile):
         E.info("working on {}".format(infile))
         track = P.snip(infile, ".stats")
 
-        logfile = track + ".log"
-        job_finished = IOTools.isComplete(logfile)
+        logfiles = glob.glob(track + "*.log")
+        job_finished = True
+        for logfile in logfiles:
+            is_complete = IOTools.isComplete(logfile)
+            E.debug("logcheck: {} = {}".format(logfile, is_complete))
+            job_finished = job_finished and is_complete
 
         reffile = track + ".ref"
 

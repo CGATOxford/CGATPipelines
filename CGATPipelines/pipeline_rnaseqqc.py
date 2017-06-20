@@ -1,3 +1,4 @@
+
 """
 ====================
 RNASeqQC pipeline
@@ -1097,6 +1098,7 @@ def runSailfishSaturation(infiles, outfile):
     P.run()
 
 
+@jobs_limit(1, "R")
 @mkdir("sailfish.dir/plots.dir")
 @merge(runSailfishSaturation,
        "sailfish.dir/plots.dir/saturation_plots.sentinel")
