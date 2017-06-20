@@ -122,6 +122,7 @@ import sys
 import os
 import glob
 import sqlite3
+import pandas as pd
 from rpy2.robjects import r as R
 import CGAT.BamTools as BamTools
 import CGAT.Experiment as E
@@ -367,35 +368,78 @@ def runMATS(infile, outfiles):
                               strand=strand, outdir=outdir)
 
 
-@follows(runMATS)
+@transform(runMATS,
+           regex("results.dir/rMATS/(\S+).dir/(\S+).MATS.JC.txt"),
+           r"results.dir/rMATS/\1.dir/\1_\2_JC.load")
+def loadMATS(infile, outfile):
+    '''load RMATS results into relational database'''
+    P.load(infile, outfile)
+
+
 @active_if(PARAMS["permute"] == 1)
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/rMATS/\1.dir/permutations/run*.dir",
+           r"results.dir/rMATS/\1.dir/permutations/run*.dir/init",
            r"results.dir/rMATS/\1.dir/permutations")
 def permuteMATS(infile, outfiles, outdir):
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
     for i in range(0, PARAMS["permutations"]):
-        os.makedirs("%s/run%i.dir" % (outdir, i))
+        if not os.path.exists("%s/run%i.dir" % (outdir, i)):
+            os.makedirs("%s/run%i.dir" % (outdir, i))
+        P.touch("%s/run%i.dir/init" % (outdir, i))
 
 
 @transform(permuteMATS,
-           regex("results.dir/rMATS/(\S+).dir/permutations/(\S+).dir"),
+           regex("results.dir/rMATS/(\S+).dir/permutations/(\S+).dir/init"),
            add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
-           r"results.dir/rMATS/\1.dir/permutations/\2.dir/SE.MATS.JC.txt",
+           r"results.dir/rMATS/\1.dir/permutations/\2.dir/result.tsv",
            r"\1.design.tsv")
-def runPermuteMATS(infiles, outfiles, design):
+def runPermuteMATS(infiles, outfile, design):
 
-    directory, gtffile = infiles
+    init, gtffile = infiles
+    directory = os.path.dirname(init)
     strand = PARAMS["MATS_libtype"]
     # job_threads = PARAMS["MATS_threads"]
     # job_memory = PARAMS["MATS_memory"]
+    outdir = os.path.dirname(outfile)
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
 
     PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
                               strand=strand, outdir=directory, permute=1)
+
+    collate = []
+    with open(os.path.dirname(init)+"/b1.txt", "r") as f:
+        collate.append(f.readline())
+    with open(os.path.dirname(init)+"/b2.txt", "r") as f:
+        collate.append(f.readline())
+    for event in ["SE", "A5SS", "A3SS", "MXE", "RI"]:
+        temp = pd.read_csv("%s/%s.MATS.JC.txt" %
+                           (os.path.dirname(outfile), event), sep='\t')
+        collate.append(str(len(temp[temp['FDR'] < PARAMS['MATS_fdr']])))
+    with open(outfile, "w") as f:
+        f.write("Group1\tGroup2\tSE\tA5SS\tA3SS\tMXE\tRI\n")
+        f.write('\t'.join(collate))
+
+
+@collate(runPermuteMATS,
+         regex("results.dir/rMATS/(\S+).dir/permutations/\S+.dir/result.tsv"),
+         r"results.dir/rMATS/\1.dir/permutations.summary")
+def collatePermuteMATS(infiles, outfile):
+    collate = []
+    for infile in infiles:
+        collate.append(pd.read_csv(infile, sep='\t'))
+    pd.concat(collate).to_csv(outfile, sep='\t', index=0)
+
+
+@transform(collatePermuteMATS,
+           suffix(".summary"),
+           ".load")
+def loadPermuteMATS(infile, outfile):
+    P.load(infile, outfile)
 
 
 @mkdir("results.dir/sashimi")
@@ -413,23 +457,15 @@ def runSashimi(infiles, outfile):
     PipelineSplicing.rmats2sashimi(infile, design, fdr, outfile)
 
 
-@transform(runMATS,
-           regex("results.dir/rMATS/(\S+).dir/(\S+).MATS.JC.txt"),
-           r"results.dir/rMATS/\1.dir/\1_\2_JC.load")
-def loadMATS(infile, outfile):
-    '''load RMATS results into relational database'''
-    P.load(infile, outfile)
-
-
 ###################################################################
 ###################################################################
 ###################################################################
 # Pipeline management
 ###################################################################
 
-@follows(runSashimi,
-         runPermuteMATS,
-         loadMATS,
+@follows(loadMATS,
+         loadPermuteMATS,
+         runSashimi,
          runDEXSeq)
 def full():
     pass
