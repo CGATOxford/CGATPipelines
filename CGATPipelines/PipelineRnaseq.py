@@ -270,7 +270,7 @@ class FeatureCountsQuantifier(Quantifier):
         else:
             raise ValueError("level must be gene_id or transcript_id!")
 
-        tmpdir = P.getTempDir()
+        tmpdir = P.getTempFilename()
 
         # need to unzip the annotations for featureCounts
         annotations_tmp = os.path.join(tmpdir,
