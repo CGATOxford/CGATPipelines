@@ -25,7 +25,7 @@
 PipelineSplicing.py - wrap various differential expression tools
 ===========================================================
 
-:Author: Andreas Heger
+:Author: Jakub Scaber
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -33,25 +33,48 @@ PipelineSplicing.py - wrap various differential expression tools
 Purpose
 -------
 
-This module provides tools for differential splicing analysis.
+This module provides tools for differential splicing analysis, which
+are abstracted modules that can ease the use of the tools and provide
+additional functionality. They generate a command line statement.
 
 Methods implemented are:
 
    rMATS
 
-DEXSeq is implemented elsewhere (counts2table), as it is closely related to
-counts-based differential expression tools.
+DEXSeq is implemented elsewhere (CGAT code collection: counts2table),
+as it is closely related to counts-based differential expression tools.
+
 
 Usage
 -----
 
-ru
-Documentation
--------------
+The basic usage inside a pipeline task is as such::
 
-Requirements:
+    @transform()
+    def runMATS(infile, outfile):
 
-* rMATS >= ?
+        # build statment and run statement
+        statement = PipelineSplicing.runRMATS(
+             gtf_string, designfile_string, PARAMS['pvalue_threshold'],
+             PARAMS['strandedness'], outdir_string, permute=1)
+
+
+When implementing a tool, avoid specifying algorithmic options as
+class variables. Instead use an option string that can be set in
+:file:`pipeline.ini`. The only arguments to a tool constructor should
+pertain to pipeline integration, such as filenames, index locations,
+threading and in general processing options that change the tools
+input/output, as these need to be tracked by the pipeline.
+
+The benefit of this approach is to provide compleeat control to the
+user and is likely to work with different versions of a tool, i.e., if
+a command line option to a tool changes, just the configuration file
+needs to be changed, but the code remains the same.
+
+Requirements
+------------
+
+* rMATS-turbo
 
 
 
@@ -68,9 +91,28 @@ import CGATPipelines.Pipeline as P
 
 
 def runRMATS(gtffile, designfile, pvalue, strand, outdir, permute=0):
-    '''DEExperiment object to generate differential splicing events
-    using rMATS
+    '''Module to generate rMATS statment
+
+    Module offers the option to permute group name labels and
+    calculates readlength, which must be identical in all reads.
+
+    Arguments
+    ---------
+    gtffile: string
+        path to :term:`gtf` file
+    designfile: string
+        path to design file
+    pvalue: string
+        threshold for FDR testing
+    strand: string
+        strandedness option: can be 'fr-unstranded', 'fr-firststrand',
+        or 'fr-secondstrand'
+    outdir: string
+        directory path for rMATS results
+    permute : 1 or 0
+        option to activate random shuffling of sample groups
     '''
+
     design = Expression.ExperimentalDesign(designfile)
     if permute == 1:
         design.table.group = random.choice(list(
@@ -108,6 +150,24 @@ def runRMATS(gtffile, designfile, pvalue, strand, outdir, permute=0):
 
 
 def rmats2sashimi(infile, designfile, FDR, outfile):
+    '''Module to generate sashimi plots from rMATS output
+
+    Module generates a statement to call rmats2sashimiplot and provides
+    it with correct arguments. Only results containing no NA in results
+    and below FDR threshold are drawn to prevent unneccassary compute and
+    memory use.
+
+    Arguments
+    ---------
+    infile: string
+        path to rMATS results file (can be one of five types)
+    designfile: string
+        path to design file
+    FDR: string
+        FDR threshold for drawing plots'
+    outfile: string
+        directory path for sashimiplot output
+    '''
 
     Design = Expression.ExperimentalDesign(designfile)
     if len(Design.groups) != 2:
