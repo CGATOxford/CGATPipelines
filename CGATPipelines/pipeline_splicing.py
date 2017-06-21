@@ -306,13 +306,12 @@ def aggregateExonCounts(infiles, outfile):
 @mkdir("results.dir/DEXSeq")
 @subdivide(["%s.design.tsv" % x.asFile().lower() for x in DESIGNS],
            regex("(\S+).design.tsv"),
-           r"results.dir/DEXSeq/\1.dir")
+           r"results.dir/DEXSeq/\1_results.tsv")
 def runDEXSeq(infile, outfile):
     '''
     '''
-    if not os.path.exists(outfile):
-        os.makedirs(outfile)
 
+    outdir = os.path.dirname(outfile)
     countsdir = "counts.dir/"
     gfffile = os.path.abspath("geneset_flat.gff")
     dexseq_fdr = 0.05
@@ -327,15 +326,16 @@ def runDEXSeq(infile, outfile):
     statement = '''
     python %%(scriptsdir)s/counts2table.py
     --design-tsv-file=%(infile)s
-    --output-filename-pattern=%(outfile)s/%(design)s
-    --log=%(outfile)s/DEXSeq.log
+    --output-filename-pattern=%(outdir)s/%(design)s
+    --log=%(outdir)s/%(design)s_DEXSeq.log
     --method=dexseq
     --fdr=%(dexseq_fdr)s
     --model=%(model)s
     --dexseq-counts-dir=%(countsdir)s
     --contrast=%(contrast)s
     -r %(refgroup)s
-    --dexseq-flattened-file=%(gfffile)s;
+    --dexseq-flattened-file=%(gfffile)s
+    > %(outfile)s;
     ''' % locals()
 
     P.run()
