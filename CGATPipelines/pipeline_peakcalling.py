@@ -215,7 +215,7 @@ stages of the pipeline
     Directory contains:
             * IDR_inputs.dir
     This directory contains the files that are
-
+broad
     IDR_inputs.dir
 
     macs2.dir/
@@ -521,7 +521,7 @@ def loadFragmentLengthDistributions(infiles, outfile):
     only be computed if sample is paired-end if samples are not this function
     is not run'''
     infile = infiles[0].replace(".bam", ".fraglengths")
-    if len(IOTools.openFile(infile).readlines()) != 0:
+    if len(IOTools.openFile(infile).readlines()) > 2:
         P.load(infile, outfile)
     else:
         os.system("touch %s" % outfile)
@@ -894,6 +894,8 @@ def estimateInsertSize(infile, outfile):
     for paired end data.
     Output is stored in insert_size.tsv
     '''
+    print infile
+    print outfile
     PipelinePeakcalling.estimateInsertSize(infile, outfile,
                                            PARAMS['paired_end'],
                                            PARAMS['insert_alignments'],

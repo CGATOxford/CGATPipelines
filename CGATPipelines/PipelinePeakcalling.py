@@ -619,6 +619,13 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
                     for v in values:
                         outbam.write(v)
         outbam.close()
+
+    elif pe == 1:
+        outbam = "%s.bam" % outfile
+        shutil.copy(infile, outbam)
+        for items, values in d.iteritems():
+            l = abs(values[0].template_length)
+            fragment_length[l] += 1
     else:
         outbam = "%s.bam" % outfile
         shutil.copy(infile, outbam)
