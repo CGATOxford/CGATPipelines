@@ -32,13 +32,37 @@ Pipeline Splicing
 Overview
 ========
 
-rMATS a computational tool to detect differential alternative splicing events
-from RNA-Seq data. The statistical model of MATS calculates the P-value and
-false discovery rate that the difference in the isoform ratio of a gene
+This pipeline enables differential exon usage testing through the
+implementation of
+* rMATS-turbo
+* DEXSeq
+
+rMATS is a computational tool to detect differential alternative splicing
+events from RNA-Seq data. The statistical model of MATS calculates the P-value
+and false discovery rate that the difference in the isoform ratio of a gene
 between two conditions exceeds a given user-defined threshold. From the
 RNA-Seq data, MATS can automatically detect and analyze alternative splicing
 events corresponding to all major types of alternative splicing patterns.
 MATS handles replicate RNA-Seq data from both paired and unpaired study design.
+
+DEXSeq is a bioconductor R package to detect differential exon usage between
+conditions in RNA-Seq experiments. Relative exon usage is defined as
+(number of reads from exon)/(number of reads from its gene). It uses a similar
+model to DESeq to estimate dispersion parameters prior to differential
+testing.
+
+Principal targets
+-----------------
+
+full
+    compute all functions
+
+Optional targets
+----------------
+
+permute
+    repeat rMATS after permuting sample group labels
+
 
 Usage
 =====
@@ -61,7 +85,7 @@ Input files
 -----------
 
 ".bam" files generated using STAR or Tophat2. Other mappers
-may also work.
+may also work. Bam indexation is not required.
 
 Design_files ("*.design.tsv") are used to specify sample variates. The
 minimal design file is shown below, where include specifies if the
@@ -95,6 +119,7 @@ Requirements:
 * DEXSeq
 * rMATS-turbo
 * pysam
+* HTSeqCounts
 
 Pipeline output
 ===============
@@ -152,7 +177,7 @@ PARAMS.update(P.peekParameters(
     update_interface=True,
     restrict_interface=True))  # add config values from associated pipelines
 
-
+# The DEXSeq R directory contains important python helper functions
 PYTHONSCRIPTSDIR = R('''
     f = function(){
     pythonScriptsDir = system.file("python_scripts", package="DEXSeq")
@@ -213,10 +238,15 @@ def buildGff(infile, outfile):
     ----------
 
     infile : string
-        :term:`gtf` output from buildGtf function
+       Input filename in :term:`gtf` format
 
     outfile : string
-        A :term:`gff` file for use in DEXSeq'''
+        A :term:`gff` file for use in DEXSeq
+
+    annotations_interface_geneset_all_gtf : string
+       :term:`PARAMS`. Filename of :term:`gtf` file containing
+       all ensembl annotations
+    '''
 
     tmpgff = P.getTempFilename(".")
     statement = "gunzip -c %(infile)s > %(tmpgff)s"
@@ -236,10 +266,11 @@ def buildGff(infile, outfile):
            add_inputs(buildGff),
            r"counts.dir/\1.txt")
 def countDEXSeq(infiles, outfile):
-    '''creates counts for DEXSeq
+    '''create counts for DEXSeq
 
-    This takes the gtf and flattens it to an exon based input
-    required by DEXSeq
+    Counts bam reads agains exon features in flattened gtf.
+    The required python script is provided by DEXSeq
+    and uses HTSeqCounts.
 
     Parameters
     ----------
@@ -251,7 +282,13 @@ def countDEXSeq(infiles, outfile):
         :term:`gff` output from buildGff function
 
     outfile : string
-        A :term:`txt` file containing results'''
+        A :term:`txt` file containing results
+
+    DEXSeq_strandedness : string
+       :term:`PARAMS`. Specifies strandedness, options
+       are 'yes', 'no' and 'reverse'
+
+    '''
 
     infile, gfffile = infiles
     ps = PYTHONSCRIPTSDIR
@@ -282,8 +319,9 @@ def aggregateExonCounts(infiles, outfile):
     Parameters
     ---------
     infiles : list
-        a list of `tsv.gz` files from the feature_countsle.dir that were the
-        output from feature counts
+        a list of `tsv.gz` files from the counts.dir that were the
+        output from dexseq_count.py
+
     outfile : string
         a filename denoting the file containing a matrix of counts with genes
         as rows and tracks as the columns - this is a `tsv.gz` file      '''
@@ -308,7 +346,29 @@ def aggregateExonCounts(infiles, outfile):
            regex("(\S+).design.tsv"),
            r"results.dir/DEXSeq/\1_results.tsv")
 def runDEXSeq(infile, outfile):
-    '''
+    ''' run DEXSeq command
+
+    DEXSeq is run using the counts2table from the
+    CGAT code collection. Output is standardised to
+    correspond to differential gene expression output
+    from DESeq2 or Sleuth.
+
+    Will currently only test 2 groups.
+
+    Parameters
+    ---------
+    infiles : string
+        filename and path of design file
+
+    outfile : string
+        a filename denoting the file containing a standard results
+        output with full results of all tested exons
+
+    DEXSeq_model_% : string
+    DEXSeq_contrast_% : string
+    DEXSeq_refgroup_% : string
+       :term:`PARAMS`. Specifies model, contrast and reference
+       group for DEXSeq analysis
     '''
 
     outdir = os.path.dirname(outfile)
@@ -319,9 +379,6 @@ def runDEXSeq(infile, outfile):
     model = PARAMS["DEXSeq_model_%s" % design]
     contrast = PARAMS["DEXSeq_contrast_%s" % design]
     refgroup = PARAMS["DEXSeq_refgroup_%s" % design]
-
-    # job_threads = PARAMS["MATS_threads"]
-    # job_memory = PARAMS["MATS_memory"]
 
     statement = '''
     python %%(scriptsdir)s/counts2table.py
@@ -353,15 +410,33 @@ def runDEXSeq(infile, outfile):
            add_inputs(PARAMS["annotations_interface_geneset_all_gtf"]),
            [r"results.dir/rMATS/\1.dir/%s.MATS.JC.txt" % x for x in ["SE", "A5SS", "A3SS", "MXE", "RI"]])
 def runMATS(infile, outfiles):
-    '''run rMATS.'''
+    '''run rMATS-turbo
+
+    Runs rMATS command.
+
+    Parameters
+    ---------
+    infiles[0] : string
+        filename and path of design file
+
+    infiles[1] : string
+        filename and path of :term:`gtf` file
+
+    outfile : list
+        a list of filenames denoting the file containing a standard results
+        output with full results for all five tested differential exon
+        usage conditions.
+
+    MATS_libtype : string
+       :term:`PARAMS`. Specifies library type. Can be "fr-firstrand",
+       "fr-secondstrand" or "fr-unstranded"
+    '''
 
     design, gtffile = infile
     strand = PARAMS["MATS_libtype"]
     outdir = os.path.dirname(outfiles[0])
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-    # job_threads = PARAMS["MATS_threads"]
-    # job_memory = PARAMS["MATS_memory"]
 
     PipelineSplicing.runRMATS(gtffile=gtffile, designfile=design,
                               pvalue=PARAMS["MATS_cutoff"],
@@ -373,7 +448,16 @@ def runMATS(infile, outfiles):
            regex("results.dir/rMATS/(\S+).dir/(\S+).MATS.JC.txt"),
            r"results.dir/rMATS/rMATS_\1_\2_JC.load")
 def loadMATS(infile, outfile):
-    '''load RMATS results into relational database'''
+    '''load RMATS results into relational database
+
+    Loads rMATS results into relational database.
+    Continues if table empty.
+
+    Parameters
+    ----------
+    infile: term:`tsv` file containing one type of rMATS results.
+    outfile: .load file
+    '''
     try:
         P.load(infile, outfile)
     except:
@@ -384,6 +468,23 @@ def loadMATS(infile, outfile):
          regex("results.dir/rMATS/(\S+).dir/\S+.MATS.JC.txt"),
          r"results.dir/rMATS/rMATS_\1_results.summary")
 def collateMATS(infiles, outfile):
+    '''collates summary from all events
+
+    Collates number of events below FDR threshold from all
+    five events into simple table
+
+    Parameters
+    ----------
+    infiles: list
+        list of results files from rMATS
+
+    MATS_fdr : string
+       :term:`PARAMS`. User specified threshold for result counting
+
+    outfile: string
+        summary file containing number of results below FDR threshold
+    '''
+
     indir = os.path.dirname(infiles[1])
     collate = []
     with open(indir+"/b1.txt", "r") as f:
@@ -403,6 +504,16 @@ def collateMATS(infiles, outfile):
            suffix(".summary"),
            ".load")
 def loadCollateMATS(infile, outfile):
+    '''load rMATS summary into relational database
+
+    Loads rMATS summary results into relational database.
+
+    Parameters
+    ----------
+    infile: file containing summary table of rMATS results
+    outfile: .load file
+    '''
+
     P.load(infile, outfile)
 
 
@@ -412,6 +523,27 @@ def loadCollateMATS(infile, outfile):
            r"results.dir/rMATS/\1.dir/permutations/run*.dir/init",
            r"results.dir/rMATS/\1.dir/permutations")
 def permuteMATS(infile, outfiles, outdir):
+    '''creates directories for permutation testing
+
+    Creates directories for permutation testing and leaves dummy
+    init file in directory (for timestamping)
+    Only becomes active if :term:`PARAMS` permute is set to 1
+
+    Parameters
+    ----------
+    infile: string
+        name and path to design
+
+    outfile: list
+        list of unknown length, capturing all permutations
+        retrospectively
+
+    outdir: string
+        directory to generate permutations in
+
+    permutations : string
+       :term:`PARAMS`. number of directories to be generated
+    '''
 
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -427,12 +559,38 @@ def permuteMATS(infile, outfiles, outdir):
            r"results.dir/rMATS/\1.dir/permutations/\2.dir/result.tsv",
            r"\1.design.tsv")
 def runPermuteMATS(infiles, outfile, design):
+    '''run rMATS-turbo permutation testing
+
+    Runs rMATS command on permutations and then collates results into
+    small summary table for each permutation
+
+    Parameters
+    ---------
+    infiles[0] : string
+        filename and path of design file
+
+    infiles[1] : string
+        filename and path of :term:`gtf` file
+
+    outfile : :term:`tsv` file
+        file containing summary results meeting the user-specified FDR
+        threshold
+
+    design : string
+        name and path of design file
+
+    MATS_libtype : string
+       :term:`PARAMS`. Specifies library type. Can be "fr-firstrand",
+       "fr-secondstrand" or "fr-unstranded"
+
+    MATS_fdr : string
+       :term:`PARAMS`. User specified threshold for result counting
+
+    '''
 
     init, gtffile = infiles
     directory = os.path.dirname(init)
     strand = PARAMS["MATS_libtype"]
-    # job_threads = PARAMS["MATS_threads"]
-    # job_memory = PARAMS["MATS_memory"]
     outdir = os.path.dirname(outfile)
     if not os.path.exists(outdir):
         os.makedirs(outdir)
@@ -459,6 +617,21 @@ def runPermuteMATS(infiles, outfile, design):
          regex("results.dir/rMATS/(\S+).dir/permutations/\S+.dir/result.tsv"),
          r"results.dir/rMATS/rMATS_\1_permutations.summary")
 def collatePermuteMATS(infiles, outfile):
+    '''collates summary table of all permutations
+
+    Collates number of events below FDR threshold from all
+    permutation runs.
+
+    Parameters
+    ----------
+    infiles: list
+        list of rMATS result summaries from all permutation runs
+
+    outfile: string
+        summary file containing a table with all permutation run
+        results
+    '''
+
     collate = []
     for infile in infiles:
         collate.append(pd.read_csv(infile, sep='\t'))
@@ -469,6 +642,16 @@ def collatePermuteMATS(infiles, outfile):
            suffix(".summary"),
            ".load")
 def loadPermuteMATS(infile, outfile):
+    '''load rMATS permutation results
+
+    Loads rMATS permutation summary results into relational database.
+
+    Parameters
+    ----------
+    infile: file containing summary table of rMATS permutation results
+    outfile: .load file
+    '''
+
     P.load(infile, outfile)
 
 
@@ -478,6 +661,23 @@ def loadPermuteMATS(infile, outfile):
            add_inputs(r"\1.design.tsv"),
            r"results.dir/sashimi/\1.dir/\2")
 def runSashimi(infiles, outfile):
+    '''draws sashimi plots
+
+    Draws Sashimi plots (pdf files) for all results below FDR threshold
+    from all five rMATS events
+
+
+    Parameters
+    ----------
+    infiles: list
+        list of results files from rMATS
+
+    MATS_fdr : string
+       :term:`PARAMS`. User specified threshold for result drawing
+
+    outfile: string
+        summary file containing number of results below FDR threshold
+    '''
 
     infile, design = infiles
     fdr = PARAMS["MATS_fdr"]
@@ -507,6 +707,7 @@ def build_report():
     '''build report from scratch.
 
     Any existing report will be overwritten.
+    Currently report function is not active for this pipeline
     '''
 
     E.info("starting report build process from scratch")
