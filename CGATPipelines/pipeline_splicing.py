@@ -368,12 +368,16 @@ def runMATS(infile, outfiles):
                               strand=strand, outdir=outdir)
 
 
+@follows(runMATS)
 @transform(runMATS,
            regex("results.dir/rMATS/(\S+).dir/(\S+).MATS.JC.txt"),
            r"results.dir/rMATS/rMATS_\1_\2_JC.load")
 def loadMATS(infile, outfile):
     '''load RMATS results into relational database'''
-    P.load(infile, outfile)
+    try:
+        P.load(infile, outfile)
+    except:
+        P.touch(outfile)
 
 
 @collate(runMATS,
