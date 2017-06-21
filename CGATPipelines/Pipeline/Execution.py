@@ -143,7 +143,7 @@ def execute(statement, **kwargs):
 
     kwargs = dict(list(PARAMS.items()) + list(kwargs.items()))
 
-    E.debug("running %s" % (statement % kwargs))
+    E.info("running %s" % (statement % kwargs))
 
     if "cwd" not in kwargs:
         cwd = PARAMS["workingdir"]
@@ -318,22 +318,22 @@ def getJobMemory(options=False, PARAMS=False):
 def getParallelEnvironment(options=False):
     ''' Configure cluster_parallel_environment and job_threads
         from a given job_options variable within an options dict'''
-    
+
     if options and options.get("job_options") and \
        '-pe' in options.get("job_options") and \
        'job_threads' not in options:
-    
-       o = options.get("job_options")
-       x = re.search("-pe\s+(\w+)\s+(\d+)", o)
-       if x is None:
-           raise ValueError(
-               "expecting -pe <environment> <threads> in '%s'" % o)
-       
-       options["cluster_parallel_environment"] = x.groups()[0]
-       options["job_threads"] = int(x.groups()[1])
 
-       # remove parallel environment from job_options
-       options["job_options"] = re.sub("-pe\s+(\w+)\s+(\d+)", "", o)
+        o = options.get("job_options")
+        x = re.search("-pe\s+(\w+)\s+(\d+)", o)
+        if x is None:
+            raise ValueError(
+                "expecting -pe <environment> <threads> in '%s'" % o)
+
+        options["cluster_parallel_environment"] = x.groups()[0]
+        options["job_threads"] = int(x.groups()[1])
+
+        # remove parallel environment from job_options
+        options["job_options"] = re.sub("-pe\s+(\w+)\s+(\d+)", "", o)
 
 
 def run(**kwargs):
@@ -396,7 +396,7 @@ def run(**kwargs):
     if "cli_cluster_memory_resource" in PARAMS:
         options["cluster_memory_resource"] = PARAMS["cli_cluster_memory_resource"]
     if "cli_cluster_num_jobs" in PARAMS:
-       options["cluster_num_jobs"] = PARAMS["cli_cluster_num_jobs"]
+        options["cluster_num_jobs"] = PARAMS["cli_cluster_num_jobs"]
     if "cli_cluster_options" in PARAMS:
         options["cluster_options"] = PARAMS["cli_cluster_options"]
     if "cli_cluster_parallel_environment" in PARAMS:
@@ -497,7 +497,7 @@ def run(**kwargs):
             job_ids, filenames = [], []
 
             for statement in statement_list:
-                E.debug("running statement:\n%s" % statement)
+                E.info("running statement:\n%s" % statement)
 
                 job_path = _writeJobScript(statement, job_memory, job_name, shellfile)
 
@@ -532,7 +532,7 @@ def run(**kwargs):
         else:
 
             statement = buildStatement(**options)
-            E.debug("running statement:\n%s" % statement)
+            E.info("running statement:\n%s" % statement)
 
             if options.get("dryrun", False):
                 return
@@ -584,7 +584,7 @@ def run(**kwargs):
             return
 
         for statement in statement_list:
-            E.debug("running statement:\n%s" % statement)
+            E.info("running statement:\n%s" % statement)
 
             # process substitution <() and >() does not
             # work through subprocess directly. Thus,
