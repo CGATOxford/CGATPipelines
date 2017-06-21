@@ -80,6 +80,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         tracks = [track]
 
     found_contaminants = []
+
     for t in tracks:
         table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
 
@@ -297,7 +298,6 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
 
 class ProcessTool(object):
     '''defines class attributes for a sequence utility tool
-
     Derived classes need to implement a :func:`ProcessTools.build`
     method.
 
