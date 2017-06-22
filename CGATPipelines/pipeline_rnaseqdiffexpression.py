@@ -356,6 +356,7 @@ import CGAT.Database as Database
 
 import sys
 import os
+import re
 import itertools
 import glob
 import numpy
@@ -629,6 +630,7 @@ def getTranscript2GeneMap(outfile):
 # count-based quantifiers
 ###################################################
 
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
 @follows(mkdir("featurecounts.dir"))
 @transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
            regex("(\S+).bam"),
@@ -1101,8 +1103,42 @@ def loadMergedCounts(infiles, outfiles):
     P.load(infiles[1], outfiles[1])
 
 
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
+@collate(runFeatureCounts,
+         regex("featurecounts.dir/([^.]+)/([^.]+).tsv.gz"),
+         r"featurecounts.dir/genelength.tsv.gz")
+def mergeLengths(infiles, outfile):
+    ''' build a matrix of "genelengths" derived from FeatureCounts
+    with genes and tracks dimensions.
+    '''
+    raw_infiles = [x[1].replace("gz", "raw.gz") for x in infiles]
+    final_df = pd.DataFrame()
+
+    for infile in raw_infiles:
+        tmp_df = pd.read_table(infile, sep="\t", index_col=0,
+                               comment='#', usecols=["Geneid", "Length"])
+        m = re.search('featurecounts.dir\/(.+?)\/genes.tsv.raw.gz', infile)
+        if m:
+            tmp_df.columns = [m.group(1)]
+        final_df = final_df.merge(
+            tmp_df, how="outer",  left_index=True, right_index=True)
+
+    final_df.sort_index(inplace=True)
+    final_df.to_csv(outfile, sep="\t", compression="gzip")
+
+
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
+@transform(mergeLengths,
+           suffix(".tsv.gz"),
+           ".load")
+def loadMergedLengths(infile, outfile):
+    '''load genength table into database'''
+    P.load(infile, outfile, "--add-index=gene_id")
+
+
 @follows(*QUANTTARGETS)
-@follows(loadMergedCounts)
+@follows(loadMergedCounts,
+         loadMergedLengths)
 def count():
     ''' dummy task to define upstream quantification tasks'''
     pass
