@@ -731,7 +731,6 @@ def runFeatureCounts(infiles, outfiles):
            [r"gtf2table.dir/\1/transcripts.tsv.gz",
             r"gtf2table.dir/\1/genes.tsv.gz"])
 def runGTF2Table(infiles, outfiles):
-
     '''
     Compute read counts and coverage of transcripts and genes using the
     CGAT gtf2table tools.
@@ -1280,10 +1279,11 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 
     model = PARAMS['sleuth_model%s' % design_name]
     E.info(model)
+    reduced_model = PARAMS['sleuth_reduced_model%s' % design_name]
 
     contrast = PARAMS['sleuth_contrast%s' % design_name]
     refgroup = PARAMS['sleuth_refgroup%s' % design_name]
-
+    detest = PARAMS['sleuth_detest']
     transcripts = os.path.join("geneset.dir",
                                P.snip(PARAMS['geneset'], ".gtf.gz") + ".fa")
 
@@ -1313,6 +1313,13 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
     --contrast=%(contrast)s
     --sleuth-counts-dir=%(quantifier)s.dir
     --reference-group=%(refgroup)s
+    --de-test=%(detest)s
+    '''
+    if detest == "lrt":
+        statement += '''
+        --reduced-model=%(reduced_model)s
+        '''
+    statement += '''
     -v 0
     >%(transcript_out)s
     '''
@@ -1343,8 +1350,16 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
         --sleuth-counts-dir=%(quantifier)s.dir
         --reference-group=%(refgroup)s
         --gene-biomart=%(sleuth_gene_biomart)s
+        --de-test=%(detest)s
+        '''
+        if detest == "lrt":
+            statement += '''
+            --reduced-model=%(reduced_model)s
+            '''
+        statement += '''
         -v 0
-        >%(gene_out)s'''
+        >%(transcript_out)s
+        '''
 
         P.run()
 
@@ -1428,13 +1443,11 @@ def getSleuthNormExp(infiles, outfiles, quantifier):
         transcripts_outf, genes_outf, t2gMap)
 
 # Define the task for differential expression and normalisation
-
 DETARGETS = []
 NORMTARGETS = []
 mapToDETargets = {'edger': (runEdgeR, ),
                   'deseq2': (runDESeq2,),
                   'sleuth': (runSleuth,)}
-
 
 mapToNormTargets = {'edger': (getEdgeRNormExp, ),
                     'deseq2': (getDESeqNormExp, ),

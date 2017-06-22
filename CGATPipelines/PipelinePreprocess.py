@@ -93,6 +93,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         %s_fastqc_Overrepresented_sequences;''' % table
 
         cc = dbh.cursor()
+
         # if there is no contamination table for even a single sample
         # it will prevent the whole pipeline progressing
         try:
