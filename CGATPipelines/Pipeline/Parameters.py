@@ -647,7 +647,7 @@ def asList(value):
     list
 
     '''
-    if isinstance(value, basestring):
+    if type(value) == str:
         try:
             values = [x.strip() for x in value.strip().split(",")]
         except AttributeError:
