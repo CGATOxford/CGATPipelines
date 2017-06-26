@@ -598,7 +598,7 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
     if "unpaired" in filters and pe == 1:
         outbam = pysam.AlignmentFile("%s.bam" % outfile, "wb",
                                      template=samfile)
-        for items, values in d.iteritems():
+        for items, values in d.items():
             if len(values) == 2:
                 if values[0].is_read1 and values[1].is_read2:
                     outbam.write(values[0])
@@ -622,7 +622,7 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
     elif pe == 1:
         outbam = "%s.bam" % outfile
         shutil.copy(infile, outbam)
-        for items, values in d.iteritems():
+        for items, values in d.items():
             l = abs(values[0].template_length)
             fragment_length[l] += 1
     else:
@@ -854,14 +854,13 @@ def getMacsPeakShiftEstimate(infile):
 
     with IOTools.openFile(infile, "r") as inf:
 
-        header = inf.next().strip().split("\t")
-        values = inf.next().strip().split("\t")
+        header = inf.readline().strip().split("\t")
+        values = inf.readline().strip().split("\t")
 
-        fragment_size_mean_ix = header.index("fragmentsize_mean")
+    fragment_size_mean_ix = header.index("fragmentsize_mean")
+    fragment_size = int(float(values[fragment_size_mean_ix]))
 
-        fragment_size = int(float(values[fragment_size_mean_ix]))
-
-        return fragment_size
+    return fragment_size
 
 
 def mergeSortIndex(bamfiles, out):
