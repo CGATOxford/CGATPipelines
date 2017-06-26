@@ -895,8 +895,6 @@ def estimateInsertSize(infile, outfile):
     for paired end data.
     Output is stored in insert_size.tsv
     '''
-    print infile
-    print outfile
     PipelinePeakcalling.estimateInsertSize(infile, outfile,
                                            PARAMS['paired_end'],
                                            PARAMS['insert_alignments'],

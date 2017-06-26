@@ -9,7 +9,7 @@ Variant annotation pipeline
 
 The Variants pipeline attempts to annotate variants in
 a :term:`vcf` formatted file. It computes
- 
+
    1. The effects of SNPs on transcripts and genes
    2. The effects of indels on transcripts and genes
 
@@ -214,13 +214,13 @@ def buildAnnotations(infile, outfile, sample):
     to_cluster = True
     bases = "annotations_bases"
 
-    statement = """cgat snp2table 
+    statement = """cgat snp2table
                        --input-format=vcf
                        --vcf-file=%(infile)s
                        --vcf-sample=%(sample)s
-                       --genome-file=%(genome_dir)s/%(genome)s 
-                       --annotations-tsv-file=%(bases)s 
-                       --log=%(outfile)s.log 
+                       --genome-file=%(genome_dir)s/%(genome)s
+                       --annotations-tsv-file=%(bases)s
+                       --log=%(outfile)s.log
                    | gzip > %(outfile)s """
     P.run()
 
@@ -272,13 +272,13 @@ def summarizeAnnotations(infile, outfile):
     '''compute summary stats for annotation files.'''
 
     # count substitutions for each category
-    statement = '''gunzip 
+    statement = '''gunzip
     < %(infile)s
-    | cgat csv_cut code reference_base genotype variant_type 
-    | awk '$4 == "variant_type" { printf("%%s-%%s-%%s\\tcounts\\n", $1,$2,$3); } 
+    | cgat csv_cut code reference_base genotype variant_type
+    | awk '$4 == "variant_type" { printf("%%s-%%s-%%s\\tcounts\\n", $1,$2,$3); }
            $4 == "E" || $4 == "O" {printf("%%s-%%s-%%s\\t1\\n", $1,$2,$3)}'
-    | sort 
-    | uniq -c 
+    | sort
+    | uniq -c
     | awk 'BEGIN{ printf("code-reference_base-genotype\\tcounts\\n" ); } \
                   $2 !~ /^code/ {printf("%%s\\t%%i\\n",$2,$1);}'
     | perl -p -i -e "s/-/\\t/g unless (/^#/)"
@@ -309,16 +309,16 @@ def buildEffects(infile, outfile, sample):
     transcripts = os.path.join(
         PARAMS["annotations_dir"], PARAMS_ANNOTATIONS["interface_geneset_cds_gtf"])
 
-    statement = """cgat snp2counts 
+    statement = """cgat snp2counts
                        --genome-file=%(genome_dir)s/%(genome)s
                        --vcf-file=%(infile)s
                        --input-format=vcf
                        --vcf-sample=%(sample)s
-                       --module=transcript-effects 
-                       --seleno-tsv-file=%(seleno)s 
-                       --exons-file=%(transcripts)s 
+                       --module=transcript-effects
+                       --seleno-tsv-file=%(seleno)s
+                       --exons-file=%(transcripts)s
                        --output-filename-pattern=%(outfile)s.%%s.gz
-                       --log=%(outfile)s.log 
+                       --log=%(outfile)s.log
                    | gzip > %(outfile)s """
     P.run()
 
@@ -413,8 +413,8 @@ def summarizeEffectsPerGene(infile, outfile):
 
     statement = '''
     CREATE TABLE %(tablename)s AS
-    SELECT DISTINCT 
-           gene_id, 
+    SELECT DISTINCT
+           gene_id,
            COUNT(*) AS ntranscripts,
            MIN(e.nalleles) AS min_nalleles,
            MAX(e.nalleles) AS max_nalleles,
@@ -422,9 +422,9 @@ def summarizeEffectsPerGene(infile, outfile):
            MAX(e.stop_min) AS max_stop_min,
            MIN(e.stop_max) AS min_stop_max,
            MAX(e.stop_max) AS max_stop_max,
-           SUM( CASE WHEN stop_min > 0 AND cds_len - stop_min * 3 < last_exon_start THEN 1  
+           SUM( CASE WHEN stop_min > 0 AND cds_len - stop_min * 3 < last_exon_start THEN 1
                      ELSE 0 END) AS nmd_knockout,
-           SUM( CASE WHEN stop_max > 0 AND cds_len - stop_max * 3 < last_exon_start THEN 1  
+           SUM( CASE WHEN stop_max > 0 AND cds_len - stop_max * 3 < last_exon_start THEN 1
                      ELSE 0 END) AS nmd_affected
     FROM annotations.transcript_info as i,
          %(track)s_effects AS e
@@ -452,9 +452,9 @@ def mergeEffectsPerGene(infile, outfile):
 
     statement = '''
     CREATE TABLE %(tablename)s AS
-    SELECT DISTINCT 
+    SELECT DISTINCT
            track,
-           gene_id, 
+           gene_id,
            COUNT(*) AS ntranscripts,
            MIN(e.nalleles) AS min_nalleles,
            MAX(e.nalleles) AS max_nalleles,
@@ -462,9 +462,9 @@ def mergeEffectsPerGene(infile, outfile):
            MAX(e.stop_min) AS max_stop_min,
            MIN(e.stop_max) AS min_stop_max,
            MAX(e.stop_max) AS max_stop_max,
-           SUM( CASE WHEN stop_min > 0 AND cds_len - stop_min * 3 < last_exon_start THEN 1  
+           SUM( CASE WHEN stop_min > 0 AND cds_len - stop_min * 3 < last_exon_start THEN 1
                      ELSE 0 END) AS nmd_knockout,
-           SUM( CASE WHEN stop_max > 0 AND cds_len - stop_max * 3 < last_exon_start THEN 1  
+           SUM( CASE WHEN stop_max > 0 AND cds_len - stop_max * 3 < last_exon_start THEN 1
                      ELSE 0 END) AS nmd_affected
     FROM annotations.transcript_info as i, effects AS e
     WHERE i.transcript_id = e.transcript_id
@@ -496,7 +496,7 @@ def buildPolyphenInput(infiles, outfile):
 
     Mapping to Uniprot ids was not successful - 40% of the
     SNPs would have been lost. Hence I map to ensembl protein
-    identifiers. Note that the sequence file is then to be 
+    identifiers. Note that the sequence file is then to be
     submitted to POLYPHEN as well.
 
     Note that this method outputs 1-based coordinates for polyphen,
@@ -643,8 +643,8 @@ def buildPolyphenFeatures(infile, outfile):
 
     To do this, first send uniref to all nodes:
 
-    python ~/cgat/cluster_distribute.py 
-           --collection=andreas 
+    python ~/cgat/cluster_distribute.py
+           --collection=andreas
            /net/cpp-group/tools/polyphen-2.0.18/nrdb/uniref100*.{pin,psd,psi,phr,psq,pal}
     '''
 
@@ -708,11 +708,11 @@ def runPolyphen(infile, outfile, model):
     # -l: model name, default is HumDiv
 
     statement = '''
-    %(polyphen_home)s/bin/run_weka.pl 
+    %(polyphen_home)s/bin/run_weka.pl
            -l %(polyphen_home)s/models/%(model)s.UniRef100.NBd.f11.model
-           %(infile)s 
-    | gzip 
-    > %(outfile)s 
+           %(infile)s
+    | gzip
+    > %(outfile)s
     2> %(outfile)s.log
     '''
 
@@ -743,7 +743,7 @@ def loadPolyphen(infile, outfile):
         "--map=effect:str")
 
     statement = '''
-    gunzip 
+    gunzip
     < %(infile)s
     | perl -p -e "s/o_acc/protein_id/; s/ +//g; s/^#//;"
     | %(load_statement)s
@@ -774,14 +774,14 @@ def analysePolyphen(infile, outfile):
 
     statement = '''
         SELECT i.gene_id,
-               COUNT(DISTINCT map.locus_id) as nsnps, 
+               COUNT(DISTINCT map.locus_id) as nsnps,
                COUNT(DISTINCT case t.prediction when 'possiblydamaging' then map.locus_id when 'probablydamaging' then map.locus_id else NULL end) AS ndeleterious,
                MAX(s.length)
-               FROM %(table)s as t, 
-                    %(tablename_map)s as map, 
+               FROM %(table)s as t,
+                    %(tablename_map)s as map,
                     annotations.protein_stats as s,
-                    annotations.transcript_info as i 
-        WHERE map.snp_id = t.snp_id AND 
+                    annotations.transcript_info as i
+        WHERE map.snp_id = t.snp_id AND
               i.transcript_id = map.transcript_id AND
               s.protein_id = map.protein_id
         GROUP BY i.gene_id
@@ -789,9 +789,9 @@ def analysePolyphen(infile, outfile):
 
     data = cc.execute(statement).fetchall()
 
-    statement = '''SELECT DISTINCT i.gene_id, MAX(s.length) 
-                   FROM annotations.transcript_info AS i, annotations.protein_stats AS s 
-                   WHERE s.protein_id = i.protein_id 
+    statement = '''SELECT DISTINCT i.gene_id, MAX(s.length)
+                   FROM annotations.transcript_info AS i, annotations.protein_stats AS s
+                   WHERE s.protein_id = i.protein_id
                    GROUP BY i.gene_id'''
     gene_ids = cc.execute(statement).fetchall()
 

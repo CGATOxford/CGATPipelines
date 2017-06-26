@@ -1991,7 +1991,7 @@ if PARAMS["genome"].startswith("hg"):
             # MM: this is hard-coded - the URL can (and has) changed, so
             # this should be defined in the pipeline config file
             # AH: Moved to EBI, download needs to be updated
-        statement = '''curl https://www.genome.gov/admin/gwascatalog.txt 
+        statement = '''curl https://www.genome.gov/admin/gwascatalog.txt
         | sed 's/[\d128-\d255]//g'
         > %(outfile)s'''
         P.run()

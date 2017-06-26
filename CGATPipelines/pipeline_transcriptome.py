@@ -9,7 +9,7 @@ Transcriptome analysis pipeline
 :Tags: Python
 
 The transcriptome analysis pipeline examines various gene/transcript sets
-and attempts to interprete and compare them. Among the quantities that it 
+and attempts to interprete and compare them. Among the quantities that it
 computes are:
 
    * coding potential (using CPC)
@@ -32,9 +32,9 @@ See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general information h
 Configuration
 -------------
 
-The pipeline requires a configured :file:`pipeline.ini` file. 
+The pipeline requires a configured :file:`pipeline.ini` file.
 
-The sphinxreport report requires a :file:`conf.py` and :file:`sphinxreport.ini` file 
+The sphinxreport report requires a :file:`conf.py` and :file:`sphinxreport.ini` file
 (see :ref:`PipelineReporting`). To start with, use the files supplied with the
 Example_ data.
 
@@ -48,7 +48,7 @@ Requirements
 
 The pipeline requires the results from :doc:`pipeline_annotations` and :doc:`pipeline_ancestral_repeats`.
 
-On top of the default CGAT setup, the pipeline requires the following software to be in the 
+On top of the default CGAT setup, the pipeline requires the following software to be in the
 path:
 
 +--------------------+-------------------+------------------------------------------------+
@@ -68,7 +68,7 @@ To run the example, simply unpack and untar::
    cd pipeline_transcriptome
    python <srcdir>/pipeline_transcriptome.py make full
 
-.. note:: 
+.. note::
    For the pipeline to run, install the :doc:`pipeline_annotations` and :doc:`pipeline_ancestral_repeats`
    as well.
 
@@ -267,12 +267,12 @@ def buildIntronTrack(infile, outfile):
     '''
     to_cluster = True
 
-    statement = '''gunzip 
-    < %(infile)s 
+    statement = '''gunzip
+    < %(infile)s
     | %(pipeline_scriptsdir)s/gff_sort pos
-    | cgat gff2gff --join=100,10000,2,5 --log=%(outfile)s.log 
-    | cgat gtf2gtf 
-    --method=filter --filter-method=gene --sample-size=%(ancestral_repeats_samplesize)i --log=%(outfile)s.log 
+    | cgat gff2gff --join=100,10000,2,5 --log=%(outfile)s.log
+    | cgat gtf2gtf
+    --method=filter --filter-method=gene --sample-size=%(ancestral_repeats_samplesize)i --log=%(outfile)s.log
     | gzip
     > %(outfile)s
     '''
@@ -300,12 +300,12 @@ def loadRepeatInformation(infiles, outfile):
     P.run()
 
     statement = '''
-    gunzip < %(repeatsfile)s 
-    | cgat gff2bed -v 0 
+    gunzip < %(repeatsfile)s
+    | cgat gff2bed -v 0
     | coverageBed -a stdin -b %(tmpfilename)s
     | awk 'BEGIN { printf("contig\\tstart\\tend\\tnover_entries\\tnover_bases\\tlength\\tpover\\n" );} {print;}'
-    |cgat csv2db %(csv2db_options)s 
-    --table=%(table)s 
+    |cgat csv2db %(csv2db_options)s
+    --table=%(table)s
     > %(outfile)s
     '''
     P.run()
@@ -322,42 +322,42 @@ def buildMergedTracks(infiles, outfile):
 
     infiles = " ".join(infiles)
     statement = '''
-    zcat %(infiles)s 
-    | cgat gff2psl 
-    --log=%(outfile)s.log 
-    --is-gtf 
-    --allow-duplicates 
-    | cgat psl2psl 
-    --log=%(outfile)s.log 
-    --method=rename-query 
-    --unique 
-    --output-filename-map=%(outfile)s.id2new 
-    | sort -k 14,14 -k16,16n 
+    zcat %(infiles)s
+    | cgat gff2psl
+    --log=%(outfile)s.log
+    --is-gtf
+    --allow-duplicates
+    | cgat psl2psl
+    --log=%(outfile)s.log
+    --method=rename-query
+    --unique
+    --output-filename-map=%(outfile)s.id2new
+    | sort -k 14,14 -k16,16n
     | %(cmd-farm)s
-    --split-at-column=14 
-    --output-header 
-    --renumber="M%%06i" 
-    --renumber-column=":id" 
-    --log=%(outfile)s.log 
-    --subdirs 
-    --max-files=60 
-    "cgat psl2assembly 
-    --method=locus 
-    --threshold-merge-distance=0 
-    --threshold-merge-overlap=1 
-    --staggered=all 
-    --log=%(outfile)s.log 
+    --split-at-column=14
+    --output-header
+    --renumber="M%%06i"
+    --renumber-column=":id"
+    --log=%(outfile)s.log
+    --subdirs
+    --max-files=60
+    "cgat psl2assembly
+    --method=locus
+    --threshold-merge-distance=0
+    --threshold-merge-overlap=1
+    --staggered=all
+    --log=%(outfile)s.log
     --genome=%(genome_dir)s/%(genome)s
-    --output-filename-pattern=%%DIR%%%(outfile)s.%%s" 
+    --output-filename-pattern=%%DIR%%%(outfile)s.%%s"
     > %(outfile)s.new2locus
     '''
     P.run()
 
     statement = '''
-    cgat psl2gff 
-    --log=%(outfile)s.log 
+    cgat psl2gff
+    --log=%(outfile)s.log
     --as-gtf
-    < %(outfile)s.locus.psl 
+    < %(outfile)s.locus.psl
     | gzip
     > %(outfile)s
     '''
@@ -380,12 +380,12 @@ def buildFilteredAlignment(infiles, outfile):
     infile_alignment, infile_genes = infiles
     to_cluster = USECLUSTER
 
-    statement = '''gunzip 
-    < %(infile_alignment)s 
-    | cgat psl2psl 
-    --method=filter-remove 
+    statement = '''gunzip
+    < %(infile_alignment)s
+    | cgat psl2psl
+    --method=filter-remove
     --filter-query=<(gunzip < %(infile_genes)s)
-    --log=%(outfile)s.log 
+    --log=%(outfile)s.log
     | gzip
     > %(outfile)s '''
 
@@ -405,8 +405,8 @@ def buildAlignmentStats(infile, outfile):
     to_cluster = USECLUSTER
 
     statement = '''
-    cgat psl2stats 
-    --log=%(outfile)s.log 
+    cgat psl2stats
+    --log=%(outfile)s.log
     < %(infile)s
     | gzip
     > %(outfile)s'''
@@ -429,13 +429,13 @@ def loadGTF(infile, outfile):
 
     statement = '''gunzip
     < %(infile)s
-    | cgat gtf2tsv 
-    |cgat csv2db %(csv2db_options)s 
-    --add-index=gene_id 
-    --map=gene_id:str 
-    --add-index=transcript_id 
-    --map=transcript_id:str 
-    --table=%(table)s 
+    | cgat gtf2tsv
+    |cgat csv2db %(csv2db_options)s
+    --add-index=gene_id
+    --map=gene_id:str
+    --add-index=transcript_id
+    --map=transcript_id:str
+    --table=%(table)s
     > %(outfile)s
     '''
     P.run()
@@ -455,22 +455,22 @@ def buildAnnotations(infiles, outfile):
 
     infile, annotation = infiles
 
-    statement = '''gunzip 
-    < %(infile)s 
+    statement = '''gunzip
+    < %(infile)s
     | cgat gtf2gtf --method=sort --sort-order=gene
-    | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60 
-    "cgat gtf2table 
-    --counter=position 
-    --counter=classifier 
-    --section=exons 
-    --section=introns 
-    --counter=length 
-    --counter=splice 
-    --counter=composition-na 
-    --counter=splice-comparison 
-    --log=%(outfile)s.log 
+    | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60
+    "cgat gtf2table
+    --counter=position
+    --counter=classifier
+    --section=exons
+    --section=introns
+    --counter=length
+    --counter=splice
+    --counter=composition-na
+    --counter=splice-comparison
+    --log=%(outfile)s.log
     --filename-format=gff
-    --gff-file=%(annotation)s 
+    --gff-file=%(annotation)s
     --genome-file=%(genome_dir)s/%(genome)s"
     | gzip
     > %(outfile)s
@@ -502,18 +502,18 @@ def makeOverrun(infiles, outfile):
 
     infile, annotation = infiles
 
-    statement = '''gunzip 
-    < %(infile)s 
+    statement = '''gunzip
+    < %(infile)s
     | cgat gtf2gtf --method=sort --sort-order=gene
-    | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60 
-    "cgat gtf2table 
+    | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60
+    "cgat gtf2table
     --filename-format=gff
-    --counter=overrun 
-    --log=%(outfile)s.log 
-    --filename-format=gff 
-    --gff-file=%(annotation)s" 
+    --counter=overrun
+    --log=%(outfile)s.log
+    --filename-format=gff
+    --gff-file=%(annotation)s"
     | gzip
-> %(outfile)s 
+> %(outfile)s
     '''
     P.run()
 
@@ -543,14 +543,14 @@ def makeDistances(infiles, outfile):
     infile, annotation = infiles
 
     statement = '''gunzip
-    < %(infile)s 
+    < %(infile)s
     | cgat gtf2gtf --method=sort --sort-order=gene
-    | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60 
-    "cgat gtf2table 
-    --counter=distance-genes 
-    --log=%(outfile)s.log 
-    --gff-file=<( gunzip < %(annotation)s ) " 
-    > %(outfile)s 
+    | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60
+    "cgat gtf2table
+    --counter=distance-genes
+    --log=%(outfile)s.log
+    --gff-file=<( gunzip < %(annotation)s ) "
+    > %(outfile)s
     '''
     P.run()
 
@@ -579,26 +579,26 @@ def makeSegments(infile, outfile):
 
     to_cluster = True
 
-    statement = '''gunzip < %(infile)s 
-    | %(pipeline_scriptsdir)s/gff_sort pos 
-    | cgat gff2histogram 
-    --method=values 
+    statement = '''gunzip < %(infile)s
+    | %(pipeline_scriptsdir)s/gff_sort pos
+    | cgat gff2histogram
+    --method=values
     --output-filename-pattern="%(outfile)s.%%s"
-    --force-output 
-    --log=%(outfile)s.log 
-    > %(outfile)s 
+    --force-output
+    --log=%(outfile)s.log
+    > %(outfile)s
     '''
     P.run()
 
-    statement = '''gunzip 
-    < %(infile)s 
+    statement = '''gunzip
+    < %(infile)s
     | cgat gtf2gtf --method=sort --sort-order=position+gene
-    | cgat gtf2gtf --method=merge-transcripts 
+    | cgat gtf2gtf --method=merge-transcripts
     | cgat gtf2gtf --method=sort --sort-order=gene
-    | cgat gff2histogram 
-    --method=values 
-    --force-output 
-    --output-filename-pattern="%(outfile)s_genes.%%s" 
+    | cgat gff2histogram
+    --method=values
+    --force-output
+    --output-filename-pattern="%(outfile)s_genes.%%s"
     --log=%(outfile)s.log
     >> %(outfile)s'''
     P.run()
@@ -616,10 +616,10 @@ def loadSegments(infile, outfile):
               "_genes.distances", "_genes.sizes", "_genes.overlaps"):
         y = re.sub("\.", "_", x)
         statement = '''
-        cgat csv2db %(csv2db_options)s 
-        --add-index=gene_id 
-        --map=gene_id:str 
-        --table=%(table)s%(y)s 
+        cgat csv2db %(csv2db_options)s
+        --add-index=gene_id
+        --map=gene_id:str
+        --table=%(table)s%(y)s
         < %(infile)s%(x)s
         >> %(outfile)s'''
 
@@ -640,16 +640,16 @@ def makeRepeats(infiles, outfile):
     infile, annotation = infiles
 
     statement = '''gunzip
-    < %(infile)s 
+    < %(infile)s
     | cgat gtf2gtf --method=sort --sort-order=gene
     | %(cmd-farm)s --split-at-column=1 --output-header --log=%(outfile)s.log --max-files=60
-    "cgat gtf2table 
+    "cgat gtf2table
     --filename-format=gff
-    --counter=overlap 
-    --log=%(outfile)s.log 
-    --gff-file=<( gunzip < %(annotation)s )" 
+    --counter=overlap
+    --log=%(outfile)s.log
+    --gff-file=<( gunzip < %(annotation)s )"
     | gzip
-    > %(outfile)s 
+    > %(outfile)s
     '''
     P.run()
 
@@ -683,18 +683,18 @@ def makeDifference(infiles, outfile):
     first, last = [x[:-len(".gtf.gz")] for x in infiles]
 
     statement = '''
-         cgat diff_gtf 
-    --log=%(outfile)s.log 
-    -p --output-equivalent --ignore-strand --output-filename-pattern="%(outfile)s.%%s" 
+         cgat diff_gtf
+    --log=%(outfile)s.log
+    -p --output-equivalent --ignore-strand --output-filename-pattern="%(outfile)s.%%s"
     <(gunzip < %(first)s.gtf.gz)
     <(gunzip < %(last)s.gtf.gz)
     > %(outfile)s.log'''
     P.run()
 
-    statement = '''cgat diff_gtf 
-    --log=%(outfile)s.log 
-    -p --output-equivalent --ignore-strand --output-filename-pattern="%(outfile)s_genes.%%s" 
-    <( gunzip < %(first)s.gtf.gz | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log ) 
+    statement = '''cgat diff_gtf
+    --log=%(outfile)s.log
+    -p --output-equivalent --ignore-strand --output-filename-pattern="%(outfile)s_genes.%%s"
+    <( gunzip < %(first)s.gtf.gz | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log )
     <( gunzip < %(last)s.gtf.gz | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log )
     > %(outfile)s.log'''
     P.run()
@@ -702,12 +702,12 @@ def makeDifference(infiles, outfile):
     # note that the option --counter=overlap-transcripts
     # has been set to --counter=overlap
     statement = '''gunzip
-    < %(first)s.gtf.gz 
-    | cgat gtf2table 
-    --log=%(outfile)s.log 
-    --counter=length 
+    < %(first)s.gtf.gz
+    | cgat gtf2table
+    --log=%(outfile)s.log
+    --counter=length
     --counter=overlap
-    --counter=coverage 
+    --counter=coverage
     --gff-file=<( gunzip < %(last)s.gtf.gz)
     > %(outfile)s'''
 
@@ -723,14 +723,14 @@ def loadDifference(infile, outfile):
     table = outfile[:-len("_diff.load")]
 
     statement = '''
-    cat < %(infile)s 
-    | python %(toolsdir)s/csv_cut.py --large --remove cov_values 
-    | grep -v "\\bna\\b" 
-    |cgat csv2db --allow-empty-file 
-    %(csv2db_options)s 
-    --add-index=gene_id 
+    cat < %(infile)s
+    | python %(toolsdir)s/csv_cut.py --large --remove cov_values
+    | grep -v "\\bna\\b"
+    |cgat csv2db --allow-empty-file
+    %(csv2db_options)s
+    --add-index=gene_id
     --map=gene_id:str
-    --table=%(table)s    
+    --table=%(table)s
     > %(outfile)s
     '''
     P.run()
@@ -738,11 +738,11 @@ def loadDifference(infile, outfile):
     i = infile + ".genes_ovl"
     if os.path.exists(i):
         statement = '''
-        cgat csv2db --allow-empty-file 
-        %(csv2db_options)s 
-        --map=gene_id1:str 
-        --map=gene_id2:str 
-        --add-index=gene_id1 
+        cgat csv2db --allow-empty-file
+        %(csv2db_options)s
+        --map=gene_id1:str
+        --map=gene_id2:str
+        --add-index=gene_id1
         --add-index=gene_id2
         --table=%(table)s_ovl
         < %(i)s
@@ -754,11 +754,11 @@ def loadDifference(infile, outfile):
     i = infile + "_genes.genes_ovl"
     if os.path.exists(i):
         statement = '''
-        cgat csv2db --allow-empty-file 
-        %(csv2db_options)s 
-        --map=gene_id1:str 
-        --map=gene_id2:str 
-        --add-index=gene_id1 
+        cgat csv2db --allow-empty-file
+        %(csv2db_options)s
+        --map=gene_id1:str
+        --map=gene_id2:str
+        --add-index=gene_id1
         --add-index=gene_id2
         --table=%(table)s_geneovl
         < %(i)s
@@ -790,19 +790,19 @@ def _makeOverlap(infiles, outfile, subset="all"):
     tracks = " ".join(tracks)
 
     statement = '''
-    for d in %(tracks)s; do 
+    for d in %(tracks)s; do
     gunzip < ${d}.gtf.gz
-    | cgat gtf2gtf 
+    | cgat gtf2gtf
     --map-tsv-file=<( %(cmd-sql)s %(database)s "SELECT gene_id FROM ${d}_annotation WHERE %(where)s" )
-    --log=%(outfile)s.log 
-    --method=filter --filter-method=gene 
+    --log=%(outfile)s.log
+    --method=filter --filter-method=gene
     > %(outfile)s_tmp_${d}.xgtf ;
     done;
     cgat gtfs2tsv
-    %(extra_options)s 
+    %(extra_options)s
     --pattern-identifier='%(outfile)s_tmp_(.*).xgtf'
-    --log=%(outfile)s.log 
-    %(outfile)s_tmp_*.xgtf 
+    --log=%(outfile)s.log
+    %(outfile)s_tmp_*.xgtf
     > %(outfile)s
     '''
     P.run()
@@ -853,13 +853,13 @@ def loadOverlap(infile, outfile):
 
     tablename = outfile[:-len("_table.load")]
     statement = '''
-    grep -v "\\bna\\b" 
-    < %(infile)s 
+    grep -v "\\bna\\b"
+    < %(infile)s
     |cgat csv2db %(csv2db_options)s
-    --map set1:str 
-    --map set2:str 
-    --add-index=set1 
-    --add-index=set2 
+    --map set1:str
+    --map set2:str
+    --add-index=set1
+    --add-index=set2
     --table=%(tablename)s
     > %(outfile)s
     '''
@@ -891,16 +891,16 @@ def buildRepeatMaskedSequences(infile, outfile):
     repeats = os.path.join(PARAMS["annotations_dir"],
                            PARAMS_ANNOTATIONS["interface_repeats_gff"])
 
-    statement = '''gunzip < %(infile)s 
+    statement = '''gunzip < %(infile)s
     | cgat gtf2gtf --method=sort --sort-order=gene
-    | cgat gff2fasta 
-    --is-gtf 
+    | cgat gff2fasta
+    --is-gtf
     --genome-file=%(genome_dir)s/%(genome)s
-    --remove-masked-regions 
+    --remove-masked-regions
     --maskregions-bed-file=<(gunzip < %(repeats)s )
-    --min-interval-length=%(codingpotential_min_length)i 
-    --max-length=%(codingpotential_max_length)i 
-    --log=%(outfile)s.log 
+    --min-interval-length=%(codingpotential_min_length)i
+    --max-length=%(codingpotential_max_length)i
+    --log=%(outfile)s.log
     > %(outfile)s
     '''
     P.run()
@@ -920,14 +920,14 @@ def runAgainstProteinDatabase(infile, outfile):
     '''
 
     statement = '''
-    cat %(infile)s | 
-       %(cmd-farm)s 
+    cat %(infile)s |
+       %(cmd-farm)s
                 --split-at-regex="^>(\S+)"
                 --chunk-size=100
-                --output-header 
-                --log=%(outfile)s.log 
+                --output-header
+                --log=%(outfile)s.log
     blastx -strand both -evalue 1e-10 -ungapped -threshold 14 -db /ifs/apps/bio/cpc-0.9-r2/bin/../share/prot_db
-    | gzip 
+    | gzip
     > %(outfile)s
     '''
 
@@ -973,7 +973,7 @@ def buildCodingPotential(infile, outfile):
     This module runs framefinder and blastx on both strands.
     It seems to work, but I have not thoroughly tested it.
     I expect that the false positive rate increases (i.e.,
-    predicting non-coding as coding) in cases where the best 
+    predicting non-coding as coding) in cases where the best
     framefinder match and the best blast match are on opposite
     strands. In the original CPC, these would be separated.
     '''
@@ -1011,39 +1011,39 @@ def buildCodingPotential(infile, outfile):
 
     s.append('''
     zcat %(infile)s
-    | perl %(cpc_dir)s/libs/blast2table.pl 
+    | perl %(cpc_dir)s/libs/blast2table.pl
     | tee %(tmpdir)s/blastx.table
     | perl %(cpc_dir)s/bin/extract_blastx_features.pl
     > %(tmpdir)s/blastx.feat1;
     ''')
 
     s.append('''
-    cat %(track)s_norepeats.fasta 
+    cat %(track)s_norepeats.fasta
     | perl %(cpc_dir)s/bin/add_missing_entries.pl
-       %(tmpdir)s/blastx.feat1 
+       %(tmpdir)s/blastx.feat1
     > %(tmpdir)s/blastx.feat;
     ''')
 
     # step 2 - prepare data
     s.append('''
-    perl %(cpc_dir)s/bin/feat2libsvm.pl -c 2,4,6 NA NA %(tmpdir)s/blastx.feat 
+    perl %(cpc_dir)s/bin/feat2libsvm.pl -c 2,4,6 NA NA %(tmpdir)s/blastx.feat
     > %(tmpdir)s/blastx.lsv;
     ''')
 
     s.append('''
-    perl %(cpc_dir)s/bin/feat2libsvm.pl -c 2,3,4,5 NA NA %(tmpdir)s/ff.feat 
+    perl %(cpc_dir)s/bin/feat2libsvm.pl -c 2,3,4,5 NA NA %(tmpdir)s/ff.feat
     > %(tmpdir)s/ff.lsv;
     ''')
 
     s.append('''
-    perl -w %(cpc_dir)s/bin/lsv_cbind.pl %(tmpdir)s/blastx.lsv %(tmpdir)s/ff.lsv 
+    perl -w %(cpc_dir)s/bin/lsv_cbind.pl %(tmpdir)s/blastx.lsv %(tmpdir)s/ff.lsv
     > %(tmpdir)s/test.lsv;
     ''')
 
     s.append('''
-    %(cpc_dir)s/libs/libsvm/libsvm-2.81/svm-scale 
-               -r %(cpc_dir)s/data/libsvm.range  
-               %(tmpdir)s/test.lsv 
+    %(cpc_dir)s/libs/libsvm/libsvm-2.81/svm-scale
+               -r %(cpc_dir)s/data/libsvm.range
+               %(tmpdir)s/test.lsv
     > %(tmpdir)s/test.lsv.scaled;
     ''')
 
@@ -1056,17 +1056,17 @@ def buildCodingPotential(infile, outfile):
 
     s.append('''
                %(cpc_dir)s/libs/libsvm/libsvm-2.81/svm-predict2
-               %(tmpdir)s/test.lsv.scaled 
-               %(m_libsvm_model0)s 
-               %(tmpdir)s/test.svm0.predict 
+               %(tmpdir)s/test.lsv.scaled
+               %(m_libsvm_model0)s
+               %(tmpdir)s/test.svm0.predict
     > %(tmpdir)s/test.svm0.stdout 2> %(tmpdir)s/test.svm0.stderr;
     ''')
 
     s.append('''
-    printf "gene_id\\tlength\\tresult\\tvalue\\n" 
+    printf "gene_id\\tlength\\tresult\\tvalue\\n"
     | gzip > %(outfile)s;
-    cat %(tmpdir)s/test.svm0.predict  
-    | perl -w %(cpc_dir)s/bin/predict.pl %(track)s_norepeats.fasta 
+    cat %(tmpdir)s/test.svm0.predict
+    | perl -w %(cpc_dir)s/bin/predict.pl %(track)s_norepeats.fasta
     | gzip >> %(outfile)s;
     ''')
 
@@ -1094,13 +1094,13 @@ def loadCodingPotential(infile, outfile):
     table = P.toTable(outfile)
 
     statement = '''
-    gunzip < %(infile)s 
-    | cgat csv2db 
-              %(csv2db_options)s 
+    gunzip < %(infile)s
+    | cgat csv2db
+              %(csv2db_options)s
               --allow-empty-file
-              --add-index=gene_id 
-              --map=gene_id:str 
-              --table=%(table)s 
+              --add-index=gene_id
+              --map=gene_id:str
+              --table=%(table)s
     > %(outfile)s'''
 
     P.run()
@@ -1124,14 +1124,14 @@ def exportSequences(infile, outfile):
 
     prefix = outfile[:-len(".fasta")]
 
-    statement = '''gunzip 
+    statement = '''gunzip
     < %(infile)s
     | cgat gtf2gtf --method=sort --sort-order=gene
-    | cgat gff2fasta 
-    --is-gtf 
+    | cgat gff2fasta
+    --is-gtf
     --genome-file=%(genome_dir)s/%(genome)s
-    --log=%(outfile)s.log 
-    | python %(toolsdir)s/index_fasta.py --force-output %(prefix)s - 
+    --log=%(outfile)s.log
+    | python %(toolsdir)s/index_fasta.py --force-output %(prefix)s -
     > %(outfile)s.log'''
 
     P.run()
@@ -1146,7 +1146,7 @@ def exportSequences(infile, outfile):
                                    PARAMS_ANCESTRAL_REPEATS["interface_alignment_psl"])),
            r"\1.rates.gz")
 def makeRates(infiles, outfile):
-    '''compute nucleotide substitution rates for transcripts from a gtf file - 
+    '''compute nucleotide substitution rates for transcripts from a gtf file -
     this applies only for transcripts mapped onto the reference genome.
 
     Sequences from the transcripts are mapped onto the rate genome.
@@ -1170,37 +1170,37 @@ def makeRates(infiles, outfile):
     target_genome = os.path.join(PARAMS["genome_dir"],
                                  PARAMS_ANCESTRAL_REPEATS["target"])
 
-    statement = '''gunzip 
-    < %(infile_gtf)s 
+    statement = '''gunzip
+    < %(infile_gtf)s
     | cgat gtf2gtf --method=sort --sort-order=gene
-    | cgat gff2psl 
-    --is-gtf 
-    --genome-file=%(genome_dir)s/%(genome)s 
-    --log=%(outfile)s.log 
-    | pslMap stdin <(gunzip < %(alignment)s ) stdout 
-    | sort -k10,10 -k14,14 -k9,9 -k12,12n 
-    | cgat psl2psl 
-    --method=merge 
-    --log=%(outfile)s.log 
-    | cgat psl2psl 
-    --method=select-query 
-    --select=most-nmatches 
-    --log=%(outfile)s.log 
-    | cgat psl2psl 
-    --method=add-sequence 
+    | cgat gff2psl
+    --is-gtf
+    --genome-file=%(genome_dir)s/%(genome)s
+    --log=%(outfile)s.log
+    | pslMap stdin <(gunzip < %(alignment)s ) stdout
+    | sort -k10,10 -k14,14 -k9,9 -k12,12n
+    | cgat psl2psl
+    --method=merge
+    --log=%(outfile)s.log
+    | cgat psl2psl
+    --method=select-query
+    --select=most-nmatches
+    --log=%(outfile)s.log
+    | cgat psl2psl
+    --method=add-sequence
     --target-psl-file=%(target_genome)s
     --queries-tsv-file=%(infile_sequences)s
-    --log=%(outfile)s.log 
-    | %(cmd-farm)s 
-    --split-at-lines=10000 
-    --output-header 
-    --log=%(outfile)s.log 
-    "cgat psl2table 
+    --log=%(outfile)s.log
+    | %(cmd-farm)s
+    --split-at-lines=10000
+    --output-header
+    --log=%(outfile)s.log
+    "cgat psl2table
     %(mask)s
-    --method=counts 
-    --method=baseml 
-    --baseml-model=REV" 
-    | gzip 
+    --method=counts
+    --method=baseml
+    --baseml-model=REV"
+    | gzip
     > %(outfile)s
     '''
 
@@ -1218,13 +1218,13 @@ def loadRates(infile, outfile):
 
     track = outfile[:-len(".load")]
     statement = '''
-    gunzip 
-    < %(infile)s 
-    | python %(toolsdir)s/csv_cut.py 
-          --large --remove qStarts tStarts blockSizes qSequence tSequence --log=%(outfile)s 
-    | csort -k:qName: -k:aligned:rn 
-    | perl -p -e "s/qName/gene_id/" 
-    | awk '{if (l==$10) {next;} l = $10; print; }' 
+    gunzip
+    < %(infile)s
+    | python %(toolsdir)s/csv_cut.py
+          --large --remove qStarts tStarts blockSizes qSequence tSequence --log=%(outfile)s
+    | csort -k:qName: -k:aligned:rn
+    | perl -p -e "s/qName/gene_id/"
+    | awk '{if (l==$10) {next;} l = $10; print; }'
     |cgat csv2db %(csv2db_options)s --map gene_id:str --table=%(track)s --add-index=gene_id --allow-empty-file
     > %(outfile)s
     '''
@@ -1246,15 +1246,15 @@ def makeRepeatsRates(infile, outfile):
     ancestral_repeats_filename = os.path.join(PARAMS["ancestral_repeats_dir"],
                                               PARAMS_ANCESTRAL_REPEATS["interface_rates_query_gff"])
 
-    statement = '''gunzip 
-    < %(infile)s 
-    | cgat gtf2table 
-        --proximal-distance=%(ancestral_repeats_max_distance)i 
-        --section=exons 
+    statement = '''gunzip
+    < %(infile)s
+    | cgat gtf2table
+        --proximal-distance=%(ancestral_repeats_max_distance)i
+        --section=exons
         --counter=proximity-exclusive
-        --filename-format=gff 
+        --filename-format=gff
         --gff-file=<(gunzip < %(ancestral_repeats_filename)s )
-    | gzip 
+    | gzip
     > %(outfile)s'''
 
     P.run()
@@ -1267,14 +1267,14 @@ def loadRepeatsRates(infile, outfile):
 
     table = outfile[:-len(".load")]
 
-    statement = '''gunzip 
-    < %(infile)s 
+    statement = '''gunzip
+    < %(infile)s
     | awk '$4 > 0'
     | python %(toolsdir)s/csv_cut.py --remove exons_lengths exons_values
-    |cgat csv2db %(csv2db_options)s 
-              --add-index=gene_id 
-              --map=gene_id:str 
-              --table=%(table)s 
+    |cgat csv2db %(csv2db_options)s
+              --add-index=gene_id
+              --map=gene_id:str
+              --table=%(table)s
               --allow-empty-file
     > %(outfile)s'''
 
@@ -1301,8 +1301,8 @@ def loadSummary(infile, outfile):
     if os.path.exists("%s_rates.load" % track):
         stmt_select.append("a.distance AS ks, a.aligned AS aligned")
         stmt_from.append('''LEFT JOIN %(track)s_rates AS a
-        ON r.gene_id = a.gene_id AND 
-        a.aligned >= %(rates_min_aligned)i AND 
+        ON r.gene_id = a.gene_id AND
+        a.aligned >= %(rates_min_aligned)i AND
         a.distance <= %(rates_max_rate)f''')
 
     if os.path.exists("%s_coverage.load" % track):
@@ -1318,15 +1318,15 @@ def loadSummary(infile, outfile):
     if os.path.exists("%s_repeats_rates.load" % track):
         stmt_select.append(
             "ar.exons_length AS ar_aligned, ar.exons_median AS ka, a.distance/ar.exons_median AS kska")
-        stmt_from.append('''LEFT JOIN %(track)s_repeats_rates AS ar 
-                     ON r.gene_id = ar.gene_id AND 
+        stmt_from.append('''LEFT JOIN %(track)s_repeats_rates AS ar
+                     ON r.gene_id = ar.gene_id AND
                      ar.exons_nval >= %(rates_min_repeats)i''')
 
     if os.path.exists("%s_introns_rates.load" % track):
         stmt_select.append(
             "ir.aligned AS ir_aligned, ir.distance AS ki, a.distance/ir.distance AS kski")
-        stmt_from.append('''LEFT JOIN %(track)s_introns_rates AS ir 
-                            ON r.gene_id = ir.gene_id AND 
+        stmt_from.append('''LEFT JOIN %(track)s_introns_rates AS ir
+                            ON r.gene_id = ir.gene_id AND
                             ir.aligned >= %(rates_min_aligned)i''')
 
     x = locals()

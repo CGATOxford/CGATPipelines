@@ -123,10 +123,10 @@ For example, the contents of a tar-ball will look light this::
 
 The reference file looks like this::
 
-   test_mytest1.dir/bwa.dir/Brain-F2-R2.bwa.bam 0e1c4ee88f0249c21e16d93ac496eddf  
-   test_mytest1.dir/bwa.dir/Brain-F1-R2.bwa.bam 01bee8af5bbb5b1d13ed82ef1bc3620d  
-   test_mytest1.dir/bwa.dir/Brain-F2-R1.bwa.bam 80902c87519b6865a9ca982787280972  
-   test_mytest1.dir/bwa.dir/Brain-F1-R1.bwa.bam 503c99ab7042a839e56147fb1a221f27  
+   test_mytest1.dir/bwa.dir/Brain-F2-R2.bwa.bam 0e1c4ee88f0249c21e16d93ac496eddf
+   test_mytest1.dir/bwa.dir/Brain-F1-R2.bwa.bam 01bee8af5bbb5b1d13ed82ef1bc3620d
+   test_mytest1.dir/bwa.dir/Brain-F2-R1.bwa.bam 80902c87519b6865a9ca982787280972
+   test_mytest1.dir/bwa.dir/Brain-F1-R1.bwa.bam 503c99ab7042a839e56147fb1a221f27
    ...
 
 This file is created by the test pipeline and called
@@ -281,7 +281,7 @@ def runTest(infile, outfile):
         P.run(ignore_errors=True)
 
     P.touch(outfile)
-    
+
 # @follows(setupTests)
 # @files([("%s.tgz" % x, "%s.log" % x)
 #         for x in P.asList(PARAMS.get("prerequisites", ""))])
@@ -331,7 +331,7 @@ def compute_file_metrics(infile, outfile, metric, suffixes):
 
     track = P.snip(infile, ".log")
     gz_suffixes = ["{}.gz".format(x) for x in suffixes]
-    
+
     # convert regex patterns to a suffix match:
     # prepend a .*
     # append a $
@@ -359,7 +359,7 @@ def compute_file_metrics(infile, outfile, metric, suffixes):
         | perl -p -e "s/ +/\\t/g"
         | sort -k1,1
         > %(outfile)s'''
-        
+
     P.run()
 
 
@@ -415,7 +415,7 @@ def checkFileExistence(infile, outfile):
         suffixes=P.asList(PARAMS["general_suffixes"]) +
         P.asList(PARAMS.get('%s_suffixes' % track, "")))
 
-    
+
 @collate((buildCheckSums, buildLineCounts, checkFileExistence),
          regex("([^.]*).(.*)"),
          r"\1.stats")
@@ -533,15 +533,15 @@ def compareCheckSums(infiles, outfile):
             dd = (cmp_data['nlines'][check_lines] ==
                   ref_data['nlines'][check_lines])
             same_lines = set(dd.index[dd])
-            
+
         else:
             different_lines = set()
             same_lines = set()
-            
+
         # remainder - check md5
         dd = cmp_data['md5'][different] != ref_data['md5'][different]
         different_md5 = set(dd.index[dd])
-        
+
         dd = (cmp_data['md5'][different] ==
               ref_data['md5'][different])
         same_md5 = set(dd.index[dd])

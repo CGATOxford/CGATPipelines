@@ -609,7 +609,7 @@ def buildCpGCoverage(infiles, outfile):
     # bedtools < 0.26.0:
     # column = 6
     column = 5
-    
+
     statement = '''
     zcat %(infile)s
     | bedtools coverage -a stdin -b %(cpg_file)s -counts

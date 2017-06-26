@@ -161,7 +161,7 @@ def convertChainToPsl(infile, outfile):
     E.debug("query=%s, target=%s" % (query, target))
 
     statement = '''gunzip
-    < %(infile)s 
+    < %(infile)s
     | %(cmd-farm)s --split-at-regex="^chain" --chunk-size=1000 --max-lines=1000000 --log=%(outfile)s.log
     " cgat chain2psl --log=%(outfile)s.log
       | pslSwap stdin stdout "
@@ -194,18 +194,18 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
 
             E.info("adding %s" % infile)
 
-            statement = '''gunzip < %(infile)s 
-                 | cgat maf2psl 
+            statement = '''gunzip < %(infile)s
+                 | cgat maf2psl
                       --query=%(track)s
                       --target=%(maf_master)s
-                      --log=%(outfile)s.log 
-                 | cgat psl2psl 
-                      --method=filter-fasta 
+                      --log=%(outfile)s.log
+                 | cgat psl2psl
+                      --method=filter-fasta
                       --method=sanitize
                       --queries-tsv-file=%(genomefile)s
                       --target-psl-file=%(genome)s
-                      --log=%(outfile)s.log 
-                 | gzip 
+                      --log=%(outfile)s.log
+                 | gzip
                  >> %(outfile)s
                  '''
             P.run()
@@ -216,15 +216,15 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
 
         to_cluster = True
 
-        statement = '''gunzip < %(infile)s 
+        statement = '''gunzip < %(infile)s
              | sort -k10,10 -k12,12n
-             | cgat psl2psl 
+             | cgat psl2psl
                   --method=remove-overlapping-query
-                  --log=%(outfile)s.log 
+                  --log=%(outfile)s.log
              | sort -k14,14 -k16,16n
-             | cgat psl2psl 
+             | cgat psl2psl
                   --method=remove-overlapping-target
-                  --log=%(outfile)s.log 
+                  --log=%(outfile)s.log
              | gzip
              >> %(outfile)s
              '''
@@ -242,18 +242,18 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
 
         to_cluster = True
 
-        statement = '''gunzip < %(infile)s 
-                 | cgat maf2psl 
+        statement = '''gunzip < %(infile)s
+                 | cgat maf2psl
                       --query=%(query)s
                       --target=%(maf_master)s
-                      --log=%(outfile)s.log 
-                 | cgat psl2psl 
-                      --method=filter-fasta 
+                      --log=%(outfile)s.log
+                 | cgat psl2psl
+                      --method=filter-fasta
                       --method=sanitize
                       --queries-tsv-file=%(genomefile)s
                       --target-psl-file=%(genome)s
-                      --log=%(outfile)s.log 
-                 | gzip 
+                      --log=%(outfile)s.log
+                 | gzip
                  >> %(outfile)s
                  '''
         P.run()
@@ -269,15 +269,15 @@ if "maf_dir" in PARAMS and "maf_tracks" in PARAMS:
 
         infiles = " ".join(infiles)
 
-        statement = '''zcat %(infiles)s 
+        statement = '''zcat %(infiles)s
              | sort -k10,10 -k12,12n
-             | cgat psl2psl 
+             | cgat psl2psl
                   --method=remove-overlapping-query
-                  --log=%(outfile)s.log 
+                  --log=%(outfile)s.log
              | sort -k14,14 -k16,16n
-             | cgat psl2psl 
+             | cgat psl2psl
                   --method=remove-overlapping-target
-                  --log=%(outfile)s.log 
+                  --log=%(outfile)s.log
              | gzip
              >> %(outfile)s
              '''
@@ -355,8 +355,8 @@ def convertPslToChain(infile, outfile):
     | chainSort stdin stdout
     | gzip
     > %(outfile)s.sorted.chain.gz;
-    checkpoint; 
-    gunzip < %(outfile)s.sorted.chain.gz 
+    checkpoint;
+    gunzip < %(outfile)s.sorted.chain.gz
     | chainNet stdin %(tmpfilename1)s %(tmpfilename2)s stdout /dev/null
     | netChainSubset stdin <( zcat %(outfile)s.sorted.chain ) stdout
     | gzip
@@ -383,7 +383,7 @@ def buildPslStats(infile, outfile):
     to_cluster = True
 
     statement = '''
-    gunzip < %(infile)s 
+    gunzip < %(infile)s
     | cgat psl2stats --log=%(outfile)s.log
     > %(outfile)s'''
 
@@ -406,7 +406,7 @@ def buildChainStats(infile, outfile):
     to_cluster = True
 
     statement = '''
-    gunzip < %(infile)s 
+    gunzip < %(infile)s
     | cgat chain2psl --log=%(outfile)s.log
     | cgat psl2stats --log=%(outfile)s.log
     > %(outfile)s'''

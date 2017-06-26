@@ -71,10 +71,10 @@ def buildGenomeGCSegmentation(infile, outfile):
     '''segment the genome into windows according to G+C content.'''
 
     statement = '''
-    cgat fasta2bed 
-        --method=fixed-width-windows 
-        --window-size=%(enrichment_gc_window_size)i 
-        --log=%(outfile)s.log 
+    cgat fasta2bed
+        --method=fixed-width-windows
+        --window-size=%(enrichment_gc_window_size)i
+        --log=%(outfile)s.log
     < %(genome)s.fasta > %(outfile)s'''
 
     P.run()
@@ -87,7 +87,7 @@ def buildAnnotatorGC(infile, outfile):
     cgat bed2bed
         --method=bins
         --num-bins=%(enrichment_gc_bins)s
-        --binning-method=%(enrichment_gc_method)s 
+        --binning-method=%(enrichment_gc_method)s
         --log=%(outfile)s.log
     < %(infile)s > %(outfile)s'''
 
@@ -363,7 +363,7 @@ def buildAnnotatorSlicedSegments(tmpdir, outfile, track, slice):
         where = "is_%(slice)s" % locals()
 
     statement = '''
-    %(cmd-sql)s %(database)s 
+    %(cmd-sql)s %(database)s
     "SELECT g.* FROM %(track)s_gtf as g, %(track)s_annotation AS a WHERE a.gene_id = g.gene_id AND %(where)s"
     | cgat gtf2tsv --invert
     | cgat gff2annotator2tsv
@@ -497,13 +497,13 @@ def importAnnotator(infiles, outfile, regex_id, table,
     statement = '''
     cgat annotator2tsv
     --method=fdr-table
-    --fdr-method=%(fdr_method)s 
+    --fdr-method=%(fdr_method)s
     --log=%(outfile)s.log
     --regex-identifier="%(regex_id)s"
     %(infile)s
     | %(transform)s
-    |cgat csv2db %(csv2db_options)s 
-    --table=%(table)s 
+    |cgat csv2db %(csv2db_options)s
+    --table=%(table)s
     > %(outfile)s
     '''
 

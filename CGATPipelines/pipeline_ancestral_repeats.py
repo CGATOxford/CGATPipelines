@@ -42,7 +42,7 @@ the input data from directories specified in the configuration files.
 
 The genomic alignment can both be build from :term:`axt` formatted
 pairwise alignments and from :term:`maf` formatted multiple
-alignments. 
+alignments.
 
 :term:`axt` formatted files (such as file:`chr1.hg19.mm10.net.axt.gz`)
 are build by hierarchically from chains by selecting the
@@ -178,7 +178,7 @@ if "axt_dir" in PARAMS:
 
         for infile in infiles:
             E.info("adding %s" % infile)
-            statement = '''gunzip < %(infile)s 
+            statement = '''gunzip < %(infile)s
             | axtToPsl
             /dev/stdin
             %(query)s.sizes
@@ -211,7 +211,7 @@ elif "maf_dir" in PARAMS:
 
             genome_query, genome_target = getGenomes()
 
-            statement = '''gunzip < %(infile)s 
+            statement = '''gunzip < %(infile)s
              | cgat maf2psl
                   --query=%(maf_name_query)s
                   --target=%(maf_name_target)s
@@ -233,7 +233,7 @@ elif "maf_dir" in PARAMS:
     def buildGenomeAlignment(infile, outfile):
         '''remove non-unique alignments in genomic infile.'''
 
-        statement = '''gunzip < %(infile)s 
+        statement = '''gunzip < %(infile)s
         | sort -k10,10 -k12,12n
         | cgat psl2psl
         --method=remove-overlapping-query
@@ -266,7 +266,7 @@ elif "maf_dir" in PARAMS:
 
             genome_query, genome_target = getGenomes()
 
-            statement = '''gunzip < %(infile)s 
+            statement = '''gunzip < %(infile)s
             | mafToAxt
                   /dev/stdin
                   %(maf_name_target)s
@@ -474,7 +474,7 @@ def buildRepeatsRates(infile, outfile):
 
     genome_query, genome_target = getGenomes()
 
-    statement = '''gunzip < %(infile)s 
+    statement = '''gunzip < %(infile)s
     | sort -k10,10 -k14,14 -k9,9 -k12,12n
     | %(cmd-farm)s --split-at-lines=10000 --output-header --log=%(outfile)s.log
     "cgat psl2psl

@@ -9,7 +9,7 @@ Variant annotation pipeline
 
 The Variants pipeline attempts to annotate variants in
 a :term:`vcf` formatted file. It computes
- 
+
    1. the effects of SNPs on transcripts and genes
 
 This pipeline works on a single genome.
@@ -93,7 +93,7 @@ run the example, simply unpack and untar::
    cd pipeline_variants
    python <srcdir>/pipeline_variants.py make full
 
-.. note:: 
+.. note::
    For the pipeline to run, install the :doc:`pipeline_annotations` as well.
 
 Glossary
@@ -104,7 +104,7 @@ Glossary
    polyphen
        polyphen_ - a program to predict the deleteriousness of substitutions
 
-   
+
 .. _polyphen: http://genetics.bwh.harvard.edu/pph2/dokuwiki/start
 
 Code
@@ -267,7 +267,7 @@ if "refseq_filename_gtf" in PARAMS:
         table browser.
 
         Only unique refseq entries are used - all duplicates are
-        removed. 
+        removed.
 
         This method imports the following files:
         gtf.gz, pep.fa.gz, cdna.fa.gz from the UCSC
@@ -290,8 +290,8 @@ if "refseq_filename_gtf" in PARAMS:
 
         # build map between mrna and prot
         tmpfilename1 = P.getTempFilename()
-        statement = '''gunzip < %(infile_map)s 
-        | cgat csv_cut mrnaAcc protAcc 
+        statement = '''gunzip < %(infile_map)s
+        | cgat csv_cut mrnaAcc protAcc
         | perl -p -e "s/\.\d+//g"
         > %(tmpfilename1)s
         '''
@@ -299,7 +299,7 @@ if "refseq_filename_gtf" in PARAMS:
 
         # build map between mrna and gene - use ccds gene
         tmpfilename2 = P.getTempFilename()
-        statement = '''gunzip < %(infile_map)s 
+        statement = '''gunzip < %(infile_map)s
         | cgat csv_cut mrnaAcc geneName
         | perl -p -e "s/\.\d+//g"
         > %(tmpfilename2)s
@@ -333,8 +333,8 @@ if "refseq_filename_gtf" in PARAMS:
                                 (infile_cdna, outfile_cdna)):
             # remove numerical suffixes from identifiers
             statement = '''gunzip < %(infile)s
-            | perl -p -e "s/\.\d+//g" 
-            | gzip 
+            | perl -p -e "s/\.\d+//g"
+            | gzip
             > %(outfile)s'''
             if not os.path.exists(outfile):
                 P.run()
@@ -372,12 +372,12 @@ if "refseq_filename_gtf" in PARAMS:
             outf.close()
 
             statement = '''cat < %(tmpfilename1)s
-            |cgat csv2db %(csv2db_options)s 
-               --add-index=gene_id 
-               --add-index=transcript_id 
-               --add-index=refseq_transcript_id 
-               --add-index=refseq_protein_id 
-               --add-index=ccds_id 
+            |cgat csv2db %(csv2db_options)s
+               --add-index=gene_id
+               --add-index=transcript_id
+               --add-index=refseq_transcript_id
+               --add-index=refseq_protein_id
+               --add-index=ccds_id
                --table=%(table)s
             > refseq.load'''
 
@@ -387,12 +387,12 @@ if "refseq_filename_gtf" in PARAMS:
         # use UCSC mapping
         statement = '''gunzip < %(infile_map)s
             | perl -p -i -e "s/\.\d+//g"
-            | awk 'BEGIN {printf("ccds_id\\tsrc_db\\tttranscript_id\\tprotein_id\\n")} 
+            | awk 'BEGIN {printf("ccds_id\\tsrc_db\\tttranscript_id\\tprotein_id\\n")}
                    /^ccds/ {next} {print}'
-            |cgat csv2db %(csv2db_options)s 
-               --add-index=ccds_id 
-               --add-index=transcript_id 
-               --add-index=protein_id 
+            |cgat csv2db %(csv2db_options)s
+               --add-index=ccds_id
+               --add-index=transcript_id
+               --add-index=protein_id
                --table=%(table)s
             > refseq.load'''
 
@@ -419,7 +419,7 @@ if "refseq_filename_gtf" in PARAMS:
         table browser.
 
         Only unique refseq entries are used - all duplicates are
-        removed. 
+        removed.
 
         This method imports the following files:
         gtf.gz, pep.fa.gz, cdna.fa.gz from the UCSC
@@ -448,8 +448,8 @@ if "refseq_filename_gtf" in PARAMS:
                                 (infile_cdna, outfile_cdna)):
             # remove numerical suffixes from identifiers
             statement = '''gunzip < %(infile)s
-            | perl -p -e "s/\.\d+//g" 
-            | gzip 
+            | perl -p -e "s/\.\d+//g"
+            | gzip
             > %(outfile)s'''
             if not os.path.exists(outfile):
                 P.run()
@@ -509,7 +509,7 @@ def importPseudogenes(infile, outfile):
     statement = '''
     zcat %(tmpfile)s.gz
     | perl -p -i -e "s/Parent Protein/protein_id/; s/Chromosome/contig/; s/Start Coordinate/start/; s/Stop Coordiante/end/"
-    |cgat csv2db %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s
                      --table=%(tablename)s
                      --add-index=protein_id
     > %(outfile)s
@@ -639,7 +639,7 @@ def importMGI(infile, outfile):
             | %(pipeline_scriptsdir)s/hsort 1
             | uniq
             | awk '{ for (x=2; x<=NF; x++) { if ($x != "") { print; break;} } }'
-            |cgat csv2db %(csv2db_options)s 
+            |cgat csv2db %(csv2db_options)s
                      --table=%(tablename)s
                      --add-index=marker_id
                      --add-index=allele_id
@@ -657,7 +657,7 @@ def importMGI(infile, outfile):
 def loadGene2Omim(infile, outfile):
     '''download gene id - OMIM associations via BIOMART.
 
-    Missing numerical entries are set to 0 (from -2147483648). 
+    Missing numerical entries are set to 0 (from -2147483648).
     '''
 
     tablename = P.toTable(outfile)
@@ -720,11 +720,11 @@ def loadHumanOrthologs(infile, outfile):
 
         dbh = connect()
 
-        statement = '''CREATE TABLE %(tablename)s AS 
+        statement = '''CREATE TABLE %(tablename)s AS
                        SELECT gene_id AS hs_gene_id,
                               gene_id AS gene_id,
                               "ortholog_one2one" AS orthology_type,
-                              0 AS ds 
+                              0 AS ds
                        FROM annotations.gene_info'''
 
         Database.executewait(
@@ -784,10 +784,10 @@ def loadEnsembl2Uniprot(infile, outfile):
     '''load mapping from ENSEMBL transcripts ids to
     uniprot ids.
 
-    This method expects an BioMart output file with the following 
-    five columns: 
-    Ensembl gene id, 
-    Ensembl transcript id, 
+    This method expects an BioMart output file with the following
+    five columns:
+    Ensembl gene id,
+    Ensembl transcript id,
     Uniprot Swissprot Id,
     Uniprot Accession
     Uniport/Trembl Accession
@@ -795,12 +795,12 @@ def loadEnsembl2Uniprot(infile, outfile):
 
     table = P.toTable(outfile)
 
-    statement = '''gunzip 
+    statement = '''gunzip
     < %(infile)s
-    | perl -p -e 
-          "s/Ensembl Gene ID/gene_id/; 
-           s/Ensembl Transcript ID/transcript_id/; 
-           s/UniProt\/SwissProt ID/swissprot_id/;       
+    | perl -p -e
+          "s/Ensembl Gene ID/gene_id/;
+           s/Ensembl Transcript ID/transcript_id/;
+           s/UniProt\/SwissProt ID/swissprot_id/;
            s/UniProt\/SwissProt Accession/swissprot_acc/;
            s/UniProt\/TrEMBL Accession/trembl_acc/"
     |cgat csv2db %(csv2db_options)s \
@@ -826,14 +826,14 @@ def buildBaseAnnotations(infile, outfile):
 
     dbname = outfile[:-len(".fasta")]
     statement = """
-        gunzip < %(infile)s 
-        | cgat gtf2fasta 
-                --force-output 
-                --genome=%(genome_dir)s/%(genome)s 
-                --output-filename-pattern=annotations_bases.%%s 
-                --log=%(outfile)s.log 
-        | python %(toolsdir)s/index_fasta.py 
-        --log=%(outfile)s.log 
+        gunzip < %(infile)s
+        | cgat gtf2fasta
+                --force-output
+                --genome=%(genome_dir)s/%(genome)s
+                --output-filename-pattern=annotations_bases.%%s
+                --log=%(outfile)s.log
+        | python %(toolsdir)s/index_fasta.py
+        --log=%(outfile)s.log
         %(dbname)s - > %(outfile)s.log
     """
 
@@ -933,13 +933,13 @@ def buildAnnotations(infile, outfile, sample):
     bases = "annotations_bases"
 
     statement = """
-    cgat snp2table 
+    cgat snp2table
         --input-format=vcf
         --vcf-sample=%(sample)s
         --vcf-file=%(infile)s
-        --genome-file=%(genome_dir)s/%(genome)s 
-        --annotations-tsv-file=%(bases)s 
-        --log=%(outfile)s.log 
+        --genome-file=%(genome_dir)s/%(genome)s
+        --annotations-tsv-file=%(bases)s
+        --log=%(outfile)s.log
     | gzip > %(outfile)s
     """
     P.run()
@@ -957,14 +957,14 @@ def loadAnnotations(infile, outfile):
 
     tablename = P.toTable(outfile)
 
-    statement = '''gunzip 
+    statement = '''gunzip
     < %(infile)s
-    |cgat csv2db %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s
               --quick
-              --map=gene_id:str 
-              --add-index=gene_id 
+              --map=gene_id:str
+              --add-index=gene_id
               --table=%(tablename)s
-              --map=base_qualities:text 
+              --map=base_qualities:text
     > %(outfile)s
     '''
     P.run()
@@ -983,13 +983,13 @@ def summarizeAnnotations(infile, outfile):
     to_cluster = True
 
     # count substitutions for each category
-    statement = '''gunzip 
+    statement = '''gunzip
     < %(infile)s
-    | cgat csv_cut code reference_base genotype variant_type 
-    | awk '$4 == "variant_type" { printf("%%s-%%s-%%s\\tcounts\\n", $1,$2,$3); } 
+    | cgat csv_cut code reference_base genotype variant_type
+    | awk '$4 == "variant_type" { printf("%%s-%%s-%%s\\tcounts\\n", $1,$2,$3); }
            $4 == "E" || $4 == "O" {printf("%%s-%%s-%%s\\t1\\n", $1,$2,$3)}'
-    | sort 
-    | uniq -c 
+    | sort
+    | uniq -c
     | awk 'BEGIN{ printf("code-reference_base-genotype\\tcounts\\n" ); } \
                   $2 !~ /^code/ {printf("%%s\\t%%i\\n",$2,$1);}'
     | perl -p -i -e "s/-/\\t/g unless (/^#/)"
@@ -1012,7 +1012,7 @@ def loadAnnotationsSummary(infile, outfile):
 
     statement = '''cat
     < %(infile)s
-    |cgat csv2db %(csv2db_options)s 
+    |cgat csv2db %(csv2db_options)s
               --add-index=code
               --table=%(tablename)s
     > %(outfile)s
@@ -1037,17 +1037,17 @@ def buildEffects(infile, outfile, sample):
                                PARAMS_ANNOTATIONS["interface_geneset_cds_gtf"])
 
     statement = """
-    cgat snp2counts 
+    cgat snp2counts
         --genome-file=%(genome_dir)s/%(genome)s
         --input-format=vcf
         --vcf-sample=%(sample)s
-        --module=transcript-effects 
-        --seleno-tsv-file=%(seleno)s 
+        --module=transcript-effects
+        --seleno-tsv-file=%(seleno)s
         --vcf-file=%(infile)s
-        --exons-file=%(transcripts)s 
+        --exons-file=%(transcripts)s
         --output-filename-pattern=%(outfile)s.%%s.gz
-        --log=%(outfile)s.log 
-    | gzip 
+        --log=%(outfile)s.log
+    | gzip
     > %(outfile)s
     """
     P.run()
@@ -1077,12 +1077,12 @@ def loadEffects(infile, outfile):
     for suffix in ("cds", "intron", "splicing", "translation"):
 
         statement = '''
-        gunzip 
+        gunzip
         < %(infile)s.%(suffix)s.gz
-        |cgat csv2db %(csv2db_options)s 
+        |cgat csv2db %(csv2db_options)s
         --allow-empty-file
-        --add-index=transcript_id 
-        --table=%(root)s_effects_%(suffix)s 
+        --add-index=transcript_id
+        --table=%(root)s_effects_%(suffix)s
         --ignore-column=seq_na
         --ignore-column=seq_aa
         >> %(outfile)s
@@ -1115,10 +1115,10 @@ def mergeEffects(infiles, outfile):
     outf.close()
     tmpfilename = outf.name
 
-    statement = '''zcat %(tmpfilename)s 
-                   | cgat csv2db %(csv2db_options)s 
-                       --add-index=transcript_id 
-                       --table=%(tablename)s 
+    statement = '''zcat %(tmpfilename)s
+                   | cgat csv2db %(csv2db_options)s
+                       --add-index=transcript_id
+                       --table=%(tablename)s
                    > %(outfile)s'''
     P.run()
 
@@ -1141,11 +1141,11 @@ def mergeEffects(infiles, outfile):
         outf.close()
         tmpfilename = outf.name
 
-        statement = '''zcat %(tmpfilename)s 
-                       | cgat csv2db %(csv2db_options)s 
+        statement = '''zcat %(tmpfilename)s
+                       | cgat csv2db %(csv2db_options)s
                            --allow-empty-file
-                           --add-index=transcript_id 
-                           --table=%(tablename)s_%(suffix)s 
+                           --add-index=transcript_id
+                           --table=%(tablename)s_%(suffix)s
                            --ignore-column=seq_na
                            --ignore-column=seq_aa
                        >> %(outfile)s'''
@@ -1168,10 +1168,10 @@ def buildAlleles(infile, outfile, sample):
     transcripts = os.path.join(PARAMS["annotations_dir"],
                                PARAMS_ANNOTATIONS["interface_geneset_cds_gtf"])
 
-    statement = """zcat %(transcripts)s 
-    | cgat gtf2alleles 
+    statement = """zcat %(transcripts)s
+    | cgat gtf2alleles
         --genome-file=%(genome_dir)s/%(genome)s
-        --seleno-tsv-file=%(seleno)s 
+        --seleno-tsv-file=%(seleno)s
         --output-filename-pattern=%(outfile)s.%%s.gz
         --vcf-file=%(infile)s
         --vcf-sample=%(sample)s
@@ -1195,12 +1195,12 @@ def loadAlleles(infile, outfile):
     statement = '''gunzip
     < %(infile)s.table.gz
     | perl -p -e "s/False/0/g; s/True/1/g;"
-    |cgat csv2db %(csv2db_options)s 
-              --add-index=gene_id 
-              --add-index=transcript_id 
+    |cgat csv2db %(csv2db_options)s
+              --add-index=gene_id
+              --add-index=transcript_id
               --ignore-column=cds
               --ignore-column=peptide
-              --table=%(tablename)s 
+              --table=%(tablename)s
     > %(outfile)s
     '''
     P.run()
@@ -1232,7 +1232,7 @@ def summarizeAllelesPerTranscript(infile, outfile):
 
     The other fields are not necessarily exclusive, for example there
     could be transcripts with one knocked out allele and one wildtype
-    allele, such that ``is_nmd_affected``, ``is_affected`` and ``has_wildtype`` 
+    allele, such that ``is_nmd_affected``, ``is_affected`` and ``has_wildtype``
     are all true.
     '''
 
@@ -1243,7 +1243,7 @@ def summarizeAllelesPerTranscript(infile, outfile):
 
     statement = '''
     CREATE TABLE %(tablename)s AS
-    SELECT DISTINCT 
+    SELECT DISTINCT
            transcript_id,
            COUNT(DISTINCT allele_id) AS nalleles,
            CASE WHEN SUM( is_nmd_knockout) = 2 THEN 1 ELSE 0 END AS is_nmd_knockout,
@@ -1252,10 +1252,10 @@ def summarizeAllelesPerTranscript(infile, outfile):
            CASE WHEN SUM( is_splice_truncated) >= 1 THEN 1 ELSE 0 END AS is_splice_affected,
            CASE WHEN SUM( is_stop_truncated) = 2 THEN 1 ELSE 0 END AS is_stop_truncated,
            CASE WHEN SUM( is_stop_truncated) >= 1 THEN 1 ELSE 0 END AS is_stop_affected,
-           CASE WHEN SUM( is_wildtype ) = 2 THEN 1 ELSE 0 END AS is_wildtype, 
-           CASE WHEN SUM( is_wildtype ) >= 1 THEN 1 ELSE 0 END AS has_wildtype, 
-           contig AS contig, 
-           strand AS strand, 
+           CASE WHEN SUM( is_wildtype ) = 2 THEN 1 ELSE 0 END AS is_wildtype,
+           CASE WHEN SUM( is_wildtype ) >= 1 THEN 1 ELSE 0 END AS has_wildtype,
+           contig AS contig,
+           strand AS strand,
            GROUP_CONCAT( reference_first_stop_start ) AS stop_codons_start,
            GROUP_CONCAT( reference_first_stop_end ) AS stop_codons_end,
            0 AS is_knockout,
@@ -1272,10 +1272,10 @@ def summarizeAllelesPerTranscript(infile, outfile):
         dbhandle, "CREATE INDEX %(tablename)s_transcript_id ON %(tablename)s (transcript_id)" % locals())
     Database.executewait(
         dbhandle, "UPDATE %(tablename)s SET is_knockout = is_nmd_knockout" % locals())
-    Database.executewait( dbhandle, '''UPDATE %(tablename)s SET is_truncated = 
-                                       is_splice_truncated OR is_stop_truncated OR 
-                                       (is_splice_affected AND is_stop_affected) OR 
-                                       (is_splice_affected AND is_nmd_affected) OR 
+    Database.executewait( dbhandle, '''UPDATE %(tablename)s SET is_truncated =
+                                       is_splice_truncated OR is_stop_truncated OR
+                                       (is_splice_affected AND is_stop_affected) OR
+                                       (is_splice_affected AND is_nmd_affected) OR
                                        (is_stop_affected AND is_nmd_affected)
                                        ''' % locals())
     Database.executewait(dbhandle, 'UPDATE %(tablename)s SET is_affected ='
@@ -1303,7 +1303,7 @@ def summarizeAllelesPerGene(infile, outfile):
 
     statement = '''
     CREATE TABLE %(tablename)s AS
-    SELECT DISTINCT 
+    SELECT DISTINCT
            i.gene_id AS gene_id,
            COUNT( DISTINCT a.transcript_id ) AS ntranscripts,
            CASE WHEN SUM( is_nmd_knockout ) = COUNT(DISTINCT a.transcript_id) THEN 1 ELSE 0 END AS is_nmd_knockout,
@@ -1312,10 +1312,10 @@ def summarizeAllelesPerGene(infile, outfile):
            SUM( is_splice_truncated ) AS is_splice_affected,
            CASE WHEN SUM( is_stop_truncated ) = COUNT(DISTINCT a.transcript_id) THEN 1 ELSE 0 END AS is_stop_truncated,
            SUM( is_stop_truncated ) AS is_stop_affected,
-           CASE WHEN SUM( is_wildtype ) = COUNT(DISTINCT a.transcript_id) THEN 1 ELSE 0 END AS is_wildtype, 
-           SUM( is_wildtype ) AS has_wildtype, 
-           contig AS contig, 
-           strand AS strand, 
+           CASE WHEN SUM( is_wildtype ) = COUNT(DISTINCT a.transcript_id) THEN 1 ELSE 0 END AS is_wildtype,
+           SUM( is_wildtype ) AS has_wildtype,
+           contig AS contig,
+           strand AS strand,
            GROUP_CONCAT( stop_codons_start ) AS stop_codons_start,
            GROUP_CONCAT( stop_codons_end ) AS stop_codons_end,
            0 AS is_knockout,
@@ -1333,9 +1333,9 @@ def summarizeAllelesPerGene(infile, outfile):
         dbhandle, "CREATE INDEX %(tablename)s_gene_id ON %(tablename)s (gene_id)" % locals())
     Database.executewait(
         dbhandle, "UPDATE %(tablename)s SET is_knockout = is_nmd_knockout" % locals())
-    Database.executewait( dbhandle, '''UPDATE %(tablename)s SET is_truncated = 
-                                       is_splice_truncated OR is_stop_truncated OR 
-                                       (is_splice_affected + is_stop_affected >= ntranscripts)  
+    Database.executewait( dbhandle, '''UPDATE %(tablename)s SET is_truncated =
+                                       is_splice_truncated OR is_stop_truncated OR
+                                       (is_splice_affected + is_stop_affected >= ntranscripts)
                           ''' % locals())
     Database.executewait(dbhandle, 'UPDATE %(tablename)s SET is_affected ='
                          '(is_nmd_affected OR is_splice_affected OR is_stop_affected) AND NOT'
@@ -1359,7 +1359,7 @@ def combineSummaryAllelesPerGene(infiles, outfile):
     fields = ", ".join(["%s INT" % x for x in tracks])
 
     statement_create = '''
-    CREATE TABLE %(tablename)s 
+    CREATE TABLE %(tablename)s
            ( gene_id TEXT,
              total INT,
              %(fields)s )'''
@@ -1384,7 +1384,7 @@ def combineSummaryAllelesPerGene(infiles, outfile):
         Database.executewait(dbhandle, statement_create % locals())
 
         for track in tracks:
-            statement = """SELECT gene_id 
+            statement = """SELECT gene_id
                            FROM %(track)s_alleles_genes
                            WHERE %(field)s"""
 
@@ -1426,8 +1426,8 @@ def summarizeEffectsPerGene(infile, outfile):
 
     statement = '''
     CREATE TABLE %(tablename)s AS
-    SELECT DISTINCT 
-           gene_id, 
+    SELECT DISTINCT
+           gene_id,
            COUNT(*) AS ntranscripts,
            MIN(e.nalleles) AS min_nalleles,
            MAX(e.nalleles) AS max_nalleles,
@@ -1435,9 +1435,9 @@ def summarizeEffectsPerGene(infile, outfile):
            MAX(e.stop_min) AS max_stop_min,
            MIN(e.stop_max) AS min_stop_max,
            MAX(e.stop_max) AS max_stop_max,
-           SUM( CASE WHEN stop_min > 0 AND cds_len - stop_min * 3 < last_exon_start THEN 1  
+           SUM( CASE WHEN stop_min > 0 AND cds_len - stop_min * 3 < last_exon_start THEN 1
                      ELSE 0 END) AS nmd_knockout,
-           SUM( CASE WHEN stop_max > 0 AND cds_len - stop_max * 3 < last_exon_start THEN 1  
+           SUM( CASE WHEN stop_max > 0 AND cds_len - stop_max * 3 < last_exon_start THEN 1
                      ELSE 0 END) AS nmd_affected
     FROM annotations.transcript_info as i,
          %(track)s_effects AS e
@@ -1487,13 +1487,13 @@ def setupMultipleAlignment(infiles, outfile):
 
     This script does some id-mapping to resolve coordinates.
 
-    Basically, each genome is separated into two alleles. 
+    Basically, each genome is separated into two alleles.
     Gene_id's will be suffixed with the allele_id. This ensures
     that exons of a gene with multiple transcipts will be resolved
-    correctly with consistent coordinates. 
+    correctly with consistent coordinates.
 
     From an alignment point of view, the two alleles of the genes will be treated
-    independently, but transcripts within a gene  will be merged correctly at exon 
+    independently, but transcripts within a gene  will be merged correctly at exon
     boundaries, again on a per-allele basis.
 
     Later, when collecting the results, the allele id is moved from the gene to
@@ -1695,12 +1695,12 @@ def buildMAF(infiles, outfile):
     < transcripts.gtf.gz
     | cgat gtf2gtf
     --method=merge-transcripts
-    | %(cmd-farm)s --split-at-lines=100 --log=%(outfile)s.log --is-binary -v 10 
-    "cgat snp2maf 
-          --genome=genome 
-          %(tracks)s 
-          --reference=mm9 
-          --is-gtf 
+    | %(cmd-farm)s --split-at-lines=100 --log=%(outfile)s.log --is-binary -v 10
+    "cgat snp2maf
+          --genome=genome
+          %(tracks)s
+          --reference=mm9
+          --is-gtf
           --pattern-identifier='\(\\\\\\S+\)_pileup'
           --log=%(outfile)s.log" | gzip
     > %(outfile)s
@@ -1741,8 +1741,8 @@ def exportKnockoutLists(infiles, outfiles):
 
         statement = '''
                      SELECT DISTINCT '%(strain)s',
-                            g.gene_id, 
-                            i.gene_name, 
+                            g.gene_id,
+                            i.gene_name,
                                     g.ntranscripts,
                                     g.contig, g.strand,
                                     g.stop_codons_start,
@@ -1769,7 +1769,7 @@ def exportKnockoutLists(infiles, outfiles):
     fields = ",".join(columns)
 
     statement = '''
-        SELECT DISTINCT gene_id, gene_name, nmd_knockout_total, %(fields)s 
+        SELECT DISTINCT gene_id, gene_name, nmd_knockout_total, %(fields)s
         FROM view_genes WHERE nmd_knockout_total > 0
         ''' % locals()
 
@@ -1807,7 +1807,7 @@ def buildPolyphenInput(infiles, outfile):
 
     Mapping to Uniprot ids was not successful - 40% of the
     SNPs would have been lost. Hence I map to ensembl protein
-    identifiers. Note that the sequence file is then to be 
+    identifiers. Note that the sequence file is then to be
     submitted to POLYPHEN as well.
 
     Note that this method outputs 1-based coordinates for polyphen,
@@ -1958,8 +1958,8 @@ def buildPolyphenFeatures(infile, outfile):
 
     To do this, first send uniref to all nodes:
 
-    python ~/cgat/cluster_distribute.py 
-           --collection=andreas 
+    python ~/cgat/cluster_distribute.py
+           --collection=andreas
            /net/cpp-group/tools/polyphen-2.0.18/nrdb/uniref100*.{pin,psd,psi,phr,psq,pal}
     '''
 
@@ -2026,11 +2026,11 @@ def runPolyphen(infile, outfile, model):
     # -l: model name, default is HumDiv
 
     statement = '''
-    %(polyphen_home)s/bin/run_weka.pl 
+    %(polyphen_home)s/bin/run_weka.pl
            -l %(polyphen_home)s/models/%(model)s.UniRef100.NBd.f11.model
-           %(infile)s 
-    | gzip 
-    > %(outfile)s 
+           %(infile)s
+    | gzip
+    > %(outfile)s
     2> %(outfile)s.log
     '''
 
@@ -2048,12 +2048,12 @@ def loadPolyphenMap(infile, outfile):
     table = P.toTable(outfile)
     statement = '''
    cgat csv2db %(csv2db_options)s
-              --add-index=snp_id 
+              --add-index=snp_id
               --add-index=track,transcript_id
               --add-index=contig,pos
               --add-index=protein_id
               --add-index=transcript_id
-              --table=%(table)s 
+              --table=%(table)s
     < %(infile)s.map
     > %(outfile)s
     '''
@@ -2071,13 +2071,13 @@ def loadPolyphen(infile, outfile):
     table = P.toTable(outfile)
 
     statement = '''
-    gunzip 
+    gunzip
     < %(infile)s
     | perl -p -e "s/o_acc/protein_id/; s/ +//g; s/^#//;"
     |cgat csv2db %(csv2db_options)s
-              --add-index=snp_id 
+              --add-index=snp_id
               --add-index=protein_id
-              --table=%(table)s 
+              --table=%(table)s
               --map=effect:str
     > %(outfile)s
     '''
@@ -2106,14 +2106,14 @@ def analysePolyphen(infile, outfile):
 
     statement = '''
         SELECT i.gene_id,
-               COUNT(DISTINCT map.locus_id) as nsnps, 
+               COUNT(DISTINCT map.locus_id) as nsnps,
                COUNT(DISTINCT case t.prediction when 'possiblydamaging' then map.locus_id when 'probablydamaging' then map.locus_id else NULL end) AS ndeleterious,
                MAX(s.length)
-               FROM %(table)s as t, 
-                    %(tablename_map)s as map, 
+               FROM %(table)s as t,
+                    %(tablename_map)s as map,
                     annotations.protein_stats as s,
-                    annotations.transcript_info as i 
-        WHERE map.snp_id = t.snp_id AND 
+                    annotations.transcript_info as i
+        WHERE map.snp_id = t.snp_id AND
               i.transcript_id = map.transcript_id AND
               s.protein_id = map.protein_id
         GROUP BY i.gene_id
@@ -2121,9 +2121,9 @@ def analysePolyphen(infile, outfile):
 
     data = cc.execute(statement).fetchall()
 
-    statement = '''SELECT DISTINCT i.gene_id, MAX(s.length) 
-                   FROM annotations.transcript_info AS i, annotations.protein_stats AS s 
-                   WHERE s.protein_id = i.protein_id 
+    statement = '''SELECT DISTINCT i.gene_id, MAX(s.length)
+                   FROM annotations.transcript_info AS i, annotations.protein_stats AS s
+                   WHERE s.protein_id = i.protein_id
                    GROUP BY i.gene_id'''
     gene_ids = cc.execute(statement).fetchall()
 
@@ -2250,9 +2250,9 @@ def loadPolyphenAnalysis(infile, outfile):
     statement = '''
     cat < %(infile)s
     |cgat csv2db %(csv2db_options)s
-              --add-index=gene_id 
+              --add-index=gene_id
               --map=code:str
-              --table=%(table)s 
+              --table=%(table)s
     > %(outfile)s
     '''
     P.run()
@@ -2498,7 +2498,7 @@ def buildDeleteriousSNPs(infile, outfile):
     dbhandle = connect()
     cc = dbhandle.cursor()
 
-    statement = '''SELECT DISTINCT map.contig, map.pos 
+    statement = '''SELECT DISTINCT map.contig, map.pos
                           FROM polyphen_map AS map,
                           polyphen_HumDiv as result
                           WHERE map.track = '%(track)s'
@@ -2529,7 +2529,7 @@ def buildBenignSNPs(infile, outfile):
     dbhandle = connect()
     cc = dbhandle.cursor()
 
-    statement = '''SELECT DISTINCT map.contig, map.pos 
+    statement = '''SELECT DISTINCT map.contig, map.pos
                           FROM polyphen_map AS map,
                           polyphen_HumDiv as result
                           WHERE map.track = '%(track)s'
@@ -2555,36 +2555,36 @@ def mergeSNPs(infiles, outfiles):
 
     tmp1 = P.getTempFilename()
     tmp2 = P.getTempFilename()
-    statement = '''zcat enrichment.dir/mouse*.benign.bed.gz 
-                | grep -v "track" 
-                | sort -k 1,1 -k2,2n 
-                | uniq 
+    statement = '''zcat enrichment.dir/mouse*.benign.bed.gz
+                | grep -v "track"
+                | sort -k 1,1 -k2,2n
+                | uniq
                 > %(tmp1)s
     '''
     P.run()
 
-    statement = '''zcat enrichment.dir/mouse*.deleterious.bed.gz 
-                | grep -v "track" 
-                | sort -k 1,1 -k2,2n 
-                | uniq 
-                > %(tmp2)s 
+    statement = '''zcat enrichment.dir/mouse*.deleterious.bed.gz
+                | grep -v "track"
+                | sort -k 1,1 -k2,2n
+                | uniq
+                > %(tmp2)s
     '''
     P.run()
 
-    statement = '''intersectBed -a %(tmp1)s -b %(tmp2)s 
-                   | awk 'BEGIN {printf("track name=all.ambiguous\\n");} {print}' 
+    statement = '''intersectBed -a %(tmp1)s -b %(tmp2)s
+                   | awk 'BEGIN {printf("track name=all.ambiguous\\n");} {print}'
                    > enrichment.dir/all.ambiguous.bed'''
     P.run()
 
     statement = '''intersectBed -v -a %(tmp1)s -b enrichment.dir/all.ambiguous.bed
-                   | awk 'BEGIN {printf("track name=all.benign\\n");} {print}' 
+                   | awk 'BEGIN {printf("track name=all.benign\\n");} {print}'
                    | gzip
                    > enrichment.dir/all.benign.bed.gz'''
 
     P.run()
 
     statement = '''intersectBed -v -a %(tmp2)s -b enrichment.dir/all.ambiguous.bed
-                   | awk 'BEGIN {printf("track name=all.deleterious\\n");} {print}' 
+                   | awk 'BEGIN {printf("track name=all.deleterious\\n");} {print}'
                    | gzip
                    > enrichment.dir/all.deleterious.bed.gz'''
 
@@ -2603,7 +2603,7 @@ def buildSNPDensityIsochores(infile, outfile):
     '''build isochores with SNP density.'''
 
     statement = '''
-           cgat windows2gff 
+           cgat windows2gff
                 --genome=%(genome)s
                 --fixed-width-windows=1000000
                 --output-format=bed
@@ -2612,8 +2612,8 @@ def buildSNPDensityIsochores(infile, outfile):
 
     statement = '''
            zcat enrichment.dir/mouse*.benign.bed.gz enrichment.dir/mouse*.deleterious.bed.gz
-                | grep -v "track" 
-                | sort -k 1,1 -k2,2n 
+                | grep -v "track"
+                | sort -k 1,1 -k2,2n
                 | uniq > tmp2.bed
     '''
     P.run()
@@ -2758,13 +2758,13 @@ def createMGI(infile, outfile):
     dbhandle = connect()
 
     statement = '''
-                 SELECT DISTINCT 'MPheno.ontology', m2g.gene_id, a2p.phenotype_id, p.term, 'NA' 
-                 FROM mgi_marker2gene as m2g, 
-                      mgi_marker2allele as m2a, 
-                      mgi_allele2phenotype as a2p, 
-                      mgi_phenotypes as p 
-                 WHERE m2g.marker_id = m2a.marker_id AND 
-                       a2p.allele_id = m2a.allele_id AND 
+                 SELECT DISTINCT 'MPheno.ontology', m2g.gene_id, a2p.phenotype_id, p.term, 'NA'
+                 FROM mgi_marker2gene as m2g,
+                      mgi_marker2allele as m2a,
+                      mgi_allele2phenotype as a2p,
+                      mgi_phenotypes as p
+                 WHERE m2g.marker_id = m2a.marker_id AND
+                       a2p.allele_id = m2a.allele_id AND
                        p.phenotype_id = a2p.phenotype_id
                 '''
     cc = dbhandle.cursor()
@@ -2829,12 +2829,12 @@ def buildGeneMatrixEffects(infiles, outfile):
     tracks = [x[:-len("_alleles_genes.load")] for x in infiles]
 
     statement = '''
-            SELECT DISTINCT i.gene_id 
+            SELECT DISTINCT i.gene_id
             FROM
             transcript_info AS i,
             polyphen_map AS map,
             polyphen_HumVar as polyphen
-            WHERE 
+            WHERE
             polyphen.snp_id = map.snp_id AND
             map.track = '%(track)s' AND
             map.transcript_id = i.transcript_id AND
@@ -2863,7 +2863,7 @@ def buildGeneMatrixAlleles(infiles, outfile):
         any of the above
 
     Note that the analysis here needs to be background adjusted.
-    NMD transcripts and splice truncated transcripts are only 
+    NMD transcripts and splice truncated transcripts are only
     multiple exon transcripts, while stoptruncated ones are
     only single exon ones.
 
@@ -2877,10 +2877,10 @@ def buildGeneMatrixAlleles(infiles, outfile):
     tracks = [x[:-len("_alleles_genes.load")] for x in infiles]
 
     statement = '''
-            SELECT DISTINCT e.gene_id 
+            SELECT DISTINCT e.gene_id
             FROM
                   %(track)s_alleles_genes AS e
-            WHERE 
+            WHERE
                 %(field_where)s
             '''
 
@@ -2899,7 +2899,7 @@ def buildGeneMatrixConsequences(infiles, outfile):
     nmdaffectedtranscript
         genes in which one transcript is affected by NMD
     nmdknockoutgenes
-        genes in which all transcripts have been knocked out 
+        genes in which all transcripts have been knocked out
         due to NMD
 
     Note that the analysis here needs to be background adjusted.
@@ -2913,10 +2913,10 @@ def buildGeneMatrixConsequences(infiles, outfile):
     tracks = [x[:-len("_effects_genes.load")] for x in infiles]
 
     statement = '''
-            SELECT DISTINCT e.gene_id 
+            SELECT DISTINCT e.gene_id
             FROM
                   %(track)s_effects_genes AS e
-            WHERE 
+            WHERE
                 %(field_where)s
             '''
 
@@ -2948,10 +2948,10 @@ def runGeneListAnalysis(infiles, outfile):
         options = ""
 
     statement = '''
-    cgat genelist_analysis 
-           --format=matrix 
-           --assignments-tsv-file=%(assignments)s 
-           --fdr 
+    cgat genelist_analysis
+           --format=matrix
+           --assignments-tsv-file=%(assignments)s
+           --fdr
            --fdr-method=%(genelist_analysis_qvalue_method)s
            --log=%(outfile)s.log
            %(options)s
@@ -3126,9 +3126,9 @@ def createViewGenes(infile, outfile):
 
     statement = '''
     CREATE %(view_type)s view_genes AS
-    SELECT i.gene_id AS gene_id, 
+    SELECT i.gene_id AS gene_id,
            i.gene_name AS gene_name,
-           nmd.total AS nmd_knockout_total, 
+           nmd.total AS nmd_knockout_total,
            %(knockouts)s,
            human_ortho.hs_gene_id AS hs_gene_id,
            human_ortho.ds AS hs_ds,
@@ -3137,8 +3137,8 @@ def createViewGenes(infile, outfile):
            omim.mim_morbid_id as omim_morbid_id
     FROM annotations.gene_info AS i,
          summary_alleles_genes_is_knockout AS nmd ON i.gene_id = nmd.gene_id
-    LEFT JOIN orthologs AS human_ortho ON 
-          human_ortho.gene_id = i.gene_id AND 
+    LEFT JOIN orthologs AS human_ortho ON
+          human_ortho.gene_id = i.gene_id AND
           human_ortho.orthology_type = "ortholog_one2one"
     LEFT JOIN gene2omim as omim ON omim.gene_id = human_ortho.hs_gene_id
     '''

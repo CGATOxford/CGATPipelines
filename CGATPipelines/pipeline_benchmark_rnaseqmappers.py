@@ -9,16 +9,16 @@ Benchmark: RNASeq-Mapping
 :Tags: Python
 
 This pipeline takes one or more fastq formatted file from an RNASeq experiment
-and rus various mappers on it. The focus is here on sensitivity versus specificity. 
+and rus various mappers on it. The focus is here on sensitivity versus specificity.
 The pipeline will not
 
-   * rigorously time the tools 
+   * rigorously time the tools
    * do an exhaustive parameter search
    * perform validation from simulated data sets (TODO)
- 
+
 .. note::
 
-   This pipeline is currently configured for mapping in SOLiD colourspace, 
+   This pipeline is currently configured for mapping in SOLiD colourspace,
    single end reads and mapping against a mammalian (human) genome.
 
 Overview
@@ -37,7 +37,7 @@ The pipeline aligns reads to a genome using a variety of mappers. Currently impl
    * novoalignCS
 
 Mappers are configured to only report "best" matches', usually defined as those
-with a minimum number of mismatches. 
+with a minimum number of mismatches.
 
 Mappers can be tuned in the configuration file. By default, no tuning takes place.
 
@@ -57,12 +57,12 @@ Number of mapped reads
 The number of mapped reads is a simple measure of the sensitivity of a mapper.
 
    * Number of reads mapped: More mapped reads is better as it increases coverage.
-   
+
    * Number of uniquely mapped reads: A higher proportion of uniquely mapped reads
       is better.
 
 These criteria are confounded. For example, if a mapper tolerates more mismatches,
-the number of mapped reads will increase while the number of uniquely 
+the number of mapped reads will increase while the number of uniquely
 mapped reads might drop.
 
 See table :file:`view_mapping`.
@@ -201,11 +201,11 @@ def connect():
 def buildCodingExons(infile, outfile):
     to_cluster = True
     statement = '''
-    zcat %(infile)s 
+    zcat %(infile)s
     | awk '$2 == "protein_coding" && $3 == "CDS"'
-    | perl -p -e "s/CDS/exon/" 
-    | cgat gtf2gtf --method=merge-exons --log=%(outfile)s.log 
-    | gzip 
+    | perl -p -e "s/CDS/exon/"
+    | cgat gtf2gtf --method=merge-exons --log=%(outfile)s.log
+    | gzip
     > %(outfile)s
     '''
     P.run()
@@ -221,11 +221,11 @@ def buildCodingExons(infile, outfile):
 def buildCodingRegions(infile, outfile):
     to_cluster = True
     statement = '''
-    zcat %(infile)s 
+    zcat %(infile)s
     | awk '$2 == "protein_coding" && $3 == "CDS"'
-    | perl -p -e "s/CDS/exon/" 
-    | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log 
-    | gzip 
+    | perl -p -e "s/CDS/exon/"
+    | cgat gtf2gtf --method=merge-transcripts --log=%(outfile)s.log
+    | gzip
     > %(outfile)s
     '''
     P.run()
@@ -252,13 +252,13 @@ def mapReadsWithBFAST(infiles, outfile):
     update = False
     if not os.path.exists("%s.bmf" % outfile):
         statement = '''
-        bfast match -f %(bfast_genome_dir)s/%(genome)s.fa 
-                    -A 1 
+        bfast match -f %(bfast_genome_dir)s/%(genome)s.fa
+                    -A 1
                     -n %(bfast_threads)i
-                    -r <(gunzip < %(infile)s) 
-                    -t 
+                    -r <(gunzip < %(infile)s)
+                    -t
                     %(bfast_match_options)s
-                    > %(outfile)s.bmf 
+                    > %(outfile)s.bmf
                     2> %(outfile)s.bmf.log
         '''
         update = True
@@ -266,23 +266,23 @@ def mapReadsWithBFAST(infiles, outfile):
 
     if not os.path.exists("%s.baf" % outfile) or update:
         statement = '''
-        bfast localalign -f %(bfast_genome_dir)s/%(genome)s.fa 
-                    -A 1 
+        bfast localalign -f %(bfast_genome_dir)s/%(genome)s.fa
+                    -A 1
                     -n %(bfast_threads)i
                     -m %(outfile)s.bmf
                     %(bfast_align_options)s
-                    > %(outfile)s.baf 
+                    > %(outfile)s.baf
                     2> %(outfile)s.baf.log
         '''
         P.run()
 
     statement = '''
-    bfast postprocess -f %(bfast_genome_dir)s/%(genome)s.fa 
+    bfast postprocess -f %(bfast_genome_dir)s/%(genome)s.fa
                 %(bfast_postprocess_options)s
-               -A 1 
+               -A 1
                -n %(bfast_threads)i
-               -i %(outfile)s.baf 
-    2> %(outfile)s.post.log 
+               -i %(outfile)s.baf
+    2> %(outfile)s.post.log
     | cgat bam2bam --output-sam
     --method=unset-unmapped-mapq --method=set-nh --log=%(outfile)s.log
     | gzip > %(outfile)s
@@ -310,11 +310,11 @@ def mapReadsWithShrimp(infiles, outfile):
     gmapper-cs --full-threshold 80%% --threads %(shrimp_threads)i --fastq --output-report
               --sam-unaligned
               %(shrimp_options)s
-              %(infile)s 
-              %(genome_dir)s/%(genome)s.fa 
+              %(infile)s
+              %(genome_dir)s/%(genome)s.fa
     2> %(outfile)s.log
-    | gzip 
-    > %(outfile)s 
+    | gzip
+    > %(outfile)s
     '''
 
     P.run()
@@ -337,16 +337,16 @@ def mapReadsWithNovoalign(infiles, outfile):
     job_threads = PARAMS["novoalign_threads"]
 
     statement = '''
-    novoalignCS 
+    novoalignCS
               -c %(novoalign_threads)s
               -d %(novoalign_genome_dir)s/%(genome)s_cs.ncx
-              -f %(infile)s 
-              -F BFASTQ 
+              -f %(infile)s
+              -F BFASTQ
               -o SAM
               %(novoalign_options)s
     2> %(outfile)s.log
-    | gzip 
-    > %(outfile)s 
+    | gzip
+    > %(outfile)s
     '''
 
     P.run()
@@ -374,10 +374,10 @@ def mapReadsWithBWA(infiles, outfile):
     P.run()
 
     statement = '''
-    bwa samse %(bwa_samse_options)s %(bwa_genome_dir)s/%(genome)s_cs %(outfile)s.sai %(infile)s 
+    bwa samse %(bwa_samse_options)s %(bwa_genome_dir)s/%(genome)s_cs %(outfile)s.sai %(infile)s
     | cgat bam2bam --output-sam
     --method=set-nh --method=unset-unmapped-mapq --log=%(outfile)s.log
-    | gzip 
+    | gzip
     > %(outfile)s
     '''
 
@@ -414,13 +414,13 @@ def mapReadsWithTophat(infiles, outfile):
     '''
 
     statement = '''
-    zcat %(infile)s 
-    | cgat fastq2solid 
+    zcat %(infile)s
+    | cgat fastq2solid
            --method=change-format --target-format=integer
            --pattern-identifier="%(tmpfile)s.%%s" >& %(outfile)s.log;
     checkpoint;
-    tophat --output-dir %(outfile)s.dir                    
-           --num-threads %(tophat_threads)s  
+    tophat --output-dir %(outfile)s.dir
+           --num-threads %(tophat_threads)s
            --library-type %(tophat_library_type)s
            --color
            --quals
@@ -501,7 +501,7 @@ def buildBAMs(infiles, outfile):
     # samtools sort does not set sorted flag, do it yourself
     statement = '''
     gunzip < %(infile)s
-    | perl -p -e "if (/^\\@HD/) { s/\\bSO:\S+/\\bSO:coordinate/}"  
+    | perl -p -e "if (/^\\@HD/) { s/\\bSO:\S+/\\bSO:coordinate/}"
     | samtools import %(contigs)s - -
     | samtools sort - %(track)s;
     checkpoint;
@@ -519,7 +519,7 @@ def buildBAMs(infiles, outfile):
                     PARAMS_ANNOTATIONS["interface_geneset_all_gtf"]),
        "refcoding.gtf.gz")
 def buildCodingGeneSet(infile, outfile):
-    '''build a gene set with only protein coding 
+    '''build a gene set with only protein coding
     transcripts.
 
     Genes are selected via their gene biotype in the GTF file.
@@ -542,9 +542,9 @@ def buildCodingGeneSet(infile, outfile):
 
 @transform(buildCodingGeneSet, suffix(".gtf.gz"), ".fa")
 def buildReferenceTranscriptome(infile, outfile):
-    '''build reference transcriptome. 
+    '''build reference transcriptome.
 
-    The reference transcriptome contains all known 
+    The reference transcriptome contains all known
     protein coding transcripts.
 
     The sequences include both UTR and CDS.
@@ -561,9 +561,9 @@ def buildReferenceTranscriptome(infile, outfile):
         --log=%(outfile)s.log
     | perl -p -e "if (/^>/) { s/ .*$// }"
     | cgat fasta2fasta -v 0
-    | fold 
+    | fold
     > %(outfile)s;
-    checkpoint; 
+    checkpoint;
     samtools faidx %(outfile)s
     '''
 
@@ -628,7 +628,7 @@ def mapReadsWithBowtieAgainstTranscriptome(infiles, outfile):
            -C
            --un /dev/null
            --threads %(bowtie_threads)s
-           %(transcriptome_options)s 
+           %(transcriptome_options)s
            --best --strata -a
            %(prefix)s_cs
            %(tmpfile)s
@@ -691,7 +691,7 @@ def checkMappedReadsAgainstTranscriptome(infiles, outfile):
     # * not all have CM (tophat does not).
 
     statement = '''
-    cgat bams2bam 
+    cgat bams2bam
        --force-output
        --gtf-file=%(reffile)s
        --filename-mismapped=%(outfile_mismapped)s
@@ -723,13 +723,13 @@ def loadTranscriptomeValidation(infiles, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-    cgat combine_tables 
+    cgat combine_tables
          --header-names=%(headers)s
          %(infiles)s
     | cgat table2table --transpose
     | perl -p -e "s/bin/track/"
     | cgat csv2db
-         --table=%(tablename)s 
+         --table=%(tablename)s
     > %(outfile)s
     '''
 
@@ -748,7 +748,7 @@ def buildListOfMappedReadsGenome(infile, outfile):
     to_cluster = USECLUSTER
 
     statement = '''
-    samtools view %(infile)s 
+    samtools view %(infile)s
     | awk '$3 != "*"'
     | cut -f 1
     | sort | uniq -c
@@ -809,9 +809,9 @@ def buildJunctionsDB(infiles, outfile):
 
     E.info("building junctions database")
     statement = '''
-    juncs_db %(min_anchor_length)i %(read_length)i 
+    juncs_db %(min_anchor_length)i %(read_length)i
               <( zcat %(outfile_junctions)s )
-              /dev/null /dev/null 
+              /dev/null /dev/null
               %(bowtie_genome_dir)s/%(genome)s.fa
               > %(outfile)s
               2> %(outfile)s.log
@@ -839,7 +839,6 @@ def buildJunctionsDB(infiles, outfile):
 #########################################################################
 #########################################################################
 #########################################################################
-##
 #########################################################################
 
 
@@ -905,7 +904,7 @@ def buildListOfMappedReadsTranscriptome(infile, outfile):
     to_cluster = USECLUSTER
 
     statement = '''
-    samtools view %(infile)s 
+    samtools view %(infile)s
     | awk '$3 != "*"'
     | cut -f 1
     | sort | uniq -c
@@ -932,7 +931,7 @@ def buildMissedTranscriptomeReads(infiles, outfile):
     to_cluster = USECLUSTER
 
     statement = '''
-    perl %(scriptsdir)s/set_rest.pl <( zcat %(genomefile)s ) <( zcat %(transfile)s ) 
+    perl %(scriptsdir)s/set_rest.pl <( zcat %(genomefile)s ) <( zcat %(transfile)s )
     | gzip
     > %(outfile)s
     '''
@@ -954,7 +953,7 @@ def buildMissedJunctionsReads(infiles, outfile):
     to_cluster = USECLUSTER
 
     statement = '''
-    perl %(scriptsdir)s/set_rest.pl <( zcat %(genomefile)s ) <( zcat %(juncfile)s ) 
+    perl %(scriptsdir)s/set_rest.pl <( zcat %(genomefile)s ) <( zcat %(juncfile)s )
     | gzip
     > %(outfile)s
     '''
@@ -1076,7 +1075,7 @@ def loadBAMStats(infiles, outfile):
                 | cgat table2table --transpose
                 | cgat csv2db
                       --add-index=track
-                      --table=%(tablename)s 
+                      --table=%(tablename)s
                 > %(outfile)s
             """
     P.run()
@@ -1094,7 +1093,7 @@ def loadBAMStats(infiles, outfile):
                    %(filenames)s
                 | perl -p -e "s/bin/%(suffix)s/"
                 | cgat csv2db
-                      --table=%(tname)s 
+                      --table=%(tname)s
                 >> %(outfile)s
                 """
 
@@ -1195,10 +1194,10 @@ def loadReadCorrespondence(infiles, outfile):
     tablename = P.toTable(outfile)
 
     statement = '''
-    cgat combine_tables 
+    cgat combine_tables
          %(infiles)s
                 | cgat csv2db
-                      --table=%(tablename)s 
+                      --table=%(tablename)s
                 > %(outfile)s
     '''
 
@@ -1229,11 +1228,11 @@ def mergeAndLoad(infiles, outfile, suffix):
                       --missing-value=0
                       --ignore-empty
                    %(filenames)s
-                | perl -p -e "s/bin/track/" 
+                | perl -p -e "s/bin/track/"
                 | cgat table2table --transpose
                 | cgat csv2db
                       --add-index=track
-                      --table=%(tablename)s 
+                      --table=%(tablename)s
                 > %(outfile)s
             """
     P.run()
@@ -1342,7 +1341,7 @@ def buildAlignmentStats(infile, outfile):
     statement = '''
     java -Xmx2g net.sf.picard.analysis.CollectMultipleMetrics
             I=<(samtools view -h %(infile)s | awk '$11 != "*"')
-            O=%(outfile)s 
+            O=%(outfile)s
             R=%(genome_dir)s/%(genome)s.fasta
             ASSUME_SORTED=true
     >& %(outfile)s
@@ -1383,7 +1382,7 @@ def loadAlignmentStats(infiles, outfile):
     statement = '''cat %(tmpfilename)s
                 | cgat csv2db
                       --add-index=track
-                      --table=%(tablename)s 
+                      --table=%(tablename)s
                 > %(outfile)s
                '''
     P.run()
@@ -1406,7 +1405,7 @@ def loadAlignmentStats(infiles, outfile):
                       --header-names=%(column)s,%(header)s
                       --replace-header
                       --add-index=track
-                      --table=%(tname)s 
+                      --table=%(tname)s
                 >> %(outfile)s
                 """
 
