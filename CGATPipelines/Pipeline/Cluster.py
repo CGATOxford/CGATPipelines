@@ -37,6 +37,7 @@ import os
 import stat
 import time
 import CGAT.Experiment as E
+
 try:
     import drmaa
     HAS_DRMAA = True

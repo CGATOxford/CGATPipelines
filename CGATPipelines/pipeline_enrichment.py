@@ -185,8 +185,8 @@ unmappedouts = [["annotations.dir/%s%s" % (u, s)
                 for u in unmapped]
 
 hpatissues = PARAMS['hpa_tissue'].split(",")
-hpatissues = ['clean_backgrounds.dir/%s_hpa_background.tsv' % tissue
-              for tissue in hpatissues]
+hpatissues = ['clean_backgrounds.dir/%s_hpa_background.tsv'
+              % tissue.replace(" ", "_") for tissue in hpatissues]
 
 
 def connect():
@@ -280,7 +280,7 @@ def buildHPABackground(outfile):
     specified in pipeline.ini - allows the user to use a tissue specific
     background
     '''
-    tissue = outfile.split("/")[1].split("_")[0]
+    tissue = outfile.split("/")[1].split("_")[0].replace("_", " ")
     PipelineEnrichment.HPABackground(tissue,
                                      PARAMS['hpa_minlevel'],
                                      PARAMS['hpa_supportive'],
@@ -339,7 +339,30 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 submit=True)
 
 
-@follows(foregroundsVsBackgrounds)
+@follows(mkdir("cytoscape.dir"))
+@transform(foregroundsVsBackgrounds,
+           regex("results.dir/(.*)(_go|_reactome).+results.tsv"),
+           r"cytoscape.dir/\1\2.tsv")
+def makeCytoscapeInputs(infiles, outfile):
+    infile = infiles[1]
+    T = P.getTempFilename(".")
+    statement = """
+    awk -F "\\t" '{printf("%%%%s\\t%%%%s\\t%%%%s\\t%%%%s\\t+1\\n",\
+    $1, $11, $7, $8)}' %(infile)s > %(T)s""" % locals()
+    P.run()
+    typ = infile.split("_")[-3]
+    print typ
+    E.info(typ)
+    keep = [line.strip() for line in
+            IOTools.openFile(PARAMS['cytoscape_%s' % typ]).readlines()]
+    tab = pd.read_csv(T, sep="\t")
+    tab = tab[tab['term_id'].isin(keep)]
+    tab.columns = ['ID', 'Description', 'pvalue', 'padj', 'Phenotype']
+    tab.to_csv(outfile, sep="\t", index=None)
+    os.remove(T)
+
+
+@follows(makeCytoscapeInputs)
 def full():
     pass
 

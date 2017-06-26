@@ -37,7 +37,7 @@ import CGATPipelines.Pipeline as P
 
 def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
                   user="genome",
-                  database="hg19"):
+                  database="not_set"):
     """connect to UCSC database.
 
     Arguments
@@ -47,13 +47,16 @@ def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
     user : string
         Username to connect with
     Database : string
-        database to use
+        database to use, e.g. hg19, mm10 etc.
 
     Returns
     -------
     Database handle
 
     """
+    if database == "not_set":
+        raise ValueError("The name of the UCSC database"
+                         " must be specified (e.g. hg19, mm10 etc)")
 
     dbhandle = sqlalchemy.create_engine(
         "mysql://{user}@{host}/{database}".format(

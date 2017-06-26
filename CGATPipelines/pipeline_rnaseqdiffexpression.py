@@ -356,6 +356,7 @@ import CGAT.Database as Database
 
 import sys
 import os
+import re
 import itertools
 import glob
 import numpy
@@ -629,6 +630,7 @@ def getTranscript2GeneMap(outfile):
 # count-based quantifiers
 ###################################################
 
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
 @follows(mkdir("featurecounts.dir"))
 @transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
            regex("(\S+).bam"),
@@ -731,7 +733,6 @@ def runFeatureCounts(infiles, outfiles):
            [r"gtf2table.dir/\1/transcripts.tsv.gz",
             r"gtf2table.dir/\1/genes.tsv.gz"])
 def runGTF2Table(infiles, outfiles):
-
     '''
     Compute read counts and coverage of transcripts and genes using the
     CGAT gtf2table tools.
@@ -1102,8 +1103,42 @@ def loadMergedCounts(infiles, outfiles):
     P.load(infiles[1], outfiles[1])
 
 
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
+@collate(runFeatureCounts,
+         regex("featurecounts.dir/([^.]+)/([^.]+).tsv.gz"),
+         r"featurecounts.dir/genelength.tsv.gz")
+def mergeLengths(infiles, outfile):
+    ''' build a matrix of "genelengths" derived from FeatureCounts
+    with genes and tracks dimensions.
+    '''
+    raw_infiles = [x[1].replace("gz", "raw.gz") for x in infiles]
+    final_df = pd.DataFrame()
+
+    for infile in raw_infiles:
+        tmp_df = pd.read_table(infile, sep="\t", index_col=0,
+                               comment='#', usecols=["Geneid", "Length"])
+        m = re.search('featurecounts.dir\/(.+?)\/genes.tsv.raw.gz', infile)
+        if m:
+            tmp_df.columns = [m.group(1)]
+        final_df = final_df.merge(
+            tmp_df, how="outer",  left_index=True, right_index=True)
+
+    final_df.sort_index(inplace=True)
+    final_df.to_csv(outfile, sep="\t", compression="gzip")
+
+
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
+@transform(mergeLengths,
+           suffix(".tsv.gz"),
+           ".load")
+def loadMergedLengths(infile, outfile):
+    '''load genength table into database'''
+    P.load(infile, outfile, "--add-index=gene_id")
+
+
 @follows(*QUANTTARGETS)
-@follows(loadMergedCounts)
+@follows(loadMergedCounts,
+         loadMergedLengths)
 def count():
     ''' dummy task to define upstream quantification tasks'''
     pass
@@ -1280,10 +1315,11 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 
     model = PARAMS['sleuth_model%s' % design_name]
     E.info(model)
+    reduced_model = PARAMS['sleuth_reduced_model%s' % design_name]
 
     contrast = PARAMS['sleuth_contrast%s' % design_name]
     refgroup = PARAMS['sleuth_refgroup%s' % design_name]
-
+    detest = PARAMS['sleuth_detest']
     transcripts = os.path.join("geneset.dir",
                                P.snip(PARAMS['geneset'], ".gtf.gz") + ".fa")
 
@@ -1313,6 +1349,13 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
     --contrast=%(contrast)s
     --sleuth-counts-dir=%(quantifier)s.dir
     --reference-group=%(refgroup)s
+    --de-test=%(detest)s
+    '''
+    if detest == "lrt":
+        statement += '''
+        --reduced-model=%(reduced_model)s
+        '''
+    statement += '''
     -v 0
     >%(transcript_out)s
     '''
@@ -1343,8 +1386,16 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
         --sleuth-counts-dir=%(quantifier)s.dir
         --reference-group=%(refgroup)s
         --gene-biomart=%(sleuth_gene_biomart)s
+        --de-test=%(detest)s
+        '''
+        if detest == "lrt":
+            statement += '''
+            --reduced-model=%(reduced_model)s
+            '''
+        statement += '''
         -v 0
-        >%(gene_out)s'''
+        >%(transcript_out)s
+        '''
 
         P.run()
 
@@ -1428,13 +1479,11 @@ def getSleuthNormExp(infiles, outfiles, quantifier):
         transcripts_outf, genes_outf, t2gMap)
 
 # Define the task for differential expression and normalisation
-
 DETARGETS = []
 NORMTARGETS = []
 mapToDETargets = {'edger': (runEdgeR, ),
                   'deseq2': (runDESeq2,),
                   'sleuth': (runSleuth,)}
-
 
 mapToNormTargets = {'edger': (getEdgeRNormExp, ),
                     'deseq2': (getDESeqNormExp, ),

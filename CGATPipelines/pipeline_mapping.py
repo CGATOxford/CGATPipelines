@@ -404,7 +404,6 @@ def buildRefFlat(infile, outfile):
     os.unlink(tmpflat)
 
 
-@active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
            add_inputs(identifyProteinCodingGenes),
