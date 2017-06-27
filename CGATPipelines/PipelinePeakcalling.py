@@ -657,7 +657,7 @@ def filteringReport(counter, logfile):
     logfile.close()
 
 
-def estimateInsertSize(infile, outfile, pe, nalignments, m2opts,conda_env):
+def estimateInsertSize(infile, outfile, pe, nalignments, m2opts, conda_env):
     '''
     Predicts fragment size for a bam file and writes it to a table.
 
@@ -696,7 +696,7 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts,conda_env):
         logfile = "%s.log" % P.snip(outfile)
         mode = "SE"
         statement = '''
-        %(conda_env) && 
+        %(conda_env)s &&
         macs2 predictd
         --format BAM
         --ifile %(infile)s
@@ -1288,11 +1288,11 @@ class Macs2Peakcaller(Peakcaller):
         # --bdg --SPMR: ask macs to create a bed-graph file with
         # fragment pileup per million reads
 
-        # CG put brackets () around conda call and macs statement to run this 
+        # CG put brackets () around conda call and macs statement to run this
         # portion of the statement in subshell with specific conda env
 
         statement = '''
-        (%(conda_env)s && 
+        (%(conda_env)s &&
         macs2 callpeak
         %(format_options)s
         --treatment %(infile)s
@@ -2630,12 +2630,12 @@ def runCHIPQC(infile, outfiles, rdir):
     function(samples, outdir, cwd){
         library("ChIPQC")
         cwd = "/ifs/projects/katherineb/test_data_peakcalling/test3"
-        print ("cwd")
-        print (cwd)
-        print ("samples")
-        print (samples)
+        print("cwd")
+        print(cwd)
+        print("samples")
+        print(samples)
         setwd(cwd)
-        print (getwd())
+        print(getwd())
         samples$Tissue = as.factor(samples$Tissue)
         samples$Factor = as.factor(samples$Factor)
         samples$Replicate = as.factor(samples$Replicate)
