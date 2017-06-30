@@ -787,6 +787,8 @@ def buildGenomeInformation(infile, outfile):
       The output files is GZIP compressed
     '''
 
+    job_memory = "10G"
+
     statement = '''
     cat %(infile)s
     | cgat fasta2table

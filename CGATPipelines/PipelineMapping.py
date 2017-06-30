@@ -964,8 +964,6 @@ class Mapper(SequenceCollectionProcessor):
                  remove_non_unique=False,
                  tool_options="",
                  *args, **kwargs):
-        '''
-       '''
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
 
         if executable:

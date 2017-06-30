@@ -3909,7 +3909,8 @@ def plotGeneLevelReadExtension(infile, outfile):
            ".utr.gz")
 def buildUTRExtension(infile, outfile):
     '''build new utrs.'''
-    PipelineRnaseq.buildUTRExtension(infile, outfile)
+    PipelineRnaseq.buildUTRExtension(infile, PARAMS["exportdir"],
+                                     outfile)
 
 #########################################################################
 #########################################################################
