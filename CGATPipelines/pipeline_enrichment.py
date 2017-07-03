@@ -166,7 +166,12 @@ import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import sys
 import CGATPipelines.PipelineGSEnrichment as PipelineEnrichment
-
+import CGAT.IOTools as IOTools
+import pandas as pd
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from textwrap import wrap
 
 # load options from the config file
 PARAMS = P.getParameters(
@@ -339,20 +344,44 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 submit=True)
 
 
+@follows(mkdir("barcharts.dir"))
+@transform(foregroundsVsBackgrounds,
+           regex("results.dir/(.*)(_go|_hpo)(_all_results.tsv)"),
+           r"barcharts.dir/\1\2.png")
+def makeBarCharts(infiles, outfile):
+    tab = pd.read_csv(infiles[1], sep="\t")
+    tab = tab.head(10)
+    tab = tab[tab['log2foldchange'].astype(float) >= 0]
+    if len(tab) != 0:
+        folds = tab['log2foldchange'].astype(float)[::-1]
+        names = tab[tab.columns[11]][::-1]
+        names = ['\n'.join(wrap(l, 50)) for l in names]
+        f = plt.figure()
+        a = f.add_subplot("111")
+        a.barh(range(len(folds)), folds, color=PARAMS['plots_barcolor'])
+        a.set_yticks(np.arange(0.4, len(folds), 1))
+        a.set_yticklabels(names, fontsize=8)
+        a.set_xlabel('log2foldchange')
+        a.set_title(outfile)
+        f.tight_layout()
+        f.savefig(outfile)
+    else:
+        out = open(outfile, "w")
+        out.close()
+
+
 @follows(mkdir("cytoscape.dir"))
 @transform(foregroundsVsBackgrounds,
-           regex("results.dir/(.*)(_go|_reactome).+results.tsv"),
+           regex("results.dir/(.*)(_go|_reactome)(_all_results.tsv)"),
            r"cytoscape.dir/\1\2.tsv")
 def makeCytoscapeInputs(infiles, outfile):
     infile = infiles[1]
     T = P.getTempFilename(".")
     statement = """
     awk -F "\\t" '{printf("%%%%s\\t%%%%s\\t%%%%s\\t%%%%s\\t+1\\n",\
-    $1, $11, $7, $8)}' %(infile)s > %(T)s""" % locals()
+    $1, $12, $8, $9)}' %(infile)s > %(T)s""" % locals()
     P.run()
     typ = infile.split("_")[-3]
-    print typ
-    E.info(typ)
     keep = [line.strip() for line in
             IOTools.openFile(PARAMS['cytoscape_%s' % typ]).readlines()]
     tab = pd.read_csv(T, sep="\t")
