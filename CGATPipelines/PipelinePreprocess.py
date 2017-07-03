@@ -390,8 +390,8 @@ class Trimgalore(ProcessTool):
             --output_dir %(outdir)s
             %(infile1)s %(infile2)s
             2>>%(output_prefix)s.log;
-            mv %(infile1)s_val_1.fq.gz %(outfile1)s;
-            mv %(infile2)s_val_2.fq.gz %(outfile2)s;
+            mv %(outdir)s/%(infile1)s_val_1.fq.gz %(outfile1)s;
+            mv %(outdir)s/%(infile2)s_val_2.fq.gz %(outfile2)s;
             ''' % locals()
 
         return cmd
