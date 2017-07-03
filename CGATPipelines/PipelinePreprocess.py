@@ -366,10 +366,10 @@ class Trimgalore(ProcessTool):
 
         offset = Fastq.getOffset("sanger", raises=False)
         processing_options = self.processing_options
-
         if len(infiles) == 1:
             infile = infiles[0]
             outfile = outfiles[0]
+            outdir = os.path.dirname(outfile)
             trim_out = "%s_trimmed.fq.gz" % (output_prefix)
             cmd = '''trim_galore %(processing_options)s
             --phred%(offset)s
@@ -380,10 +380,10 @@ class Trimgalore(ProcessTool):
             ''' % locals()
             outfiles = (outfile,)
 
-        elif self.num_files == 2:
+        elif len(infiles) == 2:
             infile1, infile2 = infiles
             outfile1, outfile2 = outfiles
-
+            outdir = os.path.dirname(outfile1)
             cmd = '''trim_galore %(processing_options)s
             --paired
             --phred%(offset)s
