@@ -1514,6 +1514,7 @@ def loadDifferentialExpression(infiles, outfiles):
         outfile = P.snip(infile, ".tsv") + ".load"
         P.load(infile, outfile)
 
+
 # AH: it seems that this task is executed twice (ruffus bug?) and can
 # cause table exist error. Use a sequential load.
 @merge(NORMTARGETS, "normalised_expression.load")
@@ -1521,6 +1522,7 @@ def loadNormalisedExpression(infiles, outfiles):
     for infile in IOTools.flatten(infiles):
         outfile = P.snip(infile, ".tsv.gz") + ".load"
         P.load(infile, outfile)
+
 
 ###################################################
 # Summary plots
