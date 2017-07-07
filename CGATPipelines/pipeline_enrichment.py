@@ -173,7 +173,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from textwrap import wrap
 
-
 # load options from the config file
 PARAMS = P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],

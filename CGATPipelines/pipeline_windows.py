@@ -606,10 +606,14 @@ def buildCpGCoverage(infiles, outfile):
 
     job_memory = "32G"
 
+    # bedtools < 0.26.0:
+    # column = 6
+    column = 5
+
     statement = '''
     zcat %(infile)s
     | bedtools coverage -a stdin -b %(cpg_file)s -counts
-    | cut -f 6
+    | cut -f %(column)i
     | cgat data2histogram
     | gzip
     > %(outfile)s

@@ -186,7 +186,7 @@ def buildFastQCSummaryStatus(infiles, outfile, datadir):
             results.append((track, fn, stats))
             names.update(list(stats.keys()))
 
-    names = list(names)
+    names = sorted(names)
     outf.write("track\tfilename\t%s\n" % "\t".join(names))
     for track, fn, stats in results:
         outf.write("%s\t%s\t%s\n" %

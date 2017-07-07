@@ -622,7 +622,7 @@ def getTranscript2GeneMap(outfile):
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("transcript_id\tgene_id\n")
-        for key, value in transcript2gene_dict.iteritems():
+        for key, value in sorted(transcript2gene_dict.items()):
             outf.write("%s\t%s\n" % (key, value))
 
 
@@ -1507,22 +1507,21 @@ def NormaliseExpression():
     pass
 
 
-@transform(DETARGETS,
-           regex("DEresults.dir/(\S+)/(\S+)_(\S+)_transcripts_results.tsv"),
-           [r"DEresults.dir/\1_\2_\3_transcripts_results.load",
-            r"DEresults.dir/\1_\2_\3_genes_results.load"])
+# AH: see below
+@merge(DETARGETS, "differential_expression.load")
 def loadDifferentialExpression(infiles, outfiles):
-    P.load(infiles[0], outfiles[0])
-    P.load(infiles[1], outfiles[1])
+    for infile in IOTools.flatten(infiles):
+        outfile = P.snip(infile, ".tsv") + ".load"
+        P.load(infile, outfile)
 
 
-@transform(NORMTARGETS,
-           regex("DEresults.dir/(\S+)/(\S+)_normalised_transcripts_expression.tsv.gz"),
-           [r"DEresults.dir/\1/\2_normalised_transcripts_expression.load",
-            r"DEresults.dir/\1/\2_normalised_genes_expression.load"])
+# AH: it seems that this task is executed twice (ruffus bug?) and can
+# cause table exist error. Use a sequential load.
+@merge(NORMTARGETS, "normalised_expression.load")
 def loadNormalisedExpression(infiles, outfiles):
-    P.load(infiles[0], outfiles[0])
-    P.load(infiles[1], outfiles[1])
+    for infile in IOTools.flatten(infiles):
+        outfile = P.snip(infile, ".tsv.gz") + ".load"
+        P.load(infile, outfile)
 
 
 ###################################################
@@ -1561,7 +1560,7 @@ def expressionSummaryPlots(infiles, logfiles):
 ###################################################
 
 
-@follows(count, expressionSummaryPlots,
+@follows(expressionSummaryPlots,
          loadDifferentialExpression,
          loadNormalisedExpression,)
 def full():

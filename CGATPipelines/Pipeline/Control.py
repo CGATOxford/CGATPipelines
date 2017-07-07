@@ -369,17 +369,22 @@ def peekParameters(workingdir,
 
     # process.stdin.close()
     stdout, stderr = process.communicate()
-
     if process.returncode != 0:
         raise OSError(
             ("Child was terminated by signal %i: \n"
-             "The stderr was: \n%s\n") %
-            (-process.returncode, stderr))
+             "Statement: %s\n"
+             "The stderr was: \n%s\n"
+             "Stdout: %s") %
+            (-process.returncode, statement, stderr, stdout))
 
-    dump = None
-    for line in stdout.split("\n"):
-        if line.startswith("dump"):
-            exec(line)
+    # subprocess only accepts encoding argument in py >= 3.6 so
+    # decode here.
+    stdout = stdout.decode("utf-8").splitlines()
+    # remove any log messages
+    stdout = [x for x in stdout if x.startswith("{")]
+    if len(stdout) > 1:
+        raise ValueError("received multiple configurations")
+    dump = json.loads(stdout[0])
 
     # update interface
     if update_interface:
@@ -1025,9 +1030,7 @@ def main(args=sys.argv):
                 raise
 
     elif options.pipeline_action == "dump":
-        # convert to normal dictionary (not defaultdict) for parsing purposes
-        # do not change this format below as it is exec'd in peekParameters()
-        print("dump = %s" % str(dict(PARAMS)))
+        print(json.dumps(PARAMS))
 
     elif options.pipeline_action == "printconfig":
         print("Printing out pipeline parameters: ")

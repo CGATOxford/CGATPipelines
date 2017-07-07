@@ -598,7 +598,7 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
     if "unpaired" in filters and pe == 1:
         outbam = pysam.AlignmentFile("%s.bam" % outfile, "wb",
                                      template=samfile)
-        for items, values in d.iteritems():
+        for items, values in d.items():
             if len(values) == 2:
                 if values[0].is_read1 and values[1].is_read2:
                     outbam.write(values[0])
@@ -612,7 +612,6 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
                     counter['paired11_paired22'] += 1
                 l = abs(values[0].template_length)
                 fragment_length[l] += 1
-
             else:
                 counter['multiple_or_1_read_in_pair'] += 1
                 if "secondary" not in filters:
@@ -623,7 +622,7 @@ def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
     elif pe == 1:
         outbam = "%s.bam" % outfile
         shutil.copy(infile, outbam)
-        for items, values in d.iteritems():
+        for items, values in d.items():
             l = abs(values[0].template_length)
             fragment_length[l] += 1
     else:
@@ -658,7 +657,7 @@ def filteringReport(counter, logfile):
     logfile.close()
 
 
-def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
+def estimateInsertSize(infile, outfile, pe, nalignments, m2opts, conda_env):
     '''
     Predicts fragment size for a bam file and writes it to a table.
 
@@ -696,7 +695,9 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts):
     else:
         logfile = "%s.log" % P.snip(outfile)
         mode = "SE"
-        statement = '''macs2 predictd
+        statement = '''
+        %(conda_env)s &&
+        macs2 predictd
         --format BAM
         --ifile %(infile)s
         --outdir %(outfile)s.dir
@@ -766,7 +767,7 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
     # 0 = go to pseudo bam 0, 1 = go to pseudo bam 1
     bamlength = bamfile.count()
     if pe is True:
-        countreads = bamlength / 2
+        countreads = bamlength // 2
     else:
         countreads = bamlength
     randomgen = np.random.RandomState()
@@ -821,10 +822,10 @@ def makePseudoBams(infile, outfiles, pe, randomseed, filters):
         if pe is True and "unpaired" in filters and "secondary" in filters:
             allreads = len(all)
             uniquereads = len(set(all))
-            expectedreads = len(all) / 2
+            expectedreads = len(all) // 2
             assert (
-                (len(set(all)) <= (len(all) / 2) + 2) &
-                (len(set(all)) >= (len(all) / 2) - 2)), """
+                (len(set(all)) <= (len(all) // 2) + 2) &
+                (len(set(all)) >= (len(all) // 2) - 2)), """
                 Error splitting bam file %(outf)s\
                 %(allreads)i reads in bam file and\
                 %(uniquereads)s unique read names -
@@ -855,14 +856,13 @@ def getMacsPeakShiftEstimate(infile):
 
     with IOTools.openFile(infile, "r") as inf:
 
-        header = inf.next().strip().split("\t")
-        values = inf.next().strip().split("\t")
+        header = inf.readline().strip().split("\t")
+        values = inf.readline().strip().split("\t")
 
-        fragment_size_mean_ix = header.index("fragmentsize_mean")
+    fragment_size_mean_ix = header.index("fragmentsize_mean")
+    fragment_size = int(float(values[fragment_size_mean_ix]))
 
-        fragment_size = int(float(values[fragment_size_mean_ix]))
-
-        return fragment_size
+    return fragment_size
 
 
 def mergeSortIndex(bamfiles, out):
@@ -1109,7 +1109,7 @@ class Peakcaller(object):
 
     def build(self, infile, outfile, contigsfile=None, controlfile=None,
               insertsizef=None, idr=0, idrc=0, idrsuffix=None, idrcol=None,
-              broad_peak=None):
+              broad_peak=None, conda_env=None):
         '''
         Runs the above functions and uses these to build a complete command
         line statement to run the peakcaller and process its output.
@@ -1142,7 +1142,10 @@ class Peakcaller(object):
             IDR for this peakcaller
         '''
 
-        peaks_outfile, peaks_cmd = self.callPeaks(infile, outfile, controlfile)
+        peaks_outfile, peaks_cmd = self.callPeaks(infile,
+                                                  outfile,
+                                                  controlfile,
+                                                  conda_env)
         compress_cmd = self.compressOutput(
             infile, outfile, contigsfile, controlfile, broad_peak=broad_peak)
         postprocess_cmd = self.postProcessPeaks(
@@ -1203,7 +1206,7 @@ class Macs2Peakcaller(Peakcaller):
         self.tagsize = tagsize
         self.force_single_end = force_single_end
 
-    def callPeaks(self, infile,  outfile, controlfile=None):
+    def callPeaks(self, infile,  outfile, controlfile=None, conda_env=None):
         '''
         Build command line statement fragment to call peaks with macs2.
 
@@ -1285,7 +1288,11 @@ class Macs2Peakcaller(Peakcaller):
         # --bdg --SPMR: ask macs to create a bed-graph file with
         # fragment pileup per million reads
 
+        # CG put brackets () around conda call and macs statement to run this
+        # portion of the statement in subshell with specific conda env
+
         statement = '''
+        (%(conda_env)s &&
         macs2 callpeak
         %(format_options)s
         --treatment %(infile)s
@@ -1294,8 +1301,8 @@ class Macs2Peakcaller(Peakcaller):
         --bdg
         --SPMR
         %(options)s
-        >& %(outfile)s ;
-        mv %(outfile)s %(outfile)s_log;
+        >& %(outfile)s) &&
+        mv %(outfile)s %(outfile)s_log &&
         ''' % locals()
 
         return outfile, statement
@@ -1692,7 +1699,7 @@ class SicerPeakcaller(Peakcaller):
         self.minfragsize = minfragsize
         self.maxfragsize = maxfragsize
 
-    def callPeaks(self, infile, outfile, controlfile=None):
+    def callPeaks(self, infile, outfile, controlfile=None, conda_env=None):
         '''
         Build command line statement fragment to call peaks with sicer.
 
@@ -1951,7 +1958,7 @@ class SicerPeakcaller(Peakcaller):
                 v = "\t".join(val)
             row.append(v)
         fragment_size = int(row[mapper2pos["fragment_size"]])
-        shift = fragment_size / 2
+        shift = fragment_size // 2
 
         outs.write("%s\t%i\n" % ("\t".join(row), shift))
 
@@ -2062,7 +2069,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
     # This is achieved by sorting the file names and taking two items at a
     # time from the list - the paired pseudo replicates will be next to
     # each other in this list
-    into = len(pseudo_reps) / 2
+    into = len(pseudo_reps) // 2
     pseudoreppairs = np.split(pseudo_reps, into)
     pseudoreppairs = [tuple(item) for item in pseudoreppairs]
     pseudoreppairs_rows = []
@@ -2080,7 +2087,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
         pseudoreppairs_rows.append(row)
 
     # Generates the table rows for the pseudo_pooled peak lists
-    into = len(pseudo_pooled) / 2
+    into = len(pseudo_pooled) // 2
     pseudopooledpairs = np.split(pseudo_pooled, into)
     pseudopooledpairs = [tuple(item) for item in pseudopooledpairs]
     pseudopooledpairs_rows = []
@@ -2623,12 +2630,12 @@ def runCHIPQC(infile, outfiles, rdir):
     function(samples, outdir, cwd){
         library("ChIPQC")
         cwd = "/ifs/projects/katherineb/test_data_peakcalling/test3"
-        print ("cwd")
-        print (cwd)
-        print ("samples")
-        print (samples)
+        print("cwd")
+        print(cwd)
+        print("samples")
+        print(samples)
         setwd(cwd)
-        print (getwd())
+        print(getwd())
         samples$Tissue = as.factor(samples$Tissue)
         samples$Factor = as.factor(samples$Factor)
         samples$Replicate = as.factor(samples$Replicate)

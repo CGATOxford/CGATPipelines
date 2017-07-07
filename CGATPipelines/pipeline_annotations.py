@@ -571,7 +571,7 @@ import pandas as pd
 from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
     suffix, regex, add_inputs
 
-from bx.bbi.bigwig_file import BigWigFile
+import pyBigWig
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
@@ -597,7 +597,8 @@ PARAMS = P.getParameters(
 
 # add automatically created files to the interface.  This is required
 # when the pipeline is peek'ed.  The statement below will
-# add the fellowing to the dictionary:
+# add the following to the dictionary:
+#
 # "geneset.dir/lincrna_gene_tss.bed.gz" maps to
 # "interface_geneset_lincrna_gene_tss_bed"
 PARAMS.update(dict([
@@ -1881,8 +1882,7 @@ def buildMapableRegions(infiles, outfile):
 
     max_distance = kmersize // 2
 
-    f = open(infile)
-    bw = BigWigFile(file=f)
+    bw = pyBigWig.open(infile)
 
     def _iter_mapable_regions(bw, contig, size):
 
@@ -1894,7 +1894,7 @@ def buildMapableRegions(infiles, outfile):
         last_start, start = None, None
 
         for window_start in range(0, size, window_size):
-            values = bw.get(contig, window_start, window_start + window_size)
+            values = bw.intervals(contig, window_start, window_start + window_size)
             if values is None:
                 continue
 
@@ -1990,8 +1990,10 @@ if PARAMS["genome"].startswith("hg"):
             os.remove(outfile)
             # MM: this is hard-coded - the URL can (and has) changed, so
             # this should be defined in the pipeline config file
-        statement = '''wget http://www.genome.gov/admin/gwascatalog.txt
-        -O %(outfile)s'''
+            # AH: Moved to EBI, download needs to be updated
+        statement = '''curl https://www.genome.gov/admin/gwascatalog.txt
+        | sed 's/[\d128-\d255]//g'
+        > %(outfile)s'''
         P.run()
 
     @merge(downloadGWASCatalog, PARAMS["interface_gwas_catalog_bed"])
@@ -2020,7 +2022,8 @@ if PARAMS["genome"].startswith("hg"):
           :term:`BED` format file of GWAS catalog entries
         '''
 
-        reader = csv.DictReader(IOTools.openFile(infile), dialect="excel-tab")
+        reader = csv.DictReader(IOTools.openFile(infile),
+                                dialect="excel-tab")
 
         tracks = collections.defaultdict(lambda: collections.defaultdict(list))
 
@@ -2969,7 +2972,7 @@ def summary():
          ensembl,
          ucsc,
          geneset,
-         fasta,
+         # fasta,   # AH disabled for now, peptides2cds missing
          ontologies,
          annotations,
          enrichment,

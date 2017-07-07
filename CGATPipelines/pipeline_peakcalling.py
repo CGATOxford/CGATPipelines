@@ -288,7 +288,8 @@ PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
     prefix="annotations_",
-    update_interface=True))
+    update_interface=True,
+    restrict_interface=True))
 
 
 # load IDR parameters into a dictionary to pass to the IDR step
@@ -894,12 +895,13 @@ def estimateInsertSize(infile, outfile):
     for paired end data.
     Output is stored in insert_size.tsv
     '''
-    print infile
-    print outfile
-    PipelinePeakcalling.estimateInsertSize(infile, outfile,
+
+    PipelinePeakcalling.estimateInsertSize(infile, 
+                                           outfile,
                                            PARAMS['paired_end'],
                                            PARAMS['insert_alignments'],
-                                           PARAMS['insert_macs2opts'])
+                                           PARAMS['insert_macs2opts'],
+                                           PARAMS['python2_sourcecommand'])
 
 
 @merge(estimateInsertSize, "insert_sizes.tsv")
@@ -979,11 +981,14 @@ def callMacs2peaks(infiles, outfile):
     job_memory = "50G"
     statement = peakcaller.build(bam, outfile,
                                  PARAMS['macs2_contigsfile'],
-                                 inputf, insertsizef, PARAMS['IDR_run'],
+                                 inputf,
+                                 insertsizef,
+                                 PARAMS['IDR_run'],
                                  PARAMS['macs2_idrkeeppeaks'],
                                  PARAMS['macs2_idrsuffix'],
                                  PARAMS['macs2_idrcol'],
-                                 PARAMS['macs2_broad_peak'])
+                                 PARAMS['macs2_broad_peak'],
+                                 PARAMS['python2_sourcecommand'])
     P.run()
     peakcaller.summarise(outfile)
 

@@ -10,10 +10,10 @@ Reference
 import CGAT.Experiment as E
 import os
 import re
+import pandas
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
-import pandas as pd
 
 PICARD_MEMORY = "5G"
 
@@ -762,16 +762,16 @@ def loadIdxstats(infiles, outfile):
             continue
 
         # reformat idx stats
-        df = pd.read_csv(f, sep='\t', header=None)
+        df = pandas.read_csv(f, sep='\t', header=None)
         df.columns = ['region', 'length', 'mapped', 'unmapped']
 
         # calc total reads mapped & unmappedpep
         total_reads = df.unmapped.sum() + df.mapped.sum()
         total_mapped_reads = df.mapped.sum()
 
-        reformatted_df = pd.DataFrame([['total_mapped_reads', total_mapped_reads],
-                                      ['total_reads', total_reads],
-                                      ['track', track]], columns=(['region', 'mapped']))
+        reformatted_df = pandas.DataFrame([['total_mapped_reads', total_mapped_reads],
+                                           ['total_reads', total_reads],
+                                           ['track', track]], columns=(['region', 'mapped']))
 
         # reformat the df
         df = df.append(reformatted_df, ignore_index=True)
@@ -782,7 +782,7 @@ def loadIdxstats(infiles, outfile):
         dfs.append(df1)
 
     # merge dataframes into single table
-    master_df = pd.concat(dfs)
+    master_df = pandas.concat(dfs)
     master_df.drop('*', axis=1, inplace=True)
     # transform dataframe to avoid reaching column limit
     master_df = master_df.T

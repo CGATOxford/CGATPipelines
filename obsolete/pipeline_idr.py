@@ -185,15 +185,17 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 
 # Pipeline configuration
 P.getParameters(
-    ["%s/pipeline.ini" % __file__[:-len(".py")],
+    ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
      "pipeline.ini"])
 
 PARAMS = P.PARAMS
-PARAMS_ANNOTATIONS = P.peekParameters(
-    PARAMS["annotations_dir"],
-    "pipeline_annotations.py")
 
+PARAMS.update(P.peekParameters(
+    PARAMS["annotations_dir"],
+    "pipeline_annotations.py",
+    prefix="annotations_",
+    update_interface=True))
 
 # Helper functions mapping tracks to conditions, etc
 Sample = PipelineTracks.AutoSample
@@ -564,7 +566,7 @@ def runIDROnIndividualReplicates(infiles, outfile):
     """
     # set IDR parameters (HACK!) WrapperIDR is in /ifs/devel/CGAT
     chr_table = os.path.join(PARAMS["annotations_dir"],
-                             PARAMS_ANNOTATIONS["interface_contigs"])
+                             PARAMS["annotations_interface_contigs"])
 
     # iterate through pairwise combinations of infiles
     for infile1, infile2 in itertools.combinations(infiles, 2):
@@ -607,7 +609,7 @@ def runIDROnPseudoreplicates(infiles, outfile):
     """
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
-                             PARAMS_ANNOTATIONS["interface_contigs"])
+                             PARAMS["annotations_interface_contigs"])
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -645,7 +647,7 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
     """
     # set IDR parameters
     chr_table = os.path.join(PARAMS["annotations_dir"],
-                             PARAMS_ANNOTATIONS["interface_contigs"])
+                             PARAMS["annotations_interface_contigs"])
 
     # get statement
     statement = IDR.getIDRStatement(infiles[0],
@@ -659,9 +661,8 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
     E.info("applyIDR: processing %s and %s" % (infiles[0], infiles[1]))
     job_memory = "5G"
     P.run()
-#    print "\n" + statement + "\n"
 
-
+    
 @collate(runIDROnPooledPseudoreplicates,
          regex("(.+)_pooled_pseudoreplicate.idr"),
          add_inputs(r"\1*-uri.sav"),
@@ -669,8 +670,8 @@ def runIDROnPooledPseudoreplicates(infiles, outfile):
 def plotBatchConsistencyForPooledPseudoreplicates(infiles, outfile):
     statement = IDR.getIDRPlotStatement(infiles[0], outfile)
     P.run()
-#    print "\n" + statement + "\n"
 
+    
 ##########################################################################
 ##########################################################################
 ##########################################################################

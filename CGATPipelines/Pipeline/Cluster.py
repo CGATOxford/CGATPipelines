@@ -348,18 +348,6 @@ def collectSingleJobFromCluster(session, job_id,
             (retval.exitStatus,
              "".join(stderr), statement))
 
-    if ((retval.hasExited is False or retval.wasAborted is True) and not
-       ignore_errors):
-
-        raise OSError(
-            "-------------------------------------------------\n"
-            "Cluster job was aborted (%s) and/or failed to exit (%s) "
-            "while running the following statement:\n"
-            "\n%s\n"
-            "(Job may have been cancelled by the user or the scheduler)\n"
-            "----------------------------------------------------------\n" %
-            (retval.wasAborted, not retval.hasExited, statement))
-
     try:
         os.unlink(job_path)
     except OSError:
