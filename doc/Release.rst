@@ -5,6 +5,11 @@ Release notes
 The CGAT pipeline collection is unreleased. Please use
 the latest version from the repository.
 
+0.1.1
+-----
+
+* Last release compatible with Python 2.7
+
 0.1
 ---
 
