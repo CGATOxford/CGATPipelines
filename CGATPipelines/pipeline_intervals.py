@@ -183,7 +183,7 @@ import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.MatrixTools as MatrixTools
-import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
+import CGATPipelines.PipelineIntervals as PipelineIntervals
 import CGATPipelines.PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -213,7 +213,7 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
-PipelinePeakcalling.PARAMS = PARAMS
+PipelineIntervals.PARAMS = PARAMS
 PipelineMotifs.PARAMS = PARAMS
 
 ###################################################################
@@ -462,7 +462,7 @@ def loadIntervals(infile, outfile):
 
         if samfiles:
             npeaks, peakcenter, length, avgval, peakval, nprobes = \
-                PipelinePeakcalling.countPeaks(
+                PipelineIntervals.countPeaks(
                     bed.contig,
                     bed.start,
                     bed.end,
