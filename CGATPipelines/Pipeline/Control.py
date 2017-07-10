@@ -48,10 +48,7 @@ import subprocess
 import sys
 import tempfile
 import time
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import io
 
 from multiprocessing.pool import ThreadPool
 
@@ -896,7 +893,7 @@ def main(args=sys.argv):
 
                 # get tasks to be done. This essentially replicates
                 # the state information within ruffus.
-                stream = StringIO()
+                stream = io.BytesIO()
                 pipeline_printout(
                     stream,
                     options.pipeline_targets,
@@ -969,7 +966,7 @@ def main(args=sys.argv):
 
             elif options.pipeline_action == "svg":
                 pipeline_printout_graph(
-                    options.stdout,
+                    options.stdout.buffer,
                     options.pipeline_format,
                     options.pipeline_targets,
                     checksum_level=options.ruffus_checksums_level)
@@ -977,7 +974,7 @@ def main(args=sys.argv):
             elif options.pipeline_action == "plot":
                 outf, filename = tempfile.mkstemp()
                 pipeline_printout_graph(
-                    os.fdopen(outf, "w"),
+                    os.fdopen(outf, "wb"),
                     options.pipeline_format,
                     options.pipeline_targets,
                     checksum_level=options.ruffus_checksums_level)
