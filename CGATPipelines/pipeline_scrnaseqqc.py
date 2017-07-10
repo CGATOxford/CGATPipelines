@@ -119,9 +119,9 @@ PARAMS = P.getParameters(
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
-    on_error_raise=__name__ == "__main__",
     prefix="annotations_",
-    update_interface=True))
+    update_interface=True,
+    restrict_interface=True))
 
 
 # if necessary, update the PARAMS dictionary in any modules file.
@@ -171,6 +171,10 @@ FASTQ_SUFFIXES = ("*.fastq.1.gz",
                   "*.fastq.2.gz",
                   "*.fastq.gz")
 FASTQ_DIR = PARAMS['fastq_dir']
+# set to value for testing purposes (see regexes below)
+if FASTQ_DIR == "?!":
+    FASTQ_DIR = ""
+
 FASTQ_FILES = tuple([os.path.join(FASTQ_DIR, suffix_name)
                      for suffix_name in FASTQ_SUFFIXES])
 FASTQ_REGEX = regex(r"%s/(\S+).fastq.1.gz" % FASTQ_DIR)
@@ -376,7 +380,6 @@ else:
         P.run()
 
 
-@follows(quantifyWithSailfish)
 @transform(quantifyWithSailfish,
            regex("tpm.dir/(.+)/quant.genes.sf"),
            r"tpm.dir/\1.quant")
@@ -396,7 +399,6 @@ def transformSailfishOutput(infile, outfile):
     P.run()
 
 
-@follows(transformSailfishOutput)
 @collate(transformSailfishOutput,
          regex("tpm.dir/(.+)_(.+)_(.+).quant"),
          r"tpm.dir/\1.tpm")

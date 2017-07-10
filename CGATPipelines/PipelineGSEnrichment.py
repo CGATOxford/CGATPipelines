@@ -13,37 +13,6 @@ import CGAT.Experiment as E
 import ast as ast
 import numpy as np
 from toposort import toposort_flatten
-r.packages.importr("hpar")
-
-
-robjects.r('''
-library("hpar")
-# Uses the r hpar library to find human protein atlas terms
-# meeting the criteria specified in the pipeline.ini
-
-hpaQuery <- function(tissue, level, supportive=T){
-    data(hpaNormalTissue)
-    intissue = grep(paste0("^", tissue, "*"),
-                    ignore.case=T,
-                    hpaNormalTissue$Tissue)
-
-    if (level == "low"){str = "low|medium|high"}
-    else if (level == "medium") {str = "medium|high"}
-    else if (level == "high") {str = "high"}
-
-    atlevel = grep(str, ignore.case=T,
-                   hpaNormalTissue$Level)
-
-    supp = grep("supportive", ignore.case=T,
-                hpaNormalTissue$Reliability)
-
-    all = intersect(intissue, atlevel)
-    if (supportive == T) {
-        all = intersect(all, supp)
-    }
-    return (as.vector(hpaNormalTissue[all,]$Gene))
-}
-''')
 
 
 def removeNonAscii(s):
@@ -1195,6 +1164,36 @@ def HPABackground(tissue, level, supportive, outfile):
     Generates a background set using human protein atlas annotations using the
     R hpar package and thresholds set in pipeline.ini
     '''
+    r.packages.importr("hpar")
+    robjects.r('''
+    library("hpar")
+    # Uses the r hpar library to find human protein atlas terms
+    # meeting the criteria specified in the pipeline.ini
+
+    hpaQuery <- function(tissue, level, supportive=T){
+        data(hpaNormalTissue)
+        intissue = grep(paste0("^", tissue, "*"),
+                        ignore.case=T,
+                        hpaNormalTissue$Tissue)
+
+        if (level == "low"){str = "low|medium|high"}
+        else if (level == "medium") {str = "medium|high"}
+        else if (level == "high") {str = "high"}
+
+        atlevel = grep(str, ignore.case=T,
+                       hpaNormalTissue$Level)
+
+        supp = grep("supportive", ignore.case=T,
+                    hpaNormalTissue$Reliability)
+
+        all = intersect(intissue, atlevel)
+        if (supportive == T) {
+            all = intersect(all, supp)
+        }
+        return (as.vector(hpaNormalTissue[all,]$Gene))
+    }
+    ''')
+
     if int(supportive) == "1":
         supp = "T"
     else:
