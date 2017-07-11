@@ -893,7 +893,7 @@ def main(args=sys.argv):
 
                 # get tasks to be done. This essentially replicates
                 # the state information within ruffus.
-                stream = io.BytesIO()
+                stream = io.StringIO()
                 pipeline_printout(
                     stream,
                     options.pipeline_targets,
