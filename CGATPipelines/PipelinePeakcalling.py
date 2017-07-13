@@ -1372,16 +1372,17 @@ class Macs2Peakcaller(Peakcaller):
         # convert normalized bed graph to bigwig
         # saves 75% of space
         # compressing only saves 60%
-
+        temp = P.getTempFilename('.')
         statement.append('''
-        bedGraphToBigWig %(outfile)s_treat_pileup.bdg
-        %(contigsfile)s %(outfile)s_treat_pileup.bw ;
-        checkpoint ; rm -rf %(outfile)s_treat_pileup.bdg;''' % locals())
+        sort -k1,1 -k2,2n %(outfile)s_treat_pileup.bdg > %(temp)s;
+        bedGraphToBigWig %(temp)s %(contigsfile)s %(outfile)s_treat_pileup.bw ;
+        checkpoint ; rm -rf %(outfile)s_treat_pileup.bdg; rm -rf %(temp)s;''' % locals())
 
+        temp = P.getTempFilename('.')
         statement.append('''
-        bedGraphToBigWig %(outfile)s_control_lambda.bdg
-        %(contigsfile)s %(outfile)s_control_lambda.bw ;
-        checkpoint ; rm -rf %(outfile)s_control_lambda.bdg;''' % locals())
+        sort -k1,1 -k2,2n %(outfile)s_control_lambda.bdg > %(temp)s;
+        bedGraphToBigWig %(temp)s %(contigsfile)s %(outfile)s_control_lambda.bw ;
+        checkpoint ; rm -rf %(outfile)s_control_lambda.bdg; rm -rf %(temp)s;''' % locals())
 
         # index and compress peak file
         suffix = 'peaks.xls'
