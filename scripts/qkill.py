@@ -1,10 +1,6 @@
 """qkill.py - kill jobs in the queue
 ==================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

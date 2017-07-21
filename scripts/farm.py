@@ -2,10 +2,6 @@
 '''farm.py - process data stream on cluster
 ===========================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

@@ -2,10 +2,6 @@
 cgat_build_report_page.py - build a report summary across projects
 =======================================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

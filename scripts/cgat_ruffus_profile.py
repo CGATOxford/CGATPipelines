@@ -2,10 +2,6 @@
 '''cgat_ruffus_profile.py - analyze ruffus logfile
 ==================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

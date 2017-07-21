@@ -1,10 +1,6 @@
 '''cgat_zap.py - replace files with empty placeholders
 ===================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

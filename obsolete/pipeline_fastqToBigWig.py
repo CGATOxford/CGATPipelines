@@ -1,33 +1,6 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Group
-#
-#   $Id: pipeline_capseq.py 2900 2011-05-24 14:38:00Z david $
-#
-#   Copyright (C) 2012 David Sims
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
 """===================
 CAPseq pipeline
 ===================
-
-:Author: David Sims 
-:Release: $Id: pipeline_capseq.py 2900 2011-05-24 14:38:00Z david $
-:Date: |today|
-:Tags: Python
 
 The CAPseq pipeline imports reads from one or more CAPseq experiments and
 performs the following tasks:

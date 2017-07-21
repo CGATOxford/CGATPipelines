@@ -1,10 +1,6 @@
 '''nofarm.py - stand-in for ``farm.py``
 ====================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

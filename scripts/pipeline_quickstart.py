@@ -1,10 +1,6 @@
 '''pipeline_quickstart.py - setup a new pipeline
 =============================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

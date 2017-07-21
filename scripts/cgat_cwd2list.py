@@ -1,8 +1,6 @@
 '''cgat_cwd2list.py - list directory contents
 ========================================
 
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------
