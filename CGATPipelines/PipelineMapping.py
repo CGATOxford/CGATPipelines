@@ -1,9 +1,6 @@
 '''PipelineMapping.py - Utility functions for mapping short reads
 ==============================================================
 
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Mapping reads is a common task in pipelines. Different pipelines
 combine different sources of input (:term:`fastq` files, :term:`sra`

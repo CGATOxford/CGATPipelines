@@ -25,10 +25,6 @@
 PipelineSplicing.py - wrap various differential expression tools
 ===========================================================
 
-:Author: Jakub Scaber
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

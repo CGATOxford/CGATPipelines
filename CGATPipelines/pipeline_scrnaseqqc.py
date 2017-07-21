@@ -24,10 +24,6 @@
 Pipeline template
 ===========================
 
-:Author: Mike Morgan & Adam Cribbs
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 
 Overview

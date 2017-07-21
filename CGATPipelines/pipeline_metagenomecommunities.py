@@ -3,10 +3,6 @@
 Community analysis of metgenomic shotgun sequencing
 =====================================================
 
-:Author: Nick Ilott
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Pipeline_metagenomecommunities.py takes as input a set of fastq
 files from a shotgun sequencing experiment of environmental samples

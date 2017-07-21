@@ -25,10 +25,6 @@
 RNA-Seq Differential expression pipeline
 ========================================
 
-:Author: CGAT Fellows
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The RNA-Seq differential expression pipeline performs differential
 expression analysis. It requires three inputs:

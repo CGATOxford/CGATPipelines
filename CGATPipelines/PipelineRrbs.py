@@ -2,10 +2,6 @@
 PipelineRrbs.py - Utility functions for analysing rrbs sequence data
 =====================================================================
 
-:Author: Tom Smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Mapping reads is a common task in pipelines. Different pipelines
 combine different sources of input (:term:`fastq` files, :term:`sra` files)

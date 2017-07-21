@@ -2,8 +2,6 @@
 ReadQc pipeline
 ====================
 
-:Date: |today|
-:Tags: Python
 
 The readqc pipeline imports unmapped reads from one or more input
 files and performs basic quality control steps. The pipeline performs

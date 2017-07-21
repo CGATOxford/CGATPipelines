@@ -2,10 +2,6 @@
 Interval pipeline
 =================
 
-:Author: Andreas Heger
-:Release: $Id: pipeline_chipseq.py 2900 2010-04-13 14:38:00Z andreas $
-:Date: |today|
-:Tags: Python
 
 The interval pipeline takes a several set of :term:`bed` formatted
 genomic intervals and annotates them. The intervals are expected to

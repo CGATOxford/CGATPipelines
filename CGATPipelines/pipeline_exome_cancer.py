@@ -3,10 +3,6 @@
 Exome Cancer pipeline
 ======================
 
-:Author: Tom Smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 .. todo::
 

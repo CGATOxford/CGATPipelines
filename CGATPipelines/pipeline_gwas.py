@@ -24,10 +24,6 @@
 Pipeline GWAS
 ===========================
 
-:Author: Mike Morgan
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 .. Replace the documentation below with your own description of the
    pipeline's purpose

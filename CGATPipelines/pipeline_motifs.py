@@ -2,10 +2,6 @@
 Motif pipeline
 ==============
 
-:Author: Andreas Heger
-:Release: $Id: pipeline_chipseq.py 2900 2010-04-13 14:38:00Z andreas $
-:Date: |today|
-:Tags: Python
 
 The motif pipeline runs a set of motif discovery and enrichment
 analysis on a set of intervals.

@@ -25,10 +25,6 @@
 pipeline_timeseries.py
 ================================
 
-:Author: Mike Morgan
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 A pipeline for analysing RNAseq timeseries gene expression data
 

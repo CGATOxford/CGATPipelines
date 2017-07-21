@@ -25,10 +25,6 @@
 rrbs pipeline
 ====================
 
-:Author: Tom Smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 
 ######## UPDATE THIS SECTION ############

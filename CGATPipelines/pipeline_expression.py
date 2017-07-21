@@ -2,10 +2,6 @@
 pipeline_expression.py - analysis of expression data
 ====================================================
 
-:Author: Andreas Heger
-:Release: $Id: pipeline_vitaminD.py 2870 2010-03-03 10:20:29Z andreas $
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

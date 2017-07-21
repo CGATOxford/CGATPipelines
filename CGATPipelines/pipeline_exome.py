@@ -3,10 +3,6 @@
 Exome pipeline
 ====================
 
-:Author: David Sims & Kath Fawcett
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The exome pipeline imports unmapped reads from one or more fastq or
 sra files and aligns them to the genome using BWA.  Post alignment

@@ -24,10 +24,6 @@
 Pipeline Enrichment
 ===========================
 
-:Author: Katy Brown
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 This pipeline calculates if any of a list of "terms" (any list of identifiers
 which has been mapped to correspond to a list of genes) are significantly

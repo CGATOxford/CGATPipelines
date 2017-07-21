@@ -4,10 +4,6 @@
 RNASeqQC pipeline
 ====================
 
-:Author: Tom Smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 
 Overview

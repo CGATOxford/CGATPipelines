@@ -2,10 +2,6 @@
 Transfac match pipeline
 ========================
 
-:Author: Nick Ilott
-:Release: $Id: pipeline_transfacmatch
-:Date: |today|
-:Tags: Python
 
 The transfac match pipeline takes a several set of :term:`bed` or
 :term:`gtf` formatted files and scans intervals for transcription

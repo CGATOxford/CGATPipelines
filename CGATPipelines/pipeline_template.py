@@ -24,10 +24,6 @@
 Pipeline template
 ===========================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 .. Replace the documentation below with your own description of the
    pipeline's purpose

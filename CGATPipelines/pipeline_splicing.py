@@ -24,10 +24,6 @@
 Pipeline Splicing
 ===========================
 
-:Author: Jakub Scaber
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Overview
 ========

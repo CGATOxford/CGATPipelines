@@ -2,9 +2,6 @@
 Read mapping pipeline
 =====================
 
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The read mapping pipeline imports unmapped reads from one or more
 NGS experiments and maps reads against a reference genome.

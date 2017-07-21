@@ -2,10 +2,6 @@
 pipeline_testing - automated testing of pipelines
 =================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 This pipeline executes other pipelines for testing purposes.
 

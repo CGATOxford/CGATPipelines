@@ -2,10 +2,6 @@
 RNA-Seq Transcript Build pipeline
 =================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The rnaseq transcript build pipeline attempts build a variety of gene sets
 from reads mapped to a reference genome.

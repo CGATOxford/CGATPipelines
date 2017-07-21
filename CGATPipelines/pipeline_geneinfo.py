@@ -2,7 +2,6 @@
 Gene Info Pipeline
 ====================
 
-:Tags: Python
 
 Overview
 ========
