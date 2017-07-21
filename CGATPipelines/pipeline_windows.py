@@ -1,11 +1,6 @@
-"""
-pipeline_windows.py - Window based genomic analysis
+"""===================================================
+pipeline_windows - Window based genomic analysis
 ===================================================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 This pipeline takes mapped reads from ChIP-Seq experiments
 such has chromatin marks, MeDIP and performs analyses

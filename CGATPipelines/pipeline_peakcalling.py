@@ -1,11 +1,6 @@
-"""
-pipeline_peakcalling.py - Produce Peaklist from Bam Files
-===================================================
-
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
+"""=========================================================
+pipeline_peakcalling - Produce Peaklist from Bam Files
+=========================================================
 
 Overview
 ========
