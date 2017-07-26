@@ -891,7 +891,7 @@ def estimateInsertSize(infile, outfile):
     Output is stored in insert_size.tsv
     '''
 
-    PipelinePeakcalling.estimateInsertSize(infile, 
+    PipelinePeakcalling.estimateInsertSize(infile,
                                            outfile,
                                            PARAMS['paired_end'],
                                            PARAMS['insert_alignments'],
@@ -1474,11 +1474,14 @@ def findConservativePeaks(infile, outfiles):
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
-    peakfiles = ["IDR.dir/%s" % i.replace("_table", "") for i in peakfiles]
+    peakfiles = ["IDR.dir/%s" % i.replace("_table", "_filtered") for i in peakfiles]
     i = 0
     for peakfile in peakfiles:
         outnam = "conservative_peaks.dir/%s.tsv" % experiments[i]
         PipelinePeakcalling.makeLink(peakfile, outnam)
+        bedname = outnam.replace(".tsv", ".bed")
+        statement = "cut -f2-4 %(peakfile)s | awk 'NR!=1' | bedtools sort -i stdin > %(bedname)s"
+        P.run()
         i += 1
 
 
@@ -1493,12 +1496,15 @@ def findOptimalPeaks(infile, outfiles):
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
-    peakfiles = ["IDR.dir/%s" % i.replace("_table", "") for i in peakfiles]
+    peakfiles = ["IDR.dir/%s" % i.replace("_table", "_filtered") for i in peakfiles]
 
     i = 0
     for peakfile in peakfiles:
         outnam = "optimal_peaks.dir/%s.tsv" % experiments[i]
         PipelinePeakcalling.makeLink(peakfile, outnam)
+        bedname = outnam.replace(".tsv", ".bed")
+        statement = "cut -f2-4 %(peakfile)s | awk 'NR!=1' | bedtools sort -i stdin > %(bedname)s"
+        P.run()
         i += 1
 
 
