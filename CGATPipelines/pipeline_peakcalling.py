@@ -264,6 +264,10 @@ from rpy2.robjects import r as R
 import rpy2.robjects as ro
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
+import matplotlib
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
 
 #########################################################################
@@ -891,7 +895,7 @@ def estimateInsertSize(infile, outfile):
     Output is stored in insert_size.tsv
     '''
 
-    PipelinePeakcalling.estimateInsertSize(infile, 
+    PipelinePeakcalling.estimateInsertSize(infile,
                                            outfile,
                                            PARAMS['paired_end'],
                                            PARAMS['insert_alignments'],
@@ -1502,6 +1506,83 @@ def findOptimalPeaks(infile, outfiles):
         i += 1
 
 
+@merge(runIDR, ['IDR.dir/self_consistency.png',
+                'IDR.dir/replicate_consistency.png',
+                'IDR.dir/pooled_consistency.png'])
+def plotIDR(infiles, outfiles):
+    '''
+    Generates plots showing the correlation between the ranking in the
+    two subsets for self consistency, replicate consistency and
+    pooled consistency datasets.
+
+    Ideally the plots should show a strong correlation for highly ranked
+    peaks and the blue section (which represents the peaks which pass IDR)
+    should represent the part of the graph where the correlation is strong.
+    '''
+    sns.set_style('ticks')
+
+    infiles = np.array(infiles)
+    self_c = infiles[['pseudo' in p and 'pooled' not in p for p in infiles]]
+    pooled_c = infiles[['pseudo' in p and 'pooled' in p for p in infiles]]
+    replicate_c = infiles[['pseudo' not in p and 'pooled' not in p
+                           for p in infiles]]
+    cols = ['chrom', 'chromStart', 'chromEnd', 'name',
+            'score', 'strand', 'signalValue', 'p-value',
+            'q-value', 'summit', 'localIDR', 'globalIDR',
+            'rep1_chromStart', 'rep1_chromEnd', 'rep1_signalValue',
+            'rep1_summit', 'rep2_chromStart', 'rep2_chromEnd',
+            'rep2_signalValue', 'rep2_summit']
+
+    i = 0
+
+    for L in self_c, replicate_c, pooled_c:
+        if i == 0:
+            thresh = PARAMS['IDR_softthresh_selfconsistency']
+            label = 'Self'
+        elif i == 1:
+            thresh = PARAMS['IDR_softthresh_replicateconsistency']
+            label = 'Replicate'
+        elif i == 2:
+            thresh = PARAMS['IDR_softthresh_pooledconsistency']
+            label = 'Pooled'
+
+        idr_score_threshold = -math.log(thresh, 10)
+        nrows = math.ceil(len(L) / 4)
+        ncols = 4
+        fig = plt.figure(figsize=(ncols*3, nrows*3))
+        f = gridspec.GridSpec(nrows, ncols)
+        j = 0
+        row = 0
+        col = 0
+        for item in L:
+            a = plt.subplot(f[row, col])
+            tab = pd.read_csv(item, sep="\t", names=cols)
+            tab['sig'] = tab['globalIDR'] >= idr_score_threshold
+            colours = ['#0571b0' if x else '#404040' for x in tab['sig']]
+            tab1 = tab.sort_values('rep1_signalValue', ascending=False)
+            tab2 = tab.sort_values('rep2_signalValue', ascending=False)
+            tab1['rank1'] = range(len(tab1))
+            tab2['rank2'] = range(len(tab2))
+            tab = tab.merge(tab1).merge(tab2)
+            a.scatter(tab['rank1'], tab['rank2'],
+                      s=0.1, alpha=1, color=colours)
+            sns.despine()
+            title = item.replace("_v_", "\n")
+            title = title.replace(".macs2", "")
+            title = title.replace("_filtered", "").replace("IDR.dir/", "")
+            a.set_title(title, fontsize=8)
+            a.set_xlabel('rank subset 1', fontsize=8)
+            a.set_ylabel('rank subset 2', fontsize=8)
+            col += 1
+            if col == ncols:
+                col = 0
+                row += 1
+        fig.suptitle('''Correlation Between Ranks in Pairs of Subsets: %(label)s Consistency\nblue = peak passing IDR, grey = peak not passing IDR''' % locals())
+        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        fig.savefig(outfiles[i])
+        i += 1
+
+
 @active_if(IDR_ON)
 @follows(loadIDRPairs)
 @follows(loadIDRsummary)
@@ -1509,6 +1590,7 @@ def findOptimalPeaks(infile, outfiles):
 @follows(findConservativePeaks)
 @follows(findOptimalPeaks)
 @follows(runIDRQC)
+@follows(plotIDR)
 def IDR():
     pass
 
