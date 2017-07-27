@@ -1512,6 +1512,7 @@ def findOptimalPeaks(infile, outfiles):
         i += 1
 
 
+@active_if(IDR_ON)
 @merge(runIDR, ['IDR.dir/self_consistency.png',
                 'IDR.dir/replicate_consistency.png',
                 'IDR.dir/pooled_consistency.png'])
