@@ -177,6 +177,10 @@ import pandas as pd
 import numpy as np
 import itertools
 from scipy.stats import linregress
+import matplotlib
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import seaborn as sns
 
 from rpy2.robjects import r as R
 from rpy2.robjects import pandas2ri
@@ -189,6 +193,8 @@ import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineRnaseq as PipelineRnaseq
+
+import json
 
 ###################################################
 ###################################################
@@ -1705,6 +1711,115 @@ def plotExpression(outfile):
         plotDistribution(pandas2ri.py2ri(full_df))
 
     P.touch(outfile)
+
+###################################################################
+# Run Salmon To Autodetect Strandedness
+###################################################################
+
+
+@follows(mkdir("salmon.dir"))
+@transform(buildTranscriptFasta,
+           regex("(\S+)"),
+           "salmon.dir/transcripts.salmon.index")
+def indexForSalmon(infile, outfile):
+    '''create a salmon index'''
+
+    statement = '''
+    salmon index -t %(infile)s
+    -i %(outfile)s '''
+    P.run()
+
+
+@transform(SEQUENCEFILES,
+           SEQUENCEFILES_REGEX,
+           add_inputs(indexForSalmon,
+                      buildCodingGeneSet,
+                      buildTranscriptGeneMap),
+           r"salmon.dir/\2/lib_format_counts.json")
+def runSalmon(infiles, outfile):
+    '''quantify abundance using Salmon'''
+
+    job_threads = PARAMS["salmon_threads"]
+    job_memory = PARAMS["salmon_memory"]
+    infile, index, geneset, transcript_map = infiles
+    salmon_bootstrap = 1
+    salmon_libtype = 'A'
+    salmon_options = PARAMS["salmon_options"]
+
+    m = PipelineMapping.Salmon()
+
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+
+@merge(runSalmon, "strandedness.tsv")
+def checkStrandednessSalmon(infiles, outfile):
+    '''
+    Read the output from salmon used to determine strandedness
+    and write a table containing the number of alignments
+    consistent with each type of library.
+    The possible types are described here:
+    http://salmon.readthedocs.io/en/latest/library_type.html
+    '''
+    results = pd.DataFrame()
+    for infile in infiles:
+        j = json.load(open(infile, "r"))
+        vals = list(j.values())
+        cols = list(j.keys())
+        D = pd.DataFrame(vals, index=cols).T
+        D['sample'] = infile.split("/")[-2]
+        results = results.append(D)
+    results = results[["sample", "expected_format",
+                       "compatible_fragment_ratio",
+                       "num_compatible_fragments",
+                       "num_assigned_fragments",
+                       "num_consistent_mappings",
+                       "num_inconsistent_mappings",
+                       "MSF", "OSF", "ISF", "MSR",
+                       "OSR", "ISR", "SF", "SR",
+                       "MU", "OU", "IU", "U"]]
+
+    results.to_csv(outfile, sep="\t", index=None)
+
+
+@transform(checkStrandednessSalmon,
+           suffix(".tsv"),
+           ".load")
+def loadStrandednessSalmon(infile, outfile):
+    P.load(infile, outfile)
+
+
+@transform(checkStrandednessSalmon, suffix(".tsv"), ".png")
+def plotStrandednessSalmon(infile, outfile):
+    '''
+    Plots a bar plot of the salmon strandness estimates
+    as counts per sample.
+    '''
+    sns.set_style('ticks')
+    tab = pd.read_csv(infile, sep="\t")
+    counttab = tab[tab.columns[7:]]
+    f = plt.figure(figsize=(10, 7))
+    a = f.add_axes([0.1, 0.1, 0.6, 0.75])
+    x = 0
+    colors = sns.color_palette("Dark2", 10)
+    a.set_ylim(0, max(counttab.values[0]) + max(counttab.values[0]) * 0.1)
+    for item in counttab.columns:
+        a.bar(range(x, x + len(tab)), tab[item], color=colors)
+        x += len(tab)
+    a.ticklabel_format(style='plain')
+    a.vlines(np.arange(-0.4, a.get_xlim()[1], len(tab)),
+             a.get_ylim()[0], a.get_ylim()[1], lw=0.5)
+    a.set_xticks(np.arange(0 + len(tab) / 2, a.get_xlim()[1],
+                           len(tab)))
+    a.set_xticklabels(counttab.columns)
+    sns.despine()
+    patches = []
+    for c in colors[0:len(tab)]:
+        patches.append(mpatches.Patch(color=c))
+    l = f.legend(labels=tab['sample'], handles=patches, loc=1)
+    f.suptitle('Strandedness Estimates')
+    f.savefig(outfile)
 
 ###################################################################
 # Main pipeline tasks
