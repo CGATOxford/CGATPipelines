@@ -1836,7 +1836,9 @@ def plotStrandednessSalmon(infile, outfile):
          loadAltContextStats,
          plotSailfishSaturation,
          plotTopGenesHeatmap,
-         plotExpression)
+         plotExpression,
+         plotStrandednessSalmon,
+         loadStrandednessSalmon)
 def full():
     pass
 
