@@ -154,10 +154,10 @@ def GetAndTranslateAllGenes(outfile):
     PipelineGeneInfo.runall(Sym, entrezgenelist, ['symbol'],
                             scope='entrezgene', species=PARAMS['entrez_host'],
                             submit=True)
-
+    
     genesymbols = list(pd.read_csv("entrez2symbol_%s.tsv" % PARAMS[
         'entrez_host'], sep="\t")['symbol_%s' % PARAMS['entrez_host']])
-
+    genesymbols = [g.split("'")[0] for g in genesymbols]
     # Generate an EnsemblAnnotation object
     Ens = PipelineGeneInfo.EnsemblAnnotation(PARAMS['my_gene_info_source'],
                                              PARAMS['db_name'],

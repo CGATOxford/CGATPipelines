@@ -349,7 +349,7 @@ def buildReferenceGeneSet(infile, outfile):
         gene_ids=gene_ids,
         outfile=outfile)
 
-    os.unlink(tmp_mergedfiltered)
+ #   os.unlink(tmp_mergedfiltered)
 
 
 @active_if(SPLICED_MAPPING)
@@ -372,7 +372,7 @@ def identifyProteinCodingGenes(outfile):
     dbh = connect()
 
     table = os.path.basename(PARAMS["annotations_interface_table_gene_info"])
-
+    E.info(PARAMS['annotations_interface_table_gene_info'])
     select = dbh.execute("""SELECT DISTINCT gene_id
     FROM annotations.%(table)s
     WHERE gene_biotype = 'protein_coding'""" % locals())
@@ -535,7 +535,7 @@ def buildCodingExons(infile, outfile):
        Output filename in :term:`gtf` format
 
     '''
-
+    ignore_pipe_errors=True
     statement = '''
     zcat %(infile)s
     | awk '$3 == "CDS"'

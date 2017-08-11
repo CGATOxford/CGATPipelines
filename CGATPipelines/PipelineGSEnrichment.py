@@ -803,7 +803,11 @@ class EnrichmentTester(object):
                  str(OR), fc, str(p), str(padj), sig]
 
             # add metadata
-            L += self.AS.TermsToDetails[term]
+            try:
+                L += self.AS.TermsToDetails[term]
+            except:
+                self.AS.TermsToDetails = self.AS.reverseDict(self.AS.TermsToDetails)
+                L += self.AS.TermsToDetails[term]
             parsedresults.append(L)
             tdict_fg[str(term)] = res[-2]
             tdict_bg[str(term)] = res[-1]

@@ -397,17 +397,21 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     for gtf in GTF.iterator(inf):
         transcript_id = gtf.oId
         gene_id = gene_ids[transcript_id]
-        gtf.setAttribute("transcript_id", transcript_id)
-        gtf.setAttribute("gene_id", gene_id)
+        gtf.transcript_id = transcript_id
+        gtf.gene_id = gene_id
 
         # set tss_id
         try:
             tss_id = gtf.tss_id
+            print (tss_id)
         except AttributeError:
             tss_id = None
+
         try:
             p_id = gtf.p_id
         except AttributeError:
+            p_id = None
+        except KeyError:
             p_id = None
 
         if tss_id:

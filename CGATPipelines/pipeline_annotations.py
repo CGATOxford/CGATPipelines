@@ -1015,7 +1015,8 @@ def buildGeneSet(infiles, outfile):
 
     '''
     gtf_file, assembly_report = infiles
-
+    assembly_report_hasids = PARAMS['assembly_report_hasids']
+    assembly_extras = PARAMS['assembly_extras']
     statement = ['''zcat %(gtf_file)s
     | grep 'transcript_id'
     | cgat gff2gff
@@ -1023,7 +1024,15 @@ def buildGeneSet(infiles, outfile):
     --sanitize-method=ucsc
     --skip-missing
     --assembly-report=%(assembly_report)s
-    ''']
+    --assembly-report-hasids=%(assembly_report_hasids)s ''']
+    if PARAMS['assembly_extras']:
+        statement.append("--assembly-extras=%(assembly_extras)s " % locals())
+    if assembly_report_hasids == 1:
+        assembly_ucsccol = PARAMS['assembly_report_ucsccol']
+        assembly_ensemblcol = PARAMS['assembly_report_ensemblcol']
+        statement.append('''--assembly-report-ensemblcol=%(assembly_ensemblcol)i
+        --assembly-report-ucsccol=%(assembly_ucsccol)i
+        ''' % locals())
 
     if PARAMS["ensembl_remove_contigs"]:
         # in quotation marks to avoid confusion with shell special

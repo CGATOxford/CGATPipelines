@@ -91,7 +91,7 @@ def annotateGenome(infile, outfile,
         --method=filter --filter-method=proteincoding""" % PARAMS
     else:
         filter_cmd = "cat"
-
+    ignore_pipe_errors = True
     statement = """
     zcat %(infile)s
     | %(filter_cmd)s
@@ -207,7 +207,7 @@ def buildFlatGeneSet(infile, outfile):
     # and hence merging will fail.
     # --permit-duplicates is set so that these cases will be
     # assigned new merged gene ids.
-
+    ignore_pipe_errors = True
     statement = """gunzip
     < %(infile)s
     | awk '$3 == "exon"'
@@ -398,17 +398,17 @@ def loadEnsemblTranscriptInformation(ensembl_gtf, geneset_gtf,
 
     table = P.toTable(outfile)
 
-    gtf_file = IOTools.openFile(geneset_gtf, "rb")
+    gtf_file = IOTools.openFile(geneset_gtf, "r")
     gtf_iterator = GTF.transcript_iterator(GTF.iterator(gtf_file))
 
-    ensembl_file = IOTools.openFile(ensembl_gtf, "rb")
+    ensembl_file = IOTools.openFile(ensembl_gtf, "r")
     ensembl_iterator = GTF.transcript_iterator(GTF.iterator(ensembl_file))
 
     # parse the two gtfs, creating keys from the GTF entries
     parse_ensembl = {}
     for ens_gtf in ensembl_iterator:
         for ens_trans in ens_gtf:
-            ens_att = ens_trans.asDict()
+            ens_att = dict(ens_trans)
             ens_vals = dict(zip(ens_trans.keys(),
                                 [ens_trans[x] for x in ens_trans.keys()]))
             ens_att.update(ens_vals)
@@ -418,7 +418,7 @@ def loadEnsemblTranscriptInformation(ensembl_gtf, geneset_gtf,
     parse_gtf = {}
     for gtf in gtf_iterator:
         for trans in gtf:
-            trans_atts = trans.asDict()
+            trans_atts = dict(trans)
             trans_vals = dict(zip(trans.keys(),
                                   [trans[g] for g in trans.keys()]))
             trans_atts.update(trans_vals)
@@ -1549,7 +1549,7 @@ def buildGenomicContext(infiles, outfile, distance=10):
 
     tmpfile = P.getTempFilename(shared=True)
     tmpfiles = ["%s_%i" % (tmpfile, x) for x in range(6)]
-
+    ignore_pipe_errors = True
     # add ENSEMBL annotations
     statement = """
     zcat %(annotations_gtf)s
