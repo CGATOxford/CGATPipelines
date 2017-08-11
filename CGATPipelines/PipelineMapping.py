@@ -362,7 +362,7 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
         cat = "zcat"
     else:
         cat = "cat"
-    
+
     statement = '''
     cuffcompare -r <( %(cat)s %(infile)s )
          -T

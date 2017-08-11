@@ -454,8 +454,8 @@ class EnsemblAnnotation(MyGeneInfoAnnotation):
         self.resultsz['ensemblg2symbol_%s$geneid' % self.ohost] = [sorted(
             list(zip(ensembl2sym,
                      sym2ensembl))), ['ensemblg',
-                                'symbol_%s' % self.ohost],
-                                ['int', 'varchar(25)']]
+                                      'symbol_%s' % self.ohost], ['int',
+                                                                  'varchar(25)']]
 
         self.resultsz['ensemblg2ensemblt$other'] = [sorted(list(zip(g2t, t2g))),
                                                     ['ensemblg', 'ensemblt'],
