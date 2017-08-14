@@ -140,6 +140,7 @@ import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import sys
 import CGATPipelines.PipelineGSEnrichment as PipelineEnrichment
+import CGATPipelines.PipelineEnrichmentGSEA as PipelineGSEA
 import CGAT.IOTools as IOTools
 import pandas as pd
 import matplotlib
@@ -167,6 +168,9 @@ hpatissues = PARAMS['hpa_tissue'].split(",")
 hpatissues = ['clean_backgrounds.dir/%s_hpa_background.tsv'
               % tissue.replace(" ", "_") for tissue in hpatissues]
 
+########################################################
+# set up database connection
+########################################################
 
 def connect():
     '''utility function to connect to database.
@@ -186,7 +190,58 @@ def connect():
 
     return dbh
 
+########################################################
+# Define input files for GSEA
+########################################################
 
+GSEASUFFIXES = ("*.gene.tsv")
+
+GSEAFILES_REGEX = regex(r"(.*).gene.tsv$")
+
+#########################################################
+# start of GSEA tasks
+#########################################################
+
+@follows(mkdir("gsea_processed.dir"))
+@active_if(PARAMS['analysis_gsea'])
+@transform(GSEASUFFIXES,
+           GSEAFILES_REGEX,
+           r"gsea_processed.dir/\1.processed")
+def preprocessGsea(infile, outfile):
+    '''
+    '''
+    dbname = PARAMS['db_gsea_name']
+    genelist = PARAMS['genelist_name']
+    idtype = PARAMS['id_gsea_type']
+    id_conversion = PARAMS['id_gsea_to_convert']
+    PipelineGSEA.preprocess_ExpressionData(infile,dbname, idtype, id_conversion, outfile)
+
+@follows(preprocessGsea)
+@transform(preprocessGsea,
+           regex("gsea_processed.dir/(.*).processed$"),
+           r"\1.dir/CGAT_Gene_set_details.tsv")
+def runGsea(infile,outfile):
+
+    geneset = PARAMS['geneset_name']
+    idtype = PARAMS['id_gsea_type']
+    id_conversion = PARAMS['id_gsea_to_convert']
+    min_size = PARAMS['stats_gsea_min_size']
+    max_size = PARAMS['stats_gsea_max_size']
+    seed = PARAMS['stats_gsea_seed']
+    no = PARAMS['stats_gsea_permut']
+    p_no = PARAMS['stats_gsea_display_num']
+    l_no = PARAMS['stats_gsea_ngeneset']
+    statement = '''basename %(infile)s .processed |
+                   awk '{split($0,a,"/"); print a[1]}'
+                   | xargs mkdir; cd $(basename %(infile)s .processed | awk '{split($0,a,"/"); print a[1]}')
+                   ; python /ifs/devel/reshma/py35-v1/cgat/CGAT/scripts/runGSEA.py 
+                   -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
+                   -s %(seed)s -n %(no)s -d %(p_no)s -l %(l_no)s'''
+    P.run()
+
+
+
+@active_if(PARAMS['analysis_ora'])
 @follows(mkdir("annotations.dir"))
 @split(dbname, ["annotations.dir/*%s" % r for r in outfilesuffixes])
 def getDBAnnotations(infile, outfiles):
