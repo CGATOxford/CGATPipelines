@@ -215,8 +215,8 @@ GSEAFILES_REGEX = regex(r"(.*).gene.tsv$")
 # start of GSEA tasks
 #########################################################
 
+@active_if(PARAMS['analysis_gsea'] == 1)
 @follows(mkdir("gsea_processed.dir"))
-@active_if(PARAMS['analysis_gsea'])
 @transform(GSEASUFFIXES,
            GSEAFILES_REGEX,
            r"gsea_processed.dir/\1.processed")
@@ -225,11 +225,16 @@ def preprocessGsea(infile, outfile):
     
     '''
     dbname = PARAMS['db_gsea_name']
-    genelist = PARAMS['genelist_name']
     idtype = PARAMS['id_gsea_type']
     id_conversion = PARAMS['id_gsea_to_convert']
-    PipelineGSEA.preprocess_ExpressionData(infile,dbname, idtype, id_conversion, outfile)
 
+    PipelineGSEA.preprocess_ExpressionData(infile,
+                                           dbname,
+                                           idtype,
+                                           id_conversion,
+                                           outfile)
+
+@active_if(PARAMS['analysis_gsea'] == 1)
 @follows(preprocessGsea)
 @transform(preprocessGsea,
            regex("gsea_processed.dir/(.*).processed$"),
@@ -260,7 +265,7 @@ def runGsea(infile,outfile):
 #####################################################################################
 
 
-@active_if(PARAMS['analysis_ora'])
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(mkdir("annotations.dir"))
 @split(dbname, ["annotations.dir/*%s" % r for r in outfilesuffixes])
 def getDBAnnotations(infile, outfiles):
@@ -277,7 +282,7 @@ def getDBAnnotations(infile, outfiles):
     dbname = PARAMS['db_name']
     PipelineEnrichment.getDBAnnotations(infile, outfiles, dbname, submit=True)
 
-
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(getDBAnnotations)
 @originate(unmappedouts)
 def mapUnmappedAnnotations(outfiles):
@@ -294,7 +299,7 @@ def mapUnmappedAnnotations(outfiles):
     outstem2 = outfiles[0].replace("_genestoterms.tsv", "")
     PipelineEnrichment.getFlatFileAnnotations(substatement, outstem2, dbname)
 
-
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(mkdir("clean_foregrounds.dir"))
 @transform("foregrounds.dir/*.tsv", regex("foregrounds.dir/(.*).tsv"),
            r"clean_foregrounds.dir/\1.tsv")
@@ -308,7 +313,7 @@ def cleanForegrounds(infile, outfile):
     PipelineEnrichment.cleanGeneLists(infile, outfile, idtype, dbname,
                                       submit=True)
 
-
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(mkdir("clean_backgrounds.dir"))
 @transform("backgrounds.dir/*.tsv",
            regex("backgrounds.dir/(.*).tsv"),
@@ -323,7 +328,7 @@ def cleanUserBackgrounds(infile, outfile):
     PipelineEnrichment.cleanGeneLists(infile, outfile, idtype, dbname,
                                       submit=True)
 
-
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(cleanUserBackgrounds)
 @active_if(int(PARAMS['hpa_run']) == 1)
 @originate(hpatissues)
@@ -340,7 +345,7 @@ def buildHPABackground(outfile):
                                      outfile,
                                      submit=True)
 
-
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(mapUnmappedAnnotations)
 @merge("annotations.dir/*_genestoterms.tsv",
        "clean_backgrounds.dir/allgenes.tsv")
@@ -353,7 +358,7 @@ def buildStandardBackground(infiles, outfile):
     statement = "cut -f1 %s | sort | uniq > %s" % (" ".join(infiles), outfile)
     P.run()
 
-
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(buildHPABackground)
 @follows(cleanUserBackgrounds)
 @follows(cleanForegrounds)
@@ -391,7 +396,7 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 PARAMS['id_type'],
                                                 submit=True)
 
-
+@active_if(PARAMS['analysis_ora'] == 1)
 @follows(mkdir("barcharts.dir"))
 @transform(foregroundsVsBackgrounds,
            regex("results.dir/(.*)(_go|_hpo)(_all_results.tsv)"),
@@ -419,6 +424,7 @@ def makeBarCharts(infiles, outfile):
 
 
 @follows(mkdir("cytoscape.dir"))
+@active_if(PARAMS['analysis_ora'] == 1)
 @transform(foregroundsVsBackgrounds,
            regex("results.dir/(.*)(_go|_reactome)(_all_results.tsv)"),
            r"cytoscape.dir/\1\2.tsv")
