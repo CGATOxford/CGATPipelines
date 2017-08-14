@@ -2,7 +2,20 @@
 Pipeline Enrichment
 ===========================
 
+This pipelijne runs two different type of 
 
+
+---------------------------------------------------------------------------
+
+
+
+
+
+
+
+----------------------------------------------------------------------------
+ORA analysis
+----------------------------------------------------------------------------
 This pipeline calculates if any of a list of "terms" (any list of identifiers
 which has been mapped to correspond to a list of genes) are significantly
 more often mapped to a gene in the "foreground" - a list of genes identified
@@ -209,6 +222,7 @@ GSEAFILES_REGEX = regex(r"(.*).gene.tsv$")
            r"gsea_processed.dir/\1.processed")
 def preprocessGsea(infile, outfile):
     '''
+    
     '''
     dbname = PARAMS['db_gsea_name']
     genelist = PARAMS['genelist_name']
@@ -221,7 +235,9 @@ def preprocessGsea(infile, outfile):
            regex("gsea_processed.dir/(.*).processed$"),
            r"\1.dir/CGAT_Gene_set_details.tsv")
 def runGsea(infile,outfile):
+    '''
 
+    '''
     geneset = PARAMS['geneset_name']
     idtype = PARAMS['id_gsea_type']
     id_conversion = PARAMS['id_gsea_to_convert']
@@ -239,6 +255,9 @@ def runGsea(infile,outfile):
                    -s %(seed)s -n %(no)s -d %(p_no)s -l %(l_no)s'''
     P.run()
 
+#####################################################################################
+# ORA functions start here
+#####################################################################################
 
 
 @active_if(PARAMS['analysis_ora'])
@@ -420,7 +439,8 @@ def makeCytoscapeInputs(infiles, outfile):
     os.remove(T)
 
 
-@follows(makeCytoscapeInputs)
+@follows(makeCytoscapeInputs,
+         runGsea)
 def full():
     pass
 
