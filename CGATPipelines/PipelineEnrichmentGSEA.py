@@ -6,21 +6,38 @@ PipelineEnrichmentGSEA.py
 
 Usage
 -----
-This pipline is a wrapper of script runGSEA.py
-To run this pipeline, one need to specify required parameteres in 
-ini (configuration file).
+This pipeline is a wrapper of script runGSEA.py (enrichment analysis
+                                                by using GSEA. Further
+                                                description is provided
+                                                below.)
+To run this pipeline, one need to specify required parameteres in
+pipeline.ini file (configuration file).
 This pipeline performs two steps:
+-----------
 First step: Preprocessing of gene list(expression data set)
-            Note: Input gene list should be tab delimited file. 
-                  First line of dataset will be considered as header.
-                  Suffix of file name should be ".gene.tsv"
+-----------       Note: Input gene list should be tab delimited file.
+                        First line of dataset will be considered as
+                        header.Suffix of file name should be ".gene.tsv"
+                        Id type of gene list and gene set should match
+                        with each other.
+                        Annotations from a Database:(to translate genelist)
+                                 AnnotationSets are predominantly generated from a database using an
+                                 AnnotationParser method.
+                                 The Database is generated using the pipeline pipeline_geneinfo.py.
+                                 This database is required to run pipeline_enrichment.
             It translates input gene list in to required id type.
-            (Available options are specified in .ini file) ,sorts 
-            the gene list on the basis of ranking metric. It also removes 
-            all duplicate ids and generates report.This report provides 
-            summary of preprocessing steps of the gene list provided and
-	    lists duplicate gene id that were discarded.
-
+            (Available options are specified in .ini file) ,sorts
+            the gene list on the basis of provided ranking metric.
+            It also removes all duplicate ids and generates report.
+            This report provides summary of preprocessing steps of
+            the gene list provided and lists duplicate gene id that
+            were discarded.
+            New gene list file (after preprocessing is created in a folder
+            having same name as gene list file name. This new file is used
+            for further analysis.
+------------
+Second step: Call runGSEA.py script file for enrichemnt analysis
+-----------
 This script will perform the enrichment analysis, by using gene set enrichment analysis
 (GSEA) and leading edge analysis.
             "Leading edge are defined as genes that are common to multiple
@@ -28,29 +45,25 @@ This script will perform the enrichment analysis, by using gene set enrichment a
              in a phenotypic comparison of interest.They represent a rich
              source of biologically important  genes."
 -----
-
-To run this analysis with GSEA,you need to provide
-two input files:
-      1. Ranked list of genes (Expression data set file).
+It takes two input files:
+      1. Ranked list of genes (Preprocessed Expression data set file,
+                               created by first step of pipeline).
       2. Gene set
+          - A gene sets file defines one or more gene sets. For each gene
+            set,the file contains the gene set name and the list of genes in
+            that gene set. A gene sets file is a tab-delimited text file in
+            gmx or gmt format. For descriptions and examples of each file
+            format please refer to:
+            http://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats
 
-Notes:
-      - It is important to make sure that the expression data set
-        does not include duplicate ids (edit your rank list,so that
-        all row ids are unique). Otherwise it will affect results.
-        Expression data set file is a tab-delimited text file.
-        First line of dataset will be considered as header.
+          - The Molecular Signatures Database (MSigDB)
+            (http://software.broadinstitute.org/gsea/msigdb/index.jsp)
+            is a collection of annotated gene sets, which can be used for gene
+            set enrichment analysis.OR you can create your own gene set in gmt
+            or gmx format.
+      3. Rest of the parameters can be specified in to pipeline.ini configuration
+         file. Every parameter is set to deafult value.
 
-      - A gene sets file defines one or more gene sets. For each gene
-        set,the file contains the gene set name and the list of genes in
-        that gene set. A gene sets file is a tab-delimited text file in
-        gmx or gmt format. For descriptions and examples of each file
-        format please refer to:
-        http://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats
-
-      - The Molecular Signatures Database (MSigDB)(http://software.broadinstitute.org/gsea/msigdb/index.jsp)
-        is a collection of annotated gene sets, which can be used for gene set enrichment analysis.
-        OR you can create your own gene set in gmt or gmx format.
 
 This script will summarize the analysis in the following format:
        1. GSEA Statistics
@@ -181,6 +194,9 @@ def list_Duplicates(seq):
 
 
 def read_Expression_data(filename):
+    '''
+     Read gene list file.
+    '''
     f = open(filename, "r")
     express_id = []
     lines = list(csv.reader(f, delimiter="\t"))

@@ -1,20 +1,149 @@
-"""===========================
+'''===========================
 Pipeline Enrichment
 ===========================
 
-This pipelijne runs two different type of 
-
+This pipeline runs two different types of enrichment analysis.
 
 ---------------------------------------------------------------------------
+        Enrichment Analysis (Gene set enrichment analysis (GSEA))
+---------------------------------------------------------------------------
+:Tags: Python
+
+Usage
+-----
+This pipeline is a wrapper of script runGSEA.py (enrichment analysis
+                                                by using GSEA. Further
+                                                description is provided
+                                                below.)
+To run this pipeline, one need to specify required parameteres in
+pipeline.ini file (configuration file).
+This pipeline performs two steps:
+-----------
+First step: Preprocessing of gene list(expression data set)
+-----------       Note: Input gene list should be tab delimited file.
+                        First line of dataset will be considered as
+                        header.Suffix of file name should be ".gene.tsv"
+                        Id type of gene list and gene set should match
+                        with each other.
+                        Annotations from a Database:(to translate genelist)
+                                 AnnotationSets are predominantly generated from a database using an
+                                 AnnotationParser method.
+                                 The Database is generated using the pipeline pipeline_geneinfo.py.
+                                 This database is required to run pipeline_enrichment.
+            It translates input gene list in to required id type.
+            (Available options are specified in .ini file) ,sorts
+            the gene list on the basis of provided ranking metric.
+            It also removes all duplicate ids and generates report.
+            This report provides summary of preprocessing steps of
+            the gene list provided and lists duplicate gene id that
+            were discarded.
+            New gene list file (after preprocessing is created in a folder
+            having same name as gene list file name. This new file is used
+            for further analysis.
+------------
+Second step: Call runGSEA.py script file for enrichemnt analysis
+-----------
+This script will perform the enrichment analysis, by using gene set enrichment analysis
+(GSEA) and leading edge analysis.
+            "Leading edge are defined as genes that are common to multiple
+             significantly enriched gene sets  and  coordinately  enriched
+             in a phenotypic comparison of interest.They represent a rich
+             source of biologically important  genes."
+-----
+It takes two input files:
+      1. Ranked list of genes (Preprocessed Expression data set file,
+                               created by first step of pipeline).
+      2. Gene set
+          - A gene sets file defines one or more gene sets. For each gene
+            set,the file contains the gene set name and the list of genes in
+            that gene set. A gene sets file is a tab-delimited text file in
+            gmx or gmt format. For descriptions and examples of each file
+            format please refer to:
+            http://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats
+
+          - The Molecular Signatures Database (MSigDB)
+            (http://software.broadinstitute.org/gsea/msigdb/index.jsp)
+            is a collection of annotated gene sets, which can be used for gene
+            set enrichment analysis.OR you can create your own gene set in gmt
+            or gmx format.
+      3. Rest of the parameters can be specified in to pipeline.ini configuration
+         file. Every parameter is set to deafult value.
 
 
+This script will summarize the analysis in the following format:
+       1. GSEA Statistics
+       2. GSEA Report
+       3. Leading edge analysis report
 
+example
+-------
 
+The way the test is ran:
+cgat runGSEA -f "Expression_data.tsv" -g "Gene_set.gmt" -n 10 -d 1 -l 4
 
+Default run conditions:
+cgat runGSEA -f "Expression_data.tsv" -g "Gene_set.gmt"
 
+--------------
+GSEA Statistics
+---------------
+It includes following statistics for GSEA(for each phenotype):
+          - Enrichment Score (ES)
+          - Normalized Enrichment Score (NES)
+          - False Discovery Rate (FDR)
+          - Nominal P Value
+
+--------------
+GSEA reports
+--------------
+	- Global Statistics and Plots include:
+	    a) Enrichment plot,
+            b) Three separate bar plots that provide a quick overview of top 20 (this number is user defined)
+	       enriched upregulated, downregulated and overall enriched genesets on the basis of their FDR values.
+            c) Global distribution of normalized enrichment score
+            d) Global distribution of normalized enrichment score with corresponding FDR q values and p values.
+        - Reports:
+		1 - Enrichment in Phenotype (of up and downregulated genes)
+           	  This report provides summary of enrichment analysis of each phenotype.
+            	  It includes details of which genesets are up and downregulated and a summary
+	    	  of significant enriched gensets on the basis of FDR and p values.)
+         	2 - Gene Set Details
+                  This report provides summary of preprocessing steps of the genesets provided and
+	   	  lists genes sets that were used in the anlysis and which one were discarded due to set thresholds
+         	3 - Detailed Enrichment Results
+         	  This report provides detail statistics of each geneset(for each phenotype). Three reports are
+         	  generated. report for uoregulated genesets, downregulated genesets, and enriched genesets organised
+         	  on the basis of their FDR values.
+
+	    By default, enrichment plot for top 20 gene sets will be reported.
+----------------------------
+Leading edge analysis report
+----------------------------
+It will report graphs that help you visualize the overlap between the selected leading edge subsets. It also
+summarises the analysis in the form of reports. By default top 10 enriched genesets will be used for leading edge analysis.
+	- Leading edge plots include:
+             a) Heat Map(unclustered)
+          	This provides an overview of overlap between leading edge subsets
+             b) Heat Map(clustered)
+          	This heat map will be generated after hierarchical clustering of leading edge subset. It will
+          	show you clustered genes among subsets
+       	     c) Set-to-Set Heat Map
+                This plot help you to visualize intensity of overlap between subsets (i.e. the extent of overlap between two genesets)
+             d) Dendogram to illustrate the arrangement of the clusters produced by hierarchical clustering.
+         - Reports:
+             1- Leading_edge_summary_report: summary of genesets and corresponding enrichment statistics that were used for the leading edge analysis.
+             2- Leading edge matrix (gmx) file provides detailed information on leading edge analysis genesets
+                (i.e. participating genes in each gene set).
+             3- Leading edge (gct,cluster format) files for unclustered and clustered gene set. It is a boolean matrix.
+                that can be used as an input into other resources for additional analysis as this is ideal format for cluster representation
+                (in GSEA)
+For details on the algorithm please refer to
+Subramanian, Tamayo, et al. (2005, PNAS 102, 15545-15550)
+                    and
+Mootha, Lindgren, et al. (2003, Nat Genet 34, 267-273).
 
 ----------------------------------------------------------------------------
-ORA analysis
+       Enrichment analysis (Overrepresentative analysis(ORA))
 ----------------------------------------------------------------------------
 This pipeline calculates if any of a list of "terms" (any list of identifiers
 which has been mapped to correspond to a list of genes) are significantly
@@ -142,9 +271,8 @@ Statistical tests for enrichment are called by the EnrichmentTester class
 and specified as StatsTest subclasses.  The test type, multiple testing
 correction and signficance threshold are specified in the pipeline.ini.
 (Only FisherExactTest currently implemented)
+'''
 
-
-"""
 from ruffus import *
 from ruffus.combinatorics import *
 import os
@@ -173,6 +301,7 @@ outfilesuffixes = ["_genestoterms.tsv",
                    "_termstogenes.tsv",
                    "_termstodetails.tsv",
                    "_termstoont.tsv"]
+
 unmappedouts = [["annotations.dir/%s%s" % (u, s)
                  for s in outfilesuffixes]
                 for u in unmapped]
@@ -182,8 +311,9 @@ hpatissues = ['clean_backgrounds.dir/%s_hpa_background.tsv'
               % tissue.replace(" ", "_") for tissue in hpatissues]
 
 ########################################################
-# set up database connection
+# Set up database connection
 ########################################################
+
 
 def connect():
     '''utility function to connect to database.
@@ -204,16 +334,14 @@ def connect():
     return dbh
 
 ########################################################
-# Define input files for GSEA
+#           Enrichment analysis(GSEA)
 ########################################################
-
+'''
+   Define input files.
+'''
 GSEASUFFIXES = ("*.gene.tsv")
-
 GSEAFILES_REGEX = regex(r"(.*).gene.tsv$")
 
-#########################################################
-# start of GSEA tasks
-#########################################################
 
 @active_if(PARAMS['analysis_gsea'] == 1)
 @follows(mkdir("gsea_processed.dir"))
@@ -222,7 +350,9 @@ GSEAFILES_REGEX = regex(r"(.*).gene.tsv$")
            r"gsea_processed.dir/\1.processed")
 def preprocessGsea(infile, outfile):
     '''
-    
+    Preprocessing of gene list(expression data set)
+    (Translate gene list,rank them on the basis of
+     ranking metric and remove duplicate ids.)
     '''
     dbname = PARAMS['db_gsea_name']
     idtype = PARAMS['id_gsea_type']
@@ -234,14 +364,16 @@ def preprocessGsea(infile, outfile):
                                            id_conversion,
                                            outfile)
 
+
 @active_if(PARAMS['analysis_gsea'] == 1)
 @follows(preprocessGsea)
 @transform(preprocessGsea,
            regex("gsea_processed.dir/(.*).processed$"),
            r"\1.dir/CGAT_Gene_set_details.tsv")
-def runGsea(infile,outfile):
+def runGsea(infile, outfile):
     '''
-
+    Perform the enrichment analysis, by using gene set enrichment analysis
+    (GSEA) and leading edge analysis.
     '''
     geneset = PARAMS['geneset_name']
     idtype = PARAMS['id_gsea_type']
@@ -255,14 +387,14 @@ def runGsea(infile,outfile):
     statement = '''basename %(infile)s .processed |
                    awk '{split($0,a,"/"); print a[1]}'
                    | xargs mkdir; cd $(basename %(infile)s .processed | awk '{split($0,a,"/"); print a[1]}')
-                   ; python /ifs/devel/reshma/py35-v1/cgat/CGAT/scripts/runGSEA.py 
+                   ; python /ifs/devel/reshma/py35-v1/cgat/CGAT/scripts/runGSEA.py
                    -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
                    -s %(seed)s -n %(no)s -d %(p_no)s -l %(l_no)s'''
     P.run()
 
-#####################################################################################
-# ORA functions start here
-#####################################################################################
+##########################################################################
+#                 Enrichment analysis (ORA)
+##########################################################################
 
 
 @active_if(PARAMS['analysis_ora'] == 1)
@@ -282,6 +414,7 @@ def getDBAnnotations(infile, outfiles):
     dbname = PARAMS['db_name']
     PipelineEnrichment.getDBAnnotations(infile, outfiles, dbname, submit=True)
 
+
 @active_if(PARAMS['analysis_ora'] == 1)
 @follows(getDBAnnotations)
 @originate(unmappedouts)
@@ -299,6 +432,7 @@ def mapUnmappedAnnotations(outfiles):
     outstem2 = outfiles[0].replace("_genestoterms.tsv", "")
     PipelineEnrichment.getFlatFileAnnotations(substatement, outstem2, dbname)
 
+
 @active_if(PARAMS['analysis_ora'] == 1)
 @follows(mkdir("clean_foregrounds.dir"))
 @transform("foregrounds.dir/*.tsv", regex("foregrounds.dir/(.*).tsv"),
@@ -312,6 +446,7 @@ def cleanForegrounds(infile, outfile):
     E.info(idtype)
     PipelineEnrichment.cleanGeneLists(infile, outfile, idtype, dbname,
                                       submit=True)
+
 
 @active_if(PARAMS['analysis_ora'] == 1)
 @follows(mkdir("clean_backgrounds.dir"))
@@ -327,6 +462,7 @@ def cleanUserBackgrounds(infile, outfile):
     dbname = PARAMS['db_name']
     PipelineEnrichment.cleanGeneLists(infile, outfile, idtype, dbname,
                                       submit=True)
+
 
 @active_if(PARAMS['analysis_ora'] == 1)
 @follows(cleanUserBackgrounds)
@@ -345,6 +481,7 @@ def buildHPABackground(outfile):
                                      outfile,
                                      submit=True)
 
+
 @active_if(PARAMS['analysis_ora'] == 1)
 @follows(mapUnmappedAnnotations)
 @merge("annotations.dir/*_genestoterms.tsv",
@@ -357,6 +494,7 @@ def buildStandardBackground(infiles, outfile):
     '''
     statement = "cut -f1 %s | sort | uniq > %s" % (" ".join(infiles), outfile)
     P.run()
+
 
 @active_if(PARAMS['analysis_ora'] == 1)
 @follows(buildHPABackground)
@@ -396,6 +534,7 @@ def foregroundsVsBackgrounds(infiles, outfiles):
                                                 PARAMS['id_type'],
                                                 submit=True)
 
+
 @active_if(PARAMS['analysis_ora'] == 1)
 @follows(mkdir("barcharts.dir"))
 @transform(foregroundsVsBackgrounds,
@@ -423,8 +562,8 @@ def makeBarCharts(infiles, outfile):
         out.close()
 
 
-@follows(mkdir("cytoscape.dir"))
 @active_if(PARAMS['analysis_ora'] == 1)
+@follows(mkdir("cytoscape.dir"))
 @transform(foregroundsVsBackgrounds,
            regex("results.dir/(.*)(_go|_reactome)(_all_results.tsv)"),
            r"cytoscape.dir/\1\2.tsv")
@@ -482,6 +621,7 @@ def publish_report():
 
     E.info("publishing report")
     P.publish_report()
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
