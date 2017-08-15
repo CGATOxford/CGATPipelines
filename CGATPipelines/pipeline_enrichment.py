@@ -1,12 +1,7 @@
-'''===========================
-Pipeline Enrichment
-===========================
+'''
+PipelineEnrichmentGSEA.py
+=============================================
 
-This pipeline runs two different types of enrichment analysis.
-
----------------------------------------------------------------------------
-        Enrichment Analysis (Gene set enrichment analysis (GSEA))
----------------------------------------------------------------------------
 :Tags: Python
 
 Usage
@@ -15,30 +10,28 @@ This pipeline is a wrapper of script runGSEA.py (enrichment analysis
                                                 by using GSEA. Further
                                                 description is provided
                                                 below.)
-To run this pipeline, one need to specify required parameteres in
+To run this pipeline, one needs to specify required parameteres in
 pipeline.ini file (configuration file).
-This pipeline performs two steps:
+This pipeline entails steps:
 -----------
 First step: Preprocessing of gene list(expression data set)
------------       Note: Input gene list should be tab delimited file.
-                        First line of dataset will be considered as
-                        header.Suffix of file name should be ".gene.tsv"
-                        Id type of gene list and gene set should match
-                        with each other.
-                        Annotations from a Database:(to translate genelist)
-                                 AnnotationSets are predominantly generated from a database using an
-                                 AnnotationParser method.
-                                 The Database is generated using the pipeline pipeline_geneinfo.py.
-                                 This database is required to run pipeline_enrichment.
-            It translates input gene list in to required id type.
-            (Available options are specified in .ini file) ,sorts
+----------- Note: 1. Input gene list should be tab delimited file.
+                  	a. First line of dataset will be considered as
+                  	   header. Suffix of file name should be ".gene.tsv"
+                  	b. Gene ids within gene list and gene set should be the same
+                   2. Annotations from a Database:(to convert genelists)
+                         a. AnnotationSets are predominantly generated from a database using an
+                            AnnotationParser method.
+                         b. The Database is generated using the pipeline pipeline_geneinfo.py.
+                            This database is required to run pipeline_enrichment.
+            Input gene list is translated into required id type.
+            (Available options are specified in .ini file), sorts
             the gene list on the basis of provided ranking metric.
             It also removes all duplicate ids and generates report.
-            This report provides summary of preprocessing steps of
-            the gene list provided and lists duplicate gene id that
-            were discarded.
-            New gene list file (after preprocessing is created in a folder
-            having same name as gene list file name. This new file is used
+            A summary of preprocessing steps of the gene list is provided and lists
+	    of duplicate gene ids that were discarded is also listed.
+            A new gene list file (after preprocessing is created in a folder
+            that has the same name as gene list file name. This new file is used
             for further analysis.
 ------------
 Second step: Call runGSEA.py script file for enrichemnt analysis
@@ -332,6 +325,7 @@ def connect():
     cc.close()
 
     return dbh
+
 
 ########################################################
 #           Enrichment analysis(GSEA)
