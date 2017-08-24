@@ -1485,7 +1485,9 @@ class SubsetRandom(Mapper):
         '''count number of reads by counting number of lines
         in fastq files.
         '''
-        limit = self.limit * 4  # 4 lines per fastq entry
+        # This used to be multiplied by 4 but this is a mistake - as the each line of the fastq
+        # is pasted into a single line before counting
+        limit = self.limit
         statement = []
         output_prefix = P.snip(outfile, ".subset")
         assert len(infiles) == 1
