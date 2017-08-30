@@ -2382,13 +2382,16 @@ def plotLdExcludedEpistasis(infile, outfile):
 def mergeLdExclusions(infiles, outfile):
     '''
     Merge together all of the LD exclusions for
-    epistasis testing with cassi
+    epistasis testing with cassi,
+    need to exclude the epistasis target snps
     '''
 
+    snps = [fx.split("/")[-1].split(".")[0] for fx in infiles]
+    snp_grep = "|".join(['{}'.format(snp) for snp in snps])
     exclude = " ".join(infiles)
 
     statement = '''
-    cat %(exclude)s >> %(outfile)s
+    cat %(exclude)s | grep -P  -v "(%(snp_grep)s)" >> %(outfile)s
     '''
 
     P.run()
@@ -3549,6 +3552,7 @@ def plotLocusZoom(infile, outfile):
     --prefix %(outpattern)s
     > %(outpattern)s.log;
     cd ../ ;
+    rm -rf ld_cache.db
     '''
 
     P.run()

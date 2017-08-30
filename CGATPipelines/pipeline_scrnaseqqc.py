@@ -480,7 +480,7 @@ def loadSailfishCounts(infile, outfile):
 
 BAMDIR = PARAMS['bam_dir']
 BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
-BAMREGEX = regex(r".*/(.+)_(.+)_(.+).bam$")
+BAMREGEX = regex(r".*/(.+)-(.+)-(.+).bam$")
 
 
 @follows(mkdir("dedup.dir"))
