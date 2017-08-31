@@ -1,11 +1,10 @@
 '''
-PipelineEnrichmentGSEA.py
-=============================================
-
 :Tags: Python
 
 Usage
------
+-----------------------------------------------------------------------
+       Enrichment analysis (Gene set enrichment analysis(GSEA))
+-----------------------------------------------------------------------
 This pipeline is a wrapper of script runGSEA.py (enrichment analysis
                                                 by using GSEA. Further
                                                 description is provided
