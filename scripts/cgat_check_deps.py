@@ -43,7 +43,6 @@ import os
 import sys
 import re
 import ast
-import subprocess
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
 
