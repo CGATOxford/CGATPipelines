@@ -3,7 +3,6 @@ from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 
 
-
 ###################################################################
 ###################################################################
 # parameterization

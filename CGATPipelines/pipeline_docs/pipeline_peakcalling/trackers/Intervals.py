@@ -1,7 +1,6 @@
 from PeakcallingReport import *
 
 
-
 class FoldChangeTracker(TrackerSQL):
 
     '''the fold change tracker ignores unstimulated tracks.'''

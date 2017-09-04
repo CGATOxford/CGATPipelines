@@ -251,7 +251,6 @@ def plotPhenotypeData(infile, outfile):
     '''
 
 
-
 @follows(loadPhenotypes,
          plotPhenotypeData)
 @transform(formatPhenotypeData,
