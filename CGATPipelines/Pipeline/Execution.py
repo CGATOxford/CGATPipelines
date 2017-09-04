@@ -26,7 +26,7 @@ from CGAT.IOTools import snip as snip
 
 from CGATPipelines.Pipeline.Utils import getCallerLocals
 from CGATPipelines.Pipeline.Parameters import substituteParameters
-from CGATPipelines.Pipeline.Files import getTempFilename, getTempFile
+from CGATPipelines.Pipeline.Files import getTempFilename
 from CGATPipelines.Pipeline.Cluster import *
 
 # talking to a cluster

@@ -838,7 +838,6 @@ def exportMotifLocations(infiles, outfile):
          loadIntervals)
 def full():
     '''run the full pipeline.'''
-    pass
 
 
 @follows(mkdir("report"))

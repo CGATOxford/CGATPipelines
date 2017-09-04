@@ -67,15 +67,12 @@ Code
 """
 from ruffus import *
 from ruffus.combinatorics import *
-import re
 import sys
 import os
 import glob
-import itertools
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
-import CGATPipelines.PipelineTracks as PipelineTracks
 
 # load options from the config file
 PARAMS = P.getParameters(

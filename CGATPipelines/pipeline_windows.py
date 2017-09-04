@@ -1947,7 +1947,6 @@ def diff_windows():
     '''
     Records when all differential expression analysis is complete
     '''
-    pass
 
 
 @transform(DIFFTARGETS, suffix(".gz"), ".cpg.tsv.gz")
@@ -2466,7 +2465,6 @@ def dmr():
     '''
     Records when all DMR analysis in pipeline is complete.
     '''
-    pass
 
 
 @follows(mergeDMRWindows)
@@ -2729,7 +2727,6 @@ def buildTranscriptProfiles(infiles, outfile):
 @follows(loadTagContextOverlap, loadSummarizedContextStats)
 def context():
     """Indicates that the context_stats part of the pipeline is complete"""
-    pass
 
 
 @follows(buildTranscriptProfiles,

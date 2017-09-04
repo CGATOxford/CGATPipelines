@@ -42,7 +42,6 @@ Reference
 import shutil
 import random
 import re
-import glob
 import os
 import collections
 import sqlite3

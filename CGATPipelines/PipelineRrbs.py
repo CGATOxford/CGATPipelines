@@ -34,7 +34,6 @@ Code
 import os
 import re
 import sqlite3
-import collections
 import itertools
 import copy
 import CGATPipelines.Pipeline as P

@@ -243,11 +243,8 @@ from ruffus import *
 from ruffus.combinatorics import *
 import sys
 import os
-import re
-import csv
 import math
 import sqlite3
-import glob
 import shutil
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
@@ -256,15 +253,8 @@ import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
 import CGAT.BamTools as Bamtools
 import CGAT.Database as DB
-import itertools
 import pandas as pd
 import numpy as np
-import rpy2
-from rpy2.robjects import r as R
-import rpy2.robjects as ro
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.packages import importr
-import matplotlib
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -585,7 +575,6 @@ def loadPicardStats(infiles, outfile):
 def filtering():
     ''' dummy task to allow all the filtering of bams & collection of stats
     '''
-    pass
 
 
 # ### Make bigwigs of filtered bam files #####################################
@@ -712,7 +701,6 @@ else:
         '''
         Dummy task if IDR not requested.
         '''
-        pass
 
     @active_if(PARAMS['input'] != 0)
     @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
@@ -842,7 +830,6 @@ elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] == 1:
         If IDR is going to be run, pooled inputs are generated above so
         they don't need to be generated again if requested.
         '''
-        pass
 
 
 @follows(makeIDRInputBams,
@@ -932,7 +919,6 @@ def preprocessing(infile, outfile):
     Dummy task to ensure all preprocessing has run and
     bam files are passed individually to the next stage.
     '''
-    pass
 
 #################################################################
 # 3) Peakcalling
@@ -1645,7 +1631,6 @@ def makeCHIPQCInputTables(infiles, outfiles):
 @follows(filtering, peakcalling, IDR)
 def full():
     ''' runs entire pipeline '''
-    pass
 
 
 ###############################################################
@@ -1771,7 +1756,6 @@ def buildNotebookIndex(outfile):
          buildNotebookIndex)
 def buildNotebooks():
     '''build notebooks'''
-    pass
 
 ##############################################################################
 

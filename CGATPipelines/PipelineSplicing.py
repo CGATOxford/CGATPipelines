@@ -52,7 +52,6 @@ Requirements
 
 '''
 
-from ruffus import *
 import os
 import random
 import itertools

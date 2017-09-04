@@ -1,8 +1,4 @@
 import os
-import sys
-import re
-import types
-import itertools
 import IOTools
 from CGATReport.Tracker import *
 from CGATReport.odict import OrderedDict as odict

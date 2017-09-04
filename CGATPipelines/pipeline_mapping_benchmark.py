@@ -306,13 +306,11 @@ def loadPicardAlignStats(infiles, outfile):
          loadPicardDuplicateStats, buildBAMStats, loadBAMStats)
 def mapReads():
     '''Align reads to target genome.'''
-    pass
 
 
 @follows(mapReads)
 def full():
     '''run the full pipeline.'''
-    pass
 
 ############################################################
 ############################################################
