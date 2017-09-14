@@ -1,13 +1,7 @@
-import os
-import sys
-import re
-import types
-import itertools
 import glob
 import PipelineTracks
 
 from CGATReport.Tracker import *
-from CGATReport.odict import OrderedDict as odict
 from CGATReport.Utils import PARAMS as P
 
 EXPORTDIR = P['cpg_exportdir']

@@ -1,7 +1,5 @@
 from PeakcallingReport import *
 
-import CGAT.IOTools
-
 
 class FoldChangeTracker(TrackerSQL):
 

@@ -10,7 +10,6 @@ PipelineTransfacMatch.py
 ################
 import re
 import os
-import CGAT.IOTools as IOTools
 import sqlite3
 import collections
 import CGATPipelines.Pipeline as P

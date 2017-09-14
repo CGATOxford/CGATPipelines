@@ -1863,7 +1863,6 @@ for x in P.asList(PARAMS["mappers"]):
 @follows(*MAPPINGTARGETS)
 def mapping():
     ''' dummy task to define upstream mapping tasks'''
-    pass
 
 
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:

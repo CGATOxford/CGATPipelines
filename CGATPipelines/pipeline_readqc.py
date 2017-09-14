@@ -169,7 +169,6 @@ def connect():
 @transform(INPUT_FORMATS, regex("(.*)"), r"\1")
 def unprocessReads(infiles, outfiles):
     """dummy task - no processing of reads."""
-    pass
 
 
 # if preprocess tools are specified, preprocessing is done on output that has
@@ -315,7 +314,6 @@ else:
     @follows(mkdir("processed.dir"))
     def processReads():
         """dummy task - no processing of reads."""
-        pass
 
 
 @active_if(PARAMS["general_reconcile"] == 1)

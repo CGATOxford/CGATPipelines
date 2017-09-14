@@ -2,7 +2,6 @@ import pandas as pd
 import CGAT.IOTools as IOTools
 import sqlite3
 import os
-import rpy2
 import copy
 import rpy2.robjects as robjects
 import rpy2.interactive as r

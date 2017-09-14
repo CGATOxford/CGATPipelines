@@ -1,19 +1,7 @@
-import os
-import sys
-import re
-import types
-import itertools
-import glob
 
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
-from collections import OrderedDict as odict
 
-import CGAT.IOTools as IOTools
-import CGAT.Stats as Stats
-
-from CGATReport.ResultBlock import ResultBlock, ResultBlocks
-from CGATReport import Utils
 
 ###################################################################
 ###################################################################

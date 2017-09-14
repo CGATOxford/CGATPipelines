@@ -1,13 +1,6 @@
-import os
-import sys
-import re
-import types
-import itertools
-import glob
 
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
-from collections import OrderedDict as odict
 
 EXPORTDIR = P.get('motifs_exportdir',
                   P.get('report_exportdir', "export"))

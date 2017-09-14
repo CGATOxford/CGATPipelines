@@ -577,7 +577,6 @@ import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.IOTools as IOTools
-import CGAT.GTF as GTF
 import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
@@ -2861,7 +2860,6 @@ def loadIntervalSummary(infile, outfile):
          buildCpGBed)
 def assembly():
     """convenience target : assembly derived annotations"""
-    pass
 
 
 @follows(buildGeneSet,
@@ -2882,7 +2880,6 @@ def assembly():
          )
 def ensembl():
     """convenience target : ENSEMBL geneset derived annotations"""
-    pass
 
 
 @follows(buildPeptideFasta,
@@ -2890,7 +2887,6 @@ def ensembl():
          buildCDNAFasta)
 def fasta():
     """convenience target : sequence collections"""
-    pass
 
 
 @follows(buildTranscriptRegions,
@@ -2903,7 +2899,6 @@ def fasta():
          buildIntergenicRegions)
 def geneset():
     """convenience target : geneset derived annotations"""
-    pass
 
 
 @follows(importRepeatsFromUCSC,
@@ -2913,7 +2908,6 @@ def geneset():
          countTotalRepeatLength)
 def ucsc():
     """convenience target : UCSC derived annotations"""
-    pass
 
 
 # annotation targets are only intrinsic data sets
@@ -2925,7 +2919,6 @@ def ucsc():
          annotateGenome)
 def annotations():
     """convenience target : gene based annotations"""
-    pass
 
 
 # enrichment targets include extrinsic data sets such
@@ -2935,20 +2928,17 @@ def annotations():
          buildGenomicFunctionalAnnotation)
 def enrichment():
     """convenience target : annotations for enrichment analysis"""
-    pass
 
 
 @follows(loadGOAssignments,
          loadKEGGAssignments)
 def ontologies():
     """convenience target : ontology information"""
-    pass
 
 
 @follows(_gwas)
 def gwas():
     """convenience target : import GWAS data"""
-    pass
 
 
 @follows(loadGTFStats,
@@ -2956,7 +2946,6 @@ def gwas():
          loadIntervalSummary)
 def summary():
     '''convenience target : summary'''
-    pass
 
 
 # @follows(calculateMappability, countMappableBases,
@@ -2979,7 +2968,6 @@ def summary():
          gwas)
 def full():
     '''build all targets - note: run summary separately afterwards.'''
-    pass
 
 ###################################################################
 ###################################################################

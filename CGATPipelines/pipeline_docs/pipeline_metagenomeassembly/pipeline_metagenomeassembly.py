@@ -137,21 +137,18 @@ Code
 from ruffus import *
 
 import Experiment as E
-import logging as L
-import Database, CSV
 
-import sys, os, re, shutil, itertools, math, glob, time, gzip, collections, random
+import collections
+import glob
+import os
+import re
+import sys
 
-import numpy, sqlite3
-import GFF, GTF, IOTools, IndexedFasta
+import sqlite3
+import IOTools
 from rpy2.robjects import r as R
-import rpy2.robjects as ro
-import rpy2.robjects.vectors as rovectors
-from rpy2.rinterface import RRuntimeError
 import PipelineMapping
 import PipelineGenomeAssembly
-import FastaIterator
-import metaphlan_utils
 import PipelineMapping
 import PipelineMappingQC
 

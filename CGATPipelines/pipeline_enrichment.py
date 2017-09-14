@@ -276,7 +276,6 @@ import CGATPipelines.PipelineGSEnrichment as PipelineEnrichment
 import CGATPipelines.PipelineEnrichmentGSEA as PipelineGSEA
 import CGAT.IOTools as IOTools
 import pandas as pd
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from textwrap import wrap

@@ -1,9 +1,8 @@
 #!/bin/env python
 
-import web, os
+import web
 
 from CGATReport import Cache
-from CGATReport import Utils
 from CGATReport import DataTree
 
 urls = ( '/data/(.*)', 'DataTable',

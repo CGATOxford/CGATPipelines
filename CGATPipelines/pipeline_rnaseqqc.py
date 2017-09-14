@@ -177,7 +177,6 @@ import pandas as pd
 import numpy as np
 import itertools
 from scipy.stats import linregress
-import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import seaborn as sns
@@ -192,7 +191,6 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.Pipeline as P
-import CGATPipelines.PipelineRnaseq as PipelineRnaseq
 
 import json
 
