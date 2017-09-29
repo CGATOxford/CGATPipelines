@@ -3551,8 +3551,8 @@ def plotLocusZoom(infile, outfile):
     --refsnp %(snp)s
     --prefix %(outpattern)s
     > %(outpattern)s.log;
-    cd ../ ;
-    rm -rf ld_cache.db
+    rm -rf ld_cache.db;
+    cd ../;
     '''
 
     P.run()
