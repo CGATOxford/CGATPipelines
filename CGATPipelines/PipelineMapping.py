@@ -1,9 +1,6 @@
 '''PipelineMapping.py - Utility functions for mapping short reads
 ==============================================================
 
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Mapping reads is a common task in pipelines. Different pipelines
 combine different sources of input (:term:`fastq` files, :term:`sra`
@@ -85,7 +82,6 @@ import os
 import glob
 import collections
 import re
-import gzip
 import itertools
 import CGATPipelines.Pipeline as P
 import logging as L
@@ -183,7 +179,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
     ---------
     infile : string
        Input filename in :term:`gtf` format
-#    outfile : string
+    outfile : string
        Output filename in :term:`gtf` format
     logfile : string
        Output filename for logging information.
@@ -209,7 +205,7 @@ def mergeAndFilterGTF(infile, outfile, logfile,
 
     c = E.Counter()
 
-    outf = gzip.open(outfile, "w")
+    outf = IOTools.openFile(outfile, "w")
 
     E.info("filtering by contig and removing long introns")
     contigs = set(IndexedFasta.IndexedFasta(genome).getContigs())
@@ -343,8 +339,8 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     outfile : string
        Output filename in :term:`gtf` format
     """
-    tmpfile1 = P.getTempFilename(".")
-    tmpfile2 = P.getTempFilename(".")
+    tmpfile1 = P.getTempFilename(shared=True)
+    tmpfile2 = P.getTempFilename(shared=True)
 
     #################################################
     E.info("adding tss_id and p_id")
@@ -361,14 +357,19 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     # files
     job_memory = "5G"
 
+    if infile.endswith(".gz"):
+        cat = "zcat"
+    else:
+        cat = "cat"
+    
     statement = '''
-    cuffcompare -r <( gunzip < %(infile)s )
+    cuffcompare -r <( %(cat)s %(infile)s )
          -T
          -s %(genome)s.fa
          -o %(tmpfile1)s
-         <( gunzip < %(infile)s )
-         <( gunzip < %(infile)s )
-    > %(outfile)s.log
+         <( %(cat)s %(infile)s )
+         <( %(cat)s %(infile)s )
+    >& %(outfile)s.log
     '''
     P.run()
 
@@ -421,10 +422,10 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     PipelineGeneset.sortGTF(tmpfile2, outfile)
 
     # make sure tmpfile1 is NEVER empty
-    assert tmpfile1
-    for x in glob.glob(tmpfile1 + "*"):
-        os.unlink(x)
-    os.unlink(tmpfile2)
+    # assert tmpfile1
+    # for x in glob.glob(tmpfile1 + "*"):
+    #     os.unlink(x)
+    # os.unlink(tmpfile2)
 
 
 class SequenceCollectionProcessor(object):
@@ -964,8 +965,6 @@ class Mapper(SequenceCollectionProcessor):
                  remove_non_unique=False,
                  tool_options="",
                  *args, **kwargs):
-        '''
-       '''
         SequenceCollectionProcessor.__init__(self, *args, **kwargs)
 
         if executable:
@@ -1485,7 +1484,9 @@ class SubsetRandom(Mapper):
         '''count number of reads by counting number of lines
         in fastq files.
         '''
-        limit = self.limit * 4  # 4 lines per fastq entry
+        # This used to be multiplied by 4 but this is a mistake - as the each line of the fastq
+        # is pasted into a single line before counting
+        limit = self.limit
         statement = []
         output_prefix = P.snip(outfile, ".subset")
         assert len(infiles) == 1

@@ -1,10 +1,6 @@
 '''cgat_cluster_distribute.py - distribute files to cluster nodes
 =================================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

@@ -83,9 +83,12 @@ pprint "filename" "nlines" "md5"
 for file in `awk '{print $1;}' $md5file $linesfile $existfile | sort -u` ; do
 
    awkfile=$(echo $file | sed 's/\//\\\//g')
+   #echo -e ">>>: "$awkfile
    md5="" && nlines=""
-   [[ -r "$md5file"   ]] && md5=`awk '/'$awkfile'/ { print $2; }' $md5file`
-   [[ -r "$linesfile" ]] && nlines=`awk '/'$awkfile'/ { print $2; }' $linesfile`
+   [[ -r "$md5file"   ]] && md5=`awk '/'$awkfile'\t/ { print $2; }' $md5file`
+   [[ -r "$linesfile" ]] && nlines=`awk '/'$awkfile'\t/ { print $2; }' $linesfile`
+   #echo -e ">>>: "$md5
+   #echo -e ">>>: "$nlines
 
    [[ -z "$nlines" ]] && [[ -z "$md5" ]] && pprint $file "-1" "-1"
    [[ -z "$nlines" ]] && [[ -n "$md5" ]] && pprint $file "-1" $md5

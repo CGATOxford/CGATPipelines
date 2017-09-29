@@ -1,25 +1,3 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Group
-#
-#   $Id$
-#
-#   Copyright (C) 2009 Andreas Heger
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
 """Files.py - Working with files in ruffus pipelines
 ====================================================
 
@@ -36,11 +14,14 @@ import CGAT.IOTools as IOTools
 PARAMS = {}
 
 
-def getTempFile(dir=None, shared=False, suffix=""):
+def getTempFile(dir=None, shared=False, suffix="", mode="w+", encoding="utf-8"):
     '''get a temporary file.
 
-    The file is created and the caller needs to close and delete
-    the temporary file once it is not used any more.
+    The file is created and the caller needs to close and delete the
+    temporary file once it is not used any more. By default, the file
+    is opened as a text file (mode ``w+``) with encoding ``utf-8``
+    instead of the default mode ``w+b`` used in
+    :class:`tempfile.NamedTemporaryFile`
 
     Arguments
     ---------
@@ -57,6 +38,7 @@ def getTempFile(dir=None, shared=False, suffix=""):
     -------
     file : File
         A file object of the temporary file.
+
     '''
     if dir is None:
         if shared:
@@ -64,7 +46,11 @@ def getTempFile(dir=None, shared=False, suffix=""):
         else:
             dir = PARAMS['tmpdir']
 
-    return tempfile.NamedTemporaryFile(dir=dir, delete=False, prefix="ctmp",
+    return tempfile.NamedTemporaryFile(dir=dir,
+                                       delete=False,
+                                       prefix="ctmp",
+                                       mode=mode,
+                                       encoding=encoding,
                                        suffix=suffix)
 
 

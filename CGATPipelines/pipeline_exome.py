@@ -3,10 +3,6 @@
 Exome pipeline
 ====================
 
-:Author: David Sims & Kath Fawcett
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The exome pipeline imports unmapped reads from one or more fastq or
 sra files and aligns them to the genome using BWA.  Post alignment
@@ -167,13 +163,11 @@ Code
 # load modules
 from ruffus import *
 from ruffus.combinatorics import *
-from rpy2.robjects import r as R
 import sys
 import os
 import csv
 import glob
 import re
-import sqlite3
 import shutil
 import CGAT.Experiment as E
 import CGAT.IOTools as IOTools
@@ -184,7 +178,6 @@ import CGATPipelines.PipelineExome as PipelineExome
 import PipelineExomeAncestry as PipelineExomeAncestry
 import decimal
 import pandas as pd
-import numpy as np
 
 ###############################################################################
 ###############################################################################

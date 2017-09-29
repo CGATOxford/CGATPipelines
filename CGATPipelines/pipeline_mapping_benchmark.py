@@ -2,10 +2,6 @@
 Read Mapping parameter titration pipeline
 =========================================
 
-:Author: David Sims 
-:Release: $Id: mapping_titration.py 2900 2011-05-24 14:38:00Z david $
-:Date: |today|
-:Tags: Python
 
    * align reads to the genome using a range of different parameters
    * calculate alignment statistics
@@ -310,13 +306,11 @@ def loadPicardAlignStats(infiles, outfile):
          loadPicardDuplicateStats, buildBAMStats, loadBAMStats)
 def mapReads():
     '''Align reads to target genome.'''
-    pass
 
 
 @follows(mapReads)
 def full():
     '''run the full pipeline.'''
-    pass
 
 ############################################################
 ############################################################

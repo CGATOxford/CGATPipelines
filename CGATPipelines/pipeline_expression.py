@@ -2,10 +2,6 @@
 pipeline_expression.py - analysis of expression data
 ====================================================
 
-:Author: Andreas Heger
-:Release: $Id: pipeline_vitaminD.py 2870 2010-03-03 10:20:29Z andreas $
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------
@@ -28,8 +24,6 @@ Code
 
 """
 import sys
-import shutil
-import csv
 import re
 import glob
 import os
@@ -46,7 +40,6 @@ import CGAT.IOTools as IOTools
 import gzip
 import CGAT.Expression as Expression
 
-import rpy2
 from rpy2.robjects import r as R
 
 if os.path.exists("conf.py"):

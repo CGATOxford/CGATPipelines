@@ -1,25 +1,3 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Group
-#
-#   $Id$
-#
-#   Copyright (C) 2009 Andreas Heger
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
 """Control.py - Command line control for ruffus pipelines
 =========================================================
 
@@ -48,10 +26,7 @@ import subprocess
 import sys
 import tempfile
 import time
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import io
 
 from multiprocessing.pool import ThreadPool
 
@@ -369,17 +344,22 @@ def peekParameters(workingdir,
 
     # process.stdin.close()
     stdout, stderr = process.communicate()
-
     if process.returncode != 0:
         raise OSError(
             ("Child was terminated by signal %i: \n"
-             "The stderr was: \n%s\n") %
-            (-process.returncode, stderr))
+             "Statement: %s\n"
+             "The stderr was: \n%s\n"
+             "Stdout: %s") %
+            (-process.returncode, statement, stderr, stdout))
 
-    dump = None
-    for line in stdout.split("\n"):
-        if line.startswith("dump"):
-            exec(line)
+    # subprocess only accepts encoding argument in py >= 3.6 so
+    # decode here.
+    stdout = stdout.decode("utf-8").splitlines()
+    # remove any log messages
+    stdout = [x for x in stdout if x.startswith("{")]
+    if len(stdout) > 1:
+        raise ValueError("received multiple configurations")
+    dump = json.loads(stdout[0])
 
     # update interface
     if update_interface:
@@ -852,11 +832,9 @@ def main(args=sys.argv):
         if len(args) > 1:
             options.pipeline_targets.extend(args[1:])
 
-    # add input validation to check that all of the directories
-    # and files exist, provide warnings and then ask the user to
-    # specify whether they are comfortable to continue
+    # see inputValidation function in Parameters.py
     if options.input_validation:
-       inputValidation(PARAMS)
+       inputValidation(PARAMS, sys.argv[0])
 
     if options.pipeline_action == "check":
         counter, requirements = Requirements.checkRequirementsFromAllModules()
@@ -893,7 +871,7 @@ def main(args=sys.argv):
 
                 # get tasks to be done. This essentially replicates
                 # the state information within ruffus.
-                stream = StringIO()
+                stream = io.StringIO()
                 pipeline_printout(
                     stream,
                     options.pipeline_targets,
@@ -966,7 +944,7 @@ def main(args=sys.argv):
 
             elif options.pipeline_action == "svg":
                 pipeline_printout_graph(
-                    options.stdout,
+                    options.stdout.buffer,
                     options.pipeline_format,
                     options.pipeline_targets,
                     checksum_level=options.ruffus_checksums_level)
@@ -974,7 +952,7 @@ def main(args=sys.argv):
             elif options.pipeline_action == "plot":
                 outf, filename = tempfile.mkstemp()
                 pipeline_printout_graph(
-                    os.fdopen(outf, "w"),
+                    os.fdopen(outf, "wb"),
                     options.pipeline_format,
                     options.pipeline_targets,
                     checksum_level=options.ruffus_checksums_level)
@@ -1027,9 +1005,7 @@ def main(args=sys.argv):
                 raise
 
     elif options.pipeline_action == "dump":
-        # convert to normal dictionary (not defaultdict) for parsing purposes
-        # do not change this format below as it is exec'd in peekParameters()
-        print("dump = %s" % str(dict(PARAMS)))
+        print(json.dumps(PARAMS))
 
     elif options.pipeline_action == "printconfig":
         print("Printing out pipeline parameters: ")

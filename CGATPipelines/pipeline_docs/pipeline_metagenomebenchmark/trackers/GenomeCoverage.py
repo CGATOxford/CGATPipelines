@@ -1,7 +1,5 @@
 from CGATReport.Tracker import *
-import sqlite3
 import collections
-import numpy as np
 
 
 # classes for returning data and plots for genome coverage analysis

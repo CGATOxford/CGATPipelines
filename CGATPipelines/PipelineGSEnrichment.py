@@ -2,7 +2,6 @@ import pandas as pd
 import CGAT.IOTools as IOTools
 import sqlite3
 import os
-import rpy2
 import copy
 import rpy2.robjects as robjects
 import rpy2.interactive as r
@@ -11,38 +10,8 @@ import scipy.stats as stats
 from CGATPipelines.Pipeline import cluster_runnable
 import CGAT.Experiment as E
 import ast as ast
+import numpy as np
 from toposort import toposort_flatten
-r.packages.importr("hpar")
-
-
-robjects.r('''
-library("hpar")
-# Uses the r hpar library to find human protein atlas terms
-# meeting the criteria specified in the pipeline.ini
-
-hpaQuery <- function(tissue, level, supportive=T){
-    data(hpaNormalTissue)
-    intissue = grep(paste0("^", tissue, "*"),
-                    ignore.case=T,
-                    hpaNormalTissue$Tissue)
-
-    if (level == "low"){str = "low|medium|high"}
-    else if (level == "medium") {str = "medium|high"}
-    else if (level == "high") {str = "high"}
-
-    atlevel = grep(str, ignore.case=T,
-                   hpaNormalTissue$Level)
-
-    supp = grep("supportive", ignore.case=T,
-                hpaNormalTissue$Reliability)
-
-    all = intersect(intissue, atlevel)
-    if (supportive == T) {
-        all = intersect(all, supp)
-    }
-    return (as.vector(hpaNormalTissue[all,]$Gene))
-}
-''')
 
 
 def removeNonAscii(s):
@@ -723,7 +692,7 @@ class FlatFileParser(AnnotationParser):
         TermsToOnt = dict()
         Tname = None
         isas = set()
-        with IOTools.openFile(self.options['ont']) as infile:
+        with IOTools.openFile(self.options['ont'], encoding="utf-8") as infile:
             for line in infile:
                 line = line.strip()
                 if line.startswith("id"):
@@ -819,12 +788,18 @@ class EnrichmentTester(object):
             # n genes associated with and not associated with
             # this term in the foreground
             A, B = res[4][0]
+
             # n genes associated with and not associated with
             # this term in the background
             C, D = res[4][1]
 
+            # log2foldchange
+            fc1 = float(A) / float(A + B)
+            fc2 = float(C) / float(C + D)
+            fc = np.log2(float(fc1) / float(fc2))
+
             L = [term, str(A), str(B), str(C), str(D),
-                 str(OR), str(p), str(padj), sig]
+                 str(OR), fc, str(p), str(padj), sig]
 
             # add metadata
             L += self.AS.TermsToDetails[term]
@@ -836,14 +811,14 @@ class EnrichmentTester(object):
         cols = ['term_id', 'fg_genes_mapped_to_term',
                 'fg_genes_not_mapped_to_term',
                 'bg_genes_mapped_to_term',
-                'bg_genes_not_mapped_to_term', 'odds_ratio',
+                'bg_genes_not_mapped_to_term', 'odds_ratio', 'log2foldchange',
                 'pvalue', 'padj', 'significant'] + self.AS.DetailsColumns[1:]
         df = pd.DataFrame(parsedresults, columns=cols)
-        df = df.sort_values('padj')
+        df = df.sort_values('log2foldchange', ascending=False)
         df.to_csv(outfile, sep="\t", index=False)
 
         df2 = df[df['significant'] == "*"]
-        df2 = df2.sort_values('odds_ratio', ascending=False)
+        df2 = df2.sort_values('log2foldchange', ascending=False)
         df2.to_csv(outfile2, sep="\t", index=False)
 
         if writegenes == 1:
@@ -992,25 +967,26 @@ class EliminateET(EnrichmentTester):
                 # associated with a descendent of the term
                 GenesWith = genes - markedGenes[term]
                 GenesWithout = allgenes - genes
-                if self.testtype == "Fisher":
-                    ST = FisherExactTest(term, self.foreground,
-                                         self.background,
-                                         GenesWith,
-                                         GenesWithout,
-                                         self.correction,
-                                         self.thresh,
-                                         len(self.terms), self.idtype,
-                                         self.dbname, self.ofg, self.obg)
-                    R = ST.run()
-                    results[term] = R
+                if len(GenesWith) != 0 and len(GenesWithout) != 0:
+                    if self.testtype == "Fisher":
+                        ST = FisherExactTest(term, self.foreground,
+                                             self.background,
+                                             GenesWith,
+                                             GenesWithout,
+                                             self.correction,
+                                             self.thresh,
+                                             len(self.terms), self.idtype,
+                                             self.dbname, self.ofg, self.obg)
+                        R = ST.run()
+                        results[term] = R
 
-                if R[3] is True:
-                    # "mark" the genes mapped to this term so
-                    # they are not also mapped to ancestors of the term
-                    ancs = getAllAncestorsDescendants(term, TermsToOntP)
-                    for anc in ancs:
-                        if anc in self.terms:
-                            markedGenes[anc] = markedGenes[anc] | GenesWith
+                    if R[3] is True:
+                        # "mark" the genes mapped to this term so
+                        # they are not also mapped to ancestors of the term
+                        ancs = getAllAncestorsDescendants(term, TermsToOntP)
+                        for anc in ancs:
+                            if anc in self.terms:
+                                markedGenes[anc] = markedGenes[anc] | GenesWith
         self.writeStats(results, self.outfile, self.outfile2,
                         writegenes, host, ngenes)
 
@@ -1187,6 +1163,36 @@ def HPABackground(tissue, level, supportive, outfile):
     Generates a background set using human protein atlas annotations using the
     R hpar package and thresholds set in pipeline.ini
     '''
+    r.packages.importr("hpar")
+    robjects.r('''
+    library("hpar")
+    # Uses the r hpar library to find human protein atlas terms
+    # meeting the criteria specified in the pipeline.ini
+
+    hpaQuery <- function(tissue, level, supportive=T){
+        data(hpaNormalTissue)
+        intissue = grep(paste0("^", tissue, "*"),
+                        ignore.case=T,
+                        hpaNormalTissue$Tissue)
+
+        if (level == "low"){str = "low|medium|high"}
+        else if (level == "medium") {str = "medium|high"}
+        else if (level == "high") {str = "high"}
+
+        atlevel = grep(str, ignore.case=T,
+                       hpaNormalTissue$Level)
+
+        supp = grep("supportive", ignore.case=T,
+                    hpaNormalTissue$Reliability)
+
+        all = intersect(intissue, atlevel)
+        if (supportive == T) {
+            all = intersect(all, supp)
+        }
+        return (as.vector(hpaNormalTissue[all,]$Gene))
+    }
+    ''')
+
     if int(supportive) == "1":
         supp = "T"
     else:

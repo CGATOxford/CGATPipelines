@@ -2,10 +2,6 @@
 run_function.py - run a function within a python module remotely
 =================================================================
 
-:Author: Stephen Sansom, with credit to Tim for implementation suggestions.
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

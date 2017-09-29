@@ -20,11 +20,7 @@ TEMPLATE_MODULE = '''
 '''
 
 TEMPLATE_PIPELINE = '''
-.. report:: Tracker.TrackerImages
-   :render: gallery-plot
-   :glob: images/%(prefix)s.svg
-
-   Overview of tasks in pipeline
+.. image:: ../images/%(prefix)s.svg
 
 .. automodule:: %(prefix)s
    :members:

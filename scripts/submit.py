@@ -1,10 +1,6 @@
 '''submit.py - run a collection of qsub scripts on the cluster
 ===========================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

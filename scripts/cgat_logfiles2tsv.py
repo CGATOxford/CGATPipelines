@@ -1,10 +1,6 @@
 '''cgat_logfiles2tsv.py - create summary from logfiles
 ===================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

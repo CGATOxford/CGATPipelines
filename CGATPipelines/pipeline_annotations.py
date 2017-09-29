@@ -571,13 +571,12 @@ import pandas as pd
 from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
     suffix, regex, add_inputs
 
-from bx.bbi.bigwig_file import BigWigFile
+import pyBigWig
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.IOTools as IOTools
-import CGAT.GTF as GTF
 import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
@@ -597,7 +596,8 @@ PARAMS = P.getParameters(
 
 # add automatically created files to the interface.  This is required
 # when the pipeline is peek'ed.  The statement below will
-# add the fellowing to the dictionary:
+# add the following to the dictionary:
+#
 # "geneset.dir/lincrna_gene_tss.bed.gz" maps to
 # "interface_geneset_lincrna_gene_tss_bed"
 PARAMS.update(dict([
@@ -786,6 +786,8 @@ def buildGenomeInformation(infile, outfile):
       a text file table of contigs, length and CpG density.
       The output files is GZIP compressed
     '''
+
+    job_memory = "10G"
 
     statement = '''
     cat %(infile)s
@@ -1879,8 +1881,7 @@ def buildMapableRegions(infiles, outfile):
 
     max_distance = kmersize // 2
 
-    f = open(infile)
-    bw = BigWigFile(file=f)
+    bw = pyBigWig.open(infile)
 
     def _iter_mapable_regions(bw, contig, size):
 
@@ -1892,7 +1893,7 @@ def buildMapableRegions(infiles, outfile):
         last_start, start = None, None
 
         for window_start in range(0, size, window_size):
-            values = bw.get(contig, window_start, window_start + window_size)
+            values = bw.intervals(contig, window_start, window_start + window_size)
             if values is None:
                 continue
 
@@ -1988,8 +1989,10 @@ if PARAMS["genome"].startswith("hg"):
             os.remove(outfile)
             # MM: this is hard-coded - the URL can (and has) changed, so
             # this should be defined in the pipeline config file
-        statement = '''wget http://www.genome.gov/admin/gwascatalog.txt
-        -O %(outfile)s'''
+            # AH: Moved to EBI, download needs to be updated
+        statement = '''curl https://www.genome.gov/admin/gwascatalog.txt
+        | sed 's/[\d128-\d255]//g'
+        > %(outfile)s'''
         P.run()
 
     @merge(downloadGWASCatalog, PARAMS["interface_gwas_catalog_bed"])
@@ -2018,7 +2021,8 @@ if PARAMS["genome"].startswith("hg"):
           :term:`BED` format file of GWAS catalog entries
         '''
 
-        reader = csv.DictReader(IOTools.openFile(infile), dialect="excel-tab")
+        reader = csv.DictReader(IOTools.openFile(infile),
+                                dialect="excel-tab")
 
         tracks = collections.defaultdict(lambda: collections.defaultdict(list))
 
@@ -2856,7 +2860,6 @@ def loadIntervalSummary(infile, outfile):
          buildCpGBed)
 def assembly():
     """convenience target : assembly derived annotations"""
-    pass
 
 
 @follows(buildGeneSet,
@@ -2877,7 +2880,6 @@ def assembly():
          )
 def ensembl():
     """convenience target : ENSEMBL geneset derived annotations"""
-    pass
 
 
 @follows(buildPeptideFasta,
@@ -2885,7 +2887,6 @@ def ensembl():
          buildCDNAFasta)
 def fasta():
     """convenience target : sequence collections"""
-    pass
 
 
 @follows(buildTranscriptRegions,
@@ -2898,7 +2899,6 @@ def fasta():
          buildIntergenicRegions)
 def geneset():
     """convenience target : geneset derived annotations"""
-    pass
 
 
 @follows(importRepeatsFromUCSC,
@@ -2908,7 +2908,6 @@ def geneset():
          countTotalRepeatLength)
 def ucsc():
     """convenience target : UCSC derived annotations"""
-    pass
 
 
 # annotation targets are only intrinsic data sets
@@ -2920,7 +2919,6 @@ def ucsc():
          annotateGenome)
 def annotations():
     """convenience target : gene based annotations"""
-    pass
 
 
 # enrichment targets include extrinsic data sets such
@@ -2930,20 +2928,17 @@ def annotations():
          buildGenomicFunctionalAnnotation)
 def enrichment():
     """convenience target : annotations for enrichment analysis"""
-    pass
 
 
 @follows(loadGOAssignments,
          loadKEGGAssignments)
 def ontologies():
     """convenience target : ontology information"""
-    pass
 
 
 @follows(_gwas)
 def gwas():
     """convenience target : import GWAS data"""
-    pass
 
 
 @follows(loadGTFStats,
@@ -2951,7 +2946,6 @@ def gwas():
          loadIntervalSummary)
 def summary():
     '''convenience target : summary'''
-    pass
 
 
 # @follows(calculateMappability, countMappableBases,
@@ -2967,14 +2961,13 @@ def summary():
          ensembl,
          ucsc,
          geneset,
-         fasta,
+         # fasta,   # AH disabled for now, peptides2cds missing
          ontologies,
          annotations,
          enrichment,
          gwas)
 def full():
     '''build all targets - note: run summary separately afterwards.'''
-    pass
 
 ###################################################################
 ###################################################################

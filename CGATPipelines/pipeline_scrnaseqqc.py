@@ -1,34 +1,6 @@
-##############################################################################
-#
-#   MRC FGU CGAT
-#
-#   $Id$
-#
-#   Copyright (C) 2009 Andreas Heger
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-###############################################################################
 """===========================
 Pipeline template
 ===========================
-
-:Author: Mike Morgan & Adam Cribbs
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
 
 Overview
 ========
@@ -95,15 +67,12 @@ Code
 """
 from ruffus import *
 from ruffus.combinatorics import *
-import re
 import sys
 import os
 import glob
-import itertools
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
-import CGATPipelines.PipelineTracks as PipelineTracks
 
 # load options from the config file
 PARAMS = P.getParameters(
@@ -119,9 +88,9 @@ PARAMS = P.getParameters(
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
-    on_error_raise=__name__ == "__main__",
     prefix="annotations_",
-    update_interface=True))
+    update_interface=True,
+    restrict_interface=True))
 
 
 # if necessary, update the PARAMS dictionary in any modules file.
@@ -171,6 +140,10 @@ FASTQ_SUFFIXES = ("*.fastq.1.gz",
                   "*.fastq.2.gz",
                   "*.fastq.gz")
 FASTQ_DIR = PARAMS['fastq_dir']
+# set to value for testing purposes (see regexes below)
+if FASTQ_DIR == "?!":
+    FASTQ_DIR = ""
+
 FASTQ_FILES = tuple([os.path.join(FASTQ_DIR, suffix_name)
                      for suffix_name in FASTQ_SUFFIXES])
 FASTQ_REGEX = regex(r"%s/(\S+).fastq.1.gz" % FASTQ_DIR)
@@ -376,7 +349,6 @@ else:
         P.run()
 
 
-@follows(quantifyWithSailfish)
 @transform(quantifyWithSailfish,
            regex("tpm.dir/(.+)/quant.genes.sf"),
            r"tpm.dir/\1.quant")
@@ -396,7 +368,6 @@ def transformSailfishOutput(infile, outfile):
     P.run()
 
 
-@follows(transformSailfishOutput)
 @collate(transformSailfishOutput,
          regex("tpm.dir/(.+)_(.+)_(.+).quant"),
          r"tpm.dir/\1.tpm")

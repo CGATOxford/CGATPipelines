@@ -19,10 +19,14 @@ import sqlite3
 import tempfile
 import string
 from copy import deepcopy
-import bx.intervals.io
-import bx.align.maf
-import bx.intervals
-import bx.interval_index_file
+try:
+    import bx.intervals.io
+    import bx.align.maf
+    import bx.intervals
+    import bx.interval_index_file
+except ImportError:
+    # bx library not python3 compatible
+    pass
 
 ########################################################
 # gene set building
@@ -1540,7 +1544,7 @@ def src_split(src):
 
 class RegionAlignment(object):
 
-    DNA_COMPLEMENT = string.maketrans("ACGTacgt", "TGCAtgca")
+    DNA_COMPLEMENT = str.maketrans("ACGTacgt", "TGCAtgca")
     MAX_SEQUENCE_SIZE = sys.maxsize  # Maximum length of sequence allowed
 
     def __init__(self, size, species=[]):
@@ -1627,7 +1631,7 @@ class GenomicRegionAlignment(RegionAlignment):
 
 class SplicedAlignment(object):
 
-    DNA_COMPLEMENT = string.maketrans("ACGTacgt", "TGCAtgca")
+    DNA_COMPLEMENT = str.maketrans("ACGTacgt", "TGCAtgca")
 
     def __init__(self, exon_starts, exon_ends, species=[]):
         if not isinstance(exon_starts, list):

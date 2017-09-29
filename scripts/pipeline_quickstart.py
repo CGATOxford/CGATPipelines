@@ -1,10 +1,6 @@
 '''pipeline_quickstart.py - setup a new pipeline
 =============================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------
@@ -88,6 +84,7 @@ import re
 import os
 import shutil
 import CGAT.Experiment as E
+import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P
 
 
@@ -174,14 +171,14 @@ def main(argv=sys.argv):
             raise OSError(
                 "file %s already exists - not overwriting." % fn_dest)
 
-        outfile = open(fn_dest, "w")
-        infile = open(fn_src)
-        for line in infile:
-            outfile.write(rx_reportdir.sub(reportdir,
-                                           rx_template.sub(name, line)))
-
-        outfile.close()
-        infile.close()
+        if fn_src.endswith(".png"):
+            shutil.copyfile(fn_src, fn_dest)
+        else:
+            with IOTools.openFile(fn_dest, "w") as outfile:
+                with IOTools.openFile(fn_src) as infile:
+                    for line in infile:
+                        outfile.write(rx_reportdir.sub(reportdir,
+                                                       rx_template.sub(name, line)))
 
     def copytree(src, dst, name):
 

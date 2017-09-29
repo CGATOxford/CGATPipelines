@@ -1,12 +1,9 @@
+
 """
 ====================
 RNASeqQC pipeline
 ====================
 
-:Author: Tom Smith
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 
 Overview
@@ -180,6 +177,9 @@ import pandas as pd
 import numpy as np
 import itertools
 from scipy.stats import linregress
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import seaborn as sns
 
 from rpy2.robjects import r as R
 from rpy2.robjects import pandas2ri
@@ -191,7 +191,8 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.Pipeline as P
-import CGATPipelines.PipelineRnaseq as PipelineRnaseq
+
+import json
 
 ###################################################
 ###################################################
@@ -851,8 +852,6 @@ def buildBedContext(outfile):
 
     tmp_bed_sorted_filename = P.getTempFilename(shared=True)
 
-    tmp_bed_sorted = IOTools.openFile(tmp_bed_sorted_filename, "w")
-
     sql_statements = [
         '''SELECT DISTINCT GTF.contig, GTF.start, GTF.end, "lincRNA"
         FROM gene_info GI
@@ -875,16 +874,17 @@ def buildBedContext(outfile):
         ON GI.gene_id=GTF.gene_id
         WHERE GI.gene_biotype == "protein_coding"''']
 
-    for sql_statement in sql_statements:
-        state = dbh.execute(sql_statement)
+    with IOTools.openFile(tmp_bed_sorted_filename, "w") as tmp_bed_sorted:
+        for sql_statement in sql_statements:
+            state = dbh.execute(sql_statement)
+            for line in state:
+                tmp_bed_sorted.write(("%s\n") % "\t".join(map(str, line)))
 
-        for line in state:
-            tmp_bed_sorted.write(("%s\n") % "\t".join(map(str, line)))
-
-    tmp_bed_sorted.close()
-
-    statement = '''sortBed  -i %(tmp_bed_sorted_filename)s
-    | gzip > %(outfile)s'''
+    statement = '''
+    sort -k1,1 -k2,2n -k3,3n
+    < %(tmp_bed_sorted_filename)s
+    | bgzip
+    > %(outfile)s'''
 
     P.run()
 
@@ -1098,6 +1098,7 @@ def runSailfishSaturation(infiles, outfile):
     P.run()
 
 
+@jobs_limit(1, "R")
 @mkdir("sailfish.dir/plots.dir")
 @merge(runSailfishSaturation,
        "sailfish.dir/plots.dir/saturation_plots.sentinel")
@@ -1476,13 +1477,7 @@ def summariseBias(infiles, outfile):
         return pd.Series([(x - array_min) / (array_max - array_min) for x in array])
 
     def bin2floats(qcut_bin):
-        qcut_bin2 = qcut_bin.replace("(", "[").replace(")", "]")
-        try:
-            qcut_list = eval(qcut_bin2, {'__builtins__': None}, {})
-            return qcut_list
-        except:
-            print("FAILED!!! qcut_bin: ", qcut_bin2)
-            return None
+        return [qcut_bin.left, qcut_bin.right]
 
     def aggregate_by_factor(df, attribute, sample_names, bins, function):
 
@@ -1716,6 +1711,115 @@ def plotExpression(outfile):
     P.touch(outfile)
 
 ###################################################################
+# Run Salmon To Autodetect Strandedness
+###################################################################
+
+
+@follows(mkdir("salmon.dir"))
+@transform(buildTranscriptFasta,
+           regex("(\S+)"),
+           "salmon.dir/transcripts.salmon.index")
+def indexForSalmon(infile, outfile):
+    '''create a salmon index'''
+
+    statement = '''
+    salmon index -t %(infile)s
+    -i %(outfile)s '''
+    P.run()
+
+
+@transform(SEQUENCEFILES,
+           SEQUENCEFILES_REGEX,
+           add_inputs(indexForSalmon,
+                      buildCodingGeneSet,
+                      buildTranscriptGeneMap),
+           r"salmon.dir/\2/lib_format_counts.json")
+def runSalmon(infiles, outfile):
+    '''quantify abundance using Salmon'''
+
+    job_threads = PARAMS["salmon_threads"]
+    job_memory = PARAMS["salmon_memory"]
+    infile, index, geneset, transcript_map = infiles
+    salmon_bootstrap = 1
+    salmon_libtype = 'A'
+    salmon_options = PARAMS["salmon_options"]
+
+    m = PipelineMapping.Salmon()
+
+    statement = m.build((infile,), outfile)
+
+    P.run()
+
+
+@merge(runSalmon, "strandedness.tsv")
+def checkStrandednessSalmon(infiles, outfile):
+    '''
+    Read the output from salmon used to determine strandedness
+    and write a table containing the number of alignments
+    consistent with each type of library.
+    The possible types are described here:
+    http://salmon.readthedocs.io/en/latest/library_type.html
+    '''
+    results = pd.DataFrame()
+    for infile in infiles:
+        j = json.load(open(infile, "r"))
+        vals = list(j.values())
+        cols = list(j.keys())
+        D = pd.DataFrame(vals, index=cols).T
+        D['sample'] = infile.split("/")[-2]
+        results = results.append(D)
+    results = results[["sample", "expected_format",
+                       "compatible_fragment_ratio",
+                       "num_compatible_fragments",
+                       "num_assigned_fragments",
+                       "num_consistent_mappings",
+                       "num_inconsistent_mappings",
+                       "MSF", "OSF", "ISF", "MSR",
+                       "OSR", "ISR", "SF", "SR",
+                       "MU", "OU", "IU", "U"]]
+
+    results.to_csv(outfile, sep="\t", index=None)
+
+
+@transform(checkStrandednessSalmon,
+           suffix(".tsv"),
+           ".load")
+def loadStrandednessSalmon(infile, outfile):
+    P.load(infile, outfile)
+
+
+@transform(checkStrandednessSalmon, suffix(".tsv"), ".png")
+def plotStrandednessSalmon(infile, outfile):
+    '''
+    Plots a bar plot of the salmon strandness estimates
+    as counts per sample.
+    '''
+    sns.set_style('ticks')
+    tab = pd.read_csv(infile, sep="\t")
+    counttab = tab[tab.columns[7:]]
+    f = plt.figure(figsize=(10, 7))
+    a = f.add_axes([0.1, 0.1, 0.6, 0.75])
+    x = 0
+    colors = sns.color_palette("Dark2", 10)
+    a.set_ylim(0, max(counttab.values[0]) + max(counttab.values[0]) * 0.1)
+    for item in counttab.columns:
+        a.bar(range(x, x + len(tab)), tab[item], color=colors)
+        x += len(tab)
+    a.ticklabel_format(style='plain')
+    a.vlines(np.arange(-0.4, a.get_xlim()[1], len(tab)),
+             a.get_ylim()[0], a.get_ylim()[1], lw=0.5)
+    a.set_xticks(np.arange(0 + len(tab) / 2, a.get_xlim()[1],
+                           len(tab)))
+    a.set_xticklabels(counttab.columns)
+    sns.despine()
+    patches = []
+    for c in colors[0:len(tab)]:
+        patches.append(mpatches.Patch(color=c))
+    l = f.legend(labels=tab['sample'], handles=patches, loc=1)
+    f.suptitle('Strandedness Estimates')
+    f.savefig(outfile)
+
+###################################################################
 # Main pipeline tasks
 ###################################################################
 
@@ -1730,7 +1834,9 @@ def plotExpression(outfile):
          loadAltContextStats,
          plotSailfishSaturation,
          plotTopGenesHeatmap,
-         plotExpression)
+         plotExpression,
+         plotStrandednessSalmon,
+         loadStrandednessSalmon)
 def full():
     pass
 

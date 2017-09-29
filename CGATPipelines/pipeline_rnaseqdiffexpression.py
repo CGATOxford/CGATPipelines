@@ -1,34 +1,7 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Analysis & Training Programme
-#
-#   $Id$
-#
-#   Copyright (C) 2014 David Sims
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
-
 """========================================
 RNA-Seq Differential expression pipeline
 ========================================
 
-:Author: CGAT Fellows
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The RNA-Seq differential expression pipeline performs differential
 expression analysis. It requires three inputs:
@@ -351,30 +324,23 @@ from ruffus import *
 from ruffus.combinatorics import *
 
 import CGAT.Experiment as E
-import CGAT.Database as Database
 # import CGAT.scrum_expression as SE
 
 import sys
 import os
-import itertools
+import re
 import glob
-import numpy
 import pandas as pd
 import sqlite3
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
-from rpy2.robjects import r as R
-from rpy2.robjects.packages import importr
-import rpy2.robjects as ro
 
-import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineRnaseq as PipelineRnaseq
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 import CGAT.Expression as Expression
-import CGAT.Counts as Counts
 # levels of cuffdiff analysis
 # (no promotor and splice -> no lfold column)
 CUFFDIFF_LEVELS = ("gene", "cds", "isoform", "tss")
@@ -621,7 +587,7 @@ def getTranscript2GeneMap(outfile):
 
     with IOTools.openFile(outfile, "w") as outf:
         outf.write("transcript_id\tgene_id\n")
-        for key, value in transcript2gene_dict.iteritems():
+        for key, value in sorted(transcript2gene_dict.items()):
             outf.write("%s\t%s\n" % (key, value))
 
 
@@ -629,6 +595,7 @@ def getTranscript2GeneMap(outfile):
 # count-based quantifiers
 ###################################################
 
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
 @follows(mkdir("featurecounts.dir"))
 @transform(["%s.bam" % x.asFile() for x in BAM_TRACKS],
            regex("(\S+).bam"),
@@ -731,7 +698,6 @@ def runFeatureCounts(infiles, outfiles):
            [r"gtf2table.dir/\1/transcripts.tsv.gz",
             r"gtf2table.dir/\1/genes.tsv.gz"])
 def runGTF2Table(infiles, outfiles):
-
     '''
     Compute read counts and coverage of transcripts and genes using the
     CGAT gtf2table tools.
@@ -1102,11 +1068,44 @@ def loadMergedCounts(infiles, outfiles):
     P.load(infiles[1], outfiles[1])
 
 
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
+@collate(runFeatureCounts,
+         regex("featurecounts.dir/([^.]+)/([^.]+).tsv.gz"),
+         r"featurecounts.dir/genelength.tsv.gz")
+def mergeLengths(infiles, outfile):
+    ''' build a matrix of "genelengths" derived from FeatureCounts
+    with genes and tracks dimensions.
+    '''
+    raw_infiles = [x[1].replace("gz", "raw.gz") for x in infiles]
+    final_df = pd.DataFrame()
+
+    for infile in raw_infiles:
+        tmp_df = pd.read_table(infile, sep="\t", index_col=0,
+                               comment='#', usecols=["Geneid", "Length"])
+        m = re.search('featurecounts.dir\/(.+?)\/genes.tsv.raw.gz', infile)
+        if m:
+            tmp_df.columns = [m.group(1)]
+        final_df = final_df.merge(
+            tmp_df, how="outer",  left_index=True, right_index=True)
+
+    final_df.sort_index(inplace=True)
+    final_df.to_csv(outfile, sep="\t", compression="gzip")
+
+
+@active_if("featurecounts" in P.asList(PARAMS["quantifiers"]))
+@transform(mergeLengths,
+           suffix(".tsv.gz"),
+           ".load")
+def loadMergedLengths(infile, outfile):
+    '''load genength table into database'''
+    P.load(infile, outfile, "--add-index=gene_id")
+
+
 @follows(*QUANTTARGETS)
-@follows(loadMergedCounts)
+@follows(loadMergedCounts,
+         loadMergedLengths)
 def count():
     ''' dummy task to define upstream quantification tasks'''
-    pass
 
 ###################################################
 # Differential Expression
@@ -1280,10 +1279,11 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
 
     model = PARAMS['sleuth_model%s' % design_name]
     E.info(model)
+    reduced_model = PARAMS['sleuth_reduced_model%s' % design_name]
 
     contrast = PARAMS['sleuth_contrast%s' % design_name]
     refgroup = PARAMS['sleuth_refgroup%s' % design_name]
-
+    detest = PARAMS['sleuth_detest']
     transcripts = os.path.join("geneset.dir",
                                P.snip(PARAMS['geneset'], ".gtf.gz") + ".fa")
 
@@ -1313,6 +1313,13 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
     --contrast=%(contrast)s
     --sleuth-counts-dir=%(quantifier)s.dir
     --reference-group=%(refgroup)s
+    --de-test=%(detest)s
+    '''
+    if detest == "lrt":
+        statement += '''
+        --reduced-model=%(reduced_model)s
+        '''
+    statement += '''
     -v 0
     >%(transcript_out)s
     '''
@@ -1343,8 +1350,16 @@ def runSleuth(infiles, outfiles, design_name, quantifier):
         --sleuth-counts-dir=%(quantifier)s.dir
         --reference-group=%(refgroup)s
         --gene-biomart=%(sleuth_gene_biomart)s
+        --de-test=%(detest)s
+        '''
+        if detest == "lrt":
+            statement += '''
+            --reduced-model=%(reduced_model)s
+            '''
+        statement += '''
         -v 0
-        >%(gene_out)s'''
+        >%(transcript_out)s
+        '''
 
         P.run()
 
@@ -1428,13 +1443,11 @@ def getSleuthNormExp(infiles, outfiles, quantifier):
         transcripts_outf, genes_outf, t2gMap)
 
 # Define the task for differential expression and normalisation
-
 DETARGETS = []
 NORMTARGETS = []
 mapToDETargets = {'edger': (runEdgeR, ),
                   'deseq2': (runDESeq2,),
                   'sleuth': (runSleuth,)}
-
 
 mapToNormTargets = {'edger': (getEdgeRNormExp, ),
                     'deseq2': (getDESeqNormExp, ),
@@ -1449,31 +1462,28 @@ for x in P.asList(PARAMS["de_tools"]):
 @follows(*DETARGETS)
 def differentialExpression():
     ''' dummy task to define upstream differential expression tasks'''
-    pass
 
 
 @follows(*NORMTARGETS)
 def NormaliseExpression():
     ''' dummy task to define upstream normalisation tasks'''
-    pass
 
 
-@transform(DETARGETS,
-           regex("DEresults.dir/(\S+)/(\S+)_(\S+)_transcripts_results.tsv"),
-           [r"DEresults.dir/\1_\2_\3_transcripts_results.load",
-            r"DEresults.dir/\1_\2_\3_genes_results.load"])
+# AH: see below
+@merge(DETARGETS, "differential_expression.load")
 def loadDifferentialExpression(infiles, outfiles):
-    P.load(infiles[0], outfiles[0])
-    P.load(infiles[1], outfiles[1])
+    for infile in IOTools.flatten(infiles):
+        outfile = P.snip(infile, ".tsv") + ".load"
+        P.load(infile, outfile)
 
 
-@transform(NORMTARGETS,
-           regex("DEresults.dir/(\S+)/(\S+)_normalised_transcripts_expression.tsv.gz"),
-           [r"DEresults.dir/\1/\2_normalised_transcripts_expression.load",
-            r"DEresults.dir/\1/\2_normalised_genes_expression.load"])
+# AH: it seems that this task is executed twice (ruffus bug?) and can
+# cause table exist error. Use a sequential load.
+@merge(NORMTARGETS, "normalised_expression.load")
 def loadNormalisedExpression(infiles, outfiles):
-    P.load(infiles[0], outfiles[0])
-    P.load(infiles[1], outfiles[1])
+    for infile in IOTools.flatten(infiles):
+        outfile = P.snip(infile, ".tsv.gz") + ".load"
+        P.load(infile, outfile)
 
 
 ###################################################
@@ -1512,12 +1522,11 @@ def expressionSummaryPlots(infiles, logfiles):
 ###################################################
 
 
-@follows(count, expressionSummaryPlots,
+@follows(expressionSummaryPlots,
          loadDifferentialExpression,
          loadNormalisedExpression,)
 def full():
     ''' collects DE tasks and cufflinks transcript build'''
-    pass
 
 
 @follows(mkdir("report"))

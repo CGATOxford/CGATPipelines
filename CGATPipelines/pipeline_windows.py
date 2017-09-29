@@ -1,11 +1,6 @@
-"""
-pipeline_windows.py - Window based genomic analysis
+"""===================================================
+pipeline_windows - Window based genomic analysis
 ===================================================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 This pipeline takes mapped reads from ChIP-Seq experiments
 such has chromatin marks, MeDIP and performs analyses
@@ -606,10 +601,14 @@ def buildCpGCoverage(infiles, outfile):
 
     job_memory = "32G"
 
+    # bedtools < 0.26.0:
+    # column = 6
+    column = 5
+
     statement = '''
     zcat %(infile)s
     | bedtools coverage -a stdin -b %(cpg_file)s -counts
-    | cut -f 6
+    | cut -f %(column)i
     | cgat data2histogram
     | gzip
     > %(outfile)s
@@ -1948,7 +1947,6 @@ def diff_windows():
     '''
     Records when all differential expression analysis is complete
     '''
-    pass
 
 
 @transform(DIFFTARGETS, suffix(".gz"), ".cpg.tsv.gz")
@@ -2467,7 +2465,6 @@ def dmr():
     '''
     Records when all DMR analysis in pipeline is complete.
     '''
-    pass
 
 
 @follows(mergeDMRWindows)
@@ -2730,7 +2727,6 @@ def buildTranscriptProfiles(infiles, outfile):
 @follows(loadTagContextOverlap, loadSummarizedContextStats)
 def context():
     """Indicates that the context_stats part of the pipeline is complete"""
-    pass
 
 
 @follows(buildTranscriptProfiles,
