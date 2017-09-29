@@ -1,5 +1,10 @@
+import pandas as pd
+import numpy as np
 
+from CGATReport.Tracker import SingleTableTrackerRows
+from CGATReport.Tracker import SingleTableTrackerHistogram
 from CGATReport.Tracker import *
+from CGATReport.Utils import PARAMS as P
 
 from IsoformReport import *
 

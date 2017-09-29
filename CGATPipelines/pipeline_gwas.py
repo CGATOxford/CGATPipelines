@@ -250,6 +250,8 @@ def plotPhenotypeData(infile, outfile):
     for CGATReport document
     '''
 
+    pass
+
 
 @follows(loadPhenotypes,
          plotPhenotypeData)

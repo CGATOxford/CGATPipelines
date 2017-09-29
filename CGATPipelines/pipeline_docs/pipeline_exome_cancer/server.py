@@ -1,8 +1,9 @@
 #!/bin/env python
 
-import web
+import web, os
 
 from SphinxReport import Cache
+from SphinxReport import Utils
 from SphinxReport import DataTree
 
 urls = ( '/data/(.*)', 'DataTable',

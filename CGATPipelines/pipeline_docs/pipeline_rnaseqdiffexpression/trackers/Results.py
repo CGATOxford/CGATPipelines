@@ -1,4 +1,9 @@
+import pandas as pd
+import numpy as np
+import sqlite3
 
+from CGATReport.Tracker import SingleTableTrackerRows
+from CGATReport.Tracker import SingleTableTrackerHistogram
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
 

@@ -141,12 +141,24 @@ Mootha, Lindgren, et al. (2003, Nat Genet 34, 267-273).
 =============================================
 '''
 import pandas as pd
+import CGAT.IOTools as IOTools
 import sqlite3
 import os
+import rpy2
+import copy
+import rpy2.robjects as robjects
+import rpy2.interactive as r
+import rpy2.interactive.packages
+import scipy.stats as stats
+from CGATPipelines.Pipeline import cluster_runnable
 import CGAT.Experiment as E
+import ast as ast
 import numpy as np
+import itertools as ITL
 import csv
 import os
+import string
+from toposort import toposort_flatten
 
 
 def getTables(dbname):

@@ -2,6 +2,7 @@ import CGATPipelines.Pipeline as P
 from Bio import Entrez
 import numpy as np
 import httplib2
+import json as json
 import sqlite3
 from intermine.webservice import Service as SS
 import string

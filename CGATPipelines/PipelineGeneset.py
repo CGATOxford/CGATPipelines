@@ -17,6 +17,7 @@ import os
 import collections
 import sqlite3
 import pandas as pd
+import pandas.io.sql as pdsql
 
 import CGAT.IOTools as IOTools
 import CGATPipelines.Pipeline as P

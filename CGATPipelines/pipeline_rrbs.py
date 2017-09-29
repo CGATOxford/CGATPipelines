@@ -139,6 +139,7 @@ import CGATPipelines.PipelineRrbs as RRBS
 import pandas as pd
 import CGATPipelines.PipelineTracks as PipelineTracks
 
+from rpy2.robjects import R
 import numpy as np
 ###################################################
 ###################################################
@@ -1087,6 +1088,7 @@ def calculateM3DSpikeClustersPvalue(infiles, outfile):
            regex("power.dir/spike_ins_subframe.tsv_(\d+)"),
            r"power.dir/spike_ins_subframe.tsv_\1_BiSeq.stats")
 def runBiSeqSpikeClusters(infile, outfile):
+    pass
     job_options = "-l mem_free=10G -pe dedicated 6"
     # RRBS.calculateBiSeqStat(infile, outfile,
     # submit=True, job_options=job_options)

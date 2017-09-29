@@ -876,7 +876,7 @@ def main(args=sys.argv):
                     stream,
                     options.pipeline_targets,
                     verbose=5,
-                    checksum_level=options.ruffus_checksums_level)
+                    checksum_level=str(options.ruffus_checksums_level).encode('utf-8'))
 
                 messenger = LoggingFilterRabbitMQ(
                     stream.getvalue(),

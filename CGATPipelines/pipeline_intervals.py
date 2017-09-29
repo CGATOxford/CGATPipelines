@@ -1846,6 +1846,7 @@ def annotate_intervals():
          gat)
 def full():
     '''run the full pipeline.'''
+    pass
 
 
 @follows(mkdir("report"))

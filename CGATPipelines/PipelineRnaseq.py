@@ -45,6 +45,7 @@ import numpy as np
 import os
 import pandas as pd
 import re
+import shutil
 
 
 from rpy2.robjects import r as R
@@ -232,9 +233,11 @@ class Quantifier(object):
 
     def run_transcript(self):
         ''' generate transcript-level quantification estimates'''
+        pass
 
     def run_gene(self):
         ''' generate gene-level quantification estimates'''
+        pass
 
     def run_all(self):
         ''' '''

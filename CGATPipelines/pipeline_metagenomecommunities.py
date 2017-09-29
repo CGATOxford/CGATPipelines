@@ -171,20 +171,41 @@ Code
 from ruffus import *
 
 import CGAT.Experiment as E
+import logging as L
+import CGAT.Database as Database
+import CGAT.CSV as CSV
 
 import sys
 import os
 import re
+import shutil
+import itertools
+import math
 import glob
+import time
+import gzip
+import collections
+import random
 
+import numpy
 import sqlite3
+import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
+import CGAT.IndexedFasta as IndexedFasta
+from rpy2.robjects import r as R
+import rpy2.robjects as ro
+import rpy2.robjects.vectors as rovectors
+from rpy2.rinterface import RRuntimeError
 import CGATPipelines.PipelineMapping as PipelineMapping
 # import CGATPipelines.PipelineMetagenomeAssembly as PipelineMetagenomeAssembly
 import CGATPipelines.PipelineMetagenomeCommunities \
     as PipelineMetagenomeCommunities
+import CGAT.FastaIterator as FastaIterator
 import CGAT.Metaphlan as Metaphlan
 import CGATPipelines.PipelineMapping as PipelineMapping
+import CGATPipelines.PipelineMappingQC as PipelineMappingQC
+import pysam
+import CGAT.Fastq as Fastq
 import pandas
 # import CGATPipelines.PipelineTracks as PipelineTracks
 

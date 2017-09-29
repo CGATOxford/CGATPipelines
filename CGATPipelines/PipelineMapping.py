@@ -82,6 +82,7 @@ import os
 import glob
 import collections
 import re
+import gzip
 import itertools
 import CGATPipelines.Pipeline as P
 import logging as L

@@ -1,5 +1,8 @@
 import os
+import sys
 import re
+import types
+import itertools
 import math
 import numpy
 import numpy.ma

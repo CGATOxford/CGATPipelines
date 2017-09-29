@@ -324,23 +324,31 @@ from ruffus import *
 from ruffus.combinatorics import *
 
 import CGAT.Experiment as E
+import CGAT.Database as Database
 # import CGAT.scrum_expression as SE
 
 import sys
 import os
 import re
+import itertools
 import glob
+import numpy
 import pandas as pd
 import sqlite3
 import CGAT.GTF as GTF
 import CGAT.IOTools as IOTools
+from rpy2.robjects import r as R
+from rpy2.robjects.packages import importr
+import rpy2.robjects as ro
 
+import CGAT.BamTools as BamTools
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineRnaseq as PipelineRnaseq
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 import CGAT.Expression as Expression
+import CGAT.Counts as Counts
 # levels of cuffdiff analysis
 # (no promotor and splice -> no lfold column)
 CUFFDIFF_LEVELS = ("gene", "cds", "isoform", "tss")
@@ -1106,6 +1114,7 @@ def loadMergedLengths(infile, outfile):
          loadMergedLengths)
 def count():
     ''' dummy task to define upstream quantification tasks'''
+    pass
 
 ###################################################
 # Differential Expression
@@ -1462,11 +1471,13 @@ for x in P.asList(PARAMS["de_tools"]):
 @follows(*DETARGETS)
 def differentialExpression():
     ''' dummy task to define upstream differential expression tasks'''
+    pass
 
 
 @follows(*NORMTARGETS)
 def NormaliseExpression():
     ''' dummy task to define upstream normalisation tasks'''
+    pass
 
 
 # AH: see below
@@ -1527,6 +1538,7 @@ def expressionSummaryPlots(infiles, logfiles):
          loadNormalisedExpression,)
 def full():
     ''' collects DE tasks and cufflinks transcript build'''
+    pass
 
 
 @follows(mkdir("report"))

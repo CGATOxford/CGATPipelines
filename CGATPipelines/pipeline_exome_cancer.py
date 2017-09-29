@@ -152,13 +152,18 @@ import numpy
 import CGAT.Experiment as E
 import sys
 import os
+import csv
 import sqlite3
 import CGAT.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.Pipeline as P
+import glob
+import pandas as pd
+import itertools
 import re
 import CGATPipelines.PipelineExome as PipelineExome
+import collections
 
 USECLUSTER = True
 
@@ -1182,6 +1187,7 @@ def test():
 def TestMutect():
     '''This target runs function which can be used to assess the chosen
     mutect parameters'''
+    pass
 
 
 # @follows(loadROI,

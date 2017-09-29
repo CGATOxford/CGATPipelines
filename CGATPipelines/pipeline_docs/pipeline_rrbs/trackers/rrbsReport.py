@@ -1,7 +1,13 @@
+import os
+import sys
 import re
+import types
+import itertools
+import glob
 
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
+import CGATPipelines.PipelineTracks as PipelineTracks
 
 # get from config file
 UCSC_DATABASE = "hg19"

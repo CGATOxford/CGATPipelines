@@ -1,4 +1,14 @@
 import os
+import sys
+import re
+import types
+import itertools
+import matplotlib.pyplot as plt
+import numpy
+import scipy.stats
+import numpy.ma
+import Stats
+import Histogram
 
 from CGATReport.Tracker import *
 from cpgReport import *

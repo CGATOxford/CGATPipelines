@@ -11,6 +11,7 @@ import rpy2.robjects.pandas2ri as py2ri
 from CGATReport.ResultBlock import ResultBlocks, ResultBlock
 import seaborn
 from CGATReport.Tracker import *
+from CGATReport.Utils import PARAMS as P
 from CGATReport.Utils import PARAMS
 import CGATPipelines.Pipeline as Pipeline
 import matplotlib.pyplot as plt
