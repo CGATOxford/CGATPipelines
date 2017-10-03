@@ -3060,7 +3060,7 @@ class Bowtie(Mapper):
         if nfiles == 1:
             infiles = ",".join([self.quoteFile(x) for x in infiles[0]])
             statement = '''
-            %(executable)s --quiet
+            %(executable)s
             --threads %%(bowtie_threads)i
             %(data_options)s
             %(tool_options)s
@@ -3078,7 +3078,7 @@ class Bowtie(Mapper):
             infiles2 = ",".join([self.quoteFile(x) for x in infiles[1]])
 
             statement = '''
-            %(executable)s --quiet
+            %(executable)s
             --threads %%(bowtie_threads)i
             %(data_options)s
             %(tool_options)s
