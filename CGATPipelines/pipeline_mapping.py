@@ -1504,7 +1504,7 @@ def mapReadsWithBowtie(infiles, outfile):
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
            add_inputs(
-               os.path.join(PARAMS["bowtie_index_dir"],
+               os.path.join(PARAMS["bowtie2_index_dir"],
                             PARAMS["genome"] + ".fa")),
            r"bowtie2.dir/\1.bowtie2.bam")
 def mapReadsWithBowtie2(infiles, outfile):
