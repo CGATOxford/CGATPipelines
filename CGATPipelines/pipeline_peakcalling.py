@@ -1003,7 +1003,6 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
     bam = infiles[0]
     snip_bam = P.snip(bam)
     bam_name = snip_bam + "_insertsize.tsv"
-    fragment_size = PipelinePeakcallingScrum.getFragment
 
     insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
                                      PARAMS["database_name"])
@@ -1045,7 +1044,8 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
                                  idr=PARAMS['IDR_run'],
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'],
-                                 broad_peak=0)
+                                 broad_peak=0,
+                                 conda_env=PARAMS['python2_sourcecommand'])
 
     P.run()
     peakcaller.summarise(outfile, mode="narrow")
@@ -1117,7 +1117,8 @@ def callBroaderPeaksWithSicer(infiles, outfile):
                                  idr=PARAMS['IDR_run'],
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'],
-                                 broad_peak=1)
+                                 broad_peak=1,
+                                 conda_env=PARAMS['python2_sourcecommand'])
 
     P.run()
     peakcaller.summarise(outfile, mode="broad")
