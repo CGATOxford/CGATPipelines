@@ -1003,7 +1003,6 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
     bam = infiles[0]
     snip_bam = P.snip(bam)
     bam_name = snip_bam + "_insertsize.tsv"
-    fragment_size = PipelinePeakcallingScrum.getFragment
 
     insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
                                      PARAMS["database_name"])
