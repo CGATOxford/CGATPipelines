@@ -887,7 +887,7 @@ def estimateInsertSize(infile, outfile):
                                            PARAMS['paired_end'],
                                            PARAMS['insert_alignments'],
                                            PARAMS['insert_macs2opts'],
-                                           PARAMS['python2_sourcecommand'])
+                                           PARAMS['python2_macs2'])
 
 
 @merge(estimateInsertSize, "insert_sizes.tsv")
@@ -973,7 +973,7 @@ def callMacs2peaks(infiles, outfile):
                                  PARAMS['macs2_idrsuffix'],
                                  PARAMS['macs2_idrcol'],
                                  PARAMS['macs2_broad_peak'],
-                                 PARAMS['python2_sourcecommand'])
+                                 PARAMS['python2_macs2'])
     P.run()
     peakcaller.summarise(outfile)
 
@@ -1045,7 +1045,7 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'],
                                  broad_peak=0,
-                                 conda_env=PARAMS['python2_sourcecommand'])
+                                 conda_env=PARAMS['python2_sicer'])
 
     P.run()
     peakcaller.summarise(outfile, mode="narrow")
@@ -1118,7 +1118,7 @@ def callBroaderPeaksWithSicer(infiles, outfile):
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'],
                                  broad_peak=1,
-                                 conda_env=PARAMS['python2_sourcecommand'])
+                                 conda_env=PARAMS['python2_sicer'])
 
     P.run()
     peakcaller.summarise(outfile, mode="broad")
