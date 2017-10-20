@@ -1261,7 +1261,7 @@ def downloadEntrezToEnsembl(infile, outfile):
     columns = {
         PARAMS["biomart_ensembl_gene_id"]: "gene_id",
         PARAMS["biomart_entrez_gene_id"]: "entrez_id"
-        }
+    }
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -1328,7 +1328,7 @@ def downloadTranscriptSynonyms(infile, outfile):
         PARAMS["biomart_ensembl_transcript_id"]: "transcript_id",
         PARAMS["biomart_transcript_name"]: "transcript_name",
         PARAMS["biomart_refseq_id"]: "refseq_id"
-        }
+    }
 
     data = Biomart.biomart_iterator(
         columns.keys(),
@@ -1893,7 +1893,8 @@ def buildMapableRegions(infiles, outfile):
         last_start, start = None, None
 
         for window_start in range(0, size, window_size):
-            values = bw.intervals(contig, window_start, window_start + window_size)
+            values = bw.intervals(contig, window_start,
+                                  window_start + window_size)
             if values is None:
                 continue
 
@@ -2602,6 +2603,7 @@ def buildNUMTs(infile, outfile):
 # Below is a collection of functions that are
 # currently inactivated.
 
+
 # This is all legacy - sebastian says this not appropriate programming
 # behavoir :'(
 if 0:
@@ -2998,7 +3000,6 @@ def publish_report():
 
     E.info("publishing report")
     P.publish_report()
-
 
 
 def main(argv=None):

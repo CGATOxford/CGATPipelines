@@ -614,7 +614,6 @@ def publish_report():
     P.publish_report()
 
 
-
 def main(argv=None):
     if argv is None:
         argv = sys.argv

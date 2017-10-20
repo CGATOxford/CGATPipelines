@@ -895,7 +895,6 @@ def publish():
                 os.symlink(os.path.abspath(src), dest)
 
 
-
 def main(argv=None):
     if argv is None:
         argv = sys.argv

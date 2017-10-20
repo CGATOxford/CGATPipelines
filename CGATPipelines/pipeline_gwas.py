@@ -1468,6 +1468,7 @@ def mergeExclusions(infiles, outfile):
 
     P.run()
 
+
 if PARAMS['gwas_model'] == "linear":
     @follows(convertToPlink,
              mergeExclusions,
@@ -2535,7 +2536,8 @@ def testUnadjustedEpistasis(infiles, outfile):
     bed1_file = infiles[1][0]
     bed2_file = infiles[1][1]
 
-    covars = ",".join([cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
+    covars = ",".join(
+        [cx for cx in PARAMS['gwas_covars'].split(",") if not re.search("f", cx)])
     all_covars = ",".join([covars])
 
     covar_file = infiles[0]

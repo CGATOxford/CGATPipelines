@@ -896,7 +896,7 @@ def buildTranscriptsWithCufflinks(infiles, outfile):
         %(tmpfilename)s/reference.gtf; ''' % locals()
         options = options + \
             " --GTF-guide %(tmpfilename)s/reference.gtf" % locals()
-    
+
     if infile.endswith(".remote"):
         token = glob.glob("gdc-user-token*")
 
@@ -935,6 +935,7 @@ def buildTranscriptsWithCufflinks(infiles, outfile):
     # mv transcripts.expr %(outfile)s.transcripts.expr
 
     shutil.rmtree(tmpfilename)
+
 
 ###################################################################
 ##################################################################
@@ -1242,7 +1243,7 @@ def loadTranscriptComparison(infile, outfile):
             # count number of gene_ids containing q1 - qXX
             # qXX = identifier of samples where transcript is found
             nexperiments = len([y for y in numtranscripts
-                               if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
+                                if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
 
             outf.write("%s\n" %
                        "\t".join((transfrag.transfrag_id,
@@ -1436,7 +1437,8 @@ def buildAndLoadFullGeneSetTracking(infiles, outfile):
 
                 #  number of gene_ids containing q1 - qXX
                 # qXX = identifier of samples where transcript is found
-                nexperiments = len([y for y in numtranscripts if re.match(r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
+                nexperiments = len([y for y in numtranscripts if re.match(
+                    r'(^q[0-9][0-9]?[0-9]?:)', y.gene_id)])
 
                 outf.write("%s\n" % "\t".join((transfrag.transfrag_id,
                                                transfrag.locus_id,
@@ -1910,6 +1912,7 @@ def buildAbinitioLincRNAGeneSet(infiles, outfile):
         outf.write("%s\n" % str(entry))
     outf.close()
 
+
 ###################################################################
 ##################################################################
 ##################################################################
@@ -2131,7 +2134,7 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     | gzip
     > %(outfile)s
     '''
-    
+
     P.run()
 
 #########################################################################
@@ -2312,6 +2315,7 @@ def qc():
 @follows(transcripts, genesets, qc)
 def full():
     pass
+
 
 ###################################################################
 ###################################################################

@@ -334,7 +334,6 @@ def update_report():
     P.run_report(clean=False)
 
 
-
 def main(argv=None):
     if argv is None:
         argv = sys.argv

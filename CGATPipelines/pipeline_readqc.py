@@ -192,7 +192,7 @@ if PARAMS.get("preprocessors", None):
             '''Make a single fasta file for each sample of all contaminant adaptor
             sequences for removal
             '''
-			
+
             print(infile)
             print(REGEX_TRACK)
 

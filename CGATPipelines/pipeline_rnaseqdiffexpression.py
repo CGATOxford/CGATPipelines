@@ -772,7 +772,7 @@ SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     "*.fastq.gz",
                     "*.sra")
 SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                      for suffix_name in SEQUENCESUFFIXES])
+                       for suffix_name in SEQUENCESUFFIXES])
 
 # enable multiple fastqs from the same sample to be analysed together
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
@@ -823,7 +823,6 @@ else:
          add_inputs(buildKallistoIndex, getTranscript2GeneMap),
          SEQUENCEFILES_KALLISTO_OUTPUT)
 def runKallisto(infiles, outfiles):
-
     '''
     Computes read counts across transcripts and genes based on a fastq
     file and an indexed transcriptome using Kallisto.
@@ -1256,7 +1255,8 @@ def runEdgeR(infiles, outfiles, design_name):
 
 @mkdir("DEresults.dir/sleuth")
 @product(mergeCounts,
-         formatter(".*/(?P<QUANTIFIER>(kallisto|salmon|sailfish)).dir/transcripts.tsv.gz"),
+         formatter(
+             ".*/(?P<QUANTIFIER>(kallisto|salmon|sailfish)).dir/transcripts.tsv.gz"),
          ["design%s.tsv" % x.asFile() for x in DESIGNS],
          formatter(".*/design(?P<DESIGN>\S+).tsv$"),
          ["DEresults.dir/sleuth/{QUANTIFIER[0][0]}_{DESIGN[1][0]}_transcripts_results.tsv",
@@ -1411,7 +1411,8 @@ def getEdgeRNormExp(infiles, outfiles):
 @mkdir("DEresults.dir/sleuth")
 @collate(
     QUANTTARGETS,
-    formatter("(?P<QUANTIFIER>(kallisto|salmon|sailfish)).dir/(\S+)/transcripts.tsv.gz"),
+    formatter(
+        "(?P<QUANTIFIER>(kallisto|salmon|sailfish)).dir/(\S+)/transcripts.tsv.gz"),
     add_inputs(getTranscript2GeneMap),
     [r"DEresults.dir/sleuth/{QUANTIFIER[0]}_normalised_transcripts_expression.tsv.gz",
      r"DEresults.dir/sleuth/{QUANTIFIER[0]}_normalised_genes_expression.tsv.gz"],
@@ -1441,6 +1442,7 @@ def getSleuthNormExp(infiles, outfiles, quantifier):
     PipelineRnaseq.getAlignmentFreeNormExp(
         transcript_infiles, basename, column,
         transcripts_outf, genes_outf, t2gMap)
+
 
 # Define the task for differential expression and normalisation
 DETARGETS = []
@@ -1550,7 +1552,6 @@ def publish():
     '''publish files.'''
     # publish web pages
     P.publish_report()
-
 
 
 def main(argv=None):

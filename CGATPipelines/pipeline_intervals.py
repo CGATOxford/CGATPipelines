@@ -189,6 +189,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 class product(task_decorator):
     pass
 
+
 ###################################################
 ###################################################
 ###################################################
@@ -1887,7 +1888,6 @@ def reset(infile, outfile):
     rm -rf *.dir;
     '''
     P.run()
-
 
 
 def main(argv=None):

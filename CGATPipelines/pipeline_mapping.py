@@ -707,6 +707,7 @@ def buildGSNAPSpliceSites(infile, outfile):
 # Read mapping
 #########################################################################
 
+
 SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     "*.fastq.gz",
                     "*.fa.gz",
@@ -2734,7 +2735,6 @@ def publish():
 
     E.info("publishing UCSC data hub")
     P.publish_tracks(export_files)
-
 
 
 def main(argv=None):

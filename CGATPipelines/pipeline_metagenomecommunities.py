@@ -974,6 +974,7 @@ def mergeLcaCountsAcrossSamples(infiles, outfiles):
 ###############################################
 ###############################################
 
+
 COUNT_DATA = []
 classifiers = {"kraken": mergeKrakenCountsAcrossSamples,
                "lca": mergeLcaCountsAcrossSamples}
@@ -1000,6 +1001,7 @@ def rarefyTaxa(infile, outfile):
 ###############################################
 ###############################################
 ###############################################
+
 
 rarefy = {0: (COUNT_DATA, ".counts.tsv.gz"),
           1: (rarefyTaxa, ".counts.rarefied.tsv")}
@@ -2312,7 +2314,6 @@ def update_report():
 #########################################
 #########################################
 #########################################
-
 
 
 def main(argv=None):

@@ -408,6 +408,7 @@ def DESeqNormalize(infile, outfile):
 def loadDESeqNormalize(infile, outfile):
     P.load(infile, outfile, transpose=True)
 
+
 if len([PARAMS['refs']]) > 1:
 
     @follows(buildCombinedExpression)

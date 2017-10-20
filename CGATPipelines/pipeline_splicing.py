@@ -184,6 +184,7 @@ def connect():
 class MySample(PipelineTracks.Sample):
     attributes = tuple(PARAMS["attributes"].split(","))
 
+
 TRACKS = PipelineTracks.Tracks(MySample).loadFromDirectory(
     glob.glob("*.bam"), "(\S+).bam")
 
@@ -461,9 +462,9 @@ def collateMATS(infiles, outfile):
 
     indir = os.path.dirname(infiles[1])
     collate = []
-    with open(indir+"/b1.txt", "r") as f:
+    with open(indir + "/b1.txt", "r") as f:
         collate.append(f.readline())
-    with open(indir+"/b2.txt", "r") as f:
+    with open(indir + "/b2.txt", "r") as f:
         collate.append(f.readline())
     for event in ["SE", "A5SS", "A3SS", "MXE", "RI"]:
         temp = pd.read_csv("%s/%s.MATS.JC.txt" %
@@ -574,9 +575,9 @@ def runPermuteMATS(infiles, outfile, design):
                               strand=strand, outdir=directory, permute=1)
 
     collate = []
-    with open(os.path.dirname(init)+"/b1.txt", "r") as f:
+    with open(os.path.dirname(init) + "/b1.txt", "r") as f:
         collate.append(f.readline())
-    with open(os.path.dirname(init)+"/b2.txt", "r") as f:
+    with open(os.path.dirname(init) + "/b2.txt", "r") as f:
         collate.append(f.readline())
     for event in ["SE", "A5SS", "A3SS", "MXE", "RI"]:
         temp = pd.read_csv("%s/%s.MATS.JC.txt" %

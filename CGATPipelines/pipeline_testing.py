@@ -535,8 +535,8 @@ def compareCheckSums(infiles, outfile):
             different_md5 = set()
             same_md5 = set()
 
-        if job_finished and (len(missing) + len(extra) + \
-           len(different_md5) + len(different_lines) == 0):
+        if job_finished and (len(missing) + len(extra) +
+                             len(different_md5) + len(different_lines) == 0):
             status = "OK"
         else:
             status = "FAIL"
