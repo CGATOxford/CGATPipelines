@@ -19,7 +19,7 @@ To start a new project, use  :file:`pipeline_quickstart.py`::
 This will create a new directory called ``chipseq`` in the current directory
 with the following layout::
 
-  |-- [         55]  report
+  |-- [         55]  work
   |   |-- [         49]  conf.py -> ../src/pipeline_chipseq/conf.py
   |   `-- [         54]  pipeline.ini -> ../src/pipeline_chipseq/pipeline.ini
   `-- [        102]  src
@@ -50,7 +50,7 @@ with the following layout::
 
 The layout has the following components::
 
-report
+work
    Directory for running the pipeline. Links to configuration files in
    the :file:`src` directory. This directory exists to separate code
    from data and results.
@@ -97,7 +97,7 @@ def main(argv=sys.argv):
                       help="destination directory.")
 
     parser.add_option(
-        "-n", "--set-name", dest="name", type="string",
+        "-n", "--name", "--set-name", dest="name", type="string",
         help="name of this pipeline. 'pipeline_' will be prefixed.")
 
     parser.add_option(
@@ -130,7 +130,7 @@ def main(argv=sys.argv):
     destination_dir = options.destination
 
     # create directories
-    for d in ("", "src", "report",
+    for d in ("", "src", "work",
               "src/pipeline_docs",
               "src/pipeline_%s" % options.name,
               reportdir,
@@ -202,7 +202,7 @@ def main(argv=sys.argv):
     # create links
     for src, dest in (("conf.py", "conf.py"),
                       ("pipeline.ini", "pipeline.ini")):
-        d = os.path.join("report", dest)
+        d = os.path.join("work", dest)
         if os.path.exists(d) and options.force:
             os.unlink(d)
         os.symlink(os.path.join(confdir, src), d)
@@ -238,25 +238,20 @@ def main(argv=sys.argv):
 Welcome to your new %(name)s CGAT pipeline.
 
 All files have been successfully copied to `%(destination_dir)s`. In
-order to start the pipeline, go to `%(destination_dir)s/report`
+order to start the pipeline, go to `%(destination_dir)s/work`
 
-   cd %(destination_dir)s/report
+   cd %(destination_dir)s/work
 
 You can start the pipeline by typing:
 
-   python ../src/pipeline_%(name)s.py -v 5 -p 5 make full
-
-To build the report, type:
-
-   python ../src/pipeline_%(name)s.py -v 5 -p 5 make build_report
-
-The report will be in file:/%(absdest)s/report/report/html/index.html.
+   cgatflow %(name)s -v 5 -p 5 make full
 
 The source code for the pipeline is in %(destination_dir)s/src.
 
 """ % locals())
 
     E.Stop()
+
 
 if __name__ == "__main__":
     sys.exit(main())

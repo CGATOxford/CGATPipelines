@@ -2775,5 +2775,12 @@ def publish():
     # publish web pages
     P.publish_report(export_files=export_files)
 
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
+
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

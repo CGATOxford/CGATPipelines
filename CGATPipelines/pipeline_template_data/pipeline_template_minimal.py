@@ -107,37 +107,11 @@ def full():
     pass
 
 
-@follows(mkdir("report"))
-def build_report():
-    '''build report from scratch.
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
 
-    Any existing report will be overwritten.
-    '''
-
-    E.info("starting report build process from scratch")
-    P.run_report(clean=True)
-
-
-@follows(mkdir("report"))
-def update_report():
-    '''update report.
-
-    This will update a report with any changes inside the report
-    document or code. Note that updates to the data will not cause
-    relevant sections to be updated. Use the cgatreport-clean utility
-    first.
-    '''
-
-    E.info("updating report")
-    P.run_report(clean=False)
-
-
-@follows(update_report)
-def publish_report():
-    '''publish report in the CGAT downloads directory.'''
-
-    E.info("publishing report")
-    P.publish_report()
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

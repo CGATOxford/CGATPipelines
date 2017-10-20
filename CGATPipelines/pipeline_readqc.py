@@ -192,7 +192,7 @@ if PARAMS.get("preprocessors", None):
             '''Make a single fasta file for each sample of all contaminant adaptor
             sequences for removal
             '''
-			
+
             print(infile)
             print(REGEX_TRACK)
 
@@ -503,6 +503,13 @@ def update_report():
 
     E.info("updating documentation")
     P.run_report(clean=False)
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

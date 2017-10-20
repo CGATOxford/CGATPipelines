@@ -274,7 +274,7 @@ def computePresenceCalls(infiles, outfile):
     call_eset = R('''call.eset = detection.p.val( raw.data, 
                                  alpha1=%(mas5_alpha1)f,
                                  alpha2=%(mas5_alpha2)f,
-                  )''' % PARAMS )
+                  )''' % PARAMS)
 
     # output to files
     R('''write.table( call.eset$call, '%s.calls', 
@@ -289,7 +289,7 @@ def computePresenceCalls(infiles, outfile):
     # build list of probesets to keep
     # keep all probesets where at least 3 out of 4 replicates
     # are indicated as present (P/M) in at least one treatment group
-    R('''absent = rowSums( call.eset$call == 'A')''' )
+    R('''absent = rowSums( call.eset$call == 'A')''')
     keep = R(
         '''remove = names(absent[absent <= length(colnames(assayData( gcrma.eset )$exprs))-4] )''')
     outf = open(outfile, "w")
@@ -382,6 +382,13 @@ def computeDifferentialExpressionSAM(infile, outfile):
          importPresence)
 def full():
     pass
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

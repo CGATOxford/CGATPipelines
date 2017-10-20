@@ -122,6 +122,7 @@ def connect():
 
     return dbh
 
+
 # ----------------------------------------------------------
 try:
     PARAMS['data']
@@ -449,6 +450,7 @@ def loadSailfishCounts(infile, outfile):
 # Handling BAM files, dedup with picard before featureCounts
 # quantification. Retain multimapping reads when counting?
 
+
 BAMDIR = PARAMS['bam_dir']
 BAMFILES = [x for x in glob.glob(os.path.join(BAMDIR, "*.bam"))]
 BAMREGEX = regex(r".*/(.+)_(.+)_(.+).bam$")
@@ -606,6 +608,7 @@ def quantify_expression():
 
 # ----------------------------------------------------#
 # fetch tables from mapping pipeline to use for QC
+
 
 MAPPINGDB = PARAMS['mapping_db']
 
@@ -901,6 +904,13 @@ def publish_report():
 
     E.info("publishing report")
     P.publish_report()
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

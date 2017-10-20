@@ -1126,6 +1126,7 @@ def callBroaderPeaksWithSicer(infiles, outfile):
 def runSicer():
     pass
 
+
 # list of peak callers to use
 PEAKCALLERS = []
 # list of peakcallers to use for IDR - currently IDR only works with a
@@ -1164,6 +1165,7 @@ def peakcalling():
 ################################################################
 # 4) post peakcalling IDR Steps
 ################################################################
+
 
 if PARAMS['IDR_run']:
     IDR_ON = True
@@ -1354,7 +1356,8 @@ def filterIDR(infile, outfiles):
 
     conn = sqlite3.connect(PARAMS['database_name'])
     c = conn.cursor()
-    x = c.execute("SELECT IDR_comparison_type FROM IDR_pairs WHERE file1 = '%s' AND file2 = '%s'" % (file1, file2))
+    x = c.execute(
+        "SELECT IDR_comparison_type FROM IDR_pairs WHERE file1 = '%s' AND file2 = '%s'" % (file1, file2))
     x = x.fetchall()
 
     if len(x) != 1:
@@ -1463,7 +1466,8 @@ def findConservativePeaks(infile, outfiles):
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
-    peakfiles = ["IDR.dir/%s" % i.replace("_table", "_filtered") for i in peakfiles]
+    peakfiles = ["IDR.dir/%s" %
+                 i.replace("_table", "_filtered") for i in peakfiles]
     i = 0
     for peakfile in peakfiles:
         outnam = "conservative_peaks.dir/%s.tsv" % experiments[i]
@@ -1485,7 +1489,8 @@ def findOptimalPeaks(infile, outfiles):
     experiments = cps['Experiment'].values
     peakfiles = cps['Output_Filename'].values
 
-    peakfiles = ["IDR.dir/%s" % i.replace("_table", "_filtered") for i in peakfiles]
+    peakfiles = ["IDR.dir/%s" %
+                 i.replace("_table", "_filtered") for i in peakfiles]
 
     i = 0
     for peakfile in peakfiles:
@@ -1541,7 +1546,7 @@ def plotIDR(infiles, outfiles):
         idr_score_threshold = -math.log(thresh, 10)
         nrows = math.ceil(len(L) / 4)
         ncols = 4
-        fig = plt.figure(figsize=(ncols*3, nrows*3))
+        fig = plt.figure(figsize=(ncols * 3, nrows * 3))
         f = gridspec.GridSpec(nrows, ncols)
         j = 0
         row = 0
@@ -1569,7 +1574,8 @@ def plotIDR(infiles, outfiles):
             if col == ncols:
                 col = 0
                 row += 1
-        fig.suptitle('''Correlation Between Ranks in Pairs of Subsets: %(label)s Consistency\nblue = peak passing IDR, grey = peak not passing IDR''' % locals())
+        fig.suptitle(
+            '''Correlation Between Ranks in Pairs of Subsets: %(label)s Consistency\nblue = peak passing IDR, grey = peak not passing IDR''' % locals())
         fig.tight_layout(rect=[0, 0.03, 1, 0.95])
         fig.savefig(outfiles[i])
         i += 1
@@ -1593,7 +1599,7 @@ def IDR():
 
 @merge(("design.tsv", makeBamInputTable),
        ["ChIPQC_design_conservative.tsv",
-       "ChIPQC_design_optimal.tsv"])
+        "ChIPQC_design_optimal.tsv"])
 def makeCHIPQCInputTables(infiles, outfiles):
     design = pd.read_csv(infiles[0], sep="\t")
     inputs = pd.read_csv(infiles[1], sep="\t")
@@ -1757,6 +1763,13 @@ def buildNotebooks():
     '''build notebooks'''
 
 ##############################################################################
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

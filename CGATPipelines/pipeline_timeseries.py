@@ -408,6 +408,7 @@ def DESeqNormalize(infile, outfile):
 def loadDESeqNormalize(infile, outfile):
     P.load(infile, outfile, transpose=True)
 
+
 if len([PARAMS['refs']]) > 1:
 
     @follows(buildCombinedExpression)
@@ -1534,6 +1535,13 @@ def publish_report():
 
     E.info("publishing report")
     P.publish_report()
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
