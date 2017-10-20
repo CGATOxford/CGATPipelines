@@ -2393,5 +2393,12 @@ def publish():
         '''bigDataUrl=http://www.cgat.org/downloads/%(project_id)s/'''
         '''bamfiles/%(filename)s""" % locals())
 
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
+
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

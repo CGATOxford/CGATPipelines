@@ -363,5 +363,12 @@ def full():
     '''
 
 
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
+
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
