@@ -1798,7 +1798,8 @@ class SicerPeakcaller(Peakcaller):
                 'bamToBed -i %(controlfile)s \
                 > %(workdir)s/control.bed' % locals())
             statement.append("cd %(workdir)s" % locals())
-            statement.append('''SICER.sh . foreground.bed control.bed \
+            statement.append('''%(conda_env)s &&
+            SICER.sh . foreground.bed control.bed \
             . %(genome)s
             %(redundancy_threshold)s
             %(window_size)s
@@ -1810,7 +1811,8 @@ class SicerPeakcaller(Peakcaller):
 
         else:
             statement.append('cd%(workdir)s')
-            statement.append('''SICER-rb.sh .foreground.bed . %(genome)s
+            statement.append('''%(conda_env)s &&
+            SICER-rb.sh .foreground.bed . %(genome)s
             %(redundancy_threshold)s
             %(window_size)s
             %(fragment_size)s
