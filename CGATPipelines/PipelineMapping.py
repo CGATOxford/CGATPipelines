@@ -361,7 +361,7 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
         cat = "zcat"
     else:
         cat = "cat"
-    
+
     statement = '''
     cuffcompare -r <( %(cat)s %(infile)s )
          -T
@@ -3044,12 +3044,30 @@ class Bowtie(Mapper):
                 nfiles -= 2
             else:
                 raise ValueError("unexpected number of files")
-            index_prefix = "%(bowtie_index_dir)s/%(genome)s_cs"
+            if executable == "bowtie":
+                index_prefix = "%(bowtie_index_dir)s/%(genome)s_cs"
+            elif executable == "bowtie2":
+                index_prefix = "%(bowtie2_index_dir)s/%(genome)s_cs"
+            else:
+                raise ValueError('''The executable is not compatible
+                               for running bowtie''')
         elif self.datatype == "fasta":
             data_options.append("-f")
-            index_prefix = "%(bowtie_index_dir)s/%(genome)s"
+            if executable == "bowtie":
+                index_prefix = "%(bowtie_index_dir)s/%(genome)s"
+            elif executable == "bowtie2":
+                index_prefix = "%(bowtie2_index_dir)s/%(genome)s"
+            else:
+                raise ValueError('''The executable is not compatible
+                                 with running bowtie''')
         else:
-            index_prefix = "%(bowtie_index_dir)s/%(genome)s"
+            if executable == "bowtie":
+                index_prefix = "%(bowtie_index_dir)s/%(genome)s"
+            elif executable == "bowtie2":
+                index_prefix = "%(bowtie2_index_dir)s/%(genome)s"
+            else:
+                raise ValueError('''The executable is not compatible
+                                 with running bowtie''')
 
         index_option = self.index_option
         output_option = self.output_option
