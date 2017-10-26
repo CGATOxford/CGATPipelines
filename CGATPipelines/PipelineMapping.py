@@ -3049,7 +3049,7 @@ class Bowtie(Mapper):
             elif executable == "bowtie2":
                 index_prefix = "%(bowtie2_index_dir)s/%(genome)s_cs"
             else:
-                raise ValeError('''The executable is not compatible
+                raise ValueError('''The executable is not compatible
                                for running bowtie''')
         elif self.datatype == "fasta":
             data_options.append("-f")
