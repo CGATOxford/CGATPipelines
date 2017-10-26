@@ -3044,21 +3044,30 @@ class Bowtie(Mapper):
                 nfiles -= 2
             else:
                 raise ValueError("unexpected number of files")
-            if exexutable == "bowtie":
+            if executable == "bowtie":
                 index_prefix = "%(bowtie_index_dir)s/%(genome)s_cs"
-            else:
+            elif executable == "bowtie2":
                 index_prefix = "%(bowtie2_index_dir)s/%(genome)s_cs"
+            else:
+                raise ValeError('''The executable is not compatible
+                               for running bowtie''')
         elif self.datatype == "fasta":
             data_options.append("-f")
-            if exexutable == "bowtie":
+            if executable == "bowtie":
                 index_prefix = "%(bowtie_index_dir)s/%(genome)s"
-            else:
+            elif executable == "bowtie2":
                 index_prefix = "%(bowtie2_index_dir)s/%(genome)s"
+            else:
+                raise ValueError('''The executable is not compatible
+                                 with running bowtie''')
         else:
-            if exexutable == "bowtie":
+            if executable == "bowtie":
                 index_prefix = "%(bowtie_index_dir)s/%(genome)s"
-            else:
+            elif executable == "bowtie2":
                 index_prefix = "%(bowtie2_index_dir)s/%(genome)s"
+            else:
+                raise ValueError('''The executable is not compatible
+                                 with running bowtie''')
 
         index_option = self.index_option
         output_option = self.output_option
