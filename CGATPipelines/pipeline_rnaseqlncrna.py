@@ -181,10 +181,10 @@ import os
 import re
 from rpy2.robjects import r as R
 
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGATPipelines.PipelineLncRNA as PipelineLncRNA
 
 ###################################################

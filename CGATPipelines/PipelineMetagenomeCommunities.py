@@ -8,9 +8,9 @@ classes and utility functions for pipeline_metagenomecommunities.py
 import os
 import collections
 
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
+import CGATCore.Experiment as E
 from rpy2.robjects import r as R
 import CGAT.GTF as GTF
 

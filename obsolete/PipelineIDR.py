@@ -10,8 +10,8 @@ import re
 import pysam
 import random
 
-import CGATPipelines.Pipeline as P
-import CGAT.IOTools as IOTools
+from CGATCore import Pipeline as P
+import CGATCore.IOTools as IOTools
 import CGATPipelines.PipelineTracks as PipelineTracks
 from CGAT import WrapperIDR
 

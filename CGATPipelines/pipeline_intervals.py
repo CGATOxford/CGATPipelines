@@ -174,9 +174,9 @@ import xml.etree.ElementTree
 from ruffus import *
 from ruffus.task import task_decorator
 
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
-import CGAT.IOTools as IOTools
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
+import CGATCore.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.MatrixTools as MatrixTools
 import CGATPipelines.PipelineIntervals as PipelineIntervals

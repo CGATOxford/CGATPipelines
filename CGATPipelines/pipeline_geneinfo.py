@@ -92,11 +92,11 @@ formatted ontology available on this site.
 """
 
 from ruffus import *
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import os
 import sys
 import CGATPipelines.PipelineGeneInfo as PipelineGeneInfo
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import pandas as pd
 
 

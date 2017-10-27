@@ -80,9 +80,9 @@ import re
 import glob
 import os
 from ruffus import *
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
-import CGAT.IOTools as IOTools
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
+import CGATCore.IOTools as IOTools
 import CGAT.IndexedFasta as IndexedFasta
 
 ###################################################

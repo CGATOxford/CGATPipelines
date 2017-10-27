@@ -269,12 +269,12 @@ from ruffus import *
 from ruffus.combinatorics import *
 import os
 import sqlite3
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import sys
 import CGATPipelines.PipelineGSEnrichment as PipelineEnrichment
 import CGATPipelines.PipelineEnrichmentGSEA as PipelineGSEA
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np

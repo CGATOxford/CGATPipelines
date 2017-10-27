@@ -126,12 +126,12 @@ import sqlite3
 import glob
 
 # import modules from the CGAT code collection
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineReadqc as PipelineReadqc
 import CGATPipelines.PipelinePreprocess as PipelinePreprocess
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 
 # load options from the config file
 P.getParameters(

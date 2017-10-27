@@ -57,12 +57,12 @@ Code
 # load modules
 from ruffus import *
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import sys
 import os
 import glob
 import sqlite3
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 # load options from the config file

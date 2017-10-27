@@ -132,8 +132,8 @@ from ruffus import *
 import sqlite3
 import xml.etree.ElementTree
 
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
 
 import CGATPipelines.PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -143,7 +143,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 ###################################################
 # Pipeline configuration
 ###################################################
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",

@@ -6,9 +6,9 @@ Reference
 ---------
 '''
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 from rpy2.robjects import r as R
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.Biomart as Biomart
 import re
 

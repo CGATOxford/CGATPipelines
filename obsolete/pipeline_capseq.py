@@ -142,7 +142,7 @@ import CGAT.IndexedFasta as IndexedFasta
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.FastaIterator as FastaIterator
 import CGAT.Genomics as Genomics
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.MAST as MAST
 import CGAT.GTF as GTF
 import CGAT.Bed as Bed
@@ -150,7 +150,7 @@ import io
 import numpy
 import CGAT.Masker as Masker
 import fileinput
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import logging as L
 import CGATPipelines.PipelineChipseq as PIntervals
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -163,7 +163,7 @@ import rpy2.robjects as ro
 ###################################################################
 ###################################################################
 # Pipeline configuration
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 P.getParameters(["pipeline_capseq.ini"])
 PARAMS = P.PARAMS
 USECLUSTER = True

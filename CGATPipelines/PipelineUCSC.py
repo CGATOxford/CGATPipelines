@@ -29,10 +29,10 @@ Reference
 import os
 import collections
 import sqlalchemy
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
 
 
 def connectToUCSC(host="genome-mysql.cse.ucsc.edu",

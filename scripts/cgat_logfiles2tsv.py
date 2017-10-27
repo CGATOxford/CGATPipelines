@@ -52,8 +52,8 @@ import re
 import gzip
 import glob
 
-import CGAT.Experiment as E
-import CGAT.Logfile as Logfile
+import CGATCore.Experiment as E
+import CGATCore.Logfile as Logfile
 
 
 def main(argv=None):

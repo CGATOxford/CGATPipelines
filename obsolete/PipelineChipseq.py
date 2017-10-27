@@ -17,10 +17,10 @@ import collections
 import sqlite3
 import pysam
 import numpy
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import CGAT.IndexedGenome as IndexedGenome
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.BamTools as BamTools
 import CGAT.WrapperMACS as WrapperMACS

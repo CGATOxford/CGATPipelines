@@ -33,8 +33,8 @@ Reference
 
 """
 
-import CGAT.Experiment as E
-import CGAT.CSV as CSV
+import CGATCore.Experiment as E
+import CGATCore.CSV as CSV
 import CGAT.Sra as Sra
 
 import collections
@@ -53,14 +53,14 @@ import rpy2.rinterface as ri
 
 import CGAT.BamTools as BamTools
 import CGAT.Counts as Counts
-import CGAT.Database as Database
+import CGATCore.Database as Database
 import CGAT.Expression as Expression
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineMapping as PipelineMapping
 
-from CGATPipelines.Pipeline import cluster_runnable
+from CGATCore.Pipeline import cluster_runnable
 
 # AH: commented as I thought we wanted to avoid to
 # enable this automatically due to unwanted side

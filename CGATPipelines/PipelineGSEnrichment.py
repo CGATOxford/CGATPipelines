@@ -1,5 +1,5 @@
 import pandas as pd
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import sqlite3
 import os
 import copy
@@ -7,8 +7,8 @@ import rpy2.robjects as robjects
 import rpy2.interactive as r
 import rpy2.interactive.packages
 import scipy.stats as stats
-from CGATPipelines.Pipeline import cluster_runnable
-import CGAT.Experiment as E
+from CGATCore.Pipeline import cluster_runnable
+import CGATCore.Experiment as E
 import ast as ast
 import numpy as np
 from toposort import toposort_flatten

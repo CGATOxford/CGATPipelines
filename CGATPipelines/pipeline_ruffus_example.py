@@ -36,7 +36,7 @@ from ruffus import *
 from ruffus.combinatorics import *
 import sys
 import os
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 
 PARAMS = P.getParameters(

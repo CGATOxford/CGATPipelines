@@ -12,7 +12,7 @@ from CGATReport.ResultBlock import ResultBlocks, ResultBlock
 import seaborn
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS
-import CGATPipelines.Pipeline as Pipeline
+from CGATCore import Pipeline as Pipeline
 import matplotlib.pyplot as plt
 
 DATABASE = PARAMS.get('readqc_backend',

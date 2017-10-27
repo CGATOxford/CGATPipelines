@@ -2,15 +2,15 @@ import os
 import re
 import collections
 import itertools
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
-import CGAT.IOTools as IOTools
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
+import CGATCore.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import pandas as pd
 import pysam
 import numpy as np
 import shutil
-from CGATPipelines.Pipeline import cluster_runnable
+from CGATCore.Pipeline import cluster_runnable
 from rpy2.robjects import r as R
 from rpy2.robjects import pandas2ri
 pandas2ri.activate()

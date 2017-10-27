@@ -34,7 +34,7 @@ import re
 import sys
 
 from nose.tools import ok_
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 
 # handle to original E.Start function
 ORIGINAL_START = None

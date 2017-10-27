@@ -145,9 +145,9 @@ import sqlite3
 from rpy2.robjects import r as R
 import pysam
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 
 ###################################################
 ###################################################
@@ -156,7 +156,7 @@ import CGAT.IOTools as IOTools
 ###################################################
 
 # load options from the config file
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 from functools import reduce
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],

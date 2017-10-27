@@ -116,7 +116,7 @@ Code
 """
 import sys
 import os
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import logging as L
 import CGATPipelines.PipelineUCSC as PipelineUCSC
 
@@ -127,7 +127,7 @@ from ruffus import *
 ###################################################
 # Pipeline configuration
 ###################################################
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",

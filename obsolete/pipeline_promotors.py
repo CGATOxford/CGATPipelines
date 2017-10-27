@@ -90,8 +90,8 @@ import os
 import re
 import collections
 import sqlite3
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
 import CGAT.FastaIterator as FastaIterator
 import CGAT.Bed as Bed
 import CGATPipelines.PipelineGeneset as PipelineGeneset
@@ -103,7 +103,7 @@ import CGATPipelines.PipelineGeneset as PipelineGeneset
 ###################################################
 
 # load options from the config file
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",

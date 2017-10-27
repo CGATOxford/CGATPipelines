@@ -132,14 +132,14 @@ Code
 # load modules
 from ruffus import *
 
-import CGAT.Experiment as E
-import CGAT.Database as Database
+import CGATCore.Experiment as E
+import CGATCore.Database as Database
 import sys
 import os
 import glob
 import sqlite3
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################

@@ -149,14 +149,14 @@ from ruffus import *
 # from rpy2.robjects import r as R
 
 import numpy
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import sys
 import os
 import sqlite3
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import re
 import CGATPipelines.PipelineExome as PipelineExome
 

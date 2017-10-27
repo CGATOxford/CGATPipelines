@@ -32,11 +32,11 @@ try:
 except ImportError:
     import configparser as ConfigParser
 
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 from ruffus import *
 import sqlite3
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import gzip
 import CGAT.Expression as Expression
 

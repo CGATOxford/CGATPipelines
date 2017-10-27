@@ -115,9 +115,9 @@ import numpy
 import sqlite3
 import pandas
 
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC

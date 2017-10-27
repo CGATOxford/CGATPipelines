@@ -113,9 +113,9 @@ import os
 import sqlite3
 import pandas
 
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
+import CGATCore.Database as Database
 import CGAT.SetTools as SetTools
 import CGATPipelines.PipelineGO as PipelineGO
 
@@ -126,7 +126,7 @@ import CGATPipelines.PipelineGO as PipelineGO
 ###################################################
 
 # load options from the config file
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 PARAMS = P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",

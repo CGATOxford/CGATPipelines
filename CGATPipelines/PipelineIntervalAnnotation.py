@@ -6,10 +6,10 @@ PipelineIntervalAnnotation.py - Tasks associated with annotation of genomic inte
 import shutil
 import os
 import sqlite3
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.Bed as Bed
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 ############################################################
 ############################################################

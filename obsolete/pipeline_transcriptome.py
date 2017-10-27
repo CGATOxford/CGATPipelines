@@ -91,10 +91,10 @@ import os
 import gzip
 from ruffus import *
 import sqlite3
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
+import CGATCore.IOTools as IOTools
+import CGATCore.Database as Database
 import CGAT.GTF as GTF
 import CGATPipelines.PipelineTracks as PipelineTracks
 

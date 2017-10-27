@@ -8,11 +8,11 @@ import re
 import os
 import collections
 
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 
-import CGAT.Database as Database
-import CGAT.IOTools as IOTools
+import CGATCore.Database as Database
+import CGATCore.IOTools as IOTools
 
 from rpy2.robjects import r as R
 import rpy2.robjects as ro

@@ -18,9 +18,9 @@ import collections
 import sqlite3
 import pandas as pd
 
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
+import CGATCore.Experiment as E
 import CGAT.GTF as GTF
 import CGAT.IndexedFasta as IndexedFasta
 

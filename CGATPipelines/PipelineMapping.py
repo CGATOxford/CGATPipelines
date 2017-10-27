@@ -83,10 +83,10 @@ import glob
 import collections
 import re
 import itertools
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import logging as L
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
 import CGAT.GTF as GTF
 import CGAT.Fastq as Fastq
 import CGAT.IndexedFasta as IndexedFasta

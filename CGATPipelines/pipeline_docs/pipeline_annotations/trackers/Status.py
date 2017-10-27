@@ -1,7 +1,7 @@
 from AnnotationReport import *
 
 import CGAT.Pipeline as P
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 
 PARAMS = P.peekParameters(
     ".",

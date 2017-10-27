@@ -127,11 +127,11 @@ from ruffus import *
 import sys
 import glob
 import os
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import CGATPipelines.PipelineChipseq as PIntervals
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 USECLUSTER = True
 

@@ -58,8 +58,8 @@ Code
 from ruffus import *
 import sys
 import os
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 
 # load options from the config file
 PARAMS = P.getParameters(

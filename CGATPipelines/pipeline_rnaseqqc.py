@@ -184,13 +184,13 @@ import seaborn as sns
 from rpy2.robjects import r as R
 from rpy2.robjects import pandas2ri
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 import json
 

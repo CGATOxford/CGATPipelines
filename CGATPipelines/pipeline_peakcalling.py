@@ -246,13 +246,13 @@ import os
 import math
 import sqlite3
 import shutil
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
 import CGAT.BamTools as Bamtools
-import CGAT.Database as DB
+import CGATCore.Database as DB
 import pandas as pd
 import numpy as np
 import seaborn as sns

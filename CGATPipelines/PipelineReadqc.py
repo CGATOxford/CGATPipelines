@@ -15,9 +15,9 @@ import glob
 import collections
 from six import StringIO
 import pandas as pd
-import CGATPipelines.Pipeline as P
-import CGAT.IOTools as IOTools
-import CGAT.CSV2DB as CSV2DB
+from CGATCore import Pipeline as P
+import CGATCore.IOTools as IOTools
+import CGATCore.CSV2DB as CSV2DB
 
 
 def FastqcSectionIterator(infile):

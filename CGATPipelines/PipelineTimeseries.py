@@ -17,7 +17,7 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects import r as R
 import rpy2.robjects as ro
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import sklearn.metrics.cluster.supervised as supervised
 from math import log
 import random

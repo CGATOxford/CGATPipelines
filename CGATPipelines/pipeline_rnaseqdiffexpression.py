@@ -323,7 +323,7 @@ Code
 from ruffus import *
 from ruffus.combinatorics import *
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 # import CGAT.scrum_expression as SE
 
 import sys
@@ -333,11 +333,11 @@ import glob
 import pandas as pd
 import sqlite3
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineRnaseq as PipelineRnaseq
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 import CGAT.Expression as Expression

@@ -21,10 +21,10 @@ import math
 import numpy
 import numpy.ma as ma
 import itertools
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import CGAT.BamTools as BamTools
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.Expression as Expression
 import CGAT.Bed as Bed
 

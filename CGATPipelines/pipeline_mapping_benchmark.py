@@ -41,11 +41,11 @@ Code
 """
 import sys
 import os
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 from ruffus import *
 import pysam
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 USECLUSTER = True
 

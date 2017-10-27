@@ -573,11 +573,11 @@ from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
 
 import pyBigWig
 import sqlite3
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import CGAT.IndexedFasta as IndexedFasta
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
+import CGATCore.IOTools as IOTools
+import CGATCore.Database as Database
 import CGAT.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineGO as PipelineGO

@@ -126,7 +126,7 @@ Code
 # load modules
 from ruffus import *
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import logging as L
 import sys
 import os
@@ -134,12 +134,12 @@ import re
 import itertools
 import glob
 import sqlite3
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelineMedip as PipelineMedip
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 from rpy2.robjects import r as R
 

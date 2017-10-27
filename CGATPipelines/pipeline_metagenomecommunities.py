@@ -170,7 +170,7 @@ Code
 # load modules
 from ruffus import *
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 
 import sys
 import os
@@ -178,7 +178,7 @@ import re
 import glob
 
 import sqlite3
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
 # import CGATPipelines.PipelineMetagenomeAssembly as PipelineMetagenomeAssembly
 import CGATPipelines.PipelineMetagenomeCommunities \
@@ -195,7 +195,7 @@ import pandas
 ###################################################
 
 # load options from the config file
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 P.getParameters(["pipeline.ini",
                  "%s/pipeline.ini" % os.path.splitext(__file__)[0], ])

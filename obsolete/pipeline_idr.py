@@ -148,12 +148,12 @@ import sqlite3
 import glob
 import shutil
 
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
+import CGATCore.Database as Database
 
 import CGATPipelines.PipelineIDR as IDR
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 # Pipeline configuration

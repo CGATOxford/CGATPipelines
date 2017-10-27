@@ -117,16 +117,16 @@ import glob
 import gzip
 import os
 import itertools
-import CGAT.CSV as CSV
+import CGATCore.CSV as CSV
 import re
 import math
 import collections
 import numpy
 import sqlite3
 import CGAT.GTF as GTF
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
+import CGATCore.Database as Database
 import CGAT.Biomart as Biomart
 import CGAT.FastaIterator as FastaIterator
 import CGATPipelines.PipelineEnrichment as PEnrichment
@@ -138,7 +138,7 @@ import pysam
 # only update R if called as pipeline
 # otherwise - failure with sphinx
 from rpy2.robjects import r as R
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################

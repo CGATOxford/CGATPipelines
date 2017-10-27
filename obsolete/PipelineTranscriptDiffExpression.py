@@ -16,11 +16,11 @@ Code
 
 import CGAT.Expression as Expression
 import CGAT.Counts as Counts
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
-from CGATPipelines.Pipeline import cluster_runnable
+from CGATCore.Pipeline import cluster_runnable
 
 from rpy2.robjects import r as R
 

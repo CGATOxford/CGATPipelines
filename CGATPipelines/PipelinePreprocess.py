@@ -35,13 +35,13 @@ Reference
 import re
 import os
 import sqlite3
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.Fastq as Fastq
 import CGATPipelines.PipelineMapping as Mapping
 import CGAT.Sra as Sra
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 
 
 def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):

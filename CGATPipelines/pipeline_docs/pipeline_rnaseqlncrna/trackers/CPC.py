@@ -1,6 +1,6 @@
 from CGATReport.Tracker import *
 
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.GTF as GTF
 import numpy as np
 import collections

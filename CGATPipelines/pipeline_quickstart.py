@@ -83,9 +83,9 @@ import sys
 import re
 import os
 import shutil
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
 
 
 def main(argv=sys.argv):

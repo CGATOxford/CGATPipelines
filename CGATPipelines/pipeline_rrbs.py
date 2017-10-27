@@ -131,10 +131,10 @@ import re
 import itertools
 import glob
 import sqlite3
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
 import CGATPipelines.PipelineMapping as PipelineMapping
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineRrbs as RRBS
 import pandas as pd
 import CGATPipelines.PipelineTracks as PipelineTracks

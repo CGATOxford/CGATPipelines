@@ -252,9 +252,9 @@ Code
 # load modules
 from ruffus import *
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import logging as L
-import CGAT.Database as Database
+import CGATCore.Database as Database
 
 import sys
 import os
@@ -268,7 +268,7 @@ import random
 
 import sqlite3
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.Tophat as Tophat
 import CGAT.Sra as Sra
@@ -280,7 +280,7 @@ import CGATPipelines.PipelineGeneset as PipelineGeneset
 import CGATPipelines.PipelineRnaseq as PipelineRnaseq
 import CGAT.Stats as Stats
 import CGATPipelines.PipelineTracks as PipelineTracks
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 
 ###################################################
 ###################################################

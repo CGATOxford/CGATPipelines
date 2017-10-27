@@ -6,9 +6,9 @@ import os
 import collections
 import sqlite3
 
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
+import CGATCore.Experiment as E
 import CGAT.FastaIterator as FastaIterator
 import CGAT.Fastq as Fastq
 import pysam

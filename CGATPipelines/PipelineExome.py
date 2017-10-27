@@ -8,13 +8,13 @@ Reference
 """
 # Import modules
 import os
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
-from CGATPipelines.Pipeline import cluster_runnable
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore.Pipeline import cluster_runnable
 import numpy as np
 import pandas as pd
-import CGAT.CSV as csv
+import CGATCore.CSV as csv
 import CGAT.VCF as VCF
 import collections
 import re

@@ -169,9 +169,9 @@ import csv
 import glob
 import re
 import shutil
-import CGAT.Experiment as E
-import CGAT.IOTools as IOTools
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+import CGATCore.IOTools as IOTools
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelineExome as PipelineExome

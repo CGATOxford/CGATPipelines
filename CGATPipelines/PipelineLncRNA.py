@@ -8,13 +8,13 @@ import re
 import sys
 import os
 import CGAT.GTF as GTF
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import gzip
 import collections
 import CGAT.IndexedGenome as IndexedGenome
 import CGAT.IndexedFasta as IndexedFasta
-import CGATPipelines.Pipeline as P
-import CGAT.Experiment as E
+from CGATCore import Pipeline as P
+import CGATCore.Experiment as E
 import sqlite3
 import tempfile
 import string

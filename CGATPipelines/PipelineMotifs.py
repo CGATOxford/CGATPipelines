@@ -43,13 +43,13 @@ import shutil
 import glob
 
 import logging as L
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.Masker as Masker
 import CGAT.Glam2Scan as Glam2Scan
 import CGAT.MAST as MAST
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.Bioprospector as Bioprospector
 import CGAT.FastaIterator as FastaIterator

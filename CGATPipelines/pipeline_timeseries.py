@@ -190,14 +190,14 @@ import sqlite3
 import glob
 import pandas as pd
 import rpy2.robjects as ro
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import CGAT.Timeseries as Timeseries
 import CGATPipelines.PipelineTracks as PipelineTracks
 
 ###################################################
 # Pipeline configuration
 # load options from the config file
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",

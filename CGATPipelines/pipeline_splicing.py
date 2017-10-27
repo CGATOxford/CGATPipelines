@@ -124,8 +124,8 @@ import sqlite3
 import pandas as pd
 from rpy2.robjects import r as R
 import CGAT.BamTools as BamTools
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import CGATPipelines.PipelineTracks as PipelineTracks
 import CGATPipelines.PipelineSplicing as PipelineSplicing
 

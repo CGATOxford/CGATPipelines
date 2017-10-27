@@ -309,11 +309,11 @@ import itertools
 import glob
 import sqlite3
 
-import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
+import CGATCore.Experiment as E
+from CGATCore import Pipeline as P
 import CGAT.Bed as Bed
-import CGAT.IOTools as IOTools
-import CGAT.Database as Database
+import CGATCore.IOTools as IOTools
+import CGATCore.Database as Database
 import CGAT.BamTools as BamTools
 
 import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling

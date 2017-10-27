@@ -184,11 +184,11 @@ import shutil
 
 from ruffus import *
 
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import logging as L
-import CGAT.Database as Database
+import CGATCore.Database as Database
 import CGAT.IndexedGenome as IndexedGenome
-import CGAT.IOTools as IOTools
+import CGATCore.IOTools as IOTools
 import CGAT.Bed as Bed
 import pysam
 import numpy
@@ -203,7 +203,7 @@ import CGATPipelines.PipelineMapping as PipelineMapping
 ###################################################
 # Pipeline configuration
 ###################################################
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",

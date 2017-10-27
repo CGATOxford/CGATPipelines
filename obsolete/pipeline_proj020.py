@@ -123,7 +123,7 @@ import io
 import fileinput
 import CGAT.Fastq as fq
 import logging as L
-import CGAT.Experiment as E
+import CGATCore.Experiment as E
 import CGATPipelines.PipelineMapping as PipelineMapping
 from ruffus import *
 
@@ -132,7 +132,7 @@ from ruffus import *
 ###################################################################
 ###################################################################
 # Pipeline configuration
-import CGATPipelines.Pipeline as P
+from CGATCore import Pipeline as P
 P.getParameters(["pipeline.ini"])
 PARAMS = P.PARAMS
 USECLUSTER = True
