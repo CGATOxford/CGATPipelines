@@ -133,10 +133,10 @@ def loadDesignTable(infile, outfile):
     P.load(infile, outfile)
 
 
-
 #####################################################
 # makeTagDirectory Inputs
 #####################################################
+
 
 @follows(loadDesignTable)
 @transform(INPUTBAMS, regex("(.*).bam"),
@@ -149,17 +149,19 @@ def makeTagDirectoryInput(infile, outfile):
     bamstrip = infile.strip(".bam")
     samfile = bamstrip + ".sam"
 
-
     statement = '''samtools index %(infile)s;
                    samtools view %(infile)s > %(samfile)s;
-                   makeTagDirectory %(bamstrip)s/ %(samfile)s;
+                   makeTagDirectory %(bamstrip)s/ %(samfile)s
+                   &> %(bamstrip)s.makeTagInput.log;
                    touch %(bamstrip)s/%(bamstrip)s.txt'''
 
     P.run()
 
+
 #####################################################
 # makeTagDirectory ChIPs
 #####################################################
+
 
 @follows(loadDesignTable)
 @transform(CHIPBAMS, regex("(.*).bam"),
@@ -172,31 +174,39 @@ def makeTagDirectoryChips(infile, outfile):
     bamstrip = infile.strip(".bam")
     samfile = bamstrip + ".sam"
 
-
     statement = '''samtools index %(infile)s;
                    samtools view %(infile)s > %(samfile)s;
-                   makeTagDirectory %(bamstrip)s/ %(samfile)s;
+                   makeTagDirectory %(bamstrip)s/ %(samfile)s
+                   &> %(bamstrip)s.makeTagChip.log;
                    touch %(bamstrip)s/%(bamstrip)s.txt'''
 
     P.run()
+
 
 @transform((makeTagDirectoryChips),
            regex("(.*)/(.*).txt"),
            r"\1/regions.txt")
 def findPeaks(infile, outfile):
 
-    ''' '''
+    '''
+
+    Arguments
+    ---------
+    infiles : string
+         this is a list of tag directories
+    directory: string
+         This is the directory where the tag file will be placed'''
 
     directory = infile.strip(".txt")
-    directory,_ = directory.split("/")
+    directory, _ = directory.split("/")
     bamfile = directory + ".bam"
-    
+
     df_slice = df[df['bamReads'] == bamfile]
     input_bam = df_slice['bamControl'].values[0]
     input_bam = input_bam.strip(".bam")
 
     statement = '''findPeaks %(directory)s -style %(findpeaks_style)s -o %(findpeaks_output)s
-                   %(findpeaks_options)s -i %(input_bam)s'''
+                   %(findpeaks_options)s -i %(input_bam)s &> %(directory)s.findpeaks.log'''
     P.run()
 
 
@@ -204,33 +214,38 @@ def findPeaks(infile, outfile):
            regex("(.*)/regions.txt"),
            r"\1/\1.bed")
 def bedConversion(infile, outfile):
+
     ''' '''
 
     statement = '''pos2bed.pl %(BED_options)s %(infile)s > %(outfile)s'''
 
     P.run()
 
+
 @transform(findPeaks,
-         regex("(.*)/regions.txt"),
-         r"\1/annotate.txt")
+           regex("(.*)/regions.txt"),
+           r"\1/annotate.txt")
 def annotatePeaks(infile, outfile):
 
     ''' '''
 
-    statement = '''annotatePeaks.pl %(infile)s %(annotatePeaks_genome)s > %(outfile)s'''
+    statement = '''annotatePeaks.pl %(infile)s %(annotatePeaks_genome)s &> Annotate.log > %(outfile)s'''
 
     P.run()
 
+
 @transform(findPeaks,
-         regex("(.*)/regions.txt"),
-         r"\1/motifs.txt")
+           regex("(.*)/regions.txt"),
+           r"\1/motifs.txt")
 def findMotifs(infile, outfile):
 
     directory, _ = infile.split("/")
-    
-    statement = '''findMotifsGenome.pl %(infile)s %(motif_genome)s %(directory)s -size %(motif_size)i'''
+
+    statement = '''findMotifsGenome.pl %(infile)s %(motif_genome)s %(directory)s -size %(motif_size)i
+                   &> Motif.log'''
 
     P.run()
+
 
 @merge(makeTagDirectoryChips, "countTable.peaks.txt")
 def annotatePeaksRaw(infiles, outfile):
@@ -247,6 +262,7 @@ def annotatePeaksRaw(infiles, outfile):
 
     P.run()
 
+
 @transform(annotatePeaksRaw,
            suffix(".peaks.txt"),
            ".diffexprs.txt")
@@ -257,43 +273,54 @@ def getDiffExprs(infile, outfile):
 
     P.run()
 
+
 # ruffus decorator is wrong but it need changhing later
 @follows(mkdir("Replicates.dir"))
 @follows(makeTagDirectoryChips)
 @originate("Replicates.dir/outputPeaks.txt")
 def getDiffPeaksReplicates(outfile):
 
-   replicates = set(df["Replicate"])
+    replicates = set(df["Replicate"])
 
-   for x in replicates:
-       subdf = df[df["Replicate"] == x]
+    for x in replicates:
+        subdf = df[df["Replicate"] == x]
 
-       bams = subdf["bamReads"].values
+        bams = subdf["bamReads"].values
 
-       bam_strip = []
-       for bam in bams:
-           bam = bam.strip(".bam") + "/"
-           bam_strip.append(bam)
+        bam_strip = []
+        for bam in bams:
+            bam = bam.strip(".bam") + "/"
+            bam_strip.append(bam)
 
-       bam_strip = " ".join(bam_strip)
+    bam_strip = " ".join(bam_strip)
 
-       inputs = subdf["bamControl"].values
+    inputs = subdf["bamControl"].values
 
-       input_strip = []
-       for inp in inputs:
-           inp = inp.strip(".bam") + "/"
-           input_strip.append(inp)
+    input_strip = []
+    for inp in inputs:
+        inp = inp.strip(".bam") + "/"
+        input_strip.append(inp)
 
-       input_strip = " ".join(input_strip)
+    input_strip = " ".join(input_strip)
 
-        
-       statement = '''getDifferentialPeaksReplicates.pl -t %(bam_strip)s
+    statement = '''getDifferentialPeaksReplicates.pl -t %(bam_strip)s
                        -i %(input_strip)s -genome %(diff_repeats_genome)s %(diff_repeats_options)s>
                        Replicates.dir/Repeat-%(x)s.outputPeaks.txt'''
-       P.run()
+
+    P.run()
+
+
 # ---------------------------------------------------
 # Generic pipeline tasks
-@follows(loadDesignTable)
+
+
+@follows(loadDesignTable,
+         bedConversion,
+         annotatePeaks,
+         annotatePeaksRaw,
+         getDiffExprs,
+         getDiffPeaksReplicates,
+         findMotifs)
 def full():
     pass
 
