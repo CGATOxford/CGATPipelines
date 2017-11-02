@@ -2223,35 +2223,34 @@ def buildIDRStatement(infile1, infile2, outfile,
 
     if test is True:
         # this statement only returns the merged peak list to check length
-        idrstatement = """idr --version >>%(log)s;
-                          idr
-                          --samples %(infile1)s %(infile2)s
-                          --output-file %(outfile)s
-                          --soft-idr-threshold %(soft_idr_thresh)s
-                          --input-file-type %(inputfiletype)s
-                          --rank %(rank)s
-                          --output-file-type %(outputfiletype)s
-                           %(oraclestatement)s
-                           %(options)s
-                          --only-merge-peaks
-                          --verbose 2>>%(log)s
-        """ % locals()
+        statement.append("""idr --version >>%(log)s;
+                            idr
+                            --samples %(infile1)s %(infile2)s
+                            --output-file %(outfile)s
+                            --soft-idr-threshold %(soft_idr_thresh)s
+                            --input-file-type %(inputfiletype)s
+                            --rank %(rank)s
+                            --output-file-type %(outputfiletype)s
+                             %(oraclestatement)s
+                             %(options)s
+                            --only-merge-peaks
+                            --verbose 2>>%(log)s
+                         """ % locals())
 
     else:
-        idrstatement = """idr --version >>%(log)s;
-                          idr
-                          --samples %(infile1)s %(infile2)s
-                          --output-file %(outfile)s
-                          --plot
-                          --soft-idr-threshold %(soft_idr_thresh)s
-                          --input-file-type %(inputfiletype)s
-                          --rank %(rank)s
-                          --output-file-type %(outputfiletype)s
-                           %(oraclestatement)s
-                           %(options)s
-                          --verbose 2>>%(log)s
-        """ % locals()
-    statement.append(idrstatement)
+        statement.append("""idr --version >>%(log)s;
+                            idr
+                            --samples %(infile1)s %(infile2)s
+                            --output-file %(outfile)s
+                            --plot
+                            --soft-idr-threshold %(soft_idr_thresh)s
+                            --input-file-type %(inputfiletype)s
+                            --rank %(rank)s
+                            --output-file-type %(outputfiletype)s
+                             %(oraclestatement)s
+                             %(options)s
+                            --verbose 2>>%(log)s
+                         """ % locals())
     statement.append(unsourcec)
     statement = "; ".join(statement)
     return statement
