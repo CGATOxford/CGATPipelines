@@ -151,7 +151,9 @@ def makeTagDirectoryInput(infile, outfile):
 
     statement = '''samtools index %(infile)s;
                    samtools view %(infile)s > %(samfile)s;
-                   makeTagDirectory %(bamstrip)s/ %(samfile)s
+                   makeTagDirectory
+                   -genome %(maketagdir_genome)s -checkGC
+                   %(bamstrip)s/ %(samfile)s
                    &> %(bamstrip)s.makeTagInput.log;
                    touch %(bamstrip)s/%(bamstrip)s.txt'''
 
@@ -176,7 +178,9 @@ def makeTagDirectoryChips(infile, outfile):
 
     statement = '''samtools index %(infile)s;
                    samtools view %(infile)s > %(samfile)s;
-                   makeTagDirectory %(bamstrip)s/ %(samfile)s
+                   makeTagDirectory
+                   %(bamstrip)s/ %(samfile)s
+                   -genome %(maketagdir_genome)s -checkGC
                    &> %(bamstrip)s.makeTagChip.log;
                    touch %(bamstrip)s/%(bamstrip)s.txt'''
 
@@ -322,6 +326,39 @@ def getDiffPeaksReplicates(outfile):
          getDiffPeaksReplicates,
          findMotifs)
 def full():
+    pass
+
+
+@follows(mkdir("Jupyter_report.dir"))
+def renderJupyterReport():
+    '''build Jupyter notebook report'''
+
+    report_path = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                               'pipeline_docs',
+                                               'pipeline_homer',
+                                               'Jupyter_report'))
+
+    statement = ''' cp %(report_path)s/* Jupyter_report.dir/ ; cd Jupyter_report.dir/;
+                    jupyter nbconvert --ExecutePreprocessor.timeout=None --to html --execute *.ipynb;
+                 '''
+
+    P.run()
+
+
+@follows(mkdir("MultiQC_report.dir"))
+@originate("MultiQC_report.dir/multiqc_report.html")
+def renderMultiqc(infile):
+    '''build mulitqc report'''
+
+    statement = '''LANG=en_GB.UTF-8 multiqc . -f;
+                   mv multiqc_report.html MultiQC_report.dir/'''
+
+P.run()
+
+
+@follows(renderJupyterReport,
+         renderMultiqc)
+def build_report():
     pass
 
 
