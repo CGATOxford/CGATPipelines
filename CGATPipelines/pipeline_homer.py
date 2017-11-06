@@ -345,6 +345,7 @@ def renderJupyterReport():
     P.run()
 
 
+# We will implement this when the new version of multiqc is available
 @follows(mkdir("MultiQC_report.dir"))
 @originate("MultiQC_report.dir/multiqc_report.html")
 def renderMultiqc(infile):
@@ -353,11 +354,10 @@ def renderMultiqc(infile):
     statement = '''LANG=en_GB.UTF-8 multiqc . -f;
                    mv multiqc_report.html MultiQC_report.dir/'''
 
-P.run()
+    P.run()
 
 
-@follows(renderJupyterReport,
-         renderMultiqc)
+@follows(renderJupyterReport)
 def build_report():
     pass
 
