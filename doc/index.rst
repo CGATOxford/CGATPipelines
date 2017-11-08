@@ -12,18 +12,38 @@ covering the complete code collection.
 Overview
 ========
 
-The CGAT pipeline collection has grown out of the work in comparative
-genomics by the `Ponting
-<http://www.dpag.ox.ac.uk/team/group-leaders/chris-ponting>`_ group in
-the last decade. Now, the `CGAT Training Programme`_ has added
-functionality for next-generation sequencing analysis (NGS).
+This is the code collecton written by members of the `CGAT Training Programme`_
+for the execution of pipelines for next-generation sequencing analysis (NGS).
 
 .. _cgatpipelines:
+
+Documentation
+=============
+
+.. toctree::
+   :maxdepth: 2
+
+   PipelinesBackground.rst
+   InstallingPipelines.rst
+   UsingPipelines.rst
+   Tutorials.rst
+   BuildingPipelines.rst
+   PipelineReports.rst
+   Reference.rst
+   Release.rst
+   styleguide.rst
+   Developers.rst
+
+For information on how to contribute to the pipeline collection,
+please see the `CGAT code collection
+<https://www.cgat.org/downloads/public/cgat/documentation/>`_.
 
 Active Pipelines
 ================
 
-The pipelines in this section are being used and maintained.
+The pipelines in this section are being used and maintained by CGAT. We have travis
+`integration <https://travis-ci.org>`_ testing of all of our scripts and we run
+full local testing of our pipelines on `jenkins <https://jenkins.io>`_ each evening.
 
 NGS Pipelines
 -------------
@@ -59,33 +79,6 @@ Meta pipelines
    :maxdepth: 1	
 
    pipeline_testing: Regression testing of pipelines <pipelines/pipeline_testing.rst>
-
-Other Pipelines
-===============
-
-.. toctree::
-   :maxdepth: 1
-
-   CGATPipelines.rst
-
-Documentation
-=============
-
-.. toctree::
-   :maxdepth: 2
-
-   InstallingPipelines.rst
-   UsingPipelines.rst
-   BuildingPipelines.rst
-   PipelineReports.rst
-   PipelinesBackground.rst
-   Reference.rst
-   Release.rst
-   styleguide.rst
-
-For information on how to contribute to the pipeline collection,
-please see the `CGAT code collection
-<https://www.cgat.org/downloads/public/cgat/documentation/>`_.
 
 Disclaimer
 ==========

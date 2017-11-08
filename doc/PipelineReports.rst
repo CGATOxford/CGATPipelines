@@ -4,20 +4,80 @@
 Writing pipeline reports
 ========================
 
+In CGAT we have a number of ways of generating and implimenting reports in our pipelines.Currently,
+we have 4 ways of generating reports:
+
+   * MultiQC
+   * Rmarkdown
+   * Jupyter notebook
+   * CGAT report
+
+Below we have information on how to build and render a report within a pipeline.
+
+Our basic method of rendering a report is to run the `build_report` workflow task::
+
+   cgatflow make build_report
+
+This will impliment an associated report.For our upstream generic pipleines this
+is usually multiQC.
+
+**MultiQC**
+===========
+
+Writing a report
+----------------
+
+In its present format multiQC is not easily adaptable to running bespoke report analysis
+tools. Therefore we usually use the default multiQC which navigated through the dictrectory structure and identifies
+log files that it recognises. More information about supported tools can be found here: http://multiqc.info/.
+
+
+Generating a report in the pipeline
+-----------------------------------
+
+
+
+**Rmarkdown**
+=============
+
+Writing a report
+----------------
+
+An example of a Rmarkdown report implimentation can be found in
+the bamstats pipeline. Detailed instructions on how to genrate a
+report can be found on the RStudio website. 
+
+
+Generating a report in the pipeline
+-----------------------------------
+
+
+**Jupyter Notebook**
+====================
+
+Writing a report
+----------------
+
+An example of a Jupyter notebook report implimentation can be found in
+the bamstats pipeline. 
+
+Generating a report in the pipeline
+-----------------------------------
+
+
+
+**CGAT Report**
+===============
+
+CGAT report is slowly being depricated from a number of our pipelines.
+We are hoping to replace all of our reports with Jupyter notebook or
+Rmarkdown implimentations.
+
 CGAT pipelines use CGATReport_ to report the outcome of a pipeline
 run. Conceptually, the workflow is that a CGAT pipeline creates data
 and uploads it into a database. CGATReport_ then creates a report
 from the database.
 
-Background
-==========
-
-.. todo::
-
-   Some text here about why CGATReport
-
-Advanced topics
-===============
 
 Conditional content
 -------------------

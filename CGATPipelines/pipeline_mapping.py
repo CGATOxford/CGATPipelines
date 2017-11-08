@@ -11,7 +11,7 @@ This pipeline works on a single genome.
 Overview
 ========
 
-The pipeline implements various mappers and QC plots. It can be used for
+The pipeline implements various mappers. It can be used for
 
 * Mapping against a genome
 * Mapping RNASEQ data against a genome
@@ -22,9 +22,6 @@ Principal targets
 
 mapping
     perform all mappings
-
-qc
-    perform all QC steps
 
 full
     compute all mappings and QC
