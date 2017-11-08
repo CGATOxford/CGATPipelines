@@ -5,23 +5,21 @@
 The CGAT pipelines
 ==================
 
-The CGAT_ pipelines package contains a set of ruffus_ based pipelines to
-run workflows in comparative genomics or and NGS analysis.
+In CGAT_ we have developed a set of ruffus_ based pipelines in comparative genomics
+and NGS analysis. The pipelines are generally available and should
+be fairly portable. Some documentation of the pipelines is
+`here <https://www.cgat.org/downloads/public/cgatpipelines/documentation>`_.
 
-We are currently in the process of building this package, please come
-back and visit soon.
- 
-For questions, please subscribe and contact us at the 
-`CGAT user group
-<https://groups.google.com/forum/?fromgroups#!forum/cgat-user-group>`_.
+We are working on improving the existing documentation and portability of the code
+to release a set of production pipelines soon so please stay tuned.
 
-Documentation of CGAT tools is available 
-`here <http://www.cgat.org/downloads/public/cgatpipelines/documentation>`_.
+Meanwhile, in this repository you may find a set of working pipelines that
+are under continuous development and changing rapidly. However, they might
+give some ideas or building blocks when developing your own pipelines.
 
-Note that we currently are not able to fully support and document the 
-pipelines. They are under continuous development and changing rapidly.
-However, they might give some ideas or building blocks when developing
-your own pipelines.
+For questions, please open a new issue on
+`GitHub
+<https://github.com/CGATOxford/CGATPipelines/issues>`_.
 
 .. _ruffus: http://www.ruffus.org.uk
 .. _CGAT: http://www.cgat.org
