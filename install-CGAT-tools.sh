@@ -87,8 +87,8 @@ if [[ $TRAVIS_INSTALL ]] ; then
 elif [[ $JENKINS_INSTALL ]] ; then
 
    CGAT_HOME=$WORKSPACE
-   CONDA_INSTALL_TYPE_PIPELINES="pipelines-production.yml"
-   CONDA_INSTALL_TYPE_SCRIPTS="scripts-production.yml"
+   CONDA_INSTALL_TYPE_PIPELINES="pipelines-devel.yml"
+   CONDA_INSTALL_TYPE_SCRIPTS="scripts-devel.yml"
 
 else
 
