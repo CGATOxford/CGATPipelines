@@ -181,13 +181,14 @@ The pipeline generates several new directories containing
 output files - these can roughly be grouped into XXX main
 stages of the pipeline
 
-1) filtered_bams.dir
-   ---------------------
-    Directory containing filtered bam files created by removing duplicates and
-    filtering of origional bam files. These filtered bam files are then taken
-    forward to IDR/peakcalling. If no filtering or deduplication is specified
-    in the ini file then this directory will contain symbolic links to the
-    origional bam files.
+1) TagDirectories for ChIP and Input samples
+   -----------------------------------------
+    Directories contain:
+    1) the QC analysis information: genomeGCcontent, seq.autonorm, 
+    tagAutocorrelation, tagCountDistribution, tagFreq, tagFreqUniq, tagGCcontent, 
+    tagInfo, tagLengthDistribution
+    2) Called peak information: bed file and its annotation file
+    3) motif analysis results: homerResults.dir + homerResults.html and knownResults.dir + knownResults.html
 
     Directory contains:
             * :term:`bams` files (and thier indexes) that have been filtered
