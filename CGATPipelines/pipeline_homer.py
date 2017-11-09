@@ -55,8 +55,11 @@ pipeline.ini = File containing paramaters and options for
 running the pipeline
 
 design.tsv = Design file based on design file for R package DiffBind
+
 Has the following collumns:
-SampleID Tissue Factor Condition Treatment Replicate bamReads ControlID bamControl
+
+SampleID Tissue Factor Condition Treatment Replicate bamReads ControlID
+bamControl
 
 Pipeline output
 ===============
@@ -64,7 +67,7 @@ Pipeline output
 The aim of this pipeline is to output a list of peaks that
 can be used for further downstream analysis.
 
-The pipeline generates several new files and  directories 
+The pipeline generates several new files and  directories
 containing output files - these can roughly be grouped into XXX main
 stages of the pipeline
 
@@ -72,7 +75,7 @@ stages of the pipeline
    ---------------------------------------
     Directories contain:
     * basic QC analysis results: genomeGCcontent.txt,
-      tagAutocorrelation.txt, tagCountDistribution.txt, tagFreq.txt, 
+      tagAutocorrelation.txt, tagCountDistribution.txt, tagFreq.txt,
       tagFreqUniq.txt,tagGCcontent.txt, tagInfo.txt,
       tagLengthDistribution.txt
     * called peaks in :term:'bed' and :term:'txt' formats
@@ -87,7 +90,6 @@ stages of the pipeline
 3) Peaks.dir
    ---------------
     Directory contains:
-    
 
 Code
 ====
@@ -169,6 +171,7 @@ def connect():
 # Preprocessing Steps - Filter bam files & generate bam stats #############
 ###########################################################################
 
+
 @transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
     ''' load design.tsv to database '''
@@ -231,7 +234,6 @@ def makeTagDirectoryChips(infile, outfile):
     P.run()
 
 
-
 ###########################################################################
 # Homer peak calling task #################################################
 ###########################################################################
@@ -259,9 +261,9 @@ def findPeaks(infile, outfile):
     input_bam = input_bam.strip(".bam")
 
     statement = '''findPeaks %(directory)s -style %(findpeaks_style)s -o %(findpeaks_output)s
-                   %(findpeaks_options)s -i %(input_bam)s &> %(directory)s.findpeaks.log'''
+                   %(findpeaks_options)s -i
+                   %(input_bam)s &> %(directory)s.findpeaks.log'''
     P.run()
-
 
 
 @transform(findPeaks,
@@ -292,10 +294,10 @@ def annotatePeaks(infile, outfile):
     them with nearby genes
     '''
 
-    statement = '''annotatePeaks.pl %(infile)s %(annotatePeaks_genome)s &> Annotate.log > %(outfile)s'''
+    statement = '''annotatePeaks.pl %(infile)s %(annotatePeaks_genome)s &> Annotate.log >
+                %(outfile)s'''
 
     P.run()
-
 
 
 ###########################################################################
@@ -315,8 +317,8 @@ def findMotifs(infile, outfile):
 
     directory, _ = infile.split("/")
 
-    statement = '''findMotifsGenome.pl %(infile)s %(motif_genome)s %(directory)s -size %(motif_size)i
-                   &> Motif.log'''
+    statement = '''findMotifsGenome.pl %(infile)s %(motif_genome)s %(directory)s -size
+                   %(motif_size)i &> Motif.log'''
 
     P.run()
 
@@ -327,7 +329,7 @@ def findMotifs(infile, outfile):
 
 @merge(makeTagDirectoryChips, "countTable.peaks.txt")
 def annotatePeaksRaw(infiles, outfile):
-    
+
     '''
     Calculates and reports integer read counts for
     ChIP-Seq tag densities across different experiments
@@ -349,8 +351,6 @@ def annotatePeaksRaw(infiles, outfile):
 @transform(annotatePeaksRaw,
            suffix(".peaks.txt"),
            ".diffexprs.txt")
-
-
 def getDiffExprs(infile, outfile):
 
     '''
@@ -366,7 +366,7 @@ def getDiffExprs(infile, outfile):
 
 ###########################################################################
 # Get differentially called peaks between ChIP sample replicates to check #
-######################### replicate reproducibility #######################
+# replicate reproducibility ###############################################
 ###########################################################################
 
 # ruffus decorator is wrong but it needs changhing later
@@ -405,7 +405,8 @@ def getDiffPeaksReplicates(outfile):
     input_strip = " ".join(input_strip)
 
     statement = '''getDifferentialPeaksReplicates.pl -t %(bam_strip)s
-                       -i %(input_strip)s -genome %(diff_repeats_genome)s %(diff_repeats_options)s>
+                       -i %(input_strip)s -genome %(diff_repeats_genome)s
+                       %(diff_repeats_options)s>
                        Replicates.dir/Repeat-%(x)s.outputPeaks.txt'''
 
     P.run()
@@ -436,7 +437,8 @@ def renderJupyterReport():
                                                'Jupyter_report'))
 
     statement = ''' cp %(report_path)s/* Jupyter_report.dir/ ; cd Jupyter_report.dir/;
-                    jupyter nbconvert --ExecutePreprocessor.timeout=None --to html --execute *.ipynb;
+                    jupyter nbconvert --ExecutePreprocessor.timeout=None --to
+                    html --execute *.ipynb;
                  '''
 
     P.run()
