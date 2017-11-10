@@ -241,7 +241,7 @@ if [[ "$OS" != "travis" ]] ; then
 
    DEV_RESULT=0
 
-   if [[ $INSTALL_DEVEL ]] ; then
+   if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] ; then
 
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
