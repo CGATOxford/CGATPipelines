@@ -246,7 +246,7 @@ if [[ "$OS" != "travis" ]] ; then
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
-      if [[ $INSTALL_ZIP ]] ; then
+      if [[ $INSTALL_ZIP -eq 1 ]] ; then
          # get the latest version from Git Hub in zip format
          wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
          unzip $PIPELINES_BRANCH.zip
