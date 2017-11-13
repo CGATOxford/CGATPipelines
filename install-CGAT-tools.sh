@@ -246,7 +246,7 @@ if [[ "$OS" != "travis" ]] ; then
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
-      if [[ $INSTALL_ZIP -eq 1 ]] ; then
+      if [[ $INSTALL_ZIP ]] ; then
          # get the latest version from Git Hub in zip format
          wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
          unzip $PIPELINES_BRANCH.zip
@@ -333,11 +333,20 @@ if [[ $JENKINS_INSTALL ]] ; then
    cd cgat/
 
 else
-   wget https://github.com/CGATOxford/cgat/archive/$SCRIPTS_BRANCH.zip
-   unzip $SCRIPTS_BRANCH.zip
-   rm $SCRIPTS_BRANCH.zip
-   mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
+
+   if [[ $INSTALL_ZIP ]] ; then
+      # get the latest version from Git Hub in zip format
+      wget https://github.com/CGATOxford/cgat/archive/$SCRIPTS_BRANCH.zip
+      unzip $SCRIPTS_BRANCH.zip
+      rm $SCRIPTS_BRANCH.zip
+      mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
+   else
+      # get latest version from Git Hub with git clone
+      git clone --branch=$SCRIPTS_BRANCH https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-scripts
+   fi
+
    cd cgat-scripts/
+
 fi
 
 # remove install_requires (no longer required with conda package)
