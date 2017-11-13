@@ -52,7 +52,7 @@ dependencies:
 - peakranger=1.18
 - pep8=1.7.1
 - picard=2.14.1
-- pika=0.11.0
+- pika=0.10.0
 - pybedtools=0.7.10
 - pybigwig=0.3.7
 - pysam=0.11.1
