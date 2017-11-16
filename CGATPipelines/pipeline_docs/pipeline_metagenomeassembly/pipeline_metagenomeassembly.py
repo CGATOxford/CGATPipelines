@@ -1,34 +1,7 @@
-###############################################################################
-#
-#   MRC FGU Computational Genomics Group
-#
-#   $Id$
-#
-#   Copyright (C) 
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-#################################################################################
 """
 =============================
 Metagenome assembly pipeline
 =============================
-
-:Author: Nick Ilott
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The metagenome assembly pipeline takes reads from one or more NGS experiments and
 assembles into contigs / scaffolds. Genes present on contigs are predicted using ORF
@@ -164,21 +137,18 @@ Code
 from ruffus import *
 
 import Experiment as E
-import logging as L
-import Database, CSV
 
-import sys, os, re, shutil, itertools, math, glob, time, gzip, collections, random
+import collections
+import glob
+import os
+import re
+import sys
 
-import numpy, sqlite3
-import GFF, GTF, IOTools, IndexedFasta
+import sqlite3
+import IOTools
 from rpy2.robjects import r as R
-import rpy2.robjects as ro
-import rpy2.robjects.vectors as rovectors
-from rpy2.rinterface import RRuntimeError
 import PipelineMapping
 import PipelineGenomeAssembly
-import FastaIterator
-import metaphlan_utils
 import PipelineMapping
 import PipelineMappingQC
 

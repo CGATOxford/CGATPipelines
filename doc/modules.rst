@@ -59,21 +59,3 @@ parsers.
    pipelinemodules/PipelineTimeseries.rst
    pipelinemodules/PipelineWindows.rst
 
-Unused modules
-==============
-
-The modules below contain tasks that are not in active use, are not
-fully developed or are used in very specialized pipelines. They are
-a good place to look for existing functionality.
-
-.. toctree::
-   :maxdepth: 2
-
-   pipelinemodules/PipelineChipseq.rst
-   pipelinemodules/PipelineEnrichment.rst
-   pipelinemodules/PipelineIntervalAnnotation.rst
-   pipelinemodules/PipelineMedip.rst
-   pipelinemodules/PipelineMotifs.rst
-   pipelinemodules/PipelineTransfacMatch.rst
-   pipelinemodules/PipelineMetagenomeBenchmark.rst
-   pipelinemodules/PipelineMetagenomeCommunities.rst

@@ -37,7 +37,6 @@ from ruffus.combinatorics import *
 import sys
 import os
 import CGATPipelines.Pipeline as P
-import shutil
 
 
 PARAMS = P.getParameters(
@@ -224,7 +223,6 @@ def basicRuffus():
     @follows because they will run automatically as the prerequisites to
     exampleSplit, exampleCollate and exampleMerge
     '''
-    pass
 
 
 @follows(mkdir("combinations"))
@@ -353,7 +351,6 @@ def advancedRuffus():
     exampleTransform and exampleSubdivide.
     exampleMerge, exampleSplit and exampleCollate will not be run.
     '''
-    pass
 
 
 @follows(basicRuffus, advancedRuffus)
@@ -364,7 +361,12 @@ def full():
     The @follows statement should ensure that all functions are covered,
     either directly or as prerequisites.
     '''
-    pass
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
 
 
 if __name__ == "__main__":

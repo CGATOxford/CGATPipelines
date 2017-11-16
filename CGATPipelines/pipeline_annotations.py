@@ -61,7 +61,10 @@ appropriate locations of the auxiliary files. See especially:
     files (``filename_gtf``, filename_pep``, ``filename_cdna``)
 
 2 section ``[general]`` with the location of the indexed genomic
-    fasta files to use and the name of the genome (default=``hg19``),
+    fasta files to use and the name of the genome, as well as the
+    genome assembly report obtained from NCBI for mapping between
+    UCSC and ENSEMBL contigs. This can be obtained from:
+    https://www.ncbi.nlm.nih.gov/assembly
     see :doc:`../modules/IndexedFasta`.
 
 3 section ``[ucsc]`` with the name of the database to use (default=``hg19``).
@@ -564,16 +567,16 @@ import re
 import os
 import glob
 import collections
+import pandas as pd
 from ruffus import follows, transform, merge, mkdir, files, jobs_limit,\
     suffix, regex, add_inputs
 
-#from bx.bbi.bigwig_file import BigWigFile
+import pyBigWig
 import sqlite3
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import CGAT.IndexedFasta as IndexedFasta
 import CGAT.IOTools as IOTools
-import CGAT.GTF as GTF
 import CGAT.Database as Database
 import CGAT.Biomart as Biomart
 import CGATPipelines.PipelineGeneset as PipelineGeneset
@@ -593,7 +596,8 @@ PARAMS = P.getParameters(
 
 # add automatically created files to the interface.  This is required
 # when the pipeline is peek'ed.  The statement below will
-# add the fellowing to the dictionary:
+# add the following to the dictionary:
+#
 # "geneset.dir/lincrna_gene_tss.bed.gz" maps to
 # "interface_geneset_lincrna_gene_tss_bed"
 PARAMS.update(dict([
@@ -651,12 +655,13 @@ def buildContigSizes(infile, outfile):
 
     prefix = P.snip(infile, ".fasta")
     fasta = IndexedFasta.IndexedFasta(prefix)
-    outs = IOTools.openFile(outfile, "w")
+    contigs = []
 
     for contig, size in fasta.getContigSizes(with_synonyms=False).items():
-        outs.write("%s\t%i\n" % (contig, size))
-
-    outs.close()
+        contigs.append([contig, size])
+    df_contig = pd.DataFrame(contigs, columns=['contigs', 'size'])
+    df_contig.sort_values('contigs', inplace=True)
+    df_contig.to_csv(outfile, sep="\t", header=False, index=False)
 
 
 @follows(mkdir('assembly.dir'))
@@ -670,7 +675,7 @@ def buildContigBed(infile, outfile):
     Parameters
     ----------
     infile : str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the `genome` :term:`fasta` file
 
     Returns
@@ -703,7 +708,7 @@ def buildUngappedContigBed(infile, outfiles):
     Parameters
     ----------
     infile: str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the `genome` :term:`fasta` file
 
     assembly_gaps_min_size: int
@@ -772,7 +777,7 @@ def buildGenomeInformation(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from ``PARAMS`` variable to retrieve
+      infile is constructed from ``PARAMS`` variable to retrieve
       the ``genome`` :term:`fasta` file
 
     Returns
@@ -781,6 +786,8 @@ def buildGenomeInformation(infile, outfile):
       a text file table of contigs, length and CpG density.
       The output files is GZIP compressed
     '''
+
+    job_memory = "10G"
 
     statement = '''
     cat %(infile)s
@@ -821,7 +828,7 @@ def buildGenomeGCSegmentation(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the ``genome`` :term:`fasta` file
 
     segmentation_window_size: int
@@ -870,7 +877,7 @@ def runGenomeGCProfile(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from ``PARAMS`` variable to retrieve
+      infile is constructed from ``PARAMS`` variable to retrieve
       the ``genome`` :term:`fasta` file
 
     segmentation_min_length: int
@@ -953,7 +960,7 @@ def buildCpGBed(infile, outfile):
     Parameters
     ----------
     infile: str
-      infiles is constructed from `PARAMS` variable to retrieve
+      infile is constructed from `PARAMS` variable to retrieve
       the `genome` :term:`fasta` file
 
     Returns
@@ -964,7 +971,7 @@ def buildCpGBed(infile, outfile):
     '''
 
     job_memory = "10G"
-    
+
     statement = '''
     cgat fasta2bed
         --method=cpg
@@ -985,8 +992,8 @@ def buildCpGBed(infile, outfile):
 # -----------------------------------------------------------------
 # ENSEMBL gene set
 @follows(mkdir('ensembl.dir'))
-@files(PARAMS["ensembl_filename_gtf"], PARAMS['interface_geneset_all_gtf'])
-def buildGeneSet(infile, outfile):
+@files((PARAMS["ensembl_filename_gtf"], PARAMS["general_assembly_report"]), PARAMS['interface_geneset_all_gtf'])
+def buildGeneSet(infiles, outfile):
     '''output sanitized ENSEMBL geneset.
 
     This method outputs an ENSEMBL gene set after some sanitizing steps:
@@ -999,21 +1006,22 @@ def buildGeneSet(infile, outfile):
 
     Arguments
     ---------
-    infile : string
+    infiles : tuple
        ENSEMBL geneset in :term:`gtf` format.
+       NCBI Assembly report in `txt` format.
     outfile : string
        geneset in :term:`gtf` format.
 
     '''
+    gtf_file, assembly_report = infiles
 
-    statement = ['''zcat %(infile)s
+    statement = ['''zcat %(gtf_file)s
     | grep 'transcript_id'
     | cgat gff2gff
     --method=sanitize
-    --sanitize-method=genome
+    --sanitize-method=ucsc
     --skip-missing
-    --genome-file=%(genome_dir)s/%(genome)s
-    --log=%(outfile)s.log
+    --assembly-report=%(assembly_report)s
     ''']
 
     if PARAMS["ensembl_remove_contigs"]:
@@ -1147,7 +1155,7 @@ def downloadTranscriptInformation(infile, outfile):
     * source: source
     * status: gene_status
     * transcript_status: transcript_status
-    * external_gene_name: gene_name
+    * external_gene_id: gene_name
 
     Only transcripts within the mart and within the supplied
     gene set are uploaded.
@@ -1170,63 +1178,15 @@ def downloadTranscriptInformation(infile, outfile):
        in mart to output table.
     '''
 
-    # If mart is not set, use old fasionhed gtf parsing
-    if not PARAMS["ensembl_biomart_mart"]:
-        PipelineGeneset.loadTranscriptInformation(infile, outfile)
-        return
-
     tablename = P.toTable(outfile)
 
-    # only use transcript relevant information. Uniprot ids
-    # should go into a separate table. There is some duplication
-    # here of gene information
-    columns = {
-        "ensembl_gene_id": "gene_id",
-        "ensembl_transcript_id": "transcript_id",
-        "ensembl_peptide_id": "protein_id",
-        "gene_biotype": "gene_biotype",
-        "transcript_biotype": "transcript_biotype",
-        "source": "source",
-        "status": "gene_status",
-        "transcript_status": "transcript_status",
-        "external_gene_name": "gene_name",
-        "transcript_tsl": "transcript_support"
-    }
-
-    data = Biomart.biomart_iterator(
-        list(columns.keys()),
-        biomart=PARAMS[
-            "ensembl_biomart_mart"],
-        dataset=PARAMS[
-            "ensembl_biomart_dataset"],
-        host=PARAMS["ensembl_biomart_host"])
-
-    # The full list of genes from this table is too extensive. The
-    # following are removed: 1. Some genes are present as LRGxxx
-    # identifiers """LRG stands for Locus Reference Genomic. An LRG is
-    # a fixed sequence, independent of the genome, specifically
-    # created for the diagnostic community to record DNA sequence
-    # variation on a fixed framework""" These are removed below:
-    data = [x for x in data if not x['ensembl_gene_id'].startswith("LRG")]
-
-    # 2. Some genes are present on artificial chromosomes such as
-    # ENSG00000265928 on HG271_PATCH.
-    # To filter these out, the gene ids are cross-checked against those in
-    # the ensembl gtf file.
-    gene_ids = set()
-    with IOTools.openFile(infile) as inf:
-        for gtf in GTF.iterator(inf):
-            gene_ids.add(gtf.gene_id)
-
-    data = [x for x in data if x['ensembl_gene_id'] in gene_ids]
-
-    P.importFromIterator(
-        outfile, tablename,
-        data,
-        columns=columns,
-        indices=("gene_id", "transcript_id", "protein_id",
-                 "gene_name", "transcript_name", "uniprot_id")
-    )
+    # use the GTF parsing approach to load the transcript information table
+    PipelineGeneset.loadEnsemblTranscriptInformation(ensembl_gtf=PARAMS['ensembl_filename_gtf'],
+                                                     geneset_gtf=infile,
+                                                     outfile=outfile,
+                                                     csvdb=PARAMS['database_name'],
+                                                     set_biotype=False,
+                                                     set_transcript_support=False)
 
     # validate: 1:1 mapping between gene_ids and gene_names
     dbh = connect()
@@ -1248,6 +1208,8 @@ def downloadTranscriptInformation(infile, outfile):
             dbh,
             '''ALTER TABLE %(tablename)s ADD COLUMN uniprot_name NULL''' %
             locals())
+
+    P.touch(outfile)
 
 
 @jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
@@ -1279,8 +1241,15 @@ def downloadEntrezToEnsembl(infile, outfile):
        Biomart dataset to use.
     ensembl_biomart_host : PARAMS
        Biomart host to use.
+    biomart_ensemble_gene_id : PARAMS
+        Biomart attribute containing ensembl gene id
+    biomart_entrez_gene_id : PARAMS
+        Biomart attribute containing entrez gene id
 
     '''
+
+    # SCRUM note - paramterised features being selected from biomaRt
+    # in the ini file
 
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
@@ -1290,11 +1259,12 @@ def downloadEntrezToEnsembl(infile, outfile):
     tablename = P.toTable(outfile)
 
     columns = {
-        "ensembl_gene_id": "gene_id",
-        "entrezgene": "entrez_id"}
+        PARAMS["biomart_ensembl_gene_id"]: "gene_id",
+        PARAMS["biomart_entrez_gene_id"]: "entrez_id"
+    }
 
     data = Biomart.biomart_iterator(
-        list(columns.keys()),
+        columns.keys(),
         biomart=PARAMS["ensembl_biomart_mart"],
         dataset=PARAMS["ensembl_biomart_dataset"],
         host=PARAMS["ensembl_biomart_host"])
@@ -1320,7 +1290,7 @@ def downloadTranscriptSynonyms(infile, outfile):
     columns:
 
     * ensembl_transcript_id: transcript_id
-    * external_transcript_name: transcript_name
+    * external_transcript_id: transcript_name
     * refseq_mrna: refseq_id
 
     Arguments
@@ -1336,8 +1306,16 @@ def downloadTranscriptSynonyms(infile, outfile):
        Biomart dataset to use.
     ensembl_biomart_host : PARAMS
        Biomart host to use.
-
+    biomart_ensemble_transcript_id : PARAMS
+        Biomart attribute containing ensembl transcript id
+    biomart_transcript_name : PARAMS
+        Biomart attribute containing transcript name
+    biomart_refseq_id : PARAMS
+        Biomart attribute containing refseq ids
     """
+
+    # SCRUM note - paramterised features being selected from biomaRt
+    # in the ini file
 
     if not PARAMS["ensembl_biomart_mart"]:
         # skip
@@ -1347,13 +1325,13 @@ def downloadTranscriptSynonyms(infile, outfile):
     tablename = P.toTable(outfile)
 
     columns = {
-        "ensembl_transcript_id": "transcript_id",
-        "external_transcript_name": "transcript_name",
-        "refseq_mrna": "refseq_id",
+        PARAMS["biomart_ensembl_transcript_id"]: "transcript_id",
+        PARAMS["biomart_transcript_name"]: "transcript_name",
+        PARAMS["biomart_refseq_id"]: "refseq_id"
     }
 
     data = Biomart.biomart_iterator(
-        list(columns.keys()),
+        columns.keys(),
         biomart=PARAMS[
             "ensembl_biomart_mart"],
         dataset=PARAMS[
@@ -1423,6 +1401,7 @@ def buildSelenoList(infile, outfile):
        Output filename in :term:`tsv` format.
 
     """
+    # Not sure when this list is relevent or in what case it would be used - please add to documentation
 
     dbh = sqlite3.connect(PARAMS["database_name"])
     statement = '''
@@ -1465,7 +1444,7 @@ def buildTranscriptRegions(infile, outfile):
        Output filename in :term:`tsv` format.
 
     """
-
+    # THIS DOCUMENTATION IS NOT CORRECT - THIS NEEDS TO BE UPDATED
     statement = """
     gunzip < %(infile)s
     | cgat gtf2gtf --method=join-exons
@@ -1727,6 +1706,7 @@ def buildIntergenicRegions(infiles, outfile):
     infile, contigs = infiles
 
     statement = '''zcat %(infile)s
+    | sort -k1,1 -k2,2n
     | complementBed -i stdin -g %(contigs)s
     | gzip
     > %(outfile)s'''
@@ -1741,6 +1721,8 @@ def buildIntergenicRegions(infiles, outfile):
 def importRNAAnnotationFromUCSC(infile, outfile):
     """This task downloads UCSC repetetive RNA types.
     """
+    # SCRUM NOTE - Why are we access ing UCSC here
+    # is this a legacy thing? Andreas? Would it be better to access biomart?
     PipelineUCSC.getRepeatsFromUCSC(
         dbhandle=connectToUCSC(),
         repclasses=P.asList(PARAMS["ucsc_rnatypes"]),
@@ -1755,6 +1737,8 @@ def importRepeatsFromUCSC(infile, outfile):
     """This task downloads UCSC repeats types as identified
     in the configuration file.
     """
+    # SCRUM NOTE - Why are we access ing UCSC here
+    # is this a legacy thing? Andreas? Would it be better to access biomart?
     PipelineUCSC.getRepeatsFromUCSC(
         dbhandle=connectToUCSC(),
         repclasses=P.asList(PARAMS["ucsc_repeattypes"]),
@@ -1769,6 +1753,8 @@ def importCpGIslandsFromUCSC(infile, outfile):
 
     The repeats are stored as a :term:`bed` formatted file.
     '''
+    # SCRUM NOTE - Why are we access ing UCSC here
+    # is this a legacy thing? Andreas? Would it be better to access biomart?
     PipelineUCSC.getCpGIslandsFromUCSC(
         dbhandle=connectToUCSC(),
         outfile=outfile)
@@ -1791,6 +1777,8 @@ def loadRepeats(infile, outfile):
         derived from outfile.
 
     """
+    # SCRUM NOTE - Why are we access ing UCSC here
+    # is this a legacy thing? Andreas? Would it be better to access biomart?
     load_statement = P.build_load_statement(
         tablename="repeats",
         options="--add-index=class "
@@ -1893,8 +1881,7 @@ def buildMapableRegions(infiles, outfile):
 
     max_distance = kmersize // 2
 
-    f = open(infile)
-    bw = BigWigFile(file=f)
+    bw = pyBigWig.open(infile)
 
     def _iter_mapable_regions(bw, contig, size):
 
@@ -1906,7 +1893,8 @@ def buildMapableRegions(infiles, outfile):
         last_start, start = None, None
 
         for window_start in range(0, size, window_size):
-            values = bw.get(contig, window_start, window_start + window_size)
+            values = bw.intervals(contig, window_start,
+                                  window_start + window_size)
             if values is None:
                 continue
 
@@ -2002,8 +1990,10 @@ if PARAMS["genome"].startswith("hg"):
             os.remove(outfile)
             # MM: this is hard-coded - the URL can (and has) changed, so
             # this should be defined in the pipeline config file
-        statement = '''wget http://www.genome.gov/admin/gwascatalog.txt
-        -O %(outfile)s'''
+            # AH: Moved to EBI, download needs to be updated
+        statement = '''curl https://www.genome.gov/admin/gwascatalog.txt
+        | sed 's/[\d128-\d255]//g'
+        > %(outfile)s'''
         P.run()
 
     @merge(downloadGWASCatalog, PARAMS["interface_gwas_catalog_bed"])
@@ -2032,7 +2022,8 @@ if PARAMS["genome"].startswith("hg"):
           :term:`BED` format file of GWAS catalog entries
         '''
 
-        reader = csv.DictReader(IOTools.openFile(infile), dialect="excel-tab")
+        reader = csv.DictReader(IOTools.openFile(infile),
+                                dialect="excel-tab")
 
         tracks = collections.defaultdict(lambda: collections.defaultdict(list))
 
@@ -2215,11 +2206,20 @@ else:
 
 # ---------------------------------------------------------------
 # Ontologies
+# SCRUM NOTES - ARE THESE LEGACY FROM OLD ENRICHMENT PIPELINE?
+# Can we remove them to streamline the pipeline - its failing here
+# on KEGG and on GO - No don't remove just make it work
+
 @P.add_doc(PipelineGO.createGOFromENSEMBL)
 @follows(mkdir('ontologies.dir'))
 @files([(None, PARAMS["interface_go_ensembl"]), ])
 def createGO(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    '''
+    Downloads GO annotations from ensembl
+    Uses the go_host, go_database and go_port parameters from the ini file
+    and runs the runGO.py "filename-dump" option.
+    This calls DumpGOFromDatabase from GO.py
+    '''
     PipelineGO.createGOFromENSEMBL(infile, outfile)
 
 
@@ -2228,7 +2228,9 @@ def createGO(infile, outfile):
            regex("(.*)"),
            PARAMS["interface_goslim_ensembl"])
 def createGOSlim(infile, outfile):
-    '''get GO assignments from ENSEMBL'''
+    '''
+    Downloads GO slim annotations from ensembl
+    '''
     PipelineGO.createGOSlimFromENSEMBL(infile, outfile)
 
 
@@ -2288,21 +2290,37 @@ def imputeGO(infiles, outfile):
     '''
     PipelineGO.imputeGO(infiles[0], infiles[1], outfile)
 
+# THIS IS CURRRENTLY FAILYING - NEED TO CHECK R CODE
+# AND FIX
+
+# I have fixed it in a commit to cgat/CGAT/Biomart.py - KB
+
 
 @jobs_limit(PARAMS.get("jobs_limit_R", 1), "R")
 @P.add_doc(PipelineKEGG.importKEGGAssignments)
 @follows(mkdir('ontologies.dir'))
 @files(None, PARAMS['interface_kegg'])
 def importKEGGAssignments(infile, outfile):
-    ''' import the KEGG annotations from the R KEGG.db
-    annotations package. Note that since KEGG is no longer
+    '''
+    Imports the KEGG annotations from the R KEGG.db package
+
+    Note that since KEGG is no longer
     publically availible, this is not up-to-date and maybe removed
-    from bioconductor in future releases '''
+    from bioconductor in future releases
+
+    Entrez IDs are downloaded from Biomart
+    Corresponding KEGG IDs are downloaded from KEGG.db using
+    KEGGEXTID2PATHID then translated to path names using
+    KEGGPATHID2NAME.
+    '''
 
     biomart_dataset = PARAMS["KEGG_dataset"]
     mart = PARAMS["KEGG_mart"]
-    host = PARAMS["KEGG_host"]
 
+    # Possibly this should use the same biomart version as the rest of the
+    # pipeline by calling ensembl_biomart_host instead of
+    # KEGG_host from PARAMS KB
+    host = PARAMS["KEGG_host"]
     PipelineKEGG.importKEGGAssignments(outfile, mart, host, biomart_dataset)
 
 
@@ -2325,6 +2343,10 @@ def annotateGenome(infile, outfile):
     often overlap between adjacent protein coding genes.
 
     """
+    # This could case problems if source collumn have changed
+    # need to add in a check that this is acessing the right info
+    # maybe make more explicit so that it can know the right gtf attribute to access
+    # Add in ability to output some stats on how many annotations, how many are pt-coding
     PipelineGeneset.annotateGenome(infile,
                                    outfile,
                                    only_proteincoding=True)
@@ -2497,6 +2519,15 @@ def buildGREATRegulatoryDomains(infile, outfile):
        PARAMS["interface_genomic_context_bed"])
 def buildGenomicContext(infiles, outfile):
     PipelineGeneset.buildGenomicContext(infiles, outfile)
+    # Scrum notes
+    # This needs some attention - check the output of this between the builds
+    # are all the collumn headers the same, are there similar numbers in each one
+    # does this have overlapping contexts or can a region have only one context
+
+    # This feeds down to context stats - this also needs attention after this step has been verified
+    # make sure there are stats on this table in some part of the report
+
+    # HEre are the stats - check these are reasonable and in report
 
 
 @transform(buildGenomicContext, suffix(".bed.gz"), ".tsv")
@@ -2573,6 +2604,8 @@ def buildNUMTs(infile, outfile):
 # currently inactivated.
 
 
+# This is all legacy - sebastian says this not appropriate programming
+# behavoir :'(
 if 0:
     ############################################################
     ############################################################
@@ -2829,7 +2862,6 @@ def loadIntervalSummary(infile, outfile):
          buildCpGBed)
 def assembly():
     """convenience target : assembly derived annotations"""
-    pass
 
 
 @follows(buildGeneSet,
@@ -2850,7 +2882,6 @@ def assembly():
          )
 def ensembl():
     """convenience target : ENSEMBL geneset derived annotations"""
-    pass
 
 
 @follows(buildPeptideFasta,
@@ -2858,7 +2889,6 @@ def ensembl():
          buildCDNAFasta)
 def fasta():
     """convenience target : sequence collections"""
-    pass
 
 
 @follows(buildTranscriptRegions,
@@ -2871,7 +2901,6 @@ def fasta():
          buildIntergenicRegions)
 def geneset():
     """convenience target : geneset derived annotations"""
-    pass
 
 
 @follows(importRepeatsFromUCSC,
@@ -2881,7 +2910,6 @@ def geneset():
          countTotalRepeatLength)
 def ucsc():
     """convenience target : UCSC derived annotations"""
-    pass
 
 
 # annotation targets are only intrinsic data sets
@@ -2893,7 +2921,6 @@ def ucsc():
          annotateGenome)
 def annotations():
     """convenience target : gene based annotations"""
-    pass
 
 
 # enrichment targets include extrinsic data sets such
@@ -2903,20 +2930,17 @@ def annotations():
          buildGenomicFunctionalAnnotation)
 def enrichment():
     """convenience target : annotations for enrichment analysis"""
-    pass
 
 
 @follows(loadGOAssignments,
          loadKEGGAssignments)
 def ontologies():
     """convenience target : ontology information"""
-    pass
 
 
 @follows(_gwas)
 def gwas():
     """convenience target : import GWAS data"""
-    pass
 
 
 @follows(loadGTFStats,
@@ -2924,7 +2948,6 @@ def gwas():
          loadIntervalSummary)
 def summary():
     '''convenience target : summary'''
-    pass
 
 
 # @follows(calculateMappability, countMappableBases,
@@ -2940,14 +2963,13 @@ def summary():
          ensembl,
          ucsc,
          geneset,
-         fasta,
+         # fasta,   # AH disabled for now, peptides2cds missing
          ontologies,
          annotations,
          enrichment,
          gwas)
 def full():
     '''build all targets - note: run summary separately afterwards.'''
-    pass
 
 ###################################################################
 ###################################################################
@@ -2978,6 +3000,12 @@ def publish_report():
 
     E.info("publishing report")
     P.publish_report()
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
 
 
 if __name__ == "__main__":

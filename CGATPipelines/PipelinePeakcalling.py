@@ -1,283 +1,2760 @@
-'''PipelinePeakCalling.py - Tasks associated with pipeline_peakcalling
-======================================================================
-
-One set of functions runs peak callers and uploads the called peaks
-into the database. The functions follow the following naming convention:
-
-
-runXXX()
-    run a certain peak caller
-
-loadXXX()
-    load results from peak caller into standardized tables in the database
-
-summarizeXXX()
-    summarize the output from a peak caller, typically by looking at log
-    files or auxiliary files created by the caller.
-
-The minimum information required as output from a peakcaller are ``contig``,
-``start`` and ``end.
-
-Requirements:
-
-* samtools >= 1.1
-* bedtools >= 2.21.0
-* macs1 >= 1.4.2 (optional)
-* macs2 >= 2.0.10 (optional)
-* zinba >= 2.01 (optional)
-* SICER >= 1.1 (optional)
-* peakranger >= 1.16 (optional)
-* BroadPeak >= 1.0 (optional)
-* scripture >= 2.0 (optional)
-
-Currently obsolete:
-
-* spp >= ?
-
-Reference
----------
-
-'''
-
-import shutil
-import random
-import re
-import glob
 import os
+import re
 import collections
-import sqlite3
-import numpy
-import pysam
-
-# pybedtools recompilation can fail causing
-# an import error when importing this script
-try:
-    import pybedtools
-except ImportError:
-    pass
-
-##########################
+import itertools
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
-import CGAT.IndexedGenome as IndexedGenome
 import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
-import CGAT.Bed as Bed
-import CGAT.WrapperMACS as WrapperMACS
+import pandas as pd
+import pysam
+import numpy as np
+import shutil
+from CGATPipelines.Pipeline import cluster_runnable
+from rpy2.robjects import r as R
+from rpy2.robjects import pandas2ri
+pandas2ri.activate()
 
 
-def getPeakShiftFromMacs(infile):
-    '''get peak shift from MACS output.
+##############################################
+# Preprocessing Functions
 
-    Arguments
-    ---------
-    infile : string
-        Filename, (.macs) file
+def getWantedContigs(unwanted_contigs, all_contigs):
+    '''takes a string of characters in unwanted contigs seperated by '|' and a
+    list of all contigs present in the file - returns a string of space
+    seperated contigs that want to be kept -does partial name matching
 
-    Returns
+    Parameters
+    ----------
+    unwanted_contigs: str
+        String of '|' separated contigs to remove from bam - specified in ini
+    all_contigs: list
+        list containing the names of contigs present in bam file to be filtered
+
+    Outputs
     -------
-    peakshift : int
-       None if no shift information is found
+    contigs_string: str
+        space seperated string of contig names you want to keep
+    contigs_to_remove: set
+        set of contigs that will have all reads removed from the file
+     '''
+
+    contigs_to_remove = []
+
+    for c in unwanted_contigs.split('|'):
+        for region in all_contigs:
+            if c in region and region not in contigs_to_remove:
+                contigs_to_remove.append(region)
+
+    wanted_contigs = (list(set(all_contigs) - set(contigs_to_remove)))
+    contigs_string = " ".join(sorted(wanted_contigs))
+
+    return (contigs_string, contigs_to_remove)
+
+
+def trackFilters(filtername, bamfile, tabout):
     '''
+    Keeps track of which filters are being used on which bam files and
+    generates a statement fragment which records this in a log file.
+    Echos the name of the filter (filtername) followed by the number of reads
+    in the filtered bam file to the table tabout.
 
-    shift = None
-    with IOTools.openFile(infile, "r") as ins:
-        rx = re.compile("#2 predicted fragment length is (\d+) bps")
-        r2 = re.compile("#2 Use (\d+) as shiftsize, \d+ as fragment length")
-        r3 = re.compile("#1 fragment size = (\d+)")
-        # when fragment length is set explicitely
-        r4 = re.compile("#2 Use (\d+) as fragment length")
+    Example Fragment:
+    echo unpaired >> K9-13-2_counts.tsv;
+    samtools view -c ctmpPGGJro.bam >> K9-13-2_counts.tsv;
 
-        for line in ins:
-            x = rx.search(line)
-            if x:
-                shift = int(x.groups()[0])
-                break
-            x = r3.search(line)
-            if x:
-                shift = int(x.groups()[0])
-                break
-            x = r4.search(line)
-            if x:
-                shift = int(x.groups()[0])
-                break
-            x = r2.search(line)
-            if x:
-                shift = int(x.groups()[0])
-                E.warn("shift size was set automatically - see MACS logfiles")
-                break
-
-    return shift
-
-
-def getPeakShiftFromZinba(infile):
-    '''reads are shifted to account for the offset in forward or reverse
-       strand reads, which helps determine most likely bases involved in
-       protein binding. How much to shift is determined by the fragment
-       size generated by library preparation and is stored within the
-       ZINBA output.
-
-       Arguments
-       ----------
-       infile : string
-           input filename :term:`zinba` file
-
-       Returns
-       -------
-       peakshift : int
-          None if no shift information is found
+    Parameters
+    ----------
+    filtername: str
+        name of filter applied, can be any string
+    bamfile: str
+        path to filtered bam file
+    tabout: str
+        path to table to write the output to
     '''
-
-    shift = None
-
-    # search for
-    # $offset
-    # [1] 125
-
-    with IOTools.openFile(infile, "r") as ins:
-        lines = ins.readlines()
-        for i, line in enumerate(lines):
-            if line.startswith("$offset"):
-                shift = int(lines[i + 1].split()[1])
-                break
-
-    return shift
+    return """echo %(filtername)s >> %(tabout)s;
+              samtools view -c %(bamfile)s.bam >> %(tabout)s; """ % locals()
 
 
-def getPeakShiftFromSPP(infile):
-    '''get peak shift from SPP output.
+def appendSamtoolsFilters(statement, inT, tabout, filters, qual, pe):
+    '''
+    Appends a fragment to an existing command line statement to
+    apply filters using samtools
+    see https://samtools.github.io/hts-specs/SAMv1.pdf
 
-    Arguments
-    ---------
-    infile : string
-        Filename, (.spp) file
+    Samtools uses the following arguments:
+    -F - remove these flags
+    -f - keep only these flags
 
-    Returns
+    If the following strings are in the "filters" list these samtools filters
+    are applied
+    unpaired: -f1, -f2 remove reads which are unpaired or not properly paired
+    unmapped: -F4 removes unmapped reads
+    secondary: -F 0x100 removed secondary alignments
+    lowqual: -q qual removes reads with quality scores < qual
+
+    Example Fragment:
+    samtools view -b -q 40 ctmpPGGJro.bam > ctmpnV2rQY.bam;
+    rm -f ctmpPGGJro.bam; rm -f ctmpPGGJro;
+
+    The original input file is deleted on the assumption that this is part of
+    a list of filters which are applied to a series of temporary files
+
+    Parameters
+    ----------
+    statement: str
+        statement to append to
+    inT: str
+        path to temporary input bam file - output of previous filtering step
+    tabout: str
+        path to table to store the number of reads remaining after filtering
+    filters: list
+       list of filters to apply - this list is searched for
+       unmapped, unpaired, secondary, lowqual
+    pe: bool
+        True = paired end, False = single end
+        NOTE: will not work with 0 or 1 has to be True or False
+    outT: str
+        path to output file
+
+    Outputs
     -------
-    peakshift : int
-       None if no shift information is found
+    statement: str
+        command line statement for filtering using samtools flags
+    outT: str
+        file path to the outfile to be used for next filtering step
     '''
+    i = 0
+    j = 0
+    infile = inT
+    outT = ''
+    string = ""
 
-    shift = None
+    for filt in filters:
+        if filt == "unmapped":
+            string = "-F 4"
+        elif filt == "secondary":
+            string = "-F 0x100"
+        elif filt == "unpaired":
+            if pe is True:
+                string = "-f 1 -f 2"
+            else:
+                E.warn("""Bam file is not paired-end so unpaired reads have
+                not been filtered""")
+                continue
+        elif filt == "lowqual":
+            string = '-q %(qual)i' % locals()
+        else:
+            string = ''
+        # append any new samtools filters to this list
+        if filt in ["unmapped", "unpaired", "lowqual", "secondary"]:
+            j += 1
+            if i == 0:
+                outT = P.getTempFilename(".")
+            else:
+                inT = outT
+                outT = P.getTempFilename(".")
+            # filter to a temporary file, remove the original temporary file
+            statement += """samtools view -b %(string)s %(inT)s.bam
+            > %(outT)s.bam; rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
+            statement += trackFilters(filt, outT, tabout)
+            i += 1
+        else:
+            statement += ""
 
-    # search for
-    # shift\t125
-    with IOTools.openFile(infile, "r") as ins:
-        lines = ins.readlines()
-        for i, line in enumerate(lines):
-            if line.startswith("shift\t"):
-                shift = int(re.match("shift\t(\d+)\n", line).groups()[0])
-                break
+    # if no samtools flag filters return the origional infile as outT
+    if j == 0:
+        outT = infile
 
-    return shift
+    statement = statement.replace("\n", "")
+    return statement, outT
 
 
-def getPeakShift(filename):
-    '''get peak shift for a track or filename.
+def appendPicardFilters(statement, inT, tabout, filters, pe, outfile):
+    '''
+    Appends a fragment to an existing command line statement to
+    filter bam files using Picard.
+    Currently only the MarkDuplicates Picard filter is
+    implemented, which removes duplicate reads.
 
-    This method examines the extension of filename to
-    identify the peak caller and call the approporiate
-    parser. Alternatively, it will check if a file
-    with one of the known peak caller suffixes is
-    present that starts with ``filename``.
+    Example Fragment:
 
-    Arguments
-    ---------
-    filename : string
-         Filename of peak caller output.
+    MarkDuplicates
+    INPUT=ctmp87pq2s.bam
+    ASSUME_SORTED=true
+    REMOVE_DUPLICATES=true
+    OUTPUT=ctmphJw7oO.bam
+    METRICS_FILE=/dev/null
+    VALIDATION_STRINGENCY=SILENT
+    2> K9-13-2_filtered_duplicates.log;
+    rm -f ctmp87pq2s.bam;
+    rm -f ctmp87pq2s;
 
-    Returns
-    -------
-    peakshift : int
-       None if no shift information is found
+    The original input file is deleted on the assumption that this is part of
+    a list of filters which are applied to a series of temporary files
+
+    Parameters
+    ----------
+    statement: str
+        cmd line statement to append to
+    inT: str
+        path to temporary input bam file - output of previous filtering step
+    tabout: str
+        path to table to store the number of reads remaining after filtering
+    filters: list
+        list of filters to apply - if "duplicates" is in
+        this list then the MarkDuplicates fragment will be appended, otherwise
+        nothing is appended
+    pe: bool
+        1 = paired end, 0 = single end
+    outfile: str
+        path to output file
 
     '''
+    outT = inT
+    if 'duplicates' in filters:
+        log = outfile.replace(".bam", "_duplicates.log")
+        outT = P.getTempFilename("./filtered_bams.dir")
+        statement += """
+        MarkDuplicates \
+        INPUT=%(inT)s.bam \
+        ASSUME_SORTED=true \
+        REMOVE_DUPLICATES=true \
+        OUTPUT=%(outT)s.bam \
+        METRICS_FILE=/dev/null \
+        VALIDATION_STRINGENCY=SILENT \
+        2> %(log)s; rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
 
-    if filename.endswith(".macs"):
-        return getPeakShiftFromMacs(filename)
-    elif filename.endswith(".zinba"):
-        return getPeakShiftFromZinba(filename)
-    elif filename.endswith(".spp"):
-        return getPeakShiftFromSPP(filename)
-    elif os.path.exists("%s.macs" % filename):
-        return getPeakShiftFromMacs("%s.macs" % filename)
-    elif os.path.exists("%s.zinba" % filename):
-        return getPeakShiftFromZinba("%s.zinba" % filename)
-    elif os.path.exists("%s.spp" % filename):
-        return getPeakShiftFromSPP("%s.spp" % filename)
+        statement += trackFilters("duplicates", outT, tabout)
+        statement = statement.replace("\n", "")
+    return statement, outT
 
 
-def getCounts(contig, start, end, samfiles, offsets=[]):
-    '''count number of reads within a genomic interval
-
-    If offsets are given, tags are shifted by `offset` / 2 and
-    extended by `offset` / 2.
-
-    Arguments
-    ---------
-    contig : string
-        Chromosome
-    start : int
-        Start coordinate, 0-based
-    end : int
-        End coordinate, 0-based, position after end of interval
-    samfiles : list
-        List of pysam file handles to :term:`bam` formatted files.
-    offsets : list
-        Peak shifts to apply to reads
-
-    Returns
-    -------
-    nreads : int
-        Number of reads overlapping interval.
-    counts : array
-        Read density in interval.
+def appendBlacklistFilter(statement, inT, tabout, bedfiles, blthresh, pe):
     '''
-    assert len(offsets) == 0 or len(samfiles) == len(offsets)
+    Appends a fragment to an existing command line statement to
+    filters blacklisted regions from a bam file based on a list of bed files
+    using either pairToBed (for paired end) or intersect (for single end)
+    from bedtools.
 
-    length = end - start
-    counts = numpy.zeros(length)
+    Example Fragment:
+    samtools sort -n ctmpnV2rQY.bam -o ctmpL7A2ni.bam;
+    rm -f ctmpnV2rQY.bam;
+    rm -f ctmpnV2rQY;
+    pairToBed -abam ctmpL7A2ni.bam -b chr14.bed -f 0.00000010 -type neither
+    > ctmpXbXeki.bam; rm -f ctmpL7A2ni.bam;
 
-    nreads = 0
+    By default a read is removed if it has any overlap with any blacklisted
+    region on either end.
+    If the read is paired end both halves of the pair are removed if one
+    overlaps with a blacklisted region
 
-    if offsets:
-        # if offsets are given, shift tags.
-        for samfile, offset in zip(samfiles, offsets):
+    The original input file is deleted on the assumption that this is part of
+    a list of filters which are applied to a series of temporary files.
 
-            shift = offset / 2
-            # for peak counting I follow the MACS protocoll,
-            # see the function def __tags_call_peak in PeakDetect.py
-            # In words
-            # Only take the start of reads (taking into account the strand)
-            # add d/2=offset to each side of peak and start accumulate counts.
-            # for counting, extend reads by offset
-            # on + strand shift tags upstream
-            # i.e. look at the downstream window
-            xstart, xend = max(0, start - shift), max(0, end + shift)
+    Parameters
+    ----------
+    statement: str
+        cmd line statement to append to
+    inT: str
+        path to temporary input bam file - output of previous filtering step
+    tabout: str
+        path to table to store the number of reads remaining after filtering
+    blthresh: int
+        threshold number of bases of overlap with a blacklisted region
+        above which to filter
+    pe: bool
+        1 = paired end, 0 = single end
 
-            for read in samfile.fetch(contig, xstart, xend):
-                # some unmapped reads might have a position
-                if read.is_unmapped:
-                    continue
-                if read.is_reverse:
-                    # offset = 2 * shift
-                    rstart = read.pos + read.alen - offset
-                else:
-                    rstart = read.pos + shift
-
-                rend = rstart + shift
-                rstart = max(0, rstart - start)
-                rend = min(length, rend - start)
-                counts[rstart:rend] += 1
+    '''
+    outT = P.getTempFilename("./filtered_bams.dir")
+    if pe is True:
+        statement += """samtools sort -n %(inT)s.bam -o %(outT)s.bam;
+                        rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
+        for bedfile in bedfiles:
+            inT = outT
+            outT = P.getTempFilename("./filtered_bams.dir")
+            statement += """pairToBed -abam %(inT)s.bam
+                                      -b %(bedfile)s
+                                      -f %(blthresh)f10 -type neither
+                            > %(outT)s.bam;
+                            rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
+            statement += trackFilters(bedfile, outT, tabout)
+            inT = outT
+        outT = P.getTempFilename("./filtered_bams.dir")
+        statement += """samtools sort %(inT)s.bam -o %(outT)s.bam;
+                        rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
 
     else:
-        for samfile in samfiles:
-            for read in samfile.fetch(contig, start, end):
-                nreads += 1
-                rstart = max(0, read.pos - start)
-                rend = min(length, read.pos - start + read.rlen)
-                counts[rstart:rend] += 1
-    return nreads, counts
+        for bedfile in bedfiles:
+            outT = P.getTempFilename("./filtered_bams.dir")
+            statement += """bedtools intersect -abam %(inT)s.bam
+                                      -b %(bedfile)s
+                                      -f %(blthresh)f10 -v
+                            > %(outT)s.bam;
+                            rm -f %(inT)s.bam; rm -f %(inT)s; """ % locals()
+            statement += trackFilters(bedfile, outT, tabout)
+            inT = outT
+
+    return statement, outT
+
+
+def appendContigFilters(statement, inT, tabout, filters, pe,
+                        contigs_to_remove, all_contigs):
+    '''
+    Appends a fragment to an existing command line statement to
+    filter chromsome contigs (e.g. chrM or chrUN regions) from a bam file
+    if the chromosome contigs have been in ini file.
+
+    Example Fragment:
+    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxx
+
+    The original input file is deleted on the assumption that this is part of
+    a list of filters which are applied to a series of temporary files.
+
+    Parameters
+    ----------
+    statement: str
+        cmd line statement to append to
+    inT: str
+        path to temporary input bam file - output of previous filtering step
+    tabout: str
+        path to table to store the number of reads remaining after filtering
+    pe: bool
+        1 = paired end, 0 = single end
+    contigs_to_remove: str
+        pipeseperated string of contigs to remove based on partial name matches
+        e.g '_hap|chrM'
+    all_contigs: list
+        list of contigs that are present in origional bam file
+
+    '''
+
+    keep_contigs, remove_contigs = getWantedContigs(contigs_to_remove,
+                                                    all_contigs)
+
+    outT = P.getTempFilename("./filtered_bams.dir")
+
+    statement += """samtools index %(inT)s.bam;
+                    samtools view -b %(inT)s.bam %(keep_contigs)s > %(outT)s.bam;
+                    rm -f %(inT)s.bam; rm -f %(inT)s;
+                    rm -f %(inT)s.bam.bai;""" % locals()
+
+    statement += trackFilters('contigs', outT, tabout)
+    statement = statement.replace("\n", "")
+    return statement, outT
+
+
+@cluster_runnable
+def filterBams(infile, outfiles, filters, bedfiles, blthresh, pe, strip, qual,
+               contigs_to_remove, keep_intermediates=False):
+    '''
+    Builds a statement which applies various filters to bam files.
+
+    The file is sorted then filters are applied.
+
+    The appendPicardFilters, appendSamtoolsFilters and appendBlacklistFilter
+    functions above will add fragments to this statement to
+    carry out the filtering steps.
+
+    The filtered bam file is then indexed.
+    Read counts after each filtering step are logged in infile_counts.tsv using
+    the trackFilters function.
+
+    Example Statement:
+    samtools sort K9-13-2.bam -o ctmp87pq2s.bam;
+    echo none >> K9-13-2_counts.tsv;
+    samtools view -c ctmp87pq2s.bam >> K9-13-2_counts.tsv;
+    ...
+    samtools sort ctmpXbXeki.bam -o ctmpWm5mq9.bam;
+    rm -f ctmpXbXeki.bam;
+    rm -f ctmpXbXeki;
+    mv ctmpWm5mq9.bam K9-13-2_filtered.bam;
+    rm -f ctmpWm5mq9;
+
+    ... represents the statement fragments generated by the filtering functions
+
+    Parameters
+    ----------
+    infile: str
+        path to input file
+    outfiles: list
+        list of two strings - names of output bam file and output table
+    filters: list
+        list of filters to apply: can be lowqual, unpaired,
+        secondary, unmapped, duplicates
+    bedfiles: list
+        list of bed files to use as blacklists
+    blthresh: int
+        threshold base pair overlap with blacklisted regions above which
+        to filter
+    pe: bool
+        1 = paired end, 0 = single end
+    strip: bool
+        should bam files be stripped after processing, 1 = yes, 0 = no
+    qual: int
+        minimum mapping quality to keep
+    keep_intermediates: bool
+        keep temporary files if True
+
+    '''
+    bamout, tabout = outfiles
+    o = open(tabout, "w")
+    o.close()
+    inT = infile
+    if not os.path.exists("filtered_bams.dir"):
+        os.mkdir("filtered_bams.dir")
+    outT = P.getTempFilename("./filtered_bams.dir")
+
+    if filters == ['']:
+        cwd = os.getcwd()
+        index = inT + '.bai'
+        index_out = bamout + '.bai'
+        statement = """ln -s %(cwd)s/%(inT)s %(bamout)s; """
+        statement += """ln -s %(cwd)s/%(index)s %(index_out)s; """
+        statement += trackFilters("none", P.snip(inT), tabout)
+        P.run()
+
+    else:
+        statement = """samtools sort %(inT)s -o %(outT)s.bam; """ % locals()
+        inT = outT
+
+        statement += trackFilters("none", inT, tabout)
+
+        statement, inT = appendPicardFilters(statement, inT, tabout, filters, pe,
+                                             bamout)
+        statement, inT = appendSamtoolsFilters(statement, inT, tabout, filters,
+                                               qual, pe)
+
+        # get statement for filtering contigs
+        if "contigs" in filters and contigs_to_remove:
+            samfile = pysam.AlignmentFile(infile, 'rb')
+            all_contigs = samfile.references
+            statement, inT = appendContigFilters(statement, inT, tabout, filters,
+                                                 pe, contigs_to_remove, all_contigs)
+
+        if "blacklist" in filters and bedfiles != [""]:
+            statement, inT = appendBlacklistFilter(statement, inT, tabout,
+                                                   bedfiles,
+                                                   blthresh, pe)
+
+        # I added isStripped to BamTools - this is commented out until it
+        # is merged (Katy)
+        # if int(strip) == 1 and BamTools.isStripped(inT) is False:
+        #     # strip sequence if requested
+        #     outT = P.getTempFilename(".")
+        #     statement += """python %%(scriptsdir)s/bam2bam.py
+        #                     -I %(inT)s.bam
+        #                     --strip-method=all
+        #                     --method=strip-sequence
+        #                     --log=%(bamout)s.log -S %(outT)s.bam;
+        #                     rm -f %(inT)s; """ % locals()
+
+        #     inT = outT
+        statement += """mv %(inT)s.bam %(bamout)s;
+                        rm -f %(inT)s;
+                        samtools index %(bamout)s""" % locals()
+
+        statement = statement.replace("\n", "")
+
+        if int(keep_intermediates) == 1:
+            statement = re.sub("rm -f \S+.bam;", "", statement)
+
+        P.run()
+
+    # reformats the read counts into a table
+    inf = [line.strip() for line in open(tabout).readlines()]
+    i = 0
+    ns = []
+    nams = []
+    for line in inf:
+        line = line.strip()
+        if len(line) != 0:
+            if i % 2 == 0:
+                ns.append(line)
+            else:
+                nams.append(line)
+            i += 1
+    o = open(tabout, "w")
+    o.write("%s\n%s" % ("\t".join(ns), "\t".join(nams)))
+    o.close()
+
+    # check the filtering is done correctly - write a log file
+    # if unpaired is specified in bamfilters in the pipeline.ini
+    # remove reads whose mate has been filtered out elsewhere
+
+    T = P.getTempFilename(".")
+    checkBams(bamout, filters, qual, pe, T, contigs_to_remove, submit=True)
+    if int(keep_intermediates) == 1:
+        shutil.copy(bamout, bamout.replace(".bam", "_beforepaircheck.bam"))
+    shutil.move("%s.bam" % T, bamout)
+    shutil.move("%s.filteringlog" % (T),
+                bamout.replace(".bam", ".filteringlog"))
+
+    if os.path.exists(T):
+        os.remove(T)
+    sortIndex(bamout)
+
+
+@cluster_runnable
+def checkBams(infile, filters, qlim, pe, outfile, contigs_to_remove):
+    '''
+    Generates a table to ensure that post filtering bam files do not
+    contain any of the reads which should have been filtered out.  This table
+    is written to a file with the suffix .filteringlog.
+
+    Uses pysam functions is_secondary, is_unmapped, is_proper_pair and
+    read.mapping_quality to categorise reads as:
+    - proper_pair vs improper_pair
+    - high_quality vs low_quality
+    - unmapped vs mapped
+    - primary vs secondary
+
+    If pipeline_peakcalling is used and filtering has been sucessful then the
+    following is expected if these filters are applied:
+    "lowqual" filter - low_quality = 0
+    "unmapped" filter - unmapped = 0
+    "secondary" filter - secondary = 0
+    "unpaired" filter - improper_pair = 0
+
+    For paired end, properly paired reads, fragment length is also calculated
+    using the pysam template_length function and a second output table is
+    generated showing the frequency of each possible fragment length in the
+    bam file.  This file will have the suffix .fraglengths.  For unpaired
+    data this file is generated but is blank.
+
+    Parameters
+    ----------
+    infile: str
+        input file
+    filters:  list
+        list of filters to check for
+        - can be lowqual, unpaired, secondary, unmapped, duplicates
+    qlim: int
+        minimum mapping quality to classify as "high quality"
+    outfile: str
+        path to output file
+    remove_contigs: set
+        set of the contigs that should have been removed from the bam file
+    '''
+
+    samfile = pysam.AlignmentFile(infile, 'rb')
+    contigs_in_bam = samfile.references
+    keep_contigs, remove_contigs = getWantedContigs(contigs_to_remove,
+                                                    contigs_in_bam)
+    sep = '.'
+    logfile = sep.join([outfile, 'filteringlog'])
+
+    counter = collections.Counter()
+    fragment_length = collections.Counter()
+    d = collections.defaultdict(list)
+
+    if "lowqual" not in filters:
+        qlim = 0
+
+    for item in remove_contigs:
+        if item in contigs_in_bam:
+            counter[item] = samfile.count(item)
+        else:
+            counter[item] = 0
+
+    counter['primary_alig'] = 0
+    counter['secondary'] = 0
+    counter['proper_pairs'] = 0
+    counter['improper_pairs'] = 0
+    counter['high_quality'] = 0
+    counter['low_quality'] = 0
+    counter['unmapped'] = 0
+    counter['mapped'] = 0
+    counter['multiple_or_1_read_in_pair'] = 0
+
+    for read in samfile.fetch():
+        d[read.query_name].append(read)
+
+        counter['total_reads'] += 1
+        if read.is_secondary:
+            counter['secondary'] += 1
+        else:
+            counter['primary_alig'] += 1
+
+        if read.is_proper_pair:
+            counter['proper_pairs'] += 1
+        else:
+            counter['improper_pairs'] += 1
+
+        if read.mapping_quality >= qlim:
+            counter['high_quality'] += 1
+        else:
+            counter['low_quality'] += 1
+
+        if read.is_unmapped:
+            counter['unmapped'] += 1
+        else:
+            counter['mapped'] += 1
+
+    if "unpaired" in filters and pe == 1:
+        outbam = pysam.AlignmentFile("%s.bam" % outfile, "wb",
+                                     template=samfile)
+        for items, values in d.items():
+            if len(values) == 2:
+                if values[0].is_read1 and values[1].is_read2:
+                    outbam.write(values[0])
+                    outbam.write(values[1])
+
+                elif values[0].is_read2 and values[1].is_read1:
+                    outbam.write(values[1])
+                    outbam.write(values[0])
+
+                else:
+                    counter['paired11_paired22'] += 1
+                l = abs(values[0].template_length)
+                fragment_length[l] += 1
+            else:
+                counter['multiple_or_1_read_in_pair'] += 1
+                if "secondary" not in filters:
+                    for v in values:
+                        outbam.write(v)
+        outbam.close()
+
+    elif pe == 1:
+        outbam = "%s.bam" % outfile
+        shutil.copy(infile, outbam)
+        for items, values in d.items():
+            l = abs(values[0].template_length)
+            fragment_length[l] += 1
+    else:
+        outbam = "%s.bam" % outfile
+        shutil.copy(infile, outbam)
+    out = IOTools.openFile(infile.replace(".bam", ".fraglengths"), "w")
+    out.write("frag_length\tfrequency\n")
+    for key in fragment_length:
+        out.write("%s\t%d\n" % (key, fragment_length[key]))
+    out.close()
+
+    filteringReport(counter, logfile)
+    samfile.close()
+
+
+def filteringReport(counter, logfile):
+    '''
+    Writes a table of the counts contained in the dictionary
+    generated in the checkBams function.
+
+    Parameters
+    ----------
+    counter: dict
+        dictionary where keys are types of read (e.g. unpaired)
+        and values are the number of reads of this type.
+    logfile: str
+        path to file to write the output table
+    '''
+    logfile = open(logfile, "w")
+    for c in counter:
+        logfile.write("%s\t%s\n" % (c, counter[c]))
+    logfile.close()
+
+
+def estimateInsertSize(infile, outfile, pe, nalignments, m2opts, conda_env):
+    '''
+    Predicts fragment size for a bam file and writes it to a table.
+
+    For single end data the MACS2 predictd function is used,
+    for paired-end data Bamtools is used.
+
+    In some BAM files the read length (rlen) attribute
+    is not set, which causes MACS2 to predict a 0.
+
+    Thus it is computed here from the CIGAR string if rlen is 0.
+
+    Parameters
+    ----------
+    infile: str
+        path to bam file on which to predict fragment size
+    outfile: str
+        path to output table
+    pe: bool
+        1 = paired end, 0 = single end
+    nalignments: int
+        number of lines from bam file to use to predict
+        insert size if data is paired end.
+    m2opts: str
+        string to append when running macs2 predictd
+        containing additional options specific to macs2.  Can be an empty
+        string for default options, additional options here:
+        https://github.com/taoliu/MACS
+    '''
+    tagsize = BamTools.estimateTagSize(infile, multiple="mean")
+
+    if pe is True:
+        mode = "PE"
+        mean, std, n = BamTools.estimateInsertSizeDistribution(
+            infile, int(nalignments))
+    else:
+        logfile = "%s.log" % P.snip(outfile)
+        mode = "SE"
+        statement = '''
+        %(conda_env)s &&
+        macs2 predictd
+        --format BAM
+        --ifile %(infile)s
+        --outdir %(outfile)s.dir
+        --verbose 2
+        %(insert_macs2opts)s
+        >& %(logfile)s
+        '''
+        P.run()
+
+        with IOTools.openFile(logfile) as inf:
+            lines = inf.readlines()
+            line = [x for x in lines
+                    if "# predicted fragment length is" in x]
+            if len(line) == 0:
+                raise ValueError(
+                    'could not find predicted fragment length')
+            mean = re.search(
+                "# predicted fragment length is (\d+)",
+                line[0]).groups()[0]
+            std = 'na'
+        shutil.rmtree("%s.dir" % outfile)
+    outf = IOTools.openFile(outfile, "w")
+    outf.write("mode\tfragmentsize_mean\tfragmentsize_std\ttagsize\n")
+    outf.write("\t".join(
+        map(str, (mode, mean, std, tagsize))) + "\n")
+    outf.close()
+
+
+@cluster_runnable
+def makePseudoBams(infile, outfiles, pe, randomseed, filters):
+    '''
+    Generates pseudo bam files by splitting a bam file into two
+    equally sized subfiles.  Each read in the input bam is assigned
+    to a pseudo bam at random.
+    If reads are paired end both reads in the pair are assigned
+    to the same bam file.
+
+    Parameters
+    ----------
+    infile: str
+        path to input bam file
+    outfiles: list
+        list of paths to the two output bam files
+    pe: bool
+        1 = paired end, 0 = single end
+    randomseed: int
+        seed to use to generate random numbers
+    filters: list
+        list of filters previously applied to the bam file.  If this
+        list contains the strings 'unpaired' and 'secondary'
+        then reads are assumed to be paired end and a check is performed that
+        each pseudo bam file contains exactly twice as many reads as read
+        names. Anything else in this list is ignored by this function.
+    '''
+
+    # read bam file
+    bamfile = pysam.AlignmentFile(infile, "rb")
+    T = P.getTempFilename(".")
+    # sort
+    # pysam.sort("-n", infile, T, catch_stdout=False)
+    os.system("""samtools sort -n %(infile)s -o %(T)s.bam""" % locals())
+
+    sorted_bamfile = pysam.AlignmentFile("%s.bam" % T, "rb")
+
+    # for single end, count the reads, for paired end, halve number of reads
+    # then generate a random list of 0s and 1s of this length
+    # 0 = go to pseudo bam 0, 1 = go to pseudo bam 1
+    bamlength = bamfile.count()
+    if pe is True:
+        countreads = bamlength // 2
+    else:
+        countreads = bamlength
+    randomgen = np.random.RandomState()
+    randomgen.seed(randomseed)
+    intlist = randomgen.random_integers(0, 1, countreads)
+    outs = [pysam.AlignmentFile(outfiles[0], "wb", template=bamfile),
+            pysam.AlignmentFile(outfiles[1], "wb", template=bamfile)]
+    j = 0
+    i = 0
+    k = 0
+
+    # send reads to replicates according to the integers in intlist
+    dest = outfiles[i]
+    if pe is True:
+        for read in sorted_bamfile:
+            # if j is even
+            if j % 2 == 0:
+                # take item i from intlist
+                destint = intlist[i]
+                # sends to output bam file 0 or 1
+                dest = outs[destint]
+                i += 1
+            dest.write(read)
+            j += 1
+    else:
+        for read in sorted_bamfile:
+            destint = intlist[k]
+            dest = outs[destint]
+            dest.write(read)
+            k += 1
+
+    outs[0].close()
+    outs[1].close()
+    os.remove(T)
+    os.remove("%s.bam" % T)
+    lens = []
+
+    # check that there are twice as many reads as read names for a paired
+    # end bam file and check the lengths of the files
+    for outf in outfiles:
+        T = P.getTempFilename(".")
+        os.system("""samtools sort %(outf)s -o %(T)s.bam;
+        samtools index %(T)s.bam""" % locals())
+#      pysam.sort(outf, T, catch_stdout=False)
+#      pysam.index("%s.bam" % T, catch_stdout=False)
+
+        bamfile = pysam.AlignmentFile("%s.bam" % T, "rb")
+        all = []
+        for nam in bamfile:
+            all.append(nam.qname)
+
+        if pe is True and "unpaired" in filters and "secondary" in filters:
+            allreads = len(all)
+            uniquereads = len(set(all))
+            expectedreads = len(all) // 2
+            assert (
+                (len(set(all)) <= (len(all) // 2) + 2) &
+                (len(set(all)) >= (len(all) // 2) - 2)), """
+                Error splitting bam file %(outf)s\
+                %(allreads)i reads in bam file and\
+                %(uniquereads)s unique read names -
+                expecting %(expectedreads)i unique read names\
+                """ % locals()
+
+        lens.append(bamfile.count())
+        os.remove(T)
+        shutil.move("%s.bam" % T, outf)
+        shutil.move("%s.bam.bai" % T, "%s.bai" % outf)
+
+    E.info("Bamfile 1 length %i, Bamfile 2 length %i" % (lens[0], lens[1]))
+
+#############################################
+# Peakcalling Functions
+
+
+def getMacsPeakShiftEstimate(infile):
+    '''
+    Parses the peak shift estimate file from the estimateInsertSize
+    function and returns the fragment size, which is used in the macs2
+    postprocessing steps as the "offset" for bed2table
+    Parameters
+    ----------
+    infile: str
+        path to input file
+    '''
+
+    with IOTools.openFile(infile, "r") as inf:
+
+        header = inf.readline().strip().split("\t")
+        values = inf.readline().strip().split("\t")
+
+    fragment_size_mean_ix = header.index("fragmentsize_mean")
+    fragment_size = int(float(values[fragment_size_mean_ix]))
+
+    return fragment_size
+
+
+def mergeSortIndex(bamfiles, out):
+    '''
+    Merge bamfiles into a single sorted, indexed outfile.
+    Generates and runs a command line statement.
+
+    Example Statement:
+    samtools merge ctmpljriXY.bam K9-13-1_filtered.bam K9-13-2_filtered.bam
+    K9-13-3_filtered.bam;
+    samtools sort ctmpljriXY.bam -o ctmpYH6llm.bam;
+    samtools index ctmpYH6llm.bam;
+    mv ctmpYH6llm.bam 13_Heart_pooled_filtered.bam;
+    mv ctmpYH6llm.bam.bai 13_Heart_pooled_filtered.bam.bai;
+
+    Parameters
+    ----------
+    bamfiles: list
+        list of paths to bam files to merge
+    out: str
+        path to output file
+
+    '''
+    infiles = " ".join(bamfiles)
+    T1 = P.getTempFilename(".")
+    T2 = P.getTempFilename(".")
+    statement = """samtools merge %(T1)s.bam %(infiles)s;
+    samtools sort %(T1)s.bam -o %(T2)s.bam;
+    samtools index %(T2)s.bam;
+    mv %(T2)s.bam %(out)s;
+    mv %(T2)s.bam.bai %(out)s.bai""" % locals()
+    P.run()
+    os.remove("%s.bam" % T1)
+    os.remove(T1)
+    os.remove(T2)
+
+
+def sortIndex(bamfile):
+    '''
+    Sorts and indexes a bam file.
+    Generates and runs a command line statement.
+
+    Example Statement:
+    samtools sort K9-10-1_filtered.bam -o ctmpvHoczK.bam;
+    samtools index ctmpvHoczK.bam;
+    mv ctmpvHoczK.bam K9-10-1_filtered.bam;
+    mv ctmpvHoczK.bam.bai K9-10-1_filtered.bam.bai
+
+    The input bam file is replaced by the sorted bam file.
+
+    Parameters
+    ----------
+    bamfile: str
+        path to bam file to sort and index
+
+    '''
+    T1 = P.getTempFilename(".")
+    bamfile = P.snip(bamfile)
+    statement = """
+    samtools sort %(bamfile)s.bam -o %(T1)s.bam;
+    samtools index %(T1)s.bam;
+    mv %(T1)s.bam %(bamfile)s.bam;
+    mv %(T1)s.bam.bai %(bamfile)s.bam.bai""" % locals()
+    P.run()
+    os.remove(T1)
+
+
+def makeBamLink(currentname, newname):
+    '''
+    Makes soft links to an existing bam file and its index - used instead
+    of copying files.
+    Generates and runs a command line statement.
+
+    Parameters:
+    currentname: str
+        path to original file
+    newname: str
+        path to link location
+    '''
+    cwd = os.getcwd()
+    os.system("""
+    ln -s %(cwd)s/%(currentname)s %(cwd)s/%(newname)s;
+    ln -s %(cwd)s/%(currentname)s.bai %(cwd)s/%(newname)s.bai;
+    """ % locals())
+
+
+def makeLink(currentname, newname):
+    '''
+    Makes a soft link to an existing file- used instead
+    of copying files.
+    Generates and runs a command line statement.
+
+    Parameters:
+    currentname: str
+        path to original file
+    newname: str
+        path to link location
+    '''
+    cwd = os.getcwd()
+    os.system("""
+    ln -s %(cwd)s/%(currentname)s %(cwd)s/%(newname)s;
+    """ % locals())
+
+
+class Peakcaller(object):
+    '''
+    Base class for peakcallers
+    Peakcallers call peaks from a BAM file and then post-process peaks
+    to generate a uniform output
+
+    Every new peak caller added requires one or more of
+    the following functions:
+    callPeaks - builds a command line statement to call peaks
+    compressOutput - builds a command line statement to compress peakcalling
+    output
+    postProcessPeaks - builds a command line statement to postprocess peaks
+    preparePeaksForIDR - builds a command line statement to prepare IDR input
+
+    Each peak caller should also have a "summarise" function which generates
+    a one line summary of the peakcalling results and outputs this to
+    a file - these can later be concatenated into a summary table.
+
+    Attributes
+    ----------
+
+    threads: int
+        number of threads to use for peakcalling
+    paired_end: bool
+        1 = paired end, 0 = single end
+    tool_options: str
+        string to append to the cmd statement to run the peakcaller containing
+        tool specific options
+
+    '''
+    def __init__(self,
+                 threads=1,
+                 paired_end=True,
+                 tool_options=None):
+        self.threads = threads
+        self.paired_end = paired_end
+        self.tool_options = tool_options
+
+    def callPeaks(self, infile, outfile, controlfile):
+        '''
+        Build command line statement to call peaks.
+        Returns an empty string if no callPeaks function is defined for the
+        peakcaller used.
+        Parameters
+        ----------
+        infile: str
+            path to input bam file
+        outfile: str
+            path to standard output file (other outputs will also be created
+            with the same stem.
+        controlfile: path to control (input) bam file
+        '''
+        return ""
+
+    def compressOutput(self, infile, outfile, contigsfile, controlfile,
+                       broad_peak=None):
+        '''
+        Build command line statement to compress peakcalling output files.
+        Returns an empty string if no compressOutput function is defined for
+        the peakcaller used.
+        Parameters
+        ----------
+        infile: str
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        contigsfile: str
+           path to tab delimited file with the name of each contig in the
+           genome in column 0 and contig lengths in column 1. Used by
+           bedGraph2bigwig in generating bigwig formatted output files.
+        controlfile: str
+           path to the control (input) bam file
+        '''
+        return ""
+
+    def postProcessPeaks(self, infile, outfile, controlfile,
+                         insertsizefile):
+        '''
+        Build command line statement to postprocess peakcalling output.
+
+        Currently none of these outputs are used downstream so any outputs
+        of interest to the user of the specific peak caller can be generated.
+
+        Returns an empty string if no postProcess function is defined for
+        the peakcaller used
+
+        Parameters
+        ----------
+        infile: str
+
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        controlfile: str
+           path to the control (input) bam file
+        insertsizefile: str
+           path to table containing insert size data, with columns
+           filename, mode, fragmentsize_mean, fragmentsize_std, tagsize
+           generated by the estimateInsertSizes function
+           this is parsed and used by bedGraphToBigWig
+        '''
+        return ""
+
+        def loadData(self, infile, outfile, bamfile, controlfile=None,
+                     mode=None, fragment_size=None):
+            '''
+
+            '''
+
+            return ""
+
+    def preparePeaksForIDR(self, outfile, idrc, idrsuffix, idrcol):
+        '''
+        Build command line statement to prepare the IDR input.
+
+        IDR requires a sorted file containing the x best peaks from the
+        peakcalling step, but the number of peaks to output and the column
+        on which to rank depends on the peakcaller.
+
+        Returns an empty string if no preparePeaksForIDR function is defined
+        for the peakcaller used
+
+        Parameters
+        ----------
+        infile: str
+            path to bam file
+        outfile: str
+            path to peakcalling output
+        idr: bool
+            1 = IDR is enabled 0 = IDR is disabled
+        idrc: int
+            number of peaks to keep for IDR for this particular peakcaller
+        idrsuffix: str
+            output file type from this peakcaller to use for IDR
+        idrcol: str
+            the name of the column on which to rank the peaks for IDR for this
+            peakcaller
+        '''
+        return ""
+
+    def build(self, infile, outfile, contigsfile=None, controlfile=None,
+              insertsizef=None, idr=0, idrc=0, idrsuffix=None, idrcol=None,
+              broad_peak=None, conda_env=None):
+        '''
+        Runs the above functions and uses these to build a complete command
+        line statement to run the peakcaller and process its output.
+
+        Parameters
+        ----------
+        infile: str
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        contigsfile: str
+           path to tab delimited file with the name of each contig in the
+           genome in column 0 and contig lengths in column 1. Used by
+           bedGraph2bigwig in generating bigwig formatted output files.
+        controlfile: str
+           path to the control (input) bam file
+        insertsizefile: str
+           path to table containing insert size data, with columns
+           filename, mode, fragmentsize_mean, fragmentsize_std, tagsize
+           generated by the estimateInsertSizes function
+           this is parsed and used by bedGraphToBigWig
+        idr: bool
+            1 = IDR is enabled 0 = IDR is disabled
+        idrc: int
+            number of peaks to keep for IDR for this particular peakcaller
+        idrsuffix: str
+            output file type from this peakcaller to use for IDR
+        idrcol: int
+            the index (0 based) of the column on which to rank the peaks for
+            IDR for this peakcaller
+        '''
+
+        peaks_outfile, peaks_cmd = self.callPeaks(infile,
+                                                  outfile,
+                                                  controlfile,
+                                                  conda_env)
+        compress_cmd = self.compressOutput(
+            infile, outfile, contigsfile, controlfile, broad_peak=broad_peak)
+        postprocess_cmd = self.postProcessPeaks(
+            infile, outfile, controlfile, insertsizef)
+
+        if idr == 1:
+            prepareIDR_cmd = self.preparePeaksForIDR(outfile, idrc, idrsuffix,
+                                                     idrcol)
+        else:
+            prepareIDR_cmd = ""
+
+        loadDatatoDatabase = ""
+        full_cmd = " checkpoint ;".join((
+            peaks_cmd, compress_cmd, postprocess_cmd, prepareIDR_cmd,
+            loadDatatoDatabase))
+
+        return full_cmd
+
+    def summarise(self, infile):
+        '''
+        Function to run after peaks are called and processed to generate a row
+        which can later be appended to a summary table for peakcalling for
+        all input files.
+
+        Parameters
+        ----------
+        infile: str
+            path to bam file
+        '''
+
+
+class Macs2Peakcaller(Peakcaller):
+    '''
+    Peakcaller subclass to call peaks with macs2 and process the macs2 output.
+
+    Attributes
+    ----------
+    threads: int
+        number of threads to use for peakcalling
+    paired_end: bool
+        1 = paired end, 0 = single end
+    tool_options: str
+        string to append to the cmd statement with macs2 specific options
+    tagsize: int
+        if tag size is known it can be added here, otherwise it is calculated
+    '''
+
+    def __init__(self,
+                 threads=1,
+                 paired_end=True,
+                 tool_options=None,
+                 tagsize=None,
+                 force_single_end=None):
+
+        super(Macs2Peakcaller, self).__init__(threads, paired_end,
+                                              tool_options)
+        self.tagsize = tagsize
+        self.force_single_end = force_single_end
+
+    def callPeaks(self, infile,  outfile, controlfile=None, conda_env=None):
+        '''
+        Build command line statement fragment to call peaks with macs2.
+
+        Example Statement
+        macs2 callpeak --format=BAMPE
+        --treatment K9-13-2_filtered_pseudo_2.bam --verbose=10
+        --name=macs2.dir/K9-13-2_filtered_pseudo_2.macs2
+        --qvalue=0.01 --bdg --SPMR --mfold 10 30 --gsize mm
+        --broad --broad-cutoff 0.1
+        --control IDR_inputs.dir/K9-IN-1_filtered.bam --tsize 75
+        >& K9-13-2_filtered_pseudo_2.macs2;
+        mv K9-13-2_filtered_pseudo_2.macs2 K9-13-2_filtered_pseudo_2.macs2_log;
+
+        Output files have the same stem but various suffixes.  Details are
+        here: https://github.com/taoliu/MACS
+        Briefly:
+            .macs2_log
+             Raw macs2 log file
+
+            .macs2_treat_pileup.bdg
+             Bedgraph file of the fragment pileup in the treatment file
+
+            .macs2_control_lambda.brg
+             Bedgraph file of the control lambda
+
+            .macs2_peaks.xls
+             Tabular file which contains information about called peaks
+
+            .macs2_peaks.broadPeak or .macs2.peaks.narrowPeak
+             bed file of peak locations (plus peak summits for narrowPeak)
+
+            .macs2_peaks.gappedPeak
+             bed file of narrow and broad peaks
+
+            .macs2_summits.bed
+             bed file of summit locations (narrow peaks only)
+
+        The original location for the logging file (suffixed .macs2)
+        is overwritten by the output from passing the macs2 xls to
+        bed2table.py to give the final required outfile
+
+        Parameters
+        ----------
+        infile: str
+            path to input bam file
+        outfile: str
+            path to .macs2 output file
+        controlfile: str
+           path to control (input) bam file
+        '''
+
+        if self.tool_options:
+            options = [self.tool_options]
+        else:
+            options = []
+        if controlfile:
+            options.append("--control %s" % controlfile)
+
+        # tag size is estimated using BamTools
+        if self.tagsize is None:
+            self.tagsize = BamTools.estimateTagSize(infile, multiple="mean")
+
+        options.append("--tsize %i" % self.tagsize)
+        options = " ".join(options)
+
+        # Check the paired_end paramter is correct
+        if self.paired_end and self.force_single_end:
+                format_options = '--format=BAM'
+        elif self.paired_end:
+            if not BamTools.isPaired(infile):
+                raise ValueError(
+                    "paired end has been specified but "
+                    "BAM is not paired %" % infile)
+
+            format_options = '--format=BAMPE'
+        else:
+            format_options = '--format=BAM'
+
+        # --bdg --SPMR: ask macs to create a bed-graph file with
+        # fragment pileup per million reads
+
+        # CG put brackets () around conda call and macs statement to run this
+        # portion of the statement in subshell with specific conda env
+
+        statement = '''
+        (%(conda_env)s &&
+        macs2 callpeak
+        %(format_options)s
+        --treatment %(infile)s
+        --verbose=10
+        --name=%(outfile)s
+        --bdg
+        --SPMR
+        %(options)s
+        >& %(outfile)s) &&
+        mv %(outfile)s %(outfile)s_log &&
+        ''' % locals()
+
+        return outfile, statement
+
+    def compressOutput(self, infile, outfile,
+                       contigsfile, controlfile, broad_peak):
+        '''
+        Builds a command line statement to compress macs2 outfiles.
+        XLS file is compressed using bgzip and tabix
+        bedGraph files are compressed using bedGraphToBigWig
+
+        Example Statement:
+        bedGraphToBigWig K9-13-2_filtered_pseudo_2.macs2_treat_pileup.bdg
+        assembly.dir/contigs.tsv
+        K9-13-2_filtered_pseudo_2.macs2_treat_pileup.bw;
+        checkpoint;
+        rm -rf K9-13-2_filtered_pseudo_2.macs2_treat_pileup.bdg;
+        checkpoint;
+
+        bedGraphToBigWig K9-13-2_filtered_pseudo_2.macs2_control_lambda.bdg
+        assembly.dir/contigs.tsv
+        K9-13-2_filtered_pseudo_2.macs2_control_lambda.bw;
+        checkpoint;
+        rm -rf K9-13-2_filtered_pseudo_2.macs2_control_lambda.bdg;
+        checkpoint;
+
+        grep -v "^$" < K9-13-2_filtered_pseudo_2.macs2_peaks.xls |
+        bgzip > K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz;
+        x=$(zgrep "[#|log]" K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz |
+        wc -l);
+        tabix -f -b 2 -e 3 -S $x K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz;
+        checkpoint;
+        rm -f K9-13-2_filtered_pseudo_2.macs2_peaks.xls;
+        checkpoint;
+
+        Output files from the callPeaks step are compressed as follows:
+        .macs2_treat_pileup.bdg > .macs2_treat_pileup.bw
+        .macs2_control_lambda.brg > .macs2_control_lambda.bw
+        .macs2_peaks.xls > .macs2_peaks.xls.gz and .macs2_peaks.xls.gz.tbi
+
+        Parameters
+        ----------
+         infile: str
+            path to input bam file
+        outfile: str
+            path to .macs2 output file
+        contigsfile: str
+           path to tab delimited file with the name of each contig in the
+           genome in column 0 and contig lengths in column 1. Used by
+           bedGraph2bigwig in generating bigwig formatted output files.
+        controlfile: str
+           path to control (input) bam file
+        '''
+
+        statement = []
+
+        # compress macs bed files and index with tabix
+        bedfile = outfile + "_summits.bed"
+        if broad_peak == 0:
+            statement.append('''
+            bgzip -f %(bedfile)s;
+            tabix -f -p bed %(bedfile)s.gz;
+            ''' % locals())
+        else:
+            statement.append("")
+
+        # convert normalized bed graph to bigwig
+        # saves 75% of space
+        # compressing only saves 60%
+        temp = P.getTempFilename('.')
+        statement.append('''
+        sort -k1,1 -k2,2n %(outfile)s_treat_pileup.bdg > %(temp)s;
+        bedGraphToBigWig %(temp)s %(contigsfile)s %(outfile)s_treat_pileup.bw ;
+        checkpoint ; rm -rf %(outfile)s_treat_pileup.bdg; rm -rf %(temp)s;''' % locals())
+
+        temp = P.getTempFilename('.')
+        statement.append('''
+        sort -k1,1 -k2,2n %(outfile)s_control_lambda.bdg > %(temp)s;
+        bedGraphToBigWig %(temp)s %(contigsfile)s %(outfile)s_control_lambda.bw ;
+        checkpoint ; rm -rf %(outfile)s_control_lambda.bdg; rm -rf %(temp)s;''' % locals())
+
+        # index and compress peak file
+        suffix = 'peaks.xls'
+        statement.append(
+            '''grep -v "^$" < %(outfile)s_%(suffix)s
+            | bgzip > %(outfile)s_%(suffix)s.gz;
+            x=$(zgrep "[#|log]" %(outfile)s_%(suffix)s.gz | wc -l);
+            tabix -f -b 2 -e 3 -S $x %(outfile)s_%(suffix)s.gz;
+             checkpoint; rm -f %(outfile)s_%(suffix)s;''' % locals())
+
+        return " checkpoint ;".join(statement)
+
+    def postProcessPeaks(self, infile, outfile, controlfile, insertsizefile):
+        '''
+        Generates a command line statement to postprocess MACS 2 results,
+        producing further output files which may be of interest.
+
+        The .xls.gz output table from compressOutput is filtered to remove
+        comments and column headings then
+        bed2table is used to annotate these with various metrics
+        including the centre of the peak and
+        the number of reads in the sample bam and control bam at the
+        peak position.  This output is stored with the suffix .macs
+
+        The .broadPeaks or .narrowPeaks file is processed to output a table,
+        suffix .broadpeaks.macs_peaks.bed or .subpeaks.macs_peaks.bed,
+        with these metrics plus a "peak height" column.
+
+
+        Example Statement
+        zcat K9-13-2_filtered_pseudo_2.macs2_peaks.xls.gz |
+        awk '$1!="chr"' |
+        cgat bed2table --counter=peaks
+        --bam-file=K9-13-2_filtered_pseudo_2.bam
+        --offset=168
+        --control-bam-file=K9-IN-1_filtered.bam
+        --control-offset=168
+        --output-all-fields
+        --output-bed-headers=contig,start,end,interval_id,
+        -log10\(pvalue\),fold,-log10\(qvalue\),macs_nprobes,macs_peakname
+        --log=K9-13-2_filtered_pseudo_2.macs2.log
+        > K9-13-2_filtered_pseudo_2.macs;
+
+        cat macs2.dir/K9-13-2_filtered_pseudo_2.macs2_peaks.broadPeak |
+        awk '/Chromosome/ {next; } {printf("%s\t%i\t%i\t%i\t%i\n",
+        $1,$2,$3,++a,$4)}' |
+        cgat bed2table
+        --counter=peaks
+        --bam-file=K9-13-2_filtered_pseudo_2.bam
+        --offset=168
+        --control-bam-file=K9-IN-1_filtered.bam
+        --control-offset=168
+        --output-all-fields
+        --output-bed-headers=contig,start,end,interval_id,Height
+        --log=K9-13-2_filtered_pseudo_2.macs2.log
+        > K9-13-2_filtered_pseudo_2.broadpeaks.macs_peaks.bed;
+
+        Parameters
+        ----------
+        infile: str
+           path to bam file
+        outfile: str
+           path to peakcalling output
+        controlfile: str
+           path to the control (input) bam file
+        insertsizefile: str
+           path to table containing insert size data, with columns
+           filename, mode, fragmentsize_mean, fragmentsize_std, tagsize
+           generated by the estimateInsertSizes function
+           this is parsed and used by bedGraphToBigWig
+        '''
+
+        filename_bed = outfile + "_peaks.xls.gz"
+        filename_subpeaks = outfile + "_summits.bed.gz"
+        filename_broadpeaks = "%s_peaks.broadPeak" % outfile
+
+        outfile_subpeaks = P.snip(
+            outfile, ".macs2", ) + ".subpeaks.macs_peaks.bed"
+
+        outfile_broadpeaks = P.snip(
+            outfile, ".macs2", ) + ".broadpeaks.macs_peaks.bed"
+
+        shift = getMacsPeakShiftEstimate(insertsizefile)
+        assert shift is not None,\
+            "could not determine peak shift from file %s" % insertsizefile
+
+        peaks_headers = ",".join((
+            "contig", "start", "end",
+            "interval_id",
+            "-log10\(pvalue\)", "fold", "-log10\(qvalue\)",
+            "macs_nprobes", "macs_peakname"))
+
+        if controlfile:
+            control = '''--control-bam-file=%(controlfile)s
+                         --control-offset=%(shift)s''' % locals()
+        else:
+            control = ""
+
+        statement = '''
+        zcat %(filename_bed)s |
+        awk '$1!="chr"' |
+        cgat bed2table
+        --counter=peaks
+        --bam-file=%(infile)s
+        --offset=%(shift)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(peaks_headers)s
+        --log=%(outfile)s.log
+        > %(outfile)s ;
+        ''' % locals()
+
+        # check masc2 running mode
+        if "--broad" in self.tool_options:
+
+            broad_headers = ",".join((
+                "contig", "start", "end",
+                "interval_id",
+                "Height"))
+
+            # add a peak identifier and remove header
+            statement += '''
+            cat %(filename_broadpeaks)s |
+            awk '/Chromosome/ {next; }
+            {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
+            $1,$2,$3,++a,$4)}'
+            | cgat bed2table
+            --counter=peaks
+            --bam-file=%(infile)s
+            --offset=%(shift)i
+            %(control)s
+            --output-all-fields
+            --output-bed-headers=%(broad_headers)s
+            --log=%(outfile)s.log
+            > %(outfile_broadpeaks)s;
+            ''' % locals()
+
+        # if not broad, will generate subpeaks
+        else:
+
+            subpeaks_headers = ",".join((
+                "contig", "start", "end",
+                "interval_id",
+                "Height"))
+
+            # add a peak identifier and remove header
+            statement += '''
+            zcat %(filename_subpeaks)s |
+            awk '/Chromosome/ {next; }
+            {printf("%%%%s\\t%%%%i\\t%%%%i\\t%%%%i\\t%%%%i\\n",
+            $1,$2,$3,++a,$5)}'
+            | cgat bed2table
+            --counter=peaks
+            --bam-file=%(infile)s
+            --offset=%(shift)i
+            %(control)s
+            --output-all-fields
+            --output-bed-headers=%(subpeaks_headers)s
+            --log=%(outfile)s.log
+            > %(outfile_subpeaks)s ;''' % locals()
+
+        return statement
+
+    def preparePeaksForIDR(self, outfile, idrc, idrsuffix, idrcol):
+        '''
+        Generates a statement fragment which sorts and filters the macs2
+        output to provide an input for IDR.
+        This involves taking column "idrcol" (currently recommended - column 8
+        from the .narrowPeaks or .broadPeaks file), sorting from highest
+        to lowest and taking the top n hits (currently recommended 500000).
+
+        Example Statement
+        sort -h -r -k8,8 K9-13-2_filtered_pseudo_2.macs2_peaks.broadPeak |
+        head -500000 > K9-13-2_filtered_pseudo_2.macs2_IDRpeaks
+
+        Parameters
+        ----------
+        outfile: str
+            path to output file
+        idrc: int
+            number of top ranked peaks to keep
+        idrsuffix: str
+            output file type to use for IDR
+        idrcol: str
+            the index (0 based) of the column on which to rank the peaks for
+            IDR
+        '''
+        statement = ''
+        idrout = "%s_IDRpeaks" % outfile
+        narrowpeaks = "%s_peaks.%s" % (outfile, idrsuffix)
+        tmpfile = P.getTempFilename()
+        col = idrcol
+        statement += '''sort -k%(col)igr,%(col)igr %(narrowpeaks)s
+        > %(tmpfile)s;
+        head -%(idrc)s %(tmpfile)s > %(idrout)s;
+        rm -rf %(tmpfile)s;''' % locals()
+        return statement
+
+    def summarise(self, infile):
+        '''
+        Parses the MACS2 logfile to extract:
+            fragment_size - fragment size
+            fragment_treatment_total - number of reads in the treatment bam
+            fragment_treatment_filtered - number of reads in the treatment
+            after filtering with macs2
+            fragment_control_total - number of reads in the control bam
+            fragment_control_filtered - number of reads in the control after
+            filtering with macs2
+            number of peaks - number of peaks passing QC
+        This is written to a table with a single row.
+
+        Parameters
+        ---------
+        infile : str
+            path to peakcalling output file (.macs2 file)
+        '''
+
+        infile = "%s_log" % infile
+        outfile = "%s.table" % infile
+
+        map_targets = [
+            ("fragment size = (\d+)",
+             "fragment_size", ()),
+            ("total fragments in treatment:\s+(\d+)",
+             "fragment_treatment_total", ()),
+            ("fragments after filtering in treatment:\s+(\d+)",
+             "fragment_treatment_filtered", ()),
+            ("total fragments in control:\s+(\d+)",
+             "fragment_control_total", ()),
+            ("fragments after filtering in control:\s+(\d+)",
+             "fragment_control_filtered", ())
+        ]
+
+        mapper, mapper_header = {}, {}
+        for x, y, z in map_targets:
+            mapper[y] = re.compile(x)
+            mapper_header[y] = z
+
+        keys = [x[1] for x in map_targets]
+
+        results = collections.defaultdict(list)
+        with IOTools.openFile(infile) as f:
+            for line in f:
+                for x, y in mapper.items():
+                    s = y.search(line)
+                    if s:
+                        results[x].append(s.groups()[0])
+                        break
+
+        row = [P.snip(os.path.basename(infile), ".macs2_log")]
+        for key in keys:
+            val = results[key]
+            if len(val) == 0:
+                v = "na"
+            else:
+                c = len(mapper_header[key])
+                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
+            row.append(v)
+
+        peaks = IOTools.openFile(
+            infile.replace(".macs2_log",
+                           ".macs2_peaks.xls.gz")).readlines()
+        npeaks = 0
+        for line in peaks:
+            if "#" not in line and "log10" not in line:
+                npeaks += 1
+
+        row.extend([str(npeaks)])
+        keys.extend(["number_of_peaks"])
+
+        out = IOTools.openFile(outfile, "w")
+        out.write("sample\t%s\n%s\n" % ("\t".join(keys), "\t".join(row)))
+        out.close()
+
+
+class SicerPeakcaller(Peakcaller):
+    '''
+    Peakcaller subclass to call peaks with sicer and process the sicer output.
+    The peak caller can be ran in two options narror or broad
+
+    Attributes
+    ----------
+    threads: int
+        number of threads to use for peakcalling
+    paired_end: bool
+        1 = paired end, 0 = single end
+    tool_options: str
+        string to append to the cmd statement with macs2 specific options
+    tagsize: int
+        if tag size is known it can be added here, otherwise it is calculated
+    '''
+
+    def __init__(self,
+                 threads=1,
+                 tool_options=None,
+                 fragment_size=None,
+                 effective_genome_fraction=None,
+                 evalue_threshold=None,
+                 fdr_threshold=None,
+                 window_size=None,
+                 gap_size=None,
+                 genome=None,
+                 redundancy_threshold=None,
+                 minfragsize=None,
+                 maxfragsize=None):
+        super(SicerPeakcaller, self).__init__(threads, tool_options)
+        self.fragment_size = fragment_size
+        self.effective_genome_fraction = effective_genome_fraction
+        self.evalue_threshold = evalue_threshold
+        self.fdr_threshold = fdr_threshold
+        self.window_size = window_size
+        self.gap_size = gap_size
+        self.genome = genome
+        self.redundancy_threshold = redundancy_threshold
+        self.minfragsize = minfragsize
+        self.maxfragsize = maxfragsize
+
+    def callPeaks(self, infile, outfile, controlfile=None, conda_env=None):
+        '''
+        Build command line statement fragment to call peaks with sicer.
+
+        Example Statement:
+
+        Output files have the same stem but various suffixes.  Details are
+        here:
+        Briefly:
+        .test-1-removed.bed: redundancy-removed test bed file
+
+        .control-1-removed.bed: redundancy-removed control bed file
+
+        .test-W200.graph: summary graph file for test-1-removed.bed with window
+        size 200, in bedGraph format.
+
+        .test-W200-normalized.wig: the above file normalized by library size
+        per million and converted into wig format.
+        This file can be uploaded to the UCSC genome browser
+
+        .test-W200-G600.scoreisland: an intermediate file for debugging usage.
+
+        .test-W200-G600-islands-summary: summary of all candidate islands with
+        their
+        statistical significance. It has the format:
+        chrom, start, end, ChIP_island_read_count, CONTROL_island_read_count,
+        p_value,
+        fold_change, FDR_threshold
+
+        .test-W200-G600-islands-summary-FDR.01: summary file of significant
+        islands with
+        requirement of FDR=0.01.
+
+        .test-W200-G600-FDR.01-island.bed: delineation of significant islands
+        in "chrom start
+        end read-count-from-redundancy-removed-test.bed" format
+
+        .test-W200-G600-FDR.01-islandfiltered.bed: library of raw
+        redundancy-removed reads
+        on significant islands.
+
+        .test-W200-G600-FDR.01-islandfiltered-normalized.wig: wig file for
+        the island-filtered
+        redundancy-removed reads. This file can be uploaded to the UCSC
+        genome browser
+        and be compared with the track for test-W200-normalized.wig for
+        visual examination of
+        parameter choices and SICER performance.
+
+        Parameters
+        ----------
+        infile: str
+            path to input bam file
+        outfile: str
+            path to sicer output file
+        controlfile: str
+           path to control (input) bam file
+        '''
+
+        if self.tool_options:
+            options = [self.tool_options]
+        else:
+            options = []
+
+        workdir = outfile + ".dir"
+
+        try:
+            os.mkdir(workdir)
+        except OSError:
+            pass
+
+        if BamTools.isPaired(infile):
+            # output strand as well
+            minfragsize = self.minfragsize
+            maxfragsize = self.maxfragsize
+            statement = ['''cat %(infile)s
+            | cgat bam2bed
+            --merge-pairs
+            --min-insert-size=%(minfragsize)i
+            --max-insert-size=%(maxfragsize)i
+            --log=%(outfile)s.log
+            --bed-format=6
+            > %(workdir)s/foreground.bed''' % locals()]
+        else:
+            statement = ["bamToBed -i %(infile)s\
+            > %(workdir)s/foreground.bed" % locals()]
+
+        outfile = os.path.basename(outfile)
+
+        window_size = self.window_size
+        gap_size = self.gap_size
+        effective_genome_fraction = self.effective_genome_fraction
+        fdr_threshold = self.fdr_threshold
+        genome = self.genome
+        redundancy_threshold = self.redundancy_threshold
+        fragment_size = self.fragment_size
+
+        if controlfile:
+            statement.append(
+                'bamToBed -i %(controlfile)s \
+                > %(workdir)s/control.bed' % locals())
+            statement.append("cd %(workdir)s" % locals())
+            statement.append('''%(conda_env)s &&
+            SICER.sh . foreground.bed control.bed \
+            . %(genome)s
+            %(redundancy_threshold)s
+            %(window_size)s
+            %(fragment_size)s
+            %(effective_genome_fraction)s
+            %(gap_size)s
+            %(fdr_threshold)s
+            >& ../%(outfile)s''' % locals())
+
+        else:
+            statement.append('cd%(workdir)s')
+            statement.append('''%(conda_env)s &&
+            SICER-rb.sh .foreground.bed . %(genome)s
+            %(redundancy_threshold)s
+            %(window_size)s
+            %(fragment_size)s
+            %(effective_genome_fraction)s
+            %(gap_size)s
+            %(evalue_threshold)s
+            >& ../%(outfile)s''' % locals())
+
+        statement.append('rm -f foreground.bed background.bed')
+        statement = '; '.join(statement)
+
+        return outfile, statement
+
+    def loadData(self, infile, outfile, bamfile, controlfile=None,
+                 mode="narrow",
+                 fragment_size=None):
+        '''load Sicer results.'''
+
+        # build filename of input bedfile
+        track = P.snip(os.path.basename(infile), ".sicer")
+        sicerdir = infile + ".dir"
+        window = self.window_size
+        gap = self.gap_size
+        fdr = "%8.6f" % self.fdr_threshold
+        offset = fragment_size
+
+        # taking the file islands-summary-FDR, which contains
+        # 'summary file of significant islands with requirement of FDR=0.01'
+
+        bedfile = os.path.join(
+            sicerdir,
+            "foreground" + "-W" + str(window) +
+            "-G" + str(gap) + "-islands-summary-FDR" + fdr)
+
+        assert os.path.exists(bedfile)
+
+        if controlfile:
+            control = "--control-bam-file=%(controlfile)s\
+            --control-offset=%(offset)i" % locals()
+
+        tablename = P.toTable(outfile) + "_regions"
+        load_statement = P.build_load_statement(
+            tablename,
+            options="--add-index=contig,start "
+            "--add-index=interval_id "
+            "--allow-empty-file")
+
+        headers = "contig,start,end,interval_id,chip_reads,\
+        control_reads,pvalue,fold,fdr"
+
+        # add new interval id at fourth column
+        statement = '''cat < %(bedfile)
+        | awk '{printf("%%s\\t%%s\\t%%s\\t%%i", $1,$2,$3,++a);
+        for (x = 4; x <= NF; ++x) {printf("\\t%%s", $x)}; printf("\\n" ); }'
+        | cgat bed2table
+        --counter=peaks
+        --bam-file=%(bamfile)s
+        --offset=%(offset)i
+        %(control)s
+        --output-all-fields
+        --output-bed-headers=%(headers)s
+        --log=%(outfile)s
+        | %(load_statement)s
+        > %(outfile)s'''
+
+        return statement
+
+    def summarise(self, infile, mode=None):
+        '''summarise sicer results.'''
+
+        def __get(line, stmt):
+            x = line.search(stmt)
+            if x:
+                return x.groups()
+
+        map_targets = [
+            ("Window average: (\d+)", "window_mean", ()),
+            ("Fragment size: (\d+) ", "fragment_size", ()),
+            ("Minimum num of tags in a qualified window:  (\d+)",
+             "window_min", ()),
+            ("The score threshold is:  (\d+)", "score_threshold", ()),
+            ("Total number of islands:  (\d+)", "total_islands", ()),
+            ("chip library size   (\d+)", "chip_library_size", ()),
+            ("control library size   (\d+)", "control_library_size", ()),
+            ("Total number of chip reads on islands is:  (\d+)",
+             "chip_island_reads", ()),
+            ("Total number of control reads on islands is:  (\d+)",
+             "control_island_reads", ()),
+            ("Given significance 0.01 ,  there are (\d+) significant islands",
+             "significant_islands", ())]
+
+        # map regex to column
+        mapper, mapper_header, mapper2pos = {}, {}, {}
+        for x, y, z in map_targets:
+            mapper[y] = re.compile(x)
+            mapper_header[y] = z
+            # positions are +1 as first column in row is track
+            mapper2pos[y] = len(mapper_header)
+
+        keys = [x[1] for x in map_targets]
+
+        # build headers
+        outfile = "%s_log.table" % infile
+        outs = IOTools.openFile(outfile, "w")
+
+        headers = []
+        for k in keys:
+            if mapper_header[k]:
+                headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
+            else:
+                headers.append(k)
+        headers.append("shift")
+
+        outs.write("track\t%s" % "\t".join(headers) + "\n")
+
+        results = collections.defaultdict(list)
+        with IOTools.openFile(infile) as f:
+            for line in f:
+                if "diag:" in line:
+                    break
+                for x, y in mapper.items():
+                    s = y.search(line)
+                    if s:
+                        results[x].append(s.groups()[0])
+                        break
+
+        if mode == "narrow":
+            row = [P.snip(os.path.basename(infile), ".narrow_sicer")]
+        else:
+            row = [P.snip(os.path.basename(infile), ".broad_sicer")]
+        for key in keys:
+            val = results[key]
+            if len(val) == 0:
+                v = "na"
+            else:
+                c = len(mapper_header[key])
+
+                if c >= 1:
+                    assert len(val) == c, "key=%s, expected=%i, got=%i,\
+                    val=%s,c=%s" %\
+                        (key, len(val), c, str(val), mapper_header[key])
+                v = "\t".join(val)
+            row.append(v)
+        fragment_size = int(row[mapper2pos["fragment_size"]])
+        shift = fragment_size // 2
+
+        outs.write("%s\t%i\n" % ("\t".join(row), shift))
+
+        outs.close()
+
+#############################################
+# IDR Functions
+
+
+@cluster_runnable
+def makePairsForIDR(infiles, outfile, useoracle, df):
+    '''
+    Generates a table containing the pairs of files to compare for IDR
+    analysis.
+    Various pairs of files are needed:
+         Self-consistency analysis
+         Pairs of pseudo-bam files generated from the same replicate are
+         compared
+
+         Replicate-consistency analysis
+         Every possible pair of replicates for each combination of condition
+         and treatment are compared
+
+         Pooled-consistency analysis
+         Pairs of pseudo bam files generated from pooled replicates for each
+         combination of condition and treatment are compared.
+
+    Generates a table with 6 columns:
+        file1: path to first input bam file in the pair
+        file2: path to the second input bam file in the pair
+        IDR_comparison_type: self_consistency, replicate_consistency,
+        pooled_consistency
+        output_file: path to output table
+        Condition: Condition from design table
+        Tissue: Tissue from design table
+
+    Parameters
+    ----------
+    infiles: list
+        list of files containing peaks for each replicate, pseudo replicate
+        and pooled pseudo replicate
+    outilfe: str
+        path to output table
+    useoracle: bool
+        1 = an "oracle peak list" - the peaks from the pooled bam file for each
+        combination of condition and tissue will be written to the table as the
+        oracle peak list for downstream use
+        0 = "None" will be written to the oracle peak list column of the table
+        if this is not required
+    df: pandas dataframe
+        the design table for the experiment, read using the readDesignTable
+        function
+
+    '''
+    pseudo_reps = []
+    pseudo_pooled = []
+    notpseudo_reps = []
+    notpseudo_pooled = []
+
+    # Categorise files as "pseudo_pooled", "pseudo_reps", "notpseudo_pooled"
+    # and "notpseudo_reps
+    # pseudo_pooled - peaks from pseudo bam files generated from pooled
+    #                 replicates
+    # pseudo_reps - peaks from pseudo bam files generated from individual
+    #                 replicates
+    # notpseudo_reps - peaks from original bam files for individual replicates
+    # notpseudo_pooled - peaks from original bam files pooled across replicates
+
+    for f in infiles:
+        if "pseudo" in f and "pooled" in f:
+            pseudo_pooled.append(f)
+        elif "pseudo" in f:
+            pseudo_reps.append(f)
+        elif "pooled" in f:
+            notpseudo_pooled.append(f)
+        else:
+            notpseudo_reps.append(f)
+
+    # The "oracle peaks" file is the notpseudo_pooled file for each condition
+    # and tissue combination
+    oracledict = dict()
+    # This loop finds the appropriate oracle peak list for the pseudo_pooled
+    # pairs and stores this in a dictionary
+    cr_pairs = df['Condition'] + "_" + df['Tissue']
+    for cr in cr_pairs:
+        for npp in notpseudo_pooled:
+            npp1 = npp.split("/")[-1]
+            if npp1.startswith(cr):
+                oracledict[cr] = npp
+
+    # This loop finds the appropriate oracle peak list for the pseudo_reps
+    # and pseudo_pooled pairs and stores this in the dictionary
+
+    i = 0
+    for bam in df['bamReads']:
+        bam = P.snip(bam)
+        cr = cr_pairs[i]
+        for npp in notpseudo_pooled:
+            npp1 = npp.split("/")[-1]
+            if npp1.startswith(cr):
+                oracledict[bam] = npp
+        i += 1
+
+    pseudo_reps = np.array(sorted(list(set(pseudo_reps))))
+    pseudo_pooled = np.array(sorted(list(set(pseudo_pooled))))
+
+    # Generate the table rows for the pseudo_reps peak lists
+    # This is achieved by sorting the file names and taking two items at a
+    # time from the list - the paired pseudo replicates will be next to
+    # each other in this list
+    into = len(pseudo_reps) // 2
+    pseudoreppairs = np.split(pseudo_reps, into)
+    pseudoreppairs = [tuple(item) for item in pseudoreppairs]
+    pseudoreppairs_rows = []
+    for tup in pseudoreppairs:
+        stem = tup[0].split("/")[-1]
+        stem = re.sub(r'_filtered.*', '', stem)
+        oraclenam = oracledict[stem]
+        if useoracle == 1:
+            oracle = oraclenam
+        else:
+            oracle = "None"
+        tissue, condition = oraclenam.split("/")[-1].split("_")[0:2]
+        row = ((tup[0], tup[1], "self_consistency", oracle, tissue,
+                condition))
+        pseudoreppairs_rows.append(row)
+
+    # Generates the table rows for the pseudo_pooled peak lists
+    into = len(pseudo_pooled) // 2
+    pseudopooledpairs = np.split(pseudo_pooled, into)
+    pseudopooledpairs = [tuple(item) for item in pseudopooledpairs]
+    pseudopooledpairs_rows = []
+    for tup in pseudopooledpairs:
+        stem = tup[0].split("/")[-1]
+        stem = re.sub(r'_pooled_filtered.*', '', stem)
+        oraclenam = oracledict[stem]
+        if useoracle == 1:
+            oracle = oraclenam
+        else:
+            oracle = "None"
+        tissue, condition = oraclenam.split("/")[-1].split("_")[0:2]
+        row = ((tup[0], tup[1], "pooled_consistency", oracle, tissue,
+                condition))
+
+        pseudopooledpairs_rows.append(row)
+
+    # segregate the true replicates (notpseudo_reps) into groups
+    # with the same condition and tissue
+    conditions = df['Condition'].values
+    tissues = df['Tissue'].values
+    names = df['bamReads'].values
+    i = 0
+    repdict = dict()
+    for c in conditions:
+        t = tissues[i]
+        n = names[i]
+        repdict.setdefault("%s_%s" % (c, t), [])
+        repdict["%s_%s" % (c, t)].append("%s_filtered" % P.snip(n))
+        i += 1
+
+    idrrepdict = dict()
+    for k in repdict.keys():
+        reps = repdict[k]
+        idrrepdict.setdefault(k, [])
+        for rep in reps:
+            for f in notpseudo_reps:
+                if rep in f:
+                    idrrepdict[k].append(f)
+
+    # generate every possible pair of notpseudo_reps
+    reppairs = []
+    for k in idrrepdict.keys():
+        reppairs += list(itertools.combinations(idrrepdict[k], 2))
+
+    # Generate the table rows for the notpseudo_reps
+    reppairs_rows = []
+    for tup in reppairs:
+        stem = tup[0].split("/")[-1]
+        stem = re.sub(r'_filtered.*', '', stem)
+        oraclenam = oracledict[stem]
+        if useoracle == 1:
+            oracle = oraclenam
+        else:
+            oracle = "None"
+        tissue, condition = oraclenam.split("/")[-1].split("_")[0:2]
+        row = ((tup[0], tup[1], "replicate_consistency", oracle, tissue,
+                condition))
+        reppairs_rows.append(row)
+    pairs = pseudoreppairs_rows + pseudopooledpairs_rows + reppairs_rows
+
+    # Write all the table rows to the output file
+    out = IOTools.openFile(outfile, "w")
+    out.write(
+        "file1\tfile2\tIDR_comparison_type\tOracle_Peak_File\tCondition\tTissue\n")
+    for p in pairs:
+        out.write("%s\t%s\t%s\t%s\t%s\t%s\n" % p)
+
+    out.close()
+
+
+def buildIDRStatement(infile1, infile2, outfile,
+                      sourcec, unsourcec, soft_idr_thresh, idrPARAMS, options,
+                      oraclefile=None, test=False):
+    '''
+    Constructs a command line statement to run the idr software package -
+    https://github.com/nboley/idr
+    The idr software fails if less than 20 peaks are identified unless the
+    --only-merge-peaks parameters is specified, so if "test" is True, this
+    parameter is specified and the peaks are counted.  The output of this
+    step can then be used to determine if a full analysis should be
+    attempted.
+
+    Parameters
+    ----------
+    infile1: str
+        path to first IDR input bam file
+    infile2: str
+        path to second IDR input bam file
+    outfile: str
+        path to main IDR output file
+    sourcec: str
+        statement to source the environment in which to run IDR software
+    unsourcec: str
+        statement to revert to the original environment
+    soft_idr_thresh:
+        threshold below which to discard peaks
+    idrPARAMS: dict
+        dictionary containing parameters for IDR.
+        These are:
+        idrsuffix:  suffix for the file type to use for IDR for this peakcaller
+        for macs2 this is "narrowPeak" or "broadPeak"
+        idrcol: 0 based column index to use to rank peaks for IDR, for macs2
+        this is 8
+        idrcolname: column name of the column referred to in idrcol, for macs2
+        this is p.value
+        useoracle: should the "oracle" peak list be used instead of the
+        standard peak list - 1 yes 0 no
+    options: str
+        string containing additional options for the idr software
+    oraclefile: str
+        path to the oracle peak list, if this is requested
+    test: bool
+        1 = run IDR test to see if > 20 peaks are identified (as otherwise
+        the scripts will fail downstream) 0 = run full IDR analysis
+    '''
+    statement = []
+    statement.append(sourcec)
+
+    log = "%s.log" % P.snip(outfile)
+
+    inputfiletype = idrPARAMS['idrsuffix']
+    rank = idrPARAMS['idrcolname']
+
+    if oraclefile == "None":
+        oraclestatement = ""
+    else:
+        oraclestatement = "--peak-list %s" % oraclefile
+
+    if inputfiletype == "broadPeak":
+        outputfiletype = "broadPeak"
+    else:
+        outputfiletype = "narrowPeak"
+
+    if test is True:
+        # this statement only returns the merged peak list to check length
+        statement.append("""idr --version >>%(log)s;
+                            idr
+                            --samples %(infile1)s %(infile2)s
+                            --output-file %(outfile)s
+                            --soft-idr-threshold %(soft_idr_thresh)s
+                            --input-file-type %(inputfiletype)s
+                            --rank %(rank)s
+                            --output-file-type %(outputfiletype)s
+                             %(oraclestatement)s
+                             %(options)s
+                            --only-merge-peaks
+                            --verbose 2>>%(log)s
+                         """ % locals())
+
+    else:
+        statement.append("""idr --version >>%(log)s;
+                            idr
+                            --samples %(infile1)s %(infile2)s
+                            --output-file %(outfile)s
+                            --plot
+                            --soft-idr-threshold %(soft_idr_thresh)s
+                            --input-file-type %(inputfiletype)s
+                            --rank %(rank)s
+                            --output-file-type %(outputfiletype)s
+                             %(oraclestatement)s
+                             %(options)s
+                            --verbose 2>>%(log)s
+                         """ % locals())
+    statement.append(unsourcec)
+    statement = "; ".join(statement)
+    return statement
+
+
+def summariseIDR(infiles, outfile, pooledc, selfc, repc):
+    '''
+    Builds a summary table for the output from the IDR software.
+    This table has the following columns:
+    Output_Filename: Name of the main IDR output file
+    Replicate_Type: This can be self_consistency, replicate_consistency or
+    pooled_consistency depending on the replicate type.
+        self_consistency - consistency between pseudo replicates within one
+        true replicate
+        replicate_consistency - consistency between true replicates
+        pooled_consistency - consistency between pseudo replicates within
+        pooled replicates for this tissue and condition combination
+    Total_Peaks: Number of peaks called in both samples
+    Peaks_Passing_IDR: Number of peaks which passed IDR
+    Percentage_Peaks_Passing_IDR: (Peaks_Passing_IDR / Total_Peaks) * 100
+    Peaks_Failing_IDR: Total_Peaks - Peaks_Passing_IDR
+    IDR_Thresholds: Threshold for peaks to pass IDR QC for this replicate type
+    IDR_Transformed_Thresholds: -log10 IDR_Threshold
+    Input_File_1: IDR input file 1
+    Input_File_2: IDR_input file 2
+    Condition: Condition from design table
+    Tissue: Tissue from design table
+    Oracle_Peak_File: List of peaks from pooled replicates (if requested)
+    IDR_Successful: Were enough peaks (20) called for IDR to be run -
+    True or False
+    Conservative_Peak_List: Is this the conservative peak list - the longest
+    of the lists of peaks for each condition and tissue combination for the
+    replicate_consistency replicates
+    Optimal_Peak_List: Is this the optimal peak list - the longest of the
+    lists of peaks for each condition and tissue combination for the
+    replicate_consistency and pooled_consistency replicates.
+
+
+    The input files for this step are:
+       the filtered IDR output files in bed format
+       the IDR summary tables for each IDR test - these have the columns
+       "Total_Peaks", "Peaks_Passing_IDR", "Peaks_Failing_IDR",
+       "Percentage_Peaks_Failing_IDR" and "IDR_Successful" which correspond to
+       the column names in the output file here described above
+       a tsv file containing tab delimited pairs of files on which IDR has been
+       performed generated using the makePairsForIDR function above.
+
+
+    Parameters
+    ----------
+    infiles: tuple
+        This tuple should have the layout:
+        (((filtered, table), (filtered, table), (filtered, table)), pairs)
+        where each (filtered, table) pair is the filtered bed file and summary
+        table for an IDR run and "pairs" is the table specifying on which
+        pairs of files IDR has been performed.
+    outfile: str
+        path to output file
+    pooledc: float
+        the soft threshold used to filter IDR peaks in the pooled_consistency
+        replicates
+    selfc: float
+        the soft threshold used to filter IDR peaks in the self_consistency
+        replicates
+    repc: float
+        the soft threshold used to filter IDR peaks in the
+        replicate_consistency replicates
+    '''
+    tables = [i[1] for i in infiles[:-1]]
+    pairs = infiles[-1]
+
+    # read all the IDR summary tables into a single file
+    alltab = pd.DataFrame()
+    for table in tables:
+        tab = pd.read_csv(table, sep="\t")
+        tab['Output_Filename'] = table.split("/")[-1]
+        alltab = alltab.append(tab)
+
+    # read the table containing the pairs of files on which IDR
+    # has been performed
+    pairtab = pd.read_csv(pairs, sep="\t", names=['Input_File_1',
+                                                  'Input_File_2',
+                                                  'Replicate_Type',
+                                                  'Oracle_Peak_File',
+                                                  'Condition',
+                                                  'Tissue'])
+
+    # Generate a temporary column to merge the two tables corresponding to
+    # the "Output_Filename" column in the summary table
+    pairstrings = []
+    for p in pairtab.index.values:
+        p = list(pairtab.ix[p])
+        p1 = P.snip(p[0].split("/")[-1])
+        p2 = P.snip(p[1].split("/")[-1])
+        pairstring = "%s_v_%s_table.tsv" % (p1, p2)
+        pairstrings.append(pairstring)
+
+    # Tidy up the column names etc in the output tables
+    pairtab['pairstring'] = pairstrings
+    alltab = alltab.merge(pairtab, left_on='Output_Filename',
+                          right_on='pairstring')
+    alltab = alltab.drop('pairstring', 1)
+
+    # Find the appropriate thresholds for each replicate type and store in a
+    # list
+    thresholds = []
+    for item in alltab['Replicate_Type']:
+        if item == "pooled_consistency":
+            thresholds.append(pooledc)
+        elif item == "self_consistency":
+            thresholds.append(selfc)
+        elif item == "replicate_consistency":
+            thresholds.append(repc)
+
+    alltab['IDR_Thresholds'] = thresholds
+    alltab['IDR_Thresholds'] = alltab['IDR_Thresholds'].astype('float')
+    alltab['IDR_Transformed_Thresholds'] = -(np.log10(thresholds))
+
+    alltab = alltab.rename(columns={'IDR_Successful_x': 'IDR_Successful'})
+    alltab = alltab[['Output_Filename', 'Replicate_Type', 'Total_Peaks',
+                     'Peaks_Passing_IDR', 'Percentage_Peaks_Passing_IDR',
+                     'Peaks_Failing_IDR', 'IDR_Thresholds',
+                     'IDR_Transformed_Thresholds',
+                     'Input_File_1', 'Input_File_2', 'Condition', 'Tissue',
+                     'Oracle_Peak_File', 'IDR_Successful']]
+
+    alltab['Condition'] = alltab['Condition'].astype('str')
+    alltab['Tissue'] = alltab['Tissue'].astype('str')
+    alltab['Experiment'] = alltab['Condition'] + "_" + alltab['Tissue']
+
+    # find the "Conservative_Peak_List" for each experiment
+    alltab['Conservative_Peak_List'] = 'No'
+    replicates = alltab[alltab['Replicate_Type'] == 'replicate_consistency']
+    for exp in set(replicates['Experiment'].values):
+        subtab = replicates[replicates['Experiment'] == exp]
+        m = max(subtab['Peaks_Passing_IDR'])
+        val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
+        alltab.ix[val, 'Conservative_Peak_List'] = 'Yes'
+
+    # find the "Optimal_Peak_List" for each experiment
+    alltab['Optimal_Peak_List'] = 'No'
+    for exp in set(alltab['Experiment'].values):
+        subtab = alltab[((alltab['Experiment'] == exp) &
+                         ((alltab['Replicate_Type'] == 'pooled_consistency') |
+                          (alltab['Replicate_Type'] ==
+                           'replicate_consistency')))]
+        m = max(subtab['Peaks_Passing_IDR'])
+        val = subtab[subtab['Peaks_Passing_IDR'] == m].index.values
+        alltab.ix[val, 'Optimal_Peak_List'] = 'Yes'
+
+    alltab.to_csv(outfile, sep="\t", index=False)
+
+
+def doIDRQC(infile, outfile):
+    '''
+    Generates a table containing various quality control statistics for the IDR
+    analysis.
+    The input file is the output table from the summariseIDR function
+    above.
+    The output table has the following columns:
+    Experiment: Tissue and condition
+    Ratio_Type: Name of this summary statistic
+    Ratio_Formula: How the statistic was calculated
+    Ratio: Value of summary statistic
+    Comparison_File_1: First file used to generate this statistic
+    Comparison_File_2: Second file used to generate this statistic.
+
+    The following statistics are calculated:
+    self-consistency ratio - this is calculated as N1/N2 for every possible
+    pair of true replicates within a condition and tissue combination, where
+    N1 and N2 are the number of peaks passing IDR for the self-consistency
+    test (comparing two pseudo replicates) for replicate 1 and replicate 2
+    respectively.
+
+    rescue ratio - this is calculated for each combination of tissue and
+    condition as max(Np, Nt) / min(Np, Nt) where
+    Np is the number of peaks passing the pooled consistency IDR (comparing
+    pseudo replicates generated from the pooled bam file for the experiment)
+    and Nt is the length of the longest peak list generated from the
+    replicate_consistency tests of this experiment.
+
+    Parameters
+    ----------
+    infile: str
+        path to input table, which should be the output from summariseIDR
+        above
+    outfile: str
+        path to output table
+    '''
+    alltab = pd.read_csv(infile, sep="\t")
+    outputrows = []
+    self_c_alltab = alltab[alltab['Replicate_Type'] == 'self_consistency']
+    pooled_c_alltab = alltab[alltab['Replicate_Type'] == "pooled_consistency"]
+    replicate_c_alltab = alltab[alltab['Replicate_Type'] ==
+                                'replicate_consistency']
+
+    for exp in set(self_c_alltab['Experiment'].values):
+
+        # Self-Consistency
+        # Make a sub-table of only the self consistency IDRs for this
+        # experiment
+        # (Tissue and Condition)
+        subtab = self_c_alltab[self_c_alltab['Experiment'] == exp]
+
+        # Take the number of peaks passing IDR for each replicate of the
+        # experiment
+        # and the names of the files containing these peaks
+        Ns = subtab['Peaks_Passing_IDR'].values
+        reps = subtab['Output_Filename'].values
+
+        # Generate every possible pair of replicates within the experiment
+        pairs = list(itertools.combinations(range(len(reps)), 2))
+
+        names = []
+
+        # For each pair of replicates
+        for pair in pairs:
+            # record the filenames of this pair
+            names = ((reps[pair[0]], reps[pair[1]]))
+
+            # record the number of peaks passing IDR for this pair
+            N1N2 = ((Ns[pair[0]], Ns[pair[1]]))
+
+            m = max(N1N2)
+            i = N1N2.index(m)
+
+            maxN1N2 = float(N1N2[i])
+            maxname = names[i]
+            pmax = pair[i]
+
+            if i == 0:
+                minN1N2 = float(N1N2[1])
+                minname = names[1]
+                pmin = pair[1]
+            else:
+                minN1N2 = float(N1N2[0])
+                minname = names[0]
+                pmin = pair[0]
+
+            # calculate the self-consistency ratio -
+            # the maxiumum of N1 and N2 divided by the minimum of N1 and N2
+            # This should be less than 2
+            if minN1N2 == 0:
+                self_con_ratio = float('nan')
+            else:
+                self_con_ratio = maxN1N2 / minN1N2
+
+            # store the self-consistency ratio for this pair
+            subname1 = re.sub("_filtered.*", "", maxname)
+            subname2 = re.sub("_filtered.*", "", minname)
+
+            row = ((exp, 'self-consistency ratio (N%i / N%i)' % (pmax, pmin),
+                    '%s / %s' % (subname1, subname2), self_con_ratio,
+                    names[0], names[1]))
+
+            outputrows.append(row)
+
+        # Comparison Pooled Pseudo-replicates
+
+        # Take the subset of the table containing pooled pseudoreplicates
+        # for this
+        # experiment
+        pooledsubtab = pooled_c_alltab[pooled_c_alltab['Experiment'] == exp]
+
+        # Find Np - the number of peaks which pass the IDR threshold when
+        # comparing
+        # pooled pseudoreplicates
+        Np = pooledsubtab['Peaks_Passing_IDR'].values[0]
+
+        # Keep track of which file this is
+        poolednam = pooledsubtab['Output_Filename'].values[0]
+        pooledsubname = re.sub("_filtered.*", "", poolednam)
+
+        # Take the subset of the table containing true replicates for this
+        # experiment
+        replicatesubtab = replicate_c_alltab[
+            replicate_c_alltab['Experiment'] == exp]
+
+        # Extract the names and the number of peaks passing IDR from this
+        # table
+        replicatenames = list(replicatesubtab['Output_Filename'].values)
+        replicatescores = list(replicatesubtab['Peaks_Passing_IDR'].values)
+
+        # Find Nt - the maximum number of peaks passing IDR for true replicates
+        Nt = max(replicatescores)
+        whichNt = replicatescores.index(Nt)
+
+        # Keep track of which file Nt came from
+        maxrepname = replicatenames[whichNt]
+        maxrepsubname = re.sub("_filtered.*", "", maxrepname)
+
+        # The rescue ratio is max(Np, Nt) / min (Np, Nt) - find which
+        # is max and which is min
+        NpNt = ((Np, Nt))
+        maxNpNt = max(NpNt)
+        minNpNt = min(NpNt)
+
+        # Rescue ratio
+        if min(NpNt) == 0:
+            RR = float('nan')
+        else:
+            RR = float(maxNpNt) / float(minNpNt)
+
+        i = NpNt.index(maxNpNt)
+        if i == 0:
+            NpNtstring = "Np / Nt"
+            f1 = pooledsubname
+            f2 = maxrepsubname
+        else:
+            NpNtstring = "Nt / Np"
+            f1 = maxrepsubname
+            f2 = pooledsubname
+
+        formula = "%s / %s" % (f1, f2)
+
+        # Generate a table row with this data
+        row = ((
+            exp, 'rescue ratio (%s)' % NpNtstring, formula, RR, ",".join(
+                replicatenames), poolednam))
+
+        # keep this data to put in the output table
+        outputrows.append(row)
+
+    outputtab = pd.DataFrame(outputrows,
+                             columns=['Experiment', 'Ratio_Type',
+                                      'Ratio_Formula',  'Ratio',
+                                      'Comparison_File_1',
+                                      'Comparison_File_2'])
+
+    outputtab[
+        'Individual_Reproducibility'] = [
+            'PASS' if x < 2 else 'WARN' for x in outputtab['Ratio']]
+
+    outputtab['Experiment_Reproducibility'] = ""
+
+    finaltab = pd.DataFrame(columns=outputtab.columns)
+
+    for exp in set(outputtab['Experiment'].values):
+        exptab = outputtab[outputtab['Experiment'] == exp]
+        reps = list(set(exptab['Individual_Reproducibility']))
+        if len(reps) != 1:
+            exptab['Experiment_Reproducibility'] = "WARN"
+        elif reps[0] == "PASS":
+            exptab['Experiment_Reproducibility'] = "PASS"
+        elif reps[0] == "WARN":
+            exptab['Experiment_Reproducibility'] = "FAIL"
+        finaltab = finaltab.append(exptab)
+
+    finaltab.to_csv(outfile, sep="\t", index=None)
+
+#############################################
+# QC Functions
+#############################################
+
+
+def runCHIPQC(infile, outfiles, rdir):
+    '''
+    Runs the R package ChIPQC to plot and record various quality control
+    statistics on peaks.
+
+    Parameters
+    ----------
+    infile: str
+       path to a design table formatted for the ChIPQC package as specified
+       here  -
+       https://www.bioconductor.org/packages/devel/bioc/
+       vignettes/ChIPQC/inst/doc/ChIPQC.pdf
+    outfile: str
+       path to main output file
+    rdir: str
+       path to directory in which to place the output files
+    '''
+
+    runCHIPQC_R = R('''
+    function(samples, outdir, cwd){
+        library("ChIPQC")
+        cwd = "/ifs/projects/katherineb/test_data_peakcalling/test3"
+        print("cwd")
+        print(cwd)
+        print("samples")
+        print(samples)
+        setwd(cwd)
+        print(getwd())
+        samples$Tissue = as.factor(samples$Tissue)
+        samples$Factor = as.factor(samples$Factor)
+        samples$Replicate = as.factor(samples$Replicate)
+        experiment = ChIPQC(samples)
+        ChIPQCreport(experiment, reportFolder=outdir)
+    }
+    ''' % locals())
+    cwd = os.getcwd()
+    runCHIPQC_R(pandas2ri.py2ri(infile), rdir, cwd)
+
+
+# Pipeline Specific Functions
+
+
+def readDesignTable(infile, poolinputs):
+    '''
+    This function reads a design table named "design.tsv"  and generates
+    objects to be used to match peaks called in samples to the appropriate
+    inputs prior to IDR analysis.
+
+    These objects are:
+
+    1. A dictionary, inputD, linking each input file and each of the various
+    subfiles required for IDR to the appropriate input,
+    as specified in the design table
+
+    2. A pandas dataframe, df, containing the information from the
+    design table
+
+    This dictionary includes the filenames that the IDR output files will be
+    generated downstream in pipeline_peakcalling, so if these steps are run
+    outside of the pipeline they need to be named according to the same
+    convention.
+
+    If IDR is not requsted, these dictionary values will still exist but will
+    not be used.
+
+    poolinputs has three possible options:
+
+    none
+    Use the input files per replicate as specified in the design file
+    Input files will still also be pooled if IDR is specified as IDR requires
+    BAM files representing pooled replicates as well as BAM files for each
+    replicate
+
+    all
+    Pool all input files and use this single pooled input BAM file as the input
+    for any peakcalling.  Used when input is low depth or when only a single
+    input or replicates of a single input are available.
+
+    condition
+    pool the input files within each combination of conditions and tissues
+
+    Parameters
+    ----------
+    infile: path to design file
+    poolinputs: can be "none", "all" or "condition" as specified above
+    '''
+
+    # read the design table
+    df = pd.read_csv(infile, sep="\t")
+    pairs = zip(df['bamReads'], df['bamControl'])
+    CHIPBAMS = list(set(df['bamReads'].values))
+
+    # if poolinputs is none, the inputs are as specified in the design table
+    if poolinputs == "none":
+        inputD = dict(pairs)
+        conditions = df['Condition'].values
+        tissues = df['Tissue'].values
+        i = 0
+        # preempts what the pooled input files for IDR analysis will be
+        # named
+        for C in CHIPBAMS:
+            cond = conditions[i]
+            tissue = tissues[i]
+            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
+                cond, tissue)
+            i += 1
+
+    elif poolinputs == "all":
+        # if poolinputs is all, all inputs will be pooled and used any time
+        # an input is needed
+        inputD = dict()
+        for C in CHIPBAMS:
+            inputD[C] = "pooled_all.bam"
+
+    elif poolinputs == "condition":
+        inputD = dict()
+        conditions = df['Condition'].values
+        tissues = df['Tissue'].values
+        i = 0
+        # preempts the name of all input files for all combinations of
+        # files while will be generated for the IDR
+        for C in CHIPBAMS:
+            cond = conditions[i]
+            tissue = tissues[i]
+            inputD[C] = "%s_%s_pooled.bam" % (cond, tissue)
+            inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
+                cond, tissue)
+            i += 1
+    df['Condition'] = df['Condition'].astype('str')
+    df['Tissue'] = df['Tissue'].astype('str')
+    return df, inputD
+
+
+def readTable(tabfile):
+    '''
+    Used by the pipeline_peakcalling.py pipeline
+    to read the "peakcalling_bams_and_inputs.tsv" file back
+    into memory.
+    Parameters
+    ----------
+    tabfile: str
+        path to peakcalling_bams_and_inputs.tsv table
+    '''
+    df = pd.read_csv(tabfile, sep="\t")
+    chips = df['ChipBam'].values
+    inputs = df['InputBam'].values
+    pairs = zip(chips, inputs)
+    D = dict(pairs)
+    return D
 
 
 def countPeaks(contig, start, end, samfiles, offsets=None):
@@ -313,6 +2790,10 @@ def countPeaks(contig, start, end, samfiles, offsets=None):
         Maximum tag density in interval.
     nreads : int
         Number of tags contained in interval.
+
+    CG: THIS FUNCTION WAS COPIED FROM OLD PipelinePeakcalling to maintain
+    compatability for pipeline_intervals.py. Could be removed if functionality
+    no longer needed.
     '''
 
     nreads, counts = getCounts(contig, start, end, samfiles, offsets)
@@ -329,2621 +2810,3 @@ def countPeaks(contig, start, end, samfiles, offsets=None):
     peakcenter = start + peaks[npeaks // 2]
 
     return npeaks, peakcenter, length, avgval, peakval, nreads
-
-
-def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
-    '''build a BAM file suitable for peak calling.
-
-    This method uses bedtools_.
-
-    Infiles are merged and unmapped reads removed.
-
-    Arguments
-    ---------
-    infiles : list
-        List of :term:`bam` formatted files.
-    outfile : string
-        Filename of output file in :term:`bam` format.
-    dedup : int
-        If True, remove duplicate reads using Picard.
-    mask : string
-        If given, `mask` should be a :term:`bed` formatted
-        file. Reads falling into these regions are removed.
-    '''
-
-    # open the infiles, if more than one merge and sort first using samtools.
-    statement = []
-
-    if len(infiles) > 1 and isinstance(infiles, str) == 0:
-        # assume: samtools merge output is sorted
-        # assume: sam files are sorted already
-        statement.append('''samtools merge @OUT@ %s''' % (infiles.join(" ")))
-        statement.append('''samtools sort @IN@ @OUT@''')
-
-    if dedup:
-        job_memory = "16G"
-        statement.append('''MarkDuplicates
-        INPUT=@IN@
-        ASSUME_SORTED=true
-        REMOVE_DUPLICATES=true
-        QUIET=true
-        OUTPUT=@OUT@
-        METRICS_FILE=%(outfile)s.picardmetrics
-        VALIDATION_STRINGENCY=SILENT
-        >& %(outfile)s.picardlog''')
-
-    if mask:
-        statement.append(
-            '''intersectBed -abam @IN@ -b %(mask)s -wa -v > @OUT@''')
-
-    # do not link, as local scratch will not be available on shared
-    # node
-    statement.append('''mv @IN@ %(outfile)s''')
-    statement.append('''samtools index %(outfile)s''')
-
-    statement = P.joinStatements(statement, infiles)
-    P.run()
-
-
-def buildSimpleNormalizedBAM(bamfile, outfile, nreads):
-    '''normalize a bam file to given number of counts
-       by random sampling
-
-    This method assumes that unmapped reads and multi-mapping
-    reads have been removed from the :term:`bam` file.
-
-    Arguments
-    ---------
-    bamfile : string
-        Input file in :term:`bam` format.
-    outfile : string
-        Filename of output file in :term:`bam` format.
-    nreads :int
-        Number of reads to normalize to.
-    '''
-
-    readcount = BamTools.getNumReads(bamfile)
-
-    pysam_in = pysam.Samfile(bamfile, "rb")
-
-    threshold = float(nreads) / float(readcount)
-
-    pysam_out = pysam.Samfile(outfile, "wb", template=pysam_in)
-
-    # iterate over mapped reads thinning by the threshold
-    ninput, noutput = 0, 0
-    for read in pysam_in.fetch():
-        ninput += 1
-        if random.random() <= threshold:
-            pysam_out.write(read)
-            noutput += 1
-
-    pysam_in.close()
-    pysam_out.close()
-    pysam.index(outfile)
-
-    E.info("buildNormalizedBam: %i input, %i output (%5.2f%%), should be %i" %
-           (ninput, noutput, 100.0 * noutput / ninput, nreads))
-
-
-def buildNormalizedBAM(infiles, outfile, normalize=True):
-    '''build a normalized BAM file.
-
-    Infiles are merged and duplicated reads are removed.  If
-    *normalize* is set, reads are removed such that all files will
-    have approximately the same number of reads.
-
-    Note that the duplication here is wrong as there
-    is no sense of strandedness preserved.
-
-    '''
-
-    read_counts = [BamTools.getNumReads(x) for x in infiles]
-    min_reads = min(read_counts)
-
-    samfiles = []
-    num_reads = 0
-    for infile, read_count in zip(infiles, read_counts):
-        samfiles.append(pysam.Samfile(infile, "rb"))
-        num_reads += read_count
-
-    threshold = float(min_reads) / num_reads
-
-    E.info("%s: min reads: %i, total reads=%i, threshold=%f" %
-           (infiles, min_reads, num_reads, threshold))
-
-    pysam_out = pysam.Samfile(outfile, "wb", template=samfiles[0])
-
-    ninput, noutput, nduplicates = 0, 0, 0
-
-    # iterate over mapped reads
-    last_contig, last_pos = None, None
-    for pysam_in in samfiles:
-        for read in pysam_in.fetch():
-
-            ninput += 1
-            if read.rname == last_contig and read.pos == last_pos:
-                nduplicates += 1
-                continue
-
-            if normalize and random.random() <= threshold:
-                pysam_out.write(read)
-                noutput += 1
-
-            last_contig, last_pos = read.rname, read.pos
-
-        pysam_in.close()
-
-    pysam_out.close()
-
-    logs = IOTools.openFile(outfile + ".log", "w")
-    logs.write("# min_reads=%i, threshold= %5.2f\n" %
-               (min_reads, threshold))
-    logs.write("set\tcounts\tpercent\n")
-    logs.write("ninput\t%i\t%5.2f%%\n" % (ninput, 100.0))
-    nwithout_dups = ninput - nduplicates
-    logs.write("duplicates\t%i\t%5.2f%%\n" %
-               (nduplicates, 100.0 * nduplicates / ninput))
-    logs.write("without duplicates\t%i\t%5.2f%%\n" %
-               (nwithout_dups, 100.0 * nwithout_dups / ninput))
-    logs.write("target\t%i\t%5.2f%%\n" %
-               (min_reads, 100.0 * min_reads / nwithout_dups))
-    logs.write("noutput\t%i\t%5.2f%%\n" %
-               (noutput, 100.0 * noutput / nwithout_dups))
-
-    logs.close()
-
-    # if more than one samfile: sort
-    if len(samfiles) > 1:
-        tmpfilename = P.getTempFilename()
-        pysam.sort(outfile, tmpfilename)
-        shutil.move(tmpfilename + ".bam", outfile)
-        os.unlink(tmpfilename)
-
-    pysam.index(outfile)
-
-    E.info("buildNormalizedBam: %i input, %i output (%5.2f%%), should be %i" %
-           (ninput, noutput, 100.0 * noutput / ninput, min_reads))
-
-
-def exportIntervalsAsBed(infile,
-                         outfile,
-                         tablename,
-                         dbhandle,
-                         bedfilter=None,
-                         merge=False):
-    '''export intervals from database as :term:`bed` formatted files.
-
-    Arguments
-    ---------
-    infile : string
-        Unused
-    outfile : string
-        Output filename.
-    tablename : string
-        Table name with intervals.
-    dbhandle : object
-        Database handle
-    bedfilter : string
-        If given, remove intervals overlapping any of the intervals in
-        the :term:`bed` formatted file.
-    merge : bool
-        If True, merge overlapping intervals.
-
-    Returns
-    -------
-    counter : object
-        Counter object
-
-    '''
-
-    if outfile.endswith(".gz"):
-        compress = True
-        track = P.snip(outfile, ".bed.gz")
-    else:
-        compress = False
-        track = P.snip(outfile, ".bed")
-
-    cc = dbhandle.cursor()
-    statement = """SELECT contig, max(0, start), end
-    FROM %s""" % tablename
-    cc.execute(statement)
-
-    bd = pybedtools.BedTool(list(cc.fetchall()))
-    tmpfile = P.getTempFilename()
-    bd.saveas(tmpfile)
-    cc.close()
-
-    c = E.Counter()
-    bd = pybedtools.BedTool(tmpfile)
-    c.input = len(bd)
-    bd = pybedtools.BedTool(tmpfile)
-    latest = c.input
-
-    if bedfilter:
-
-        bd = bd.intersect(pybedtools.BedTool(bedfilter), v=True, wa=True)
-        bd.saveas(tmpfile)
-        bd = pybedtools.BedTool(tmpfile)
-
-        c.after_bedfilter = len(bd)
-        bd = pybedtools.BedTool(tmpfile)
-        c.removed_bedfilter = latest - c.after_bedfilter
-        latest = c.after_bedfilter
-
-    if merge and latest > 0:
-        # empty bedfiles cause an error
-        # pybedtools not very intuitive.
-        bd = bd.sort()
-        bd.saveas(tmpfile)
-        bd = pybedtools.BedTool(tmpfile)
-
-        bd = bd.merge()
-        bd.saveas(tmpfile)
-        bd = pybedtools.BedTool(tmpfile)
-
-        c.after_merging = len(bd)
-        bd = pybedtools.BedTool(tmpfile)
-
-        c.removed_merging = latest - c.after_merging
-        latest = c.after_merging
-
-    c.output = latest
-
-    # one final sort
-    bd = bd.sort()
-    bd.saveas(tmpfile)
-    bd = pybedtools.BedTool(tmpfile)
-    bd.saveas(track + '.bed')
-
-    if compress:
-        E.info("compressing and indexing %s" % outfile)
-        statement = 'bgzip -f %(track)s.bed; tabix -f -p bed %(outfile)s'
-        P.run()
-
-    os.unlink(tmpfile)
-    return c
-
-
-def summarizeMACS(infiles, outfile):
-    '''Parse MACS logfile extract peak calling
-    parameters and results
-
-    Arguments
-    ---------
-    infiles : string
-        Input files in MACS14 log file format.
-    outfile : string
-        Filename of output file in tab-delimited text format.
-
-    '''
-
-    def __get(line, stmt):
-        x = line.search(stmt)
-        if x:
-            return x.groups()
-
-    # mapping patternts to values.
-    # tuples of pattern, label, subgroups
-    map_targets = [
-        ("tags after filtering in treatment: (\d+)",
-         "tag_treatment_filtered", ()),
-        ("total tags in treatment: (\d+)", "tag_treatment_total", ()),
-        ("tags after filtering in control: (\d+)", "tag_control_filtered", ()),
-        ("total tags in control: (\d+)", "tag_control_total", ()),
-        ("#2 number of paired peaks: (\d+)", "paired_peaks", ()),
-        ("#2   min_tags: (\d+)", "min_tags", ()),
-        ("#2   d: (\d+)", "shift", ()),
-        ("#2   scan_window: (\d+)", "scan_window", ()),
-        ("#3 Total number of candidates: (\d+)",
-         "ncandidates", ("positive", "negative")),
-        ("#3 Finally, (\d+) peaks are called!",  "called",
-         ("positive", "negative"))]
-
-    mapper, mapper_header = {}, {}
-    for x, y, z in map_targets:
-        mapper[y] = re.compile(x)
-        mapper_header[y] = z
-
-    keys = [x[1] for x in map_targets]
-
-    outs = IOTools.openFile(outfile, "w")
-
-    headers = []
-    for k in keys:
-        if mapper_header[k]:
-            headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
-        else:
-            headers.append(k)
-    outs.write("track\t%s" % "\t".join(headers) + "\n")
-
-    for infile in infiles:
-        results = collections.defaultdict(list)
-        with IOTools.openFile(infile) as f:
-            for line in f:
-                if "diag:" in line:
-                    break
-                for x, y in list(mapper.items()):
-                    s = y.search(line)
-                    if s:
-                        results[x].append(s.groups()[0])
-                        break
-
-        row = [P.snip(os.path.basename(infile), ".macs")]
-        for key in keys:
-            val = results[key]
-            if len(val) == 0:
-                v = "na"
-            else:
-                c = len(mapper_header[key])
-                # append missing data (no negative peaks without control files)
-                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
-            row.append(v)
-            # assert len(row) -1 == len( headers )
-        outs.write("\t".join(row) + "\n")
-
-    outs.close()
-
-############################################################
-############################################################
-############################################################
-
-
-def summarizeMACSsolo(infiles, outfile):
-    '''Parse MACS logfile extract peak calling
-    parameters and results
-
-    For MACS run without a control file where certain terms
-    are missing from log file.
-
-    Arguments
-    ---------
-    infiles : string
-        Input files in MACS14 log file format.
-    outfile : string
-        Filename of output file in tab-delimited text format.
-'''
-    def __get(line, stmt):
-        x = line.search(stmt)
-        if x:
-            return x.groups()
-
-    map_targets = [
-        ("total tags in treatment: (\d+)", "tag_treatment_total", ()),
-        ("#2 number of paired peaks: (\d+)", "paired_peaks", ()),
-        ("#2   min_tags: (\d+)", "min_tags", ()),
-        ("#2   d: (\d+)", "shift", ()),
-        ("#2   scan_window: (\d+)", "scan_window", ()),
-        ("#3 Total number of candidates: (\d+)", "ncandidates", ("positive",)),
-        ("#3 Finally, (\d+) peaks are called!",  "called", ("positive",))]
-
-    mapper, mapper_header = {}, {}
-    for x, y, z in map_targets:
-        mapper[y] = re.compile(x)
-        mapper_header[y] = z
-
-    keys = [x[1] for x in map_targets]
-
-    outs = open(outfile, "w")
-
-    headers = []
-    for k in keys:
-        if mapper_header[k]:
-            headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
-        else:
-            headers.append(k)
-    outs.write("track\t%s" % "\t".join(headers) + "\n")
-
-    for infile in infiles:
-        results = collections.defaultdict(list)
-        with open(infile) as f:
-            for line in f:
-                if "diag:" in line:
-                    break
-                for x, y in list(mapper.items()):
-                    s = y.search(line)
-                    if s:
-                        results[x].append(s.groups()[0])
-                        break
-
-        row = [P.snip(os.path.basename(infile), ".macs")]
-        for key in keys:
-            val = results[key]
-            if len(val) == 0:
-                v = "na"
-            else:
-                c = len(mapper_header[key])
-                if c >= 1:
-                    assert len(val) == c, "key=%s, expected=%i, got=%i, val=%s, c=%s" %\
-                        (key,
-                         len(val),
-                            c,
-                            str(val), mapper_header[key])
-                v = "\t".join(val)
-            row.append(v)
-        outs.write("\t".join(row) + "\n")
-
-    outs.close()
-
-
-def summarizeMACSFDR(infiles, outfile):
-    '''compile table with the number of peaks that would remain after filtering
-       using different FDR thresholds.
-
-       Parse MACS peaks file .xls and count the number of peaks that pass
-       each of three False Discovery Rate thresholds (0,1.05,0.05).
-
-       Arguments
-       ---------
-       infiles : string
-           Input files in MACS14 peak file format (.xls).
-       outfile : string
-           Filename of output file in tab-delimited text format.
-    '''
-
-    fdr_thresholds = numpy.arange(0, 1.05, 0.05)
-
-    outf = IOTools.openFile(outfile, "w")
-    outf.write("track\t%s\n" % "\t".join(map(str, fdr_thresholds)))
-
-    for infile in infiles:
-        called = []
-        track = P.snip(os.path.basename(infile), ".macs")
-        infilename = infile + "_peaks.xls.gz"
-        inf = IOTools.openFile(infilename)
-        peaks = list(WrapperMACS.iterateMacsPeaks(inf))
-
-        for threshold in fdr_thresholds:
-            called.append(len([x for x in peaks if x.fdr <= threshold]))
-
-        outf.write("%s\t%s\n" % (track, "\t".join(map(str, called))))
-
-    outf.close()
-
-############################################################
-############################################################
-############################################################
-
-
-def runMACS(infile, outfile,
-            controlfile=None,
-            tagsize=None):
-    '''run MACS14 for peak detection from BAM files.
-
-    The output bed files contain the P-value as their score field.
-    Output bed files are compressed with bgzip and indexed using tabix.
-
-    Arguments
-    ---------
-    infile : string
-        Input file in :term:`bam` format.
-    outfile : string
-        Filename of output file in :term:`bed` format.
-    controlfile : string
-        ChIP-seq control (input) file in :term:`bam` format.
-    tagsize : int
-        sequencing read length in base pairs
-    '''
-    job_memory = "8G"
-    infile = os.path.abspath(infile)
-    options = []
-    if controlfile:
-        controlfile = os.path.abspath(controlfile)
-        options.append("--control=%s" % controlfile)
-    if tagsize is not None:
-        options.append("--tsize %i" % tagsize)
-
-    options = " ".join(options)
-    outfile = os.path.abspath(outfile)
-    name = os.path.basename(outfile)
-    dir = os.path.dirname(outfile)
-    statement = '''
-    cd %(dir)s;
-    checkpoint;
-    macs
-    -t %(infile)s
-    --diag
-    --verbose=10
-    --name=%(name)s
-    --format=BAM
-    %(options)s
-    %(macs_options)s
-    >& %(outfile)s
-    '''
-
-    P.run()
-
-    # compress macs bed files and index with tabix
-    for suffix in ('peaks', 'summits'):
-        statement = '''
-        bgzip -f %(outfile)s_%(suffix)s.bed;
-        tabix -f -p bed %(outfile)s_%(suffix)s.bed.gz
-        '''
-        P.run()
-
-    for suffix in ('peaks.xls', 'negative_peaks.xls'):
-        statement = '''grep -v "^$"
-                       < %(outfile)s_%(suffix)s
-                       | bgzip > %(outfile)s_%(suffix)s.gz;
-                       tabix -f -p bed %(outfile)s_%(suffix)s.gz;
-                       checkpoint;
-                       rm -f %(outfile)s_%(suffix)s
-                    '''
-        P.run()
-
-
-def summarizeMACS2(infiles, outfile):
-    '''Parses the MACS2 logfile to extract
-    peak calling parameters and results.
-
-    TODO: doesn't report peak numbers...
-
-    Arguments
-    ---------
-    infiles : string
-        Input files in MACS2 log file format.
-    outfile : string
-        Filename of output file in tab-delimited text format.
-    '''
-
-    def __get(line, stmt):
-        x = line.search(stmt)
-        if x:
-            return x.groups()
-
-    # mapping patternts to values.
-    # tuples of pattern, label, subgroups
-    map_targets = [
-        ("tags after filtering in treatment:\s+(\d+)",
-         "fragment_treatment_filtered", ()),
-        ("total tags in treatment:\s+(\d+)",
-         "fragment_treatment_total", ()),
-        ("tags after filtering in control:\s+(\d+)",
-         "fragment_control_filtered", ()),
-        ("total tags in control:\s+(\d+)",
-         "fragment_control_total", ()),
-        ("predicted fragment length is (\d+) bps",
-         "fragment_length", ()),
-        # Number of peaks doesn't appear to be reported!.
-        ("#3 Total number of candidates: (\d+)",
-         "ncandidates", ("positive", "negative")),
-        ("#3 Finally, (\d+) peaks are called!",
-         "called",
-         ("positive", "negative"))
-    ]
-
-    mapper, mapper_header = {}, {}
-    for x, y, z in map_targets:
-        mapper[y] = re.compile(x)
-        mapper_header[y] = z
-
-    keys = [x[1] for x in map_targets]
-
-    outs = IOTools.openFile(outfile, "w")
-
-    headers = []
-    for k in keys:
-        if mapper_header[k]:
-            headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
-        else:
-            headers.append(k)
-    outs.write("track\t%s" % "\t".join(headers) + "\n")
-
-    for infile in infiles:
-        results = collections.defaultdict(list)
-        with IOTools.openFile(infile) as f:
-            for line in f:
-                if "diag:" in line:
-                    break
-                for x, y in list(mapper.items()):
-                    s = y.search(line)
-                    if s:
-                        results[x].append(s.groups()[0])
-                        break
-
-        row = [P.snip(os.path.basename(infile), ".macs2")]
-        for key in keys:
-            val = results[key]
-            if len(val) == 0:
-                v = "na"
-            else:
-                c = len(mapper_header[key])
-                # append missing data (no negative peaks without control files)
-                v = "\t".join(map(str, val + ["na"] * (c - len(val))))
-            row.append(v)
-            # assert len(row) -1 == len( headers )
-        outs.write("\t".join(row) + "\n")
-
-    outs.close()
-
-
-def summarizeMACS2FDR(infiles, outfile):
-    '''compile table with number of peaks that would remain after filtering
-    by fdr.
-
-    Parse MACS peaks file (.xls) to count the number of peaks that pass
-    each user defined False Discovery Rate threshold.
-
-    Arguments
-    ---------
-    infiles : string
-        Input files in MACS2 log file format (.macs2).
-        DS: shouldn't we pass the peaks file directly?
-    outfile : string
-        Filename of output file in tab-delimited text format.
-    max_qvalue : int
-        maximum q-value used for filtering
-        DS: not yet implemented as a parameter
-    '''
-    # PARAMS accessed here - should be passed as paprmeter to function
-    fdr_threshold = PARAMS["macs2_max_qvalue"]  # numpy.arange( 0, 1.05, 0.05 )
-
-    outf = IOTools.openFile(outfile, "w")
-    outf.write("track\t%s\n" % str(fdr_threshold))
-
-    for infile in infiles:
-        called = []
-        track = P.snip(os.path.basename(infile), ".macs2")
-        infilename = infile + "_peaks.xls.gz"
-        inf = IOTools.openFile(infilename)
-        peaks = list(WrapperMACS.iterateMacs2Peaks(inf))
-
-        # for threshold in fdr_thresholds:
-        called.append(len([x for x in peaks if x.qvalue <= fdr_threshold]))
-
-        outf.write("%s\t%s\n" % (track, "\t".join(map(str, called))))
-
-    outf.close()
-
-
-def bedGraphToBigwig(infile, contigsfile, outfile,
-                     remove=True, sort_bedGraph=False):
-    '''convert a bedgraph file to a bigwig file.
-
-    The bedgraph file is deleted on success.
-
-    Arguments
-    ---------
-    infile : string
-        Input file in term `bedgraph` format. Must be sorted: sort -k1,1 -k2,2
-    contigsfile : string
-        file of chromosome size containing two columns c=name and length
-    outfile : string
-        Filename of output file in `bigwig` format.
-    remove : boolean
-        remove bedgraph file after successful conversion. Default True
-    '''
-
-    if not os.path.exists(infile):
-        raise OSError("bedgraph file %s does not exist" % infile)
-
-    if not os.path.exists(contigsfile):
-        raise OSError("contig size file %s does not exist" % contigsfile)
-
-    if sort_bedGraph:
-        statement = '''sorted_bdg=`mktemp -p %(local_tmpdir)s`;
-                           checkpoint;
-                           sort -k1,1 -k2,2n %(infile)s > $sorted_bdg;
-                           checkpoint;
-                           bedGraphToBigWig $sorted_bdg
-                                            %(contigsfile)s %(outfile)s;
-                           checkpoint;
-                           rm $sorted_bdg;
-                        '''
-
-    else:
-        statement = '''
-                          bedGraphToBigWig %(infile)s %(contigsfile)s %(outfile)s
-                        '''
-
-    P.run()
-
-    if os.path.exists(outfile) and not IOTools.isEmpty(outfile):
-        os.remove(infile)
-
-
-def runMACS2(infile, outfile,
-             controlfile=None,
-             contigsfile=None,
-             force_single_end=False,
-             tagsize=None):
-    '''run MACS for peak detection from BAM files.
-
-    The output bed files contain the P-value as their score field.
-    Output bed files are bgzip compressed and tabix indexed.
-
-    Build bedgraph files and convert to bigwig files.
-
-    Arguments
-    ---------
-    infile : string
-        Input file in :term:`bam` format.
-    outfile : string
-        Filename of output file in :term:`bed` format.
-    controlfile : string
-        ChIP-seq control (input) file in :term:`bam` format.
-    contigsfile : string
-        File name for file of contig lengths
-    for bedgraph to bigwig conversion (two columns: name\tlength).
-    force_single_end : boolean
-        Default false. If True, do not use BAMPE
-        mode for paired-end BAM files.
-    tagsize : int
-        sequencing read length in base pairs
-    max_qvalue : int
-        maximum q-value used for filtering
-        DS: not yet implemented as a parameter
-    '''
-    options = []
-
-    if controlfile:
-        options.append("--control %s" % controlfile)
-    if tagsize is not None:
-        options.append("--tsize %i" % tagsize)
-
-    options = " ".join(options)
-
-    job_memory = "8G"
-
-    # example statement: macs2 callpeak -t R1-paupar-R1.call.bam -c
-    # R1-lacZ-R1.call.bam -f BAMPE -g 2.39e9 --verbose 5 --bw 150 -q
-    # 0.01 -m 10 100000 --set-name test
-
-    # used to set the option --format=bampe
-    # removed to let macs2 detect the format.
-
-    # format bam needs to be set explicitely, autodetection does not
-    # work. Use paired end mode to detect tag size
-    if not force_single_end and BamTools.isPaired(infile):
-        format_options = '--format=BAMPE'
-    else:
-        format_options = '--format=BAM'
-
-    # --bdg --SPMR: ask macs to create a bed-graph file with
-    # fragment pileup per million reads
-
-    # macs2_options accesses PARAMS directly - should be passed  explicitly
-    statement = '''
-    macs2 callpeak
-    %(format_options)s
-    --treatment %(infile)s
-    --verbose=10
-    --name=%(outfile)s
-    --qvalue=%(macs2_max_qvalue)s
-    --bdg
-    --SPMR
-    %(options)s
-    %(macs2_options)s
-    >& %(outfile)s
-    '''
-    P.run()
-
-    # compress macs bed files and index with tabix
-    for suffix in ('peaks', 'summits'):
-        bedfile = outfile + "_" + suffix + ".bed"
-        if os.path.exists(bedfile):
-            statement = '''
-                 bgzip -f %(bedfile)s;
-                 tabix -f -p bed %(bedfile)s.gz
-            '''
-        P.run()
-
-    # convert normalized bed graph to bigwig
-    # saves 75% of space
-    # compressing only saves 60%
-    if os.path.exists(outfile + "_treat_pileup.bdg"):
-        bedGraphToBigwig(outfile + "_treat_pileup.bdg",
-                         contigsfile,
-                         outfile + "_treat_pileup.bw",
-                         sort_bedGraph=True)
-    if os.path.exists(outfile + "_control_lambda.bdg"):
-        bedGraphToBigwig(outfile + "_control_lambda.bdg",
-                         contigsfile,
-                         outfile + "_control_lambda.bw",
-                         sort_bedGraph=True)
-
-    # index and compress peak file
-    suffix = 'peaks.xls'
-    statement = '''grep -v "^$"
-                   < %(outfile)s_%(suffix)s
-                   | bgzip > %(outfile)s_%(suffix)s.gz;
-                   tabix -f -b 2 -e 3 -S 27 %(outfile)s_%(suffix)s.gz;
-                   checkpoint;
-                   rm -f %(outfile)s_%(suffix)s
-                '''
-    P.run()
-
-
-def runZinba(infile,
-             outfile,
-             controlfile,
-             action="full",
-             fragment_size=None,
-             tag_size=None):
-    '''run Zinba for peak detection.
-
-    Arguments
-    ----------
-
-    infile : string
-        input filename :term:`bam`
-
-    outfile : string
-        ouput filename :term:`log`
-
-    controlfile : string
-        input filename :term:`bam`
-
-    action : string
-        action to perform [default = full]
-
-    fragment_size : integer
-        fragment size used for extension parameter in Zinba [default=200]
-
-    tag_size : integer
-        length of aligned reads/tags; determined by calculating average region
-        length of input file [default=50]
-
-    '''
-
-    E.info("zinba: running action %s" % (action))
-
-    job_threads = PARAMS["zinba_threads"]
-    job_memory = "32G"
-
-    # TODO: use closest size or build mapability file
-    if not 40 <= tag_size < 60:
-        E.warn("tag size out of range of 40-60: %i" % tag_size)
-
-    tag_size = 50
-    fragment_size = 200
-
-    mappability_dir = os.path.join(PARAMS["zinba_mappability_dir"],
-                                   PARAMS["genome"],
-                                   "%i" % tag_size,
-                                   "%i" % PARAMS[
-                                       "zinba_alignability_threshold"],
-                                   "%i" % fragment_size)
-
-    if not os.path.exists(mappability_dir):
-        raise OSError(
-            "mappability not found, expected to be at %s" % mappability_dir)
-
-    bit_file = os.path.join(PARAMS["zinba_index_dir"],
-                            PARAMS["genome"]) + ".2bit"
-    if not os.path.exists(bit_file):
-        raise OSError("2bit file not found, expected to be at %s" % bit_file)
-
-    options = []
-    if controlfile:
-        options.append("--control-filename=%(controlfile)s" % locals())
-
-    options = " ".join(options)
-
-    statement = '''
-    cgat runZinba
-           --input-format=bam
-           --fdr-threshold=%(zinba_fdr_threshold)f
-           --fragment-size=%(fragment_size)i
-           --threads=%(zinba_threads)i
-           --bit-file=%(bit_file)s
-           --zinba-mappability-dir=%(mappability_dir)s
-           --zinba-improvement=%(zinba_improvement)f
-           --action=%(action)s
-           --min-insert-size=%(calling_min_insert_size)i
-           --max-insert-size=%(calling_max_insert_size)i
-           %(zinba_options)s
-           %(options)s
-    %(infile)s %(outfile)s
-    >& %(outfile)s
-    '''
-
-    P.run()
-
-
-def loadMACS(infile, outfile, bamfile, controlfile=None):
-    '''load MACS results into database.
-    DS: should we split parsing fron loading?
-
-    This method loads only positive peaks. It filters peaks by p-value,
-    q-value and fold change and loads the diagnostic data and
-    re-calculates peakcenter, peakval, ... using the supplied bamfile.
-
-    If *tablename* is not given, it will be :file:`<track>_intervals`
-    where track is derived from ``infile`` and assumed to end
-    in :file:`.macs`.
-
-    This method creates two optional additional files:
-
-       * if the file :file:`<track>_diag.xls` is present, load MACS
-         diagnostic data into the table :file:`<track>_macsdiag`.
-
-       * if the file :file:`<track>_model.r` is present, call R to
-         create a MACS peak-shift plot and save it as :file:`<track>_model.pdf`
-         in the :file:`export/MACS` directory.
-
-    This method creates :file:`<outfile>.tsv.gz` with the results
-    of the filtering.
-
-    Arguments
-    ---------
-    infile : string
-        Input file in MACS log file format (.macs)
-    outfile : string
-        Filename of output file in log file format.
-    bamfile : string
-        Input file in :term:`bam` format.
-    controlfile : string
-        ChIP-seq control (input) file in :term:`bam` format.
-    '''
-
-    track = P.snip(os.path.basename(infile), ".macs")
-    filename_bed = infile + "_peaks.xls.gz"
-    filename_diag = infile + "_diag.xls"
-    filename_r = infile + "_model.r"
-    filename_rlog = infile + ".r.log"
-    filename_pdf = infile + "_model.pdf"
-    filename_subpeaks = P.snip(infile, ".macs", ) + ".subpeaks.macs_peaks.bed"
-
-    if not os.path.exists(filename_bed):
-        E.warn("could not find %s" % filename_bed)
-        P.touch(outfile)
-        return
-
-    exportdir = os.path.join(PARAMS['exportdir'], 'macs')
-    try:
-        os.mkdir(exportdir)
-    except OSError:
-        # skip if directory exists
-        pass
-
-    ###############################################################
-    # create plot by calling R
-    if os.path.exists(filename_r):
-        statement = '''R --vanilla < %(filename_r)s
-                       > %(filename_rlog)s;
-                       mv %(filename_pdf)s %(exportdir)s
-                    '''
-        P.run()
-
-    ###############################################################
-    # filter peaks
-    # DS thresholds should be passed explicityly to function
-    max_qvalue = float(PARAMS["macs_max_qvalue"])
-    # min, as it is -10log10
-    min_pvalue = float(PARAMS["macs_min_pvalue"])
-
-    outtemp = P.getTempFile(".")
-    tmpfilename = outtemp.name
-
-    id = 0
-
-    counter = E.Counter()
-    with IOTools.openFile(filename_bed, "r") as ins:
-        for peak in WrapperMACS.iterateMacsPeaks(ins):
-
-            if peak.fdr > max_qvalue:
-                counter.removed_qvalue += 1
-                continue
-            elif peak.pvalue < min_pvalue:
-                counter.removed_pvalue += 1
-                continue
-
-            assert peak.start < peak.end
-
-            outtemp.write("\t".join(map(str, (
-                peak.contig, peak.start, peak.end,
-                id,
-                peak.pvalue, peak.fold, peak.fdr,
-                peak.start + peak.summit - 1,
-                peak.tags))) + "\n")
-            id += 1
-            counter.output += 1
-
-    outtemp.close()
-
-    ###################################################################
-    # output filtering summary
-    outf = IOTools.openFile("%s.tsv.gz" % outfile, "w")
-    outf.write("category\tcounts\n")
-    outf.write("%s\n" % counter.asTable())
-    outf.close()
-
-    E.info("%s filtering: %s" % (track, str(counter)))
-    if counter.output == 0:
-        E.warn("%s: no peaks found" % track)
-
-    ###############################################################
-    # load peaks
-    shift = getPeakShiftFromMacs(infile)
-    assert shift is not None, \
-        "could not determine peak shift from MACS file %s" % infile
-
-    E.info("%s: found peak shift of %i" % (track, shift))
-
-    offset = shift * 2
-
-    headers = ",".join((
-        "contig", "start", "end",
-        "interval_id",
-        "pvalue", "fold", "qvalue",
-        "macs_summit", "macs_nprobes"))
-
-    if controlfile:
-        control = "--control-bam-file=%(controlfile)s "
-        "--control-offset=%(shift)i" % locals()
-    else:
-        control = ""
-
-    load_statement = P.build_load_statement(
-        P.toTable(outfile) + "_peaks",
-        options="--add-index=contig,start "
-        "--add-index=interval_id "
-        "--allow-empty-file")
-
-    statement = '''cgat bed2table
-    --counter=peaks
-    --bam-file=%(bamfile)s
-    --offset=%(shift)i
-    %(control)s
-    --output-all-fields
-    --output-bed-headers=%(headers)s
-    --log=%(outfile)s
-    < %(tmpfilename)s
-    | %(load_statement)s
-    > %(outfile)s'''
-
-    P.run()
-
-    os.unlink(tmpfilename)
-
-    ############################################################
-    if os.path.exists(filename_subpeaks):
-
-        headers = ",".join((
-            "contig", "start", "end",
-            "interval_id",
-            "Height",
-            "SummitPosition"))
-
-        load_statement = P.build_load_statement(
-            P.toTable(outfile) + "_summits",
-            options="--add-index=contig,start "
-            "--add-index=interval_id "
-            "--allow-empty-file")
-
-        # add a peak identifier and remove header
-        statement = '''
-        awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
-        < %(filename_subpeaks)s
-        | cgat bed2table
-        --counter=peaks
-        --bam-file=%(bamfile)s
-        --offset=%(shift)i
-        %(control)s
-        --output-all-fields
-        --output-bed-headers=%(headers)s
-        --log=%(outfile)s
-        | %(load_statement)s
-        > %(outfile)s'''
-
-        P.run()
-
-    ############################################################
-    # load diagnostic data
-    if os.path.exists(filename_diag):
-
-        load_statement = P.build_load_statement(
-            P.toTable(outfile) + "_diagnostics",
-            options="--map=fc:str")
-
-        statement = '''
-        cat %(filename_diag)s
-        | sed "s/FC range.*/fc\\tnpeaks\\tp90\\tp80\\tp70\\tp60\\tp50\\tp40\\tp30\\tp20/"
-        | %(load_statement)s
-        >> %(outfile)s
-        '''
-        P.run()
-
-
-def loadMACS2(infile, outfile, bamfile, controlfile=None):
-    '''load MACS 2 results.
-
-    This method loads only positive peaks. It filters peaks by p-value,
-    q-value and fold change and loads the diagnostic data and
-    re-calculates peakcenter, peakval, ... using the supplied bamfile.
-
-    It maps the following MACS2 output files to tables:
-    * _peaks: MACS2 peaks
-    * _summits: MACS2 sub-peaks
-    * _regions: MACS2 broad peaks
-
-    This method creates two optional additional files:
-
-       * if the file :file:`<track>_model.r` is present, call R to
-         create a MACS peak-shift plot and save it as :file:`<track>_model.pdf`
-         in the :file:`export/MACS` directory.
-
-    This method creates :file:`<outfile>.tsv.gz` with the results
-    of the filtering.
-
-    Arguments
-    ---------
-    infile : string
-        Input file in MACS log file format (.macs2)
-    outfile : string
-        Filename of output file in log file format.
-    bamfile : string
-        Input file in :term:`bam` format.
-    controlfile : string
-        ChIP-seq control (input) file in :term:`bam` format.
-
-    '''
-    track = P.snip(os.path.basename(infile), ".macs2")
-    filename_bed = infile + "_peaks.xls.gz"
-    filename_r = infile + "_model.r"
-    filename_rlog = infile + ".r.log"
-    filename_pdf = infile + "_model.pdf"
-    filename_broadpeaks = infile + "_broad_peaks.bed"
-    filename_subpeaks = infile + "_summits.bed.gz"
-
-    if not os.path.exists(filename_bed):
-        E.warn("could not find %s" % filename_bed)
-        P.touch(outfile)
-        return
-
-    exportdir = os.path.join(PARAMS['exportdir'], 'macs2')
-    try:
-        os.makedirs(exportdir)
-    except OSError:
-        # skip if already exists
-        pass
-
-    ###############################################################
-    # create plot by calling R
-    if os.path.exists(filename_r):
-        statement = '''
-        R --vanilla < %(filename_r)s > %(filename_rlog)s;
-        mv %(filename_pdf)s %(exportdir)s'''
-        P.run()
-
-    ###############################################################
-    # filter peaks - this isn't needed...
-    # DS threshols shoul dbe passed explicitly
-    max_qvalue = float(PARAMS["macs_max_qvalue"])
-    # min, as it is -10log10
-    min_pvalue = float(PARAMS["macs_min_pvalue"])
-
-    outtemp = P.getTempFile(".")
-    tmpfilename = outtemp.name
-
-    id = 0
-
-    counter = E.Counter()
-    with IOTools.openFile(filename_bed, "r") as ins:
-        for peak in WrapperMACS.iterateMacs2Peaks(ins):
-
-            if peak.qvalue > max_qvalue:
-                counter.removed_qvalue += 1
-                continue
-            elif peak.pvalue < min_pvalue:
-                counter.removed_pvalue += 1
-                continue
-
-            assert peak.start < peak.end
-
-            # deliberately not writing out the macs2 assigned peak name...
-            outtemp.write("\t".join(map(str, (
-                peak.contig, peak.start, peak.end,
-                id,
-                peak.pvalue, peak.fold, peak.qvalue,
-                peak.pileup))) + "\n")
-            id += 1
-            counter.output += 1
-
-    outtemp.close()
-
-    ###################################################################
-    # output filtering summary
-    outf = IOTools.openFile("%s.tsv.gz" % outfile, "w")
-    outf.write("category\tcounts\n")
-    outf.write("%s\n" % counter.asTable())
-    outf.close()
-
-    E.info("%s filtering: %s" % (track, str(counter)))
-    if counter.output == 0:
-        E.warn("%s: no peaks found" % track)
-
-    ###############################################################
-    # load peaks
-    shift = getPeakShiftFromMacs(infile)
-    assert shift is not None,\
-        "could not determine peak shift from MACS file %s" % infile
-
-    E.info("%s: found peak shift of %i" % (track, shift))
-
-    offset = shift * 2
-
-    headers = ",".join((
-        "contig", "start", "end",
-        "interval_id",
-        "pvalue", "fold", "qvalue",
-        "macs_nprobes"))
-
-    if controlfile:
-        control = "--control-bam-file=%(controlfile)s --control-offset=%(shift)i" % locals()
-    else:
-        control = ""
-
-    load_statement = P.build_load_statement(
-        P.toTable(outfile) + "_peaks",
-        options="--add-index=contig,start "
-        "--add-index=interval_id "
-        "--allow-empty-file")
-
-    statement = '''cgat bed2table
-    --counter=peaks
-    --bam-file=%(bamfile)s
-    --offset=%(shift)i
-    %(control)s
-    --output-all-fields
-    --output-bed-headers=%(headers)s
-    --log=%(outfile)s
-    < %(tmpfilename)s
-    | %(load_statement)s
-    > %(outfile)s'''
-
-    P.run()
-
-    os.unlink(tmpfilename)
-
-    ############################################################
-    if os.path.exists(filename_subpeaks):
-
-        headers = ",".join((
-            "contig", "start", "end",
-            "interval_id",
-            "Height",
-            "SummitPosition"))
-
-        load_statement = P.build_load_statement(
-            P.toTable(outfile) + "_summits",
-            options="--add-index=contig,start "
-            "--add-index=interval_id "
-            "--allow-empty-file")
-
-        # add a peak identifier and remove header
-        statement = '''
-        zcat %(filename_subpeaks)s
-        | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4,$5)}'
-        | cgat bed2table
-        --counter=peaks
-        --bam-file=%(bamfile)s
-        --offset=%(shift)i
-        %(control)s
-        --output-all-fields
-        --output-bed-headers=%(headers)s
-        --log=%(outfile)s
-        | %(load_statement)s
-        > %(outfile)s'''
-
-        P.run()
-
-    ############################################################
-    if os.path.exists(filename_broadpeaks):
-
-        headers = ",".join((
-            "contig", "start", "end",
-            "interval_id",
-            "Height"))
-
-        load_statement = P.build_load_statement(
-            P.toTable(outfile) + "_regions",
-            options="--add-index=contig,start "
-            "--add-index=interval_id "
-            "--allow-empty-file")
-
-        # add a peak identifier and remove header
-        statement = '''
-        cat %(filename_broadpeaks)s
-        | awk '/Chromosome/ {next; } {printf("%%s\\t%%i\\t%%i\\t%%i\\t%%i\\n", $1,$2,$3,++a,$4)}'
-        | cgat bed2table
-        --counter=peaks
-        --bam-file=%(bamfile)s
-        --offset=%(shift)i
-        %(control)s
-        --output-all-fields
-        --output-bed-headers=%(headers)s
-        --log=%(outfile)s
-        | %(load_statement)s
-        > %(outfile)s'''
-
-        P.run()
-
-
-def loadZinba(infile, outfile, bamfile,
-              tablename=None,
-              controlfile=None):
-    '''load Zinba results in *tablename*
-
-       This method loads only positive peaks into a tab separated value (tsv)
-       text files. It then filters peaks by p-value, q-value and fold change
-       and loads the diagnostic data and re-calculates peakcenter, peakval,
-       etc. using the supplied bamfile. This method uses the refined peak
-       locations. Zinba peaks can be overlapping. This method does not merge
-       overlapping intervals. Zinba calls peaks in regions where there are many
-       reads inside the control. Thus this method applies a filtering step
-       removing all intervals in which there is a peak of more than
-       readlength / 2 height in the control.
-
-       Arguments
-       ---------
-
-       infile : string
-           input filename :term:`zinba`
-
-       outfile : string
-           ouput filename :term:`tsv.gz`
-
-       If *tablename* is not given, it will be :file:`<track>_intervals` where
-       track is derived from ``infile``.
-
-       If no peaks were predicted, an empty table is created.
-    '''
-
-    track = P.snip(os.path.basename(infile), ".zinba")
-    folder = os.path.dirname(infile)
-
-    infilename = infile + ".peaks"
-
-    #######################################################################
-    if not os.path.exists(infilename):
-        E.warn("could not find %s" % infilename)
-    elif IOTools.isEmpty(infile):
-        E.warn("no data in %s" % infilename)
-    else:
-
-        # filter peaks
-        offset = getPeakShiftFromZinba(infile)
-        assert offset is not None, \
-            ("could not determine peak shift from Zinba file %s" %
-             infile)
-
-        E.info("%s: found peak shift of %i" % (track, offset))
-
-        if controlfile:
-            control = ("--control-bam-file=%(controlfile)s "
-                       "--control-offset=%(offset)i" % locals())
-
-        # Steve - Guessing these are actually "peak calls"
-        load_statement = P.build_load_statement(
-            P.toTable(outfile) + "_peaks",
-            options="--add-index=contig,start "
-            "--add-index=interval_id "
-            "--allow-empty-file")
-
-        headers = "contig,start,end,interval_id,sig,maxloc,maxval,median,qvalue"
-
-        statement = '''cat %(infilename)s
-        | cgat csv_cut
-        Chrom Start Stop Sig Maxloc Max Median qValue
-        | awk -v FS='\\t' -v OFS='\\t' \
-        '/Chrom/ {next; } \
-        {$4=sprintf("%%i\\t%%s", ++a, $4); print}'
-        | cgat bed2table
-        --counter=peaks
-        --bam-file=%(bamfile)s
-        --offset=%(offset)i
-        %(control)s
-        --output-all-fields
-        --output-bed-headers=%(headers)s
-        --log=%(outfile)s
-        | %(load_statement)s
-        > %(outfile)s'''
-
-        P.run()
-
-        load_statement = P.build_load_statement(
-            P.toTable(outfile) + "_summits",
-            options="--add-index=contig,start "
-            "--add-index=interval_id "
-            "--allow-empty-file")
-
-        statement = '''cat %(infilename)s
-        | cgat csv_cut Chrom pStart pStop Sig Maxloc Max Median qValue
-        | awk -v FS='\\t' -v OFS='\\t' \
-        '/Chrom/ {next; } \
-        {$4=sprintf("%%i\\t%%s", ++a, $4); print}'
-        | cgat bed2table
-        --counter=peaks
-        --bam-file=%(bamfile)s
-        --offset=%(offset)i
-        %(control)s
-        --output-all-fields
-        --output-bed-headers=%(headers)s
-        --log=%(outfile)s
-        | %(load_statement)s
-        > %(outfile)s'''
-
-        P.run()
-
-
-def runSICER(infile,
-             outfile,
-             controlfile=None,
-             mode="narrow",
-             fragment_size=100):
-    '''run sicer on infile.'''
-
-    job_memory = "8G"
-
-    workdir = outfile + ".dir"
-
-    try:
-        os.mkdir(workdir)
-    except OSError:
-        pass
-
-    if BamTools.isPaired(infile):
-        # output strand as well
-        statement = ['''cat %(infile)s
-        | cgat bam2bed
-              --merge-pairs
-              --min-insert-size=%(calling_min_insert_size)i
-              --max-insert-size=%(calling_max_insert_size)i
-              --log=%(outfile)s.log
-              --bed-format=6
-        > %(workdir)s/foreground.bed''']
-    else:
-        statement = ['bamToBed -i %(infile)s > %(workdir)s/foreground.bed']
-
-    outfile = os.path.basename(outfile)
-
-    if mode == "narrow":
-        window_size = PARAMS["sicer_narrow_window_size"]
-        gap_size = PARAMS["sicer_narrow_gap_size"]
-    elif mode == "broad":
-        window_size = PARAMS["sicer_broad_window_size"]
-        gap_size = PARAMS["sicer_broad_gap_size"]
-    else:
-        raise ValueError("SICER mode unrecognised")
-
-    if controlfile:
-        statement.append(
-            'bamToBed -i %(controlfile)s > %(workdir)s/control.bed')
-        statement.append('cd %(workdir)s')
-        statement.append('''SICER.sh . foreground.bed control.bed . %(genome)s
-                    %(sicer_redundancy_threshold)i
-                    %(window_size)i
-                    %(fragment_size)i
-                    %(sicer_effective_genome_fraction)f
-                    %(gap_size)i
-                    %(sicer_fdr_threshold)f
-                    >& ../%(outfile)s''')
-    else:
-        statement.append('cd %(workdir)s')
-        statement.append('''SICER-rb.sh . foreground.bed . %(genome)s
-                    %(sicer_redundancy_threshold)i
-                    %(window_size)i
-                    %(fragment_size)i
-                    %(sicer_effective_genome_fraction)f
-                    %(gap_size)i
-                    %(sicer_evalue_threshold)f
-                    >& ../%(outfile)s''')
-
-    statement.append('rm -f foreground.bed background.bed')
-    statement = '; '.join(statement)
-
-    P.run()
-
-############################################################
-############################################################
-############################################################
-
-
-def loadSICER(infile, outfile, bamfile, controlfile=None, mode="narrow",
-              fragment_size=None):
-    '''load Sicer results.'''
-
-    # build filename of input bedfile
-    track = P.snip(os.path.basename(infile), ".sicer")
-    sicerdir = infile + ".dir"
-    window = PARAMS["sicer_" + mode + "_window_size"]
-    gap = PARAMS["sicer_" + mode + "_gap_size"]
-    fdr = "%8.6f" % PARAMS["sicer_fdr_threshold"]
-    offset = fragment_size
-
-    # taking the file islands-summary-FDR, which contains
-    # 'summary file of significant islands with requirement of FDR=0.01'
-
-    bedfile = os.path.join(
-        sicerdir,
-        "foreground" + "-W" + str(window) +
-        "-G" + str(gap) + "-islands-summary-FDR" + fdr)
-
-    assert os.path.exists(bedfile)
-
-    if controlfile:
-        control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
-
-    tablename = P.toTable(outfile) + "_regions"
-    load_statement = P.build_load_statement(
-        tablename,
-        options="--add-index=contig,start "
-        "--add-index=interval_id "
-        "--allow-empty-file")
-
-    headers = "contig,start,end,interval_id,chip_reads,control_reads,pvalue,fold,fdr"
-
-    # add new interval id at fourth column
-    statement = '''cat < %(bedfile)s
-    | awk '{printf("%%s\\t%%s\\t%%s\\t%%i", $1,$2,$3,++a);
-    for (x = 4; x <= NF; ++x) {printf("\\t%%s", $x)}; printf("\\n" ); }'
-    | cgat bed2table
-    --counter=peaks
-    --bam-file=%(bamfile)s
-    --offset=%(offset)i
-    %(control)s
-    --output-all-fields
-    --output-bed-headers=%(headers)s
-    --log=%(outfile)s
-    | %(load_statement)s
-    > %(outfile)s'''
-
-    P.run()
-
-
-def summarizeSICER(infiles, outfile):
-    '''summarize sicer results.'''
-
-    def __get(line, stmt):
-        x = line.search(stmt)
-        if x:
-            return x.groups()
-
-    map_targets = [
-        ("Window average: (\d+)", "window_mean", ()),
-        ("Fragment size: (\d+) ", "fragment_size", ()),
-        ("Minimum num of tags in a qualified window:  (\d+)",
-         "window_min", ()),
-        ("The score threshold is:  (\d+)", "score_threshold", ()),
-        ("Total number of islands:  (\d+)", "total_islands", ()),
-        ("chip library size   (\d+)", "chip_library_size", ()),
-        ("control library size   (\d+)", "control_library_size", ()),
-        ("Total number of chip reads on islands is:  (\d+)",
-         "chip_island_reads", ()),
-        ("Total number of control reads on islands is:  (\d+)",
-         "control_island_reads", ()),
-        ("Given significance 0.01 ,  there are (\d+) significant islands",
-         "significant_islands", ())]
-
-    # map regex to column
-    mapper, mapper_header, mapper2pos = {}, {}, {}
-    for x, y, z in map_targets:
-        mapper[y] = re.compile(x)
-        mapper_header[y] = z
-        # positions are +1 as first column in row is track
-        mapper2pos[y] = len(mapper_header)
-
-    keys = [x[1] for x in map_targets]
-
-    outs = IOTools.openFile(outfile, "w")
-
-    # build headers
-    headers = []
-    for k in keys:
-        if mapper_header[k]:
-            headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
-        else:
-            headers.append(k)
-    headers.append("shift")
-
-    outs.write("track\t%s" % "\t".join(headers) + "\n")
-
-    for infile in infiles:
-        results = collections.defaultdict(list)
-        with IOTools.openFile(infile) as f:
-            for line in f:
-                if "diag:" in line:
-                    break
-                for x, y in list(mapper.items()):
-                    s = y.search(line)
-                    if s:
-                        results[x].append(s.groups()[0])
-                        break
-
-        row = [P.snip(os.path.basename(infile), ".sicer")]
-        for key in keys:
-            val = results[key]
-            if len(val) == 0:
-                v = "na"
-            else:
-                c = len(mapper_header[key])
-                if c >= 1:
-                    assert len(val) == c, "key=%s, expected=%i, got=%i, val=%s, c=%s" %\
-                        (key,
-                         len(val),
-                            c,
-                            str(val), mapper_header[key])
-                v = "\t".join(val)
-            row.append(v)
-        fragment_size = int(row[mapper2pos["fragment_size"]])
-        shift = fragment_size / 2
-
-        outs.write("%s\t%i\n" % ("\t".join(row), shift))
-
-    outs.close()
-
-############################################################
-############################################################
-############################################################
-
-
-def runPeakRanger(infile, outfile, controlfile):
-    '''run peak ranger
-    '''
-
-    job_memory = "8G"
-
-    assert controlfile is not None, "peakranger requires a control"
-
-    statement = '''peakranger ranger
-              --data <( cgat bam2bam -v 0
-                --method=set-sequence < %(infile)s)
-
-              --control <( cgat bam2bam -v 0
-                --method=set-sequence < %(controlfile)s)
-              --output %(outfile)s
-              --format bam
-              --pval %(peakranger_pvalue_threshold)f
-              --FDR %(peakranger_fdr_threshold)f
-              --ext_length %(peakranger_extension_length)i
-              --delta %(peakranger_delta)f
-              --bandwidth %(peakranger_bandwidth)i
-              --thread %(peakranger_threads)i
-              %(peakranger_options)s
-              >& %(outfile)s
-    '''
-
-    P.run()
-
-    # usually there is no output
-    P.touch(outfile)
-
-
-def loadPeakRanger(infile, outfile, bamfile, controlfile=None, table_suffix="peaks"):
-    '''load peakranger results.'''
-
-    offset = PARAMS["peakranger_extension_length"] // 2
-
-    if controlfile:
-        control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
-
-    # Steve - This was set to _details, but _details = regions (peaks)
-    # + summits. Hence changed.  Note that Peak ranger reports peaks
-    # even when the given fdr cut-off has failed and labels them
-    # "fdrFailed" - here, such peaks are explicitely not loaded.
-    # AFAIK, Peakranger ranger is optimised to detect peaks arising
-    # from point source binding where as Peakranger ccat is optimised
-    # to detect regions arising from more diffuse binding events.
-    bedfile = infile + "_region.bed"
-    headers = "contig,start,end,interval_id,qvalue,strand"
-    tablename = P.toTable(outfile) + "_" + table_suffix
-
-    load_statement = P.build_load_statement(
-        tablename,
-        options="--add-index=contig,start "
-        "--add-index=interval_id "
-        "--allow-empty-file")
-
-    statement = '''cgat bed2table
-    --counter=peaks
-    --bam-file=%(bamfile)s
-    --offset=%(offset)i
-    %(control)s
-    --output-all-fields
-    --output-bed-headers=%(headers)s
-    --log=%(outfile)s
-    < <( grep -v "fdrFailed" %(bedfile)s )
-    | %(load_statement)s
-    > %(outfile)s'''
-    P.run()
-
-    bedfile = infile + "_summit.bed"
-    headers = "contig,start,end,interval_id,qvalue,strand"
-    tablename = P.toTable(outfile) + "_summits"
-    load_statement = P.build_load_statement(
-        tablename,
-        options="--add-index=contig,start "
-        "--add-index=interval_id "
-        "--allow-empty-file")
-
-    statement = '''cgat bed2table
-    --counter=peaks
-    --bam-file=%(bamfile)s
-    --offset=%(offset)i
-    %(control)s
-    --output-all-fields
-    --output-bed-headers=%(headers)s
-    --log=%(outfile)s
-    < <( grep -v "fdrFailed" %(bedfile)s )
-    | %(load_statement)s
-    > %(outfile)s'''
-
-    P.run()
-
-
-def summarizePeakRanger(infiles, outfile):
-    '''summarize peakranger results.'''
-
-    def __get(line, stmt):
-        x = line.search(stmt)
-        if x:
-            return x.groups()
-
-    map_targets = [
-        ("# FDR cut off:\s*(\S+)", "fdr_cutoff", ()),
-        ("# P value cut off:\s*(\S+)", "pvalue_cutoff", ()),
-        ("# Read extension length:\s*(\d+)", "fragment_size", ()),
-        ("# Smoothing bandwidth:\s*(\d+)", "smoothing_bandwidth", ()),
-    ]
-
-    # map regex to column
-    mapper, mapper_header, mapper2pos = {}, {}, {}
-    for x, y, z in map_targets:
-        mapper[y] = re.compile(x)
-        mapper_header[y] = z
-        # positions are +1 as first column in row is track
-        mapper2pos[y] = len(mapper_header)
-
-    keys = [x[1] for x in map_targets]
-
-    outs = IOTools.openFile(outfile, "w")
-
-    # build headers
-    headers = []
-    for k in keys:
-        if mapper_header[k]:
-            headers.extend(["%s_%s" % (k, x) for x in mapper_header[k]])
-        else:
-            headers.append(k)
-    headers.append("shift")
-
-    outs.write("track\t%s" % "\t".join(headers) + "\n")
-
-    for infile in infiles:
-        results = collections.defaultdict(list)
-        with IOTools.openFile(infile + "_details") as f:
-            for line in f:
-                if "#region_chr" in line:
-                    break
-                for x, y in list(mapper.items()):
-                    s = y.search(line)
-                    if s:
-                        results[x].append(s.groups()[0])
-                        break
-
-        row = [P.snip(os.path.basename(infile), ".peakranger")]
-        for key in keys:
-            val = results[key]
-            if len(val) == 0:
-                v = "na"
-            else:
-                c = len(mapper_header[key])
-                if c >= 1:
-                    assert len(val) == c, "key=%s, expected=%i, got=%i, val=%s, c=%s" %\
-                        (key,
-                         len(val),
-                            c,
-                            str(val), mapper_header[key])
-                v = "\t".join(val)
-            row.append(v)
-        fragment_size = int(row[mapper2pos["fragment_size"]])
-        shift = fragment_size / 2
-
-        outs.write("%s\t%i\n" % ("\t".join(row), shift))
-
-    outs.close()
-
-
-def runPeakRangerCCAT(infile, outfile, controlfile):
-    '''run peak ranger
-    '''
-    job_memory = "8G"
-
-    assert controlfile is not None, "peakranger requires a control"
-
-    statement = '''peakranger ccat
-              --data %(infile)s
-              --control %(controlfile)s
-              --output %(outfile)s
-              --format bam
-              --FDR %(ccat_fdr_threshold)f
-              --ext_length %(ccat_extension_length)i
-              --win_size %(ccat_winsize)i
-              --win_step %(ccat_winstep)i
-              --min_count %(ccat_mincount)i
-              --min_score %(ccat_minscore)i
-              --thread %(ccat_threads)i
-              %(ccat_options)s
-              >& %(outfile)s
-    '''
-
-    P.run()
-
-    # usually there is no output
-    P.touch(outfile)
-
-
-def runSPP(infile, outfile, controlfile):
-    '''run spp for peak detection.'''
-
-    job_threads = PARAMS["spp_threads"]
-    assert controlfile is not None, "spp requires a control"
-
-    statement = '''
-    cgat runSPP
-           --input-format=bam
-           --control-filename=%(controlfile)s
-           --fdr-threshold=%(spp_fdr_threshold)f
-           --threads=%(spp_threads)i
-           --spp-srange-min=%(spp_srange_min)i
-           --spp-srange-max=%(spp_srange_max)i
-           --bin=%(spp_bin)i
-           --spp-z-threshold=%(spp_z_threshold)f
-           --window-size=%(spp_window_size)s
-           %(spp_options)s
-    %(infile)s %(outfile)s
-    >& %(outfile)s
-    '''
-
-    P.run()
-
-
-def loadSPP(infile, outfile, bamfile, controlfile=None):
-    '''load spp results.'''
-
-    offset = getPeakShift(infile) * 2
-
-    if controlfile:
-        control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
-
-    #
-    # Now commented out - the broadpeaks file records arbitrary broad
-    # regions of enrichment not controlled by p or q value, it is a
-    # preprocessing step in the spp pipeline.
-    #
-    # bedfile = infile + ".broadpeak.txt"
-    # headers="contig,start,end,interval_id"
-    # tablename = P.toTable( outfile ) + "_regions"
-    # statement = '''
-    #            awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\n", $1,$2,$3,++a);}'
-    #            < %(bedfile)s
-    #            | cgat bed2table
-    #                       --counter=peaks
-    #                       --bam-file=%(bamfile)s
-    #                       --offset=%(offset)i
-    #                       %(control)s
-    #                       --output-all-fields
-    #                       --bed-header=%(headers)s
-    #                       --log=%(outfile)s
-    #            | cgat csv2db %(csv2db_options)s
-    #                   --add-index=contig,start
-    #                   --add-index=interval_id
-    #                   --table=%(tablename)s
-    #                   --allow-empty-file
-    #            > %(outfile)s'''
-    #
-    # P.run()
-
-    bedfile = infile + ".narrowpeak.txt"
-    headers = "contig,start,end,interval_id,peakval1,qvalue,peakpos"
-    tablename = P.toTable(outfile) + "_peaks"
-    load_statement = P.build_load_statement(
-        tablename,
-        options="--add-index=contig,start "
-        "--add-index=interval_id "
-        "--allow-empty-file")
-
-    statement = '''awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%i\\n", $1,$2,$3,++a,$7,$9,$1+$10);}'
-    < %(bedfile)s
-    | cgat bed2table
-    --counter=peaks
-    --bam-file=%(bamfile)s
-    --offset=%(offset)i
-    %(control)s
-    --output-all-fields
-    --output-bed-headers=%(headers)s
-    --log=%(outfile)s
-    | %(load_statement)s
-    > %(outfile)s'''
-
-    #
-    #  TODO - spp does calculate summit positions, these should be loaded
-    #
-    # bedfile = infile + ".summits.txt"
-    # headers="contig,start,end,interval_id,peakval1,qvalue,peakpos"
-    # tablename = P.toTable( outfile ) + "_peaks"
-    # statement = '''awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%i\\n", $1,$2,$3,++a,$7,$9,$1+$10);}'
-    #            < %(bedfile)s
-    #            | cgat bed2table
-    #                       --counter=peaks
-    #                       --bam-file=%(bamfile)s
-    #                       --offset=%(offset)i
-    #                       %(control)s
-    #                       --output-all-fields
-    #                       --bed-header=%(headers)s
-    #                       --log=%(outfile)s
-    #            | cgat csv2db %(csv2db_options)s
-    #                   --add-index=contig,start
-    #                   --add-index=interval_id
-    #                   --table=%(tablename)s
-    #                   --allow-empty-file
-    #            > %(outfile)s'''
-
-    P.run()
-
-
-def summarizeSPP(infiles, outfile):
-    '''summarize SPP results by parsing spp output file.'''
-
-    outf = IOTools.openFile(outfile, "w")
-
-    outf.write(
-        "track\ttreatment\ttreatment_nreads\tcontrol\tcontrol_nreads\tshift\tfdr\tthreshold\tnpeaks\n")
-
-    for infile in infiles:
-
-        track = P.snip(os.path.basename(infile), ".spp")
-
-        with IOTools.openFile(infile) as inf:
-            files, reads = [], []
-            for line in inf:
-                if line.startswith("opened"):
-                    files.append(re.match("opened (\S+)", line).groups()[0])
-
-                elif line.startswith("done. read"):
-                    reads.append(
-                        re.match("done. read (\d+) fragments",
-                                 line).groups()[0])
-
-                elif line.startswith("shift\t"):
-                    shift = int(re.match("shift\t(\d+)\n", line).groups()[0])
-
-                elif line.startswith("FDR"):
-                    fdr, threshold = re.match(
-                        "FDR\s+(\S+)\s+threshold=\s+(\S+)", line).groups()
-
-                elif line.startswith("detected_peaks\t"):
-                    npeaks = int(
-                        re.match("detected_peaks\t(\d+)\n", line).groups()[0])
-
-        outf.write("\t".join(map(str, (
-            track, files[0], reads[0], files[1], reads[1],
-            shift, fdr, threshold, npeaks))) + "\n")
-
-    outf.close()
-
-
-def estimateSPPQualityMetrics(infile, track, controlfile, outfile):
-    '''estimate ChIP-Seq quality metrics using SPP'''
-
-    job_memory = "4G"
-
-    statement = '''
-    Rscript %(pipeline_rdir)s/run_spp.R -c=%(infile)s -i=%(controlfile)s -rf \
-           -savp -out=%(outfile)s
-    >& %(outfile)s.log'''
-
-    P.run()
-
-    if os.path.exists(track + ".pdf"):
-        dest = os.path.join(PARAMS["exportdir"], "quality", track + ".pdf")
-        if os.path.exists(dest):
-            os.unlink(dest)
-        shutil.move(track + ".pdf", dest)
-
-
-def createGenomeWindows(genome, outfile, windows):
-
-    statement = '''
-        cgat windows2gff
-            --genome=%(genome)s
-            --output-format=bed
-            --fixed-width-windows=%(windows)s
-            --log=%(outfile)s.log |
-        bedtools sort -i stdin |
-        gzip > %(outfile)s
-        '''
-    P.run()
-
-
-def normalize(infile, larger_nreads, outfile, smaller_nreads):
-    threshold = float(smaller_nreads) / float(larger_nreads)
-
-    pysam_in = pysam.Samfile(infile, "rb")
-    pysam_out = pysam.Samfile(outfile, "wb", template=pysam_in)
-
-    for read in pysam_in.fetch():
-        if random.random() <= threshold:
-            pysam_out.write(read)
-
-    pysam_in.close()
-    pysam_out.close()
-    pysam.index(outfile)
-
-    return outfile
-
-
-def normalizeFileSize(sample_file, input_file, sample_outfile, input_outfile):
-    sample_sam = pysam.Samfile(sample_file, "rb")
-    sample_nreads = 0
-    for read in sample_sam:
-        sample_nreads += 1
-
-    input_sam = pysam.Samfile(input_file, "rb")
-    input_nreads = 0
-    for read in input_sam:
-        input_nreads += 1
-
-    if input_nreads > sample_nreads:
-        E.info("INPUT bam has %s reads, SAMPLE bam has %s reads"
-               % (input_nreads, sample_nreads))
-        E.info("INPUT being downsampled to match SAMPLE")
-        input_outfile = normalize(input_file,
-                                  input_nreads,
-                                  input_outfile,
-                                  sample_nreads)
-        shutil.copyfile(sample_file, sample_outfile)
-        pysam.index(sample_outfile)
-
-        return sample_outfile, input_outfile
-
-    elif sample_nreads > input_nreads:
-        E.info("SAMPLE bam has %s reads, INPUT bam has %s reads"
-               % (sample_nreads, input_nreads))
-        E.info("SAMPLE being downsampled to match INPUT")
-        sample_outfile = normalize(sample_file,
-                                   sample_nreads,
-                                   sample_outfile,
-                                   input_nreads)
-        shutil.copyfile(input_file, input_outfile)
-        pysam.index(input_outfile)
-
-        return sample_outfile, input_outfile
-
-    else:
-        P.warn("WARNING: input and sample bamfiles are the same size!!")
-        shutil.copyfile(sample_file, sample_outfile)
-        pysam.index(sample_outfile)
-        shutil.copyfile(input_file, input_outfile)
-        pysam.index(input_outfile)
-
-        return sample_outfile, input_outfile
-
-
-def buildBedFile(infile, outfile):
-    statement = ("cgat bam2bed %(infile)s"
-                 " | sortBed -i stdin"
-                 " > %(outfile)s")
-    P.run()
-    return(outfile)
-
-
-def createBedgraphFile(infile, outfile, windows_file, overlap):
-    statement = ("intersectBed"
-                 " -c"
-                 " -f %(overlap)s"
-                 " -a %(windows_file)s"
-                 " -b %(infile)s"
-                 " | sortBed -i stdin"
-                 " > %(outfile)s")
-    P.run()
-    return(outfile)
-
-
-def removeBackground(sample_bedgraph, input_bedgraph, outfile):
-    inf = IOTools.openFile(sample_bedgraph, "r").readlines()
-    contf = IOTools.openFile(input_bedgraph, "r").readlines()
-    outf = IOTools.openFile(outfile, "w")
-
-    for i in range(0, len(inf)):
-        line_inf = inf[i].split()
-        line_contf = contf[i].split()
-        if line_inf[0] == line_contf[0] and line_inf[1] == line_contf[1]:
-            if int(line_inf[3]) >= int(line_contf[3]):
-                outf.write(str(line_inf[0]) +
-                           "\t" + str(line_inf[1]) +
-                           "\t" + str(line_inf[2]) +
-                           "\t" + str(int(line_inf[3]) -
-                                      int(line_contf[3])) + "\n")
-            else:
-                outf.write(str(line_inf[0]) +
-                           "\t" + str(line_inf[1]) +
-                           "\t" + str(line_inf[2]) +
-                           "\t0" + "\n")
-        else:
-            raise Exception("Windows in '%s' aren't aligned with windows in %s"
-                            % (sample_bedgraph, input_bedgraph))
-    return outfile
-
-
-def removeEmptyBins(infile, outfile):
-    statement = '''cat %(infile)s
-    | awk '$4!=0 {print $1"\t"$2"\t"$3"\t"$4}'
-    > %(outfile)s '''
-    P.run()
-
-
-def createBroadPeakBedgraphFile(infiles, outfile, params):
-    tmpdir = P.getTempDir("/scratch")
-    E.info("Creating tempdir: %s" % tmpdir)
-    sample_bed = P.getTempFilename(tmpdir)
-    sample_bedgraph = P.getTempFilename(tmpdir)
-    input_bed = P.getTempFilename(tmpdir)
-    input_bedgraph = P.getTempFilename(tmpdir)
-    bgremoved_bedgraph = P.getTempFilename(tmpdir)
-
-    overlap, remove_background = params
-
-    if remove_background == "true":
-        sample_file, windows_file, input_file = infiles
-        E.info("Background removal:"
-               " Input reads will be deducted from sample reads\n"
-               "Normalizing size of bamfiles by down-sampling larger file")
-
-        sample_norm = P.snip(sample_file, ".call.bam") + "_normalized.bam"
-        input_norm = P.snip(input_file, ".call.bam") + "_normalized.bam"
-        sample_norm, input_norm = normalizeFileSize(sample_file,
-                                                    input_file,
-                                                    sample_norm,
-                                                    input_norm)
-        E.info("Created normalized SAMPLE bam:\t %s "
-               "\nCreated normalized INPUT bam:\t %s"
-               % (sample_norm, input_norm))
-
-        E.info("Creating bed file from SAMPLE bam file")
-        sample_bed = buildBedFile(sample_norm, sample_bed)
-
-        E.info("Created SAMPLE bed file:\t %s \nCreating SAMPLE bedgraph file.\n"
-               "Reads must have coverage >= %s*bin width in order to be binned"
-               % (sample_bed, overlap))
-        sample_bedgraph = createBedgraphFile(sample_bed,
-                                             sample_bedgraph,
-                                             windows_file,
-                                             overlap)
-
-        E.info("Created SAMPLE bedgraph file:\t %s\nCreating INPUT bed file"
-               % sample_bedgraph)
-        input_bed = buildBedFile(input_norm, input_bed)
-
-        E.info("Created INPUT bed file:\t %s \nCreating INPUT bedgraph file\n"
-               "Reads must have coverage >= %s*bin width in order to be binned"
-               % (input_bed, overlap))
-        input_bedgraph = createBedgraphFile(input_bed,
-                                            input_bedgraph,
-                                            windows_file,
-                                            overlap)
-
-        E.info("Created INPUT bedgraph file:\t %s "
-               "\nSubtracting INPUT bedgraph from SAMPLE bedgraph"
-               % input_bedgraph)
-        bgremoved_bedgraph = removeBackground(sample_bedgraph,
-                                              input_bedgraph,
-                                              bgremoved_bedgraph)
-        removeEmptyBins(bgremoved_bedgraph, outfile)
-
-        E.info("Created SAMPLE bedgraph with INPUT removed:\t %s" % outfile)
-        shutil.rmtree(os.path.abspath(tmpdir))
-
-    else:
-        sample_file, windowsfile = infiles
-        E.info("Background ignored: bedgraph file does not account for INPUT")
-        E.info("Creating bed file from SAMPLE bam file")
-        sample_bed = buildBedFile(sample_file, sample_bed)
-
-        E.info("Created SAMPLE bed file:\n %s \nCreating SAMPLE bedgraph file"
-               % sample_bed)
-        sample_bedgraph = createBedgraphFile(sample_bed,
-                                             sample_bedgraph,
-                                             windows_file,
-                                             overlap)
-        removeEmptyBins(sample_bedgraph, outfile)
-        E.info("Created SAMPLE bedgraph (without accounting for INPUT):\n"
-               "%s" % outfile)
-
-        shutil.rmtree(os.path.abspath(tmpdir))
-
-
-def runBroadPeak(infile, stub, logfile, genome_size, training_set=False):
-
-    job_memory = "10G"
-
-    if training_set:
-        statement = ("BroadPeak -i %(infile)s"
-                     " -m %(stub)s"
-                     " -b 200"
-                     " -g %(genome_size)s"
-                     " -t supervised"
-                     " -r (training_set)s"
-                     " &> %(logfile)s")
-    else:
-        statement = ("BroadPeak -i %(infile)s"
-                     " -m %(stub)s"
-                     " -b 200"
-                     " -g %(genome_size)s"
-                     " -t unsupervised"
-                     " &> %(logfile)s")
-
-    P.run()
-
-
-def summarizeBroadPeak(infiles, outfile, intervals=False):
-    if intervals:
-        P.warn("Pipeline for summarizing supervised broadpeak runs"
-               " has not yet been written... summary file will be"
-               " empty")
-        IOTools.openFile(oufitle, "w").close()
-
-    else:
-        outf = IOTools.openFile(outfile, "w")
-        outf.write("track\tnpeaks\tp\tq\ts1\ts2\n")
-        for infile in infiles:
-            for root, dirs, filenames in os.walk(infile):
-                for f in filenames:
-                    if f.endswith("_broadpeak_broad_peak_unsupervised.bed"):
-                        track = P.snip(
-                            f, "_broadpeak_broad_peak_unsupervised.bed")
-                        os.symlink(os.path.join(root, f),
-                                   track + "_broadpeak_unsupervised.bed")
-                        npeaks = len(
-                            open(os.path.join(root, f), "r").readlines())
-                    elif f.endswith("_parameter_score.txt"):
-                        params = open(os.path.join(root, f), "r").readlines()
-                        p = params[0].split()[1]
-                        q = params[1].split()[1]
-                        s1 = params[2].split()[1]
-                        s2 = params[3].split()[1]
-                    else:
-                        continue
-            outf.write(track + "\t" + str(npeaks) + "\t" + p +
-                       "\t" + q + "\t" + s1 + "\t" + s2 + "\n")
-        outf.close()
-
-
-def makeIntervalCorrelation(infiles, outfile, field, reference):
-    '''compute correlation of interval properties between sets
-    '''
-
-    dbhandle = sqlite3.connect(PARAMS["database_name"])
-
-    tracks, idx = [], []
-    for infile in infiles:
-        track = P.snip(infile, ".bed.gz")
-        tablename = "%s_intervals" % P.tablequote(track)
-        cc = dbhandle.cursor()
-        statement = "SELECT contig, start, end, "
-        "%(field)s FROM %(tablename)s" % locals()
-        cc.execute(statement)
-        ix = IndexedGenome.IndexedGenome()
-        for contig, start, end, peakval in cc:
-            ix.add(contig, start, end, peakval)
-        idx.append(ix)
-        tracks.append(track)
-    outs = IOTools.openFile(outfile, "w")
-    outs.write("contig\tstart\tend\tid\t" + "\t".join(tracks) + "\n")
-
-    for bed in Bed.iterator(infile=IOTools.openFile(reference, "r")):
-
-        row = []
-        for ix in idx:
-            try:
-                intervals = list(ix.get(bed.contig, bed.start, bed.end))
-            except KeyError:
-                row.append("")
-                continue
-
-            if len(intervals) == 0:
-                peakval = ""
-            else:
-                peakval = str((max([x[2] for x in intervals])))
-            row.append(peakval)
-
-        outs.write(str(bed) + "\t" + "\t".join(row) + "\n")
-
-    outs.close()
-
-
-def buildIntervalCounts(infile, outfile, track, fg_replicates, bg_replicates):
-    '''count read density in bed files comparing stimulated versus
-    unstimulated binding.
-
-    '''
-    samfiles_fg, samfiles_bg = [], []
-
-    # collect foreground and background bam files
-    for replicate in fg_replicates:
-        samfiles_fg.append("%s.call.bam" % replicate.asFile())
-
-    for replicate in bg_replicates:
-        samfiles_bg.append("%s.call.bam" % replicate.asFile())
-
-    samfiles_fg = [x for x in samfiles_fg if os.path.exists(x)]
-    samfiles_bg = [x for x in samfiles_bg if os.path.exists(x)]
-
-    samfiles_fg = ",".join(samfiles_fg)
-    samfiles_bg = ",".join(samfiles_bg)
-
-    tmpfile1 = P.getTempFilename(os.getcwd()) + ".fg"
-    tmpfile2 = P.getTempFilename(os.getcwd()) + ".bg"
-
-    # start counting
-    statement = """
-    zcat < %(infile)s
-    | cgat bed2gff --as-gtf
-    | cgat gtf2table
-                --counter=read-coverage
-                --log=%(outfile)s.log
-                --bam-file=%(samfiles_fg)s
-    > %(tmpfile1)s"""
-    P.run()
-
-    if samfiles_bg:
-        statement = """
-        zcat < %(infile)s
-        | cgat bed2gff --as-gtf
-        | cgat gtf2table
-                    --counter=read-coverage
-                    --log=%(outfile)s.log
-                    --bam-file=%(samfiles_bg)s
-        > %(tmpfile2)s"""
-        P.run()
-
-        statement = '''
-        python %(toolsdir)s/combine_tables.py
-               --add-file-prefix
-               --regex-filename="[.](\S+)$"
-        %(tmpfile1)s %(tmpfile2)s > %(outfile)s
-        '''
-
-        P.run()
-
-        os.unlink(tmpfile2)
-
-    else:
-        statement = '''
-        python %(toolsdir)s/combine_tables.py
-               --add-file-prefix
-               --regex-filename="[.](\S+)$"
-        %(tmpfile1)s > %(outfile)s
-        '''
-
-        P.run()
-
-    os.unlink(tmpfile1)
-
-
-def loadIntervalsFromBed(bedfile, track, outfile,
-                         bamfiles, offsets):
-    '''load intervals from :term:`bed` formatted files into database.
-
-    Re-evaluate the intervals by counting reads within
-    the interval. In contrast to the initial pipeline, the
-    genome is not binned. In particular, the meaning of the
-    columns in the table changes to:
-
-    nProbes: number of reads in interval
-    PeakCenter: position with maximum number of reads in interval
-    AvgVal: average coverage within interval
-
-    '''
-
-    tmpfile = P.getTempFile()
-
-    headers = ("AvgVal", "DisttoStart", "GeneList", "Length", "PeakCenter",
-               "PeakVal", "Position",
-               "interval_id", "nCpGs", "nGenes", "nPeaks", "nProbes",
-               "nPromoters", "contig", "start", "end")
-
-    tmpfile.write("\t".join(headers) + "\n")
-
-    avgval, contig, disttostart, end, genelist, length, peakcenter, peakval, position, start, interval_id, ncpgs, ngenes, npeaks, nprobes, npromoters = \
-        0, "", 0, 0, "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-
-    mlength = int(PARAMS["calling_merge_min_interval_length"])
-
-    c = E.Counter()
-
-    # count tags
-    for bed in Bed.iterator(
-            IOTools.openFile(bedfile, "r")):
-
-        c.input += 1
-
-        if "name" not in bed:
-            bed.name = c.input
-
-        # remove very short intervals
-        if bed.end - bed.start < mlength:
-            c.skipped_length += 1
-            continue
-
-        if replicates:
-            npeaks, peakcenter, length, avgval, peakval, nprobes = \
-                countPeaks(bed.contig, bed.start, bed.end, samfiles, offsets)
-
-            # nreads can be 0 if the intervals overlap only slightly
-            # and due to the binning, no reads are actually in the
-            # overlap region.  However, most of these intervals should
-            # be small and have already be deleted via the
-            # merge_min_interval_length cutoff.  do not output
-            # intervals without reads.
-            if nprobes == 0:
-                c.skipped_reads += 1
-
-        else:
-            npeaks, peakcenter, length, avgval, peakval, nprobes = (
-                1,
-                bed.start + (bed.end - bed.start) // 2,
-                bed.end -
-                bed.start,
-                1,
-                1,
-                1)
-
-        c.output += 1
-        tmpfile.write(
-            "\t".join(map(str, (avgval, disttostart, genelist, length,
-                                peakcenter, peakval, position, bed.name,
-                                ncpgs, ngenes, npeaks, nprobes, npromoters,
-                                bed.contig, bed.start, bed.end))) + "\n")
-
-    if c.output == 0:
-        E.warn("%s - no intervals")
-
-    tmpfile.close()
-
-    P.load(tmpfile.name,
-           outfile,
-           tablename="%s_intervals" % track.asTable(),
-           options="--add-index=interval-id --allow-empty-file")
-
-    os.unlink(tmpfile.name)
-
-    E.info("%s\n" % str(c))
-
-
-def makeReproducibility(infiles, outfile):
-    '''compute overlap between intervals.
-
-    Compute pairwise overlap between all sets in a group
-    of :term:`bed` formatted files.
-    '''
-
-    if os.path.exists(outfile):
-        # note: update does not work due to quoting
-        os.rename(outfile, outfile + ".orig")
-        options = "--update=%s.orig" % outfile
-    else:
-        options = ""
-
-    infiles = " ".join(infiles)
-
-    # note: need to quote track names
-    statement = '''
-    cgat diff_bed --pattern-identifier='([^/]+).bed.gz' %(options)s %(infiles)s
-    | awk -v OFS="\\t" '!/^#/ { gsub( /-/,"_", $1); gsub(/-/,"_",$2); } {print}'
-    > %(outfile)s
-    '''
-
-    P.run()
-
-
-def runScripture(infile, outfile,
-                 contig_sizes,
-                 mode="narrow"):
-    '''run scripture for peak detection from BAM files.
-
-    The output bed files contain the P-value as their score field.
-    Output bed files are compressed with bgzip and indexed using tabix.
-
-    Arguments
-    ---------
-    infile : string
-        Input file in :term:`bam` format.
-    outfile : string
-        Filename of output file in :term:`bed` format.
-    contig_sizes : string
-        File containing contig size information
-    mode : string
-        Peak detection mode. narrow by default. '''
-
-    job_memory = "8G"
-
-    samfile = pysam.Samfile(infile, "rb")
-    contigs = samfile.references
-
-    # scripture_min_mapping_quality scripture_fdr should be passed explicitly
-    s = '''scripture
-                   -task chip
-                   -trim
-                   -minMappingQuality %%(scripture_min_mapping_quality)f
-                   -windows 200
-                   -fullScores
-                   -sizeFile %%(contig_sizes)s
-                   -alpha %%(scripture_fdr)f
-                   -alignment %%(infile)s
-                   -chr %(contig)s
-                   -out %%(outfile)s.data.%(contig)s
-                   >& %%(outfile)s.log.%(contig)s
-    '''
-
-    statements = [s % {'contig': x} for x in contigs]
-    P.run()
-
-    statements = None
-
-    # collect all results into a single bed file
-    statement = '''cat %(outfile)s.data.*.scores | gzip > %(outfile)s.bed.gz'''
-    P.run()
-
-    statement = '''cat %(outfile)s.log.* > %(outfile)s'''
-    P.run()
-
-    statement = '''rm -f %(outfile)s.data.*'''
-    P.run()
-
-    statement = '''rm -f %(outfile)s.log.*'''
-    P.run()
-
-
-def loadScripture(infile, outfile, bamfile, controlfile=None):
-    '''
-    load scripture peaks into database
-
-    Arguments
-    ---------
-    infile : string
-        Input file in term : `BED` format
-    outfile : string
-        Filename of output file
-    bamfile : string
-        Input file in :term:`bam` format.
-    controlfile : string
-        ChIP-seq control (input) file in :term:`bam` format.
-    '''
-
-    # Note: not sure if the following will work for
-    #       paired end data.
-
-    # no offset
-    #    offset = getPeakShift( infile ) * 2
-    offset = 0
-
-    if controlfile:
-        control = "--control-bam-file=%(controlfile)s --control-offset=%(offset)i" % locals()
-
-    bedfile = infile + ".bed.gz"
-
-    headers = "contig,start,end,interval_id,score,pvalue,score2,score3,score4"
-    tablename = P.toTable(outfile) + "_peaks"
-    load_statement = P.build_load_statement(
-        tablename,
-        options="--add-index=contig,start "
-        "--add-index=interval_id "
-        "--allow-empty-file")
-
-    statement = '''zcat %(bedfile)s
-    | awk '{printf("%%s\\t%%i\\t%%i\\t%%s\\t%%f\\t%%f\\t%%f\\t%%f\\t%%f\\n", $1,$2,$3,++a,$5,$7,$8,$9,$10);}'
-    | cgat bed2table
-    --counter=peaks
-    --bam-file=%(bamfile)s
-    --offset=%(offset)i
-    %(control)s
-    --output-all-fields
-    --output-bed-headers=%(headers)s
-    --log=%(outfile)s
-    | %(load_statement)s
-    > %(outfile)s'''
-
-    P.run()

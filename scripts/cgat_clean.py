@@ -2,10 +2,6 @@
 cgat_clean.py - remove incomplete files
 =======================================
 
-:Author:
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

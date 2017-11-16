@@ -2,10 +2,6 @@
 Motif pipeline
 ==============
 
-:Author: Andreas Heger
-:Release: $Id: pipeline_chipseq.py 2900 2010-04-13 14:38:00Z andreas $
-:Date: |today|
-:Tags: Python
 
 The motif pipeline runs a set of motif discovery and enrichment
 analysis on a set of intervals.
@@ -842,7 +838,6 @@ def exportMotifLocations(infiles, outfile):
          loadIntervals)
 def full():
     '''run the full pipeline.'''
-    pass
 
 
 @follows(mkdir("report"))
@@ -898,6 +893,12 @@ def publish():
             if not os.path.exists(dest):
                 E.debug("creating symlink from %s to %s" % (src, dest))
                 os.symlink(os.path.abspath(src), dest)
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,16 @@
+
+# This environment will include other dependencies that have not been detected automatically
+# but are required to run the pipelines
+
+name: cgat-p
+
+channels:
+- bioconda
+- conda-forge
+- defaults
+
+dependencies:
+- cutadapt=1.14
+- blast=2.7.1
+- bashlex=0.12
+

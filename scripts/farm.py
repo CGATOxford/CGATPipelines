@@ -1,11 +1,7 @@
-#!/bin/env python
+##!/bin/env python
 '''farm.py - process data stream on cluster
 ===========================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------
@@ -680,7 +676,7 @@ def runDRMAA(data, environment):
         cmd = " ".join(re.sub("\t+", " ", cmd).split("\n"))
         E.info("running statement:\n%s" % cmd)
 
-        job_script = tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False)
+        job_script = tempfile.NamedTemporaryFile(dir=os.getcwd(), delete=False, mode="w+t")
         job_script.write("#!/bin/bash\n")  # -l -O expand_aliases\n" )
         job_script.write(Cluster.expandStatement(cmd) + "\n")
         job_script.close()

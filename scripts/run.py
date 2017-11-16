@@ -2,10 +2,6 @@
 '''run.py - wrapper around command line
 ====================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

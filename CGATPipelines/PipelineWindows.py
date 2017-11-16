@@ -210,10 +210,12 @@ def countTagsWithinWindows(tagfile,
     else:
         raise ValueError("unknown counting method: %s" % counting_method)
 
+    # Note that in version 2.26, coverage changed from reporting
+    # A on B to B on A.
     statement = '''
     zcat %(tagfile)s
     %(f)s
-    | coverageBed -a stdin -b %(windowfile)s -split
+    | bedtools coverage -a %(windowfile)s -b stdin -split
     | sort -k1,1 -k2,2n -k3,3n -k4,4
     | gzip
     > %(outfile)s

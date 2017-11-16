@@ -40,6 +40,8 @@ EXPRESSIONS = (
 
 # Scripts to exclude as they fail imports.
 EXCLUDE = (
+    # No need to check cgat_check_deps.py
+    'cgat_check_deps',
     # The following fail because of pybedtools
     # compilation fails. Reason why it triggers
     # recompilation or why it fails is unknown

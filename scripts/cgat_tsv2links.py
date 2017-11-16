@@ -1,10 +1,6 @@
 '''cgat_tsv2links.py - create a series of file links with renaming
 ==================================================================
 
-:Author: Mike Morgan
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Purpose
 -------

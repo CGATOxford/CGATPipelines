@@ -2,8 +2,6 @@
 ReadQc pipeline
 ====================
 
-:Date: |today|
-:Tags: Python
 
 The readqc pipeline imports unmapped reads from one or more input
 files and performs basic quality control steps. The pipeline performs
@@ -171,7 +169,6 @@ def connect():
 @transform(INPUT_FORMATS, regex("(.*)"), r"\1")
 def unprocessReads(infiles, outfiles):
     """dummy task - no processing of reads."""
-    pass
 
 
 # if preprocess tools are specified, preprocessing is done on output that has
@@ -195,6 +192,10 @@ if PARAMS.get("preprocessors", None):
             '''Make a single fasta file for each sample of all contaminant adaptor
             sequences for removal
             '''
+
+            print(infile)
+            print(REGEX_TRACK)
+
             PipelinePreprocess.makeAdaptorFasta(
                 infile=infile,
                 outfile=outfile,
@@ -313,7 +314,6 @@ else:
     @follows(mkdir("processed.dir"))
     def processReads():
         """dummy task - no processing of reads."""
-        pass
 
 
 @active_if(PARAMS["general_reconcile"] == 1)
@@ -503,6 +503,13 @@ def update_report():
 
     E.info("updating documentation")
     P.run_report(clean=False)
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

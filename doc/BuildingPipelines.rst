@@ -6,12 +6,20 @@ The best way to build a pipeline is to start from an example. There are several
 pipelines available, see :ref:`cgatpipelines`. To start a new project, use 
 :file:`pipeline_quickstart.py`::
 
-   python <srcdir>pipeline_quickstart.py --set-name=test
+   cgatflow quickstart --set-name=test
 
-This will create a new directory called ``test`` in the current directory.
+This will create a report directory and an src directory.
 
-Another source of information is the script :file:`pipeline_template.py` in 
-the :term:`source directory`.
+If you navigate to the src directory you will observe that there are two folders
+``pipeline_docs/``, ``pipline_test/`` and a ``pipeline_test.py`` pipeline task file.
+
+In order to help with debugging and reading our code, our pipelines are written so that
+a pipeline task file contains Ruffus tasks and calls functions in an associated module file,
+which contains all of the code to transform and analyse the data.
+
+The module file is not generated during running of the pipeline_testing.py script. Therefore,
+if you wish to create a module file, we usually save this file in the following convention,
+``PipelineTest.py`` and it can be imported into the main pipeline task file (``pipeline_test.py``).
 
 This section describes how CGAT pipelines can be constructed using the
 :mod:`Pipeline` module. The Pipeline.py module contains a variety of
@@ -117,16 +125,14 @@ The pipeline will stop and return an error if the command exits with an error co
 
 If you chain multiple commands, only the return value of the last
 command is used to check for an error. Thus, if an upstream command
-fails, it will go unnoticed.  To detect these errors, insert the
-``checkpoint`` statement between commands. For example::
+fails, it will go unnoticed.  To detect these errors, insert
+``&&`` between commands. For example::
 
    @files( '*.unsorted.gz', suffix('.unsorted.gz'), '.sorted)
    def sortFile( infile, outfile ):
 
-       statement = '''gunzip %(infile)s %(infile)s.tmp; 
-                      checkpoint;
-		      sort -t %(tmpdir)s %(infile)s.tmp > %(outfile)s;
-		      checkpoint;
+       statement = '''gunzip %(infile)s %(infile)s.tmp &&
+		      sort -t %(tmpdir)s %(infile)s.tmp > %(outfile)s &&
 		      rm -f %(infile)s.tmp
        P.run()
 
@@ -514,36 +520,6 @@ directory`.
 
 .. _PipelinePublishing:
 
-Publishing data
-===============
-
-To publish data and a report, use the :meth:`Pipeline.publish_report`
-method, such as in the following task::
-
-   @follows( update_report )
-   def publish_report():
-       '''publish report.'''
-
-       E.info( "publishing report" )
-       P.publish_report()
-
-On publishing a report, the report (in the directory :file:`report`,
-specified by ``report_dir``) will get copied to the directory
-specified in the configuration value ``web_dir``. Also, all files in
-the :file:`export` directory will get copied over and links pointing
-to such files will be automatically corrected.
-
-The report will then be available at
-``http://www.cgat.org/downloads/%(project_id)s/report`` where
-``project_id`` is the unique identifier given to each project. It is
-looked up automatically, but the automatic look-up requires that the
-pipeline is executed within the :file:`/ifs/proj` directory.
-
-If the option *prefix* is given to publish_report, all output
-directories will be output prefixed by *prefix*. This is very useful
-if there is more than one report per project.
-
-See :meth:`Pipeline.publish_report` for more options.
 
 Checking requisites
 ===================

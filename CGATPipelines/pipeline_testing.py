@@ -2,10 +2,6 @@
 pipeline_testing - automated testing of pipelines
 =================================================
 
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 This pipeline executes other pipelines for testing purposes.
 
@@ -54,8 +50,8 @@ complete test setup::
    # multiple targets can be specified as a comma separated list.
    target=full
 
-   # filename suffixes to test
-   suffixes=gtf.gz,bed.gz,tsv.gz,bam,nreads
+   # filename suffixes to checksum
+   regex_md5=gtf.gz,bed.gz,tsv.gz,bam,nreads
 
    # regular expression of files to be excluded from
    # test for difference. Use | to separate multiple
@@ -84,7 +80,7 @@ To define a default test for a pipeline, simply name the
 test ``test_<pipeline name>``, for example::
 
    [test_mapping]
-   suffixes=gtf.gz,bed.gz,tsv.gz,bam,nreads
+   regex_md5=gtf.gz,bed.gz,tsv.gz,bam,nreads
 
 Note that setting the ``target`` and ``pipeline`` options is
 not necessary in this case as the default values suffice.
@@ -123,10 +119,10 @@ For example, the contents of a tar-ball will look light this::
 
 The reference file looks like this::
 
-   test_mytest1.dir/bwa.dir/Brain-F2-R2.bwa.bam 0e1c4ee88f0249c21e16d93ac496eddf  
-   test_mytest1.dir/bwa.dir/Brain-F1-R2.bwa.bam 01bee8af5bbb5b1d13ed82ef1bc3620d  
-   test_mytest1.dir/bwa.dir/Brain-F2-R1.bwa.bam 80902c87519b6865a9ca982787280972  
-   test_mytest1.dir/bwa.dir/Brain-F1-R1.bwa.bam 503c99ab7042a839e56147fb1a221f27  
+   test_mytest1.dir/bwa.dir/Brain-F2-R2.bwa.bam 0e1c4ee88f0249c21e16d93ac496eddf
+   test_mytest1.dir/bwa.dir/Brain-F1-R2.bwa.bam 01bee8af5bbb5b1d13ed82ef1bc3620d
+   test_mytest1.dir/bwa.dir/Brain-F2-R1.bwa.bam 80902c87519b6865a9ca982787280972
+   test_mytest1.dir/bwa.dir/Brain-F1-R1.bwa.bam 503c99ab7042a839e56147fb1a221f27
    ...
 
 This file is created by the test pipeline and called
@@ -140,7 +136,7 @@ Some pipelines depend on the output of other pipelines, most notable
 is :doc:`pipeline_annotations`. To run a set of pipelines before other
 pipelines name them in the option ``prerequisites``, for example::
 
-   prerequisites=test_annnotations
+   prerequisites=prereq_annnotations
 
 Pipeline output
 ===============
@@ -151,11 +147,12 @@ Code
 ====
 
 """
-from ruffus import *
+from ruffus import files, transform, suffix, follows, merge, collate, regex, mkdir
 import sys
 import pipes
 import os
 import re
+import glob
 import tarfile
 import pandas
 import CGAT.Experiment as E
@@ -212,7 +209,7 @@ def setupTests(infile, outfile):
     track = P.snip(outfile, ".tgz")
 
     if os.path.exists(track + ".dir"):
-        raise OSError('directory %s.dir already exists' % track)
+        raise OSError('directory %s.dir already exists, please delete' % track)
 
     # create directory
     os.mkdir(track + ".dir")
@@ -317,6 +314,48 @@ def runReports(infile, outfile):
     P.run(ignore_errors=True)
 
 
+def compute_file_metrics(infile, outfile, metric, suffixes):
+    """apply a tool to compute metrics on a list of files matching
+    regex_pattern."""
+
+    if suffixes is None or len(suffixes) == 0:
+        E.info("No metrics computed for {}".format(outfile))
+        IOTools.touchFile(outfile)
+        return
+
+    track = P.snip(infile, ".log")
+
+    # convert regex patterns to a suffix match:
+    # prepend a .*
+    # append a $
+    regex_pattern = " -or ".join(["-regex .*{}$".format(pipes.quote(x))
+                                  for x in suffixes])
+
+    E.debug("applying metric {} to files matching {}".format(metric,
+                                                             regex_pattern))
+
+    if metric == "file":
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
+        \( %(regex_pattern)s \)
+        | sort -k1,1
+        > %(outfile)s'''
+    else:
+        statement = '''find %(track)s.dir
+        -type f
+        -not -regex '.*\/report.*'
+        -not -regex '.*\/_.*'
+        \( %(regex_pattern)s \)
+        -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} %(metric)s \;
+        | perl -p -e "s/ +/\\t/g"
+        | sort -k1,1
+        > %(outfile)s'''
+
+    P.run()
+
+
 @follows(runReports)
 @transform(runTests,
            suffix(".log"),
@@ -327,33 +366,12 @@ def buildCheckSums(infile, outfile):
     Files are uncompressed before computing the checksum
     as gzip stores meta information such as the time stamp.
     '''
-
     track = P.snip(infile, ".log")
-
-    suffixes = P.asList(PARAMS.get(
-        '%s_suffixes' % track,
-        PARAMS["suffixes"]))
-
-    if len(suffixes) == 0:
-        raise ValueError('no file types defined for test')
-
-    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-    regex_pattern = pipes.quote(regex_pattern)
-
-    # ignore log files as time stamps will be different
-    # send stder to /dev/null to suppress:
-    # find: `test_annotations.dir/report': No such file or directory
-    statement = '''find %(track)s.dir
-    -type f
-    -not -regex ".*.log"
-    -not -regex ".*/report"
-    -not -regex ".*/_*"
-    -regex %(regex_pattern)s
-    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} md5sum \;
-    | perl -p -e "s/ +/\\t/g"
-    | sort -k1,1
-    > %(outfile)s'''
-    P.run()
+    compute_file_metrics(
+        infile,
+        outfile,
+        metric="md5sum",
+        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_md5' % track, ""))))
 
 
 @transform(runTests,
@@ -364,42 +382,43 @@ def buildLineCounts(infile, outfile):
 
     Files are uncompressed before computing the number of lines.
     '''
-
     track = P.snip(infile, ".log")
-
-    suffixes = P.asList(PARAMS.get(
-        '%s_suffixes' % track,
-        PARAMS["suffixes"]))
-
-    if len(suffixes) == 0:
-        raise ValueError('no file types defined for test')
-
-    regex_pattern = ".*\(%s\)" % "\|".join(suffixes)
-
-    regex_pattern = pipes.quote(regex_pattern)
-
-    # ignore log files as time stamps will
-    # be different
-    statement = '''find %(track)s.dir
-    -type f
-    -not -regex ".*.log"
-    -regex %(regex_pattern)s
-    -exec %(pipeline_scriptsdir)s/cgat_file_apply.sh {} wc -l \;
-    | sort -k1,1
-    > %(outfile)s'''
-    P.run()
+    compute_file_metrics(
+        infile,
+        outfile,
+        metric="wc -l",
+        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_linecount' % track, ""))))
 
 
-@collate((buildCheckSums, buildLineCounts),
+@transform(runTests,
+           suffix(".log"),
+           ".exist")
+def checkFileExistence(infile, outfile):
+    '''check whether file exists.
+
+    Files are uncompressed before checking existence.
+    '''
+    track = P.snip(infile, ".log")
+    compute_file_metrics(
+        infile,
+        outfile,
+        metric="file",
+        suffixes=P.asList(P.asList(PARAMS.get('%s_regex_exist' % track, ""))))
+
+
+@collate((buildCheckSums, buildLineCounts, checkFileExistence),
          regex("([^.]*).(.*)"),
          r"\1.stats")
 def mergeFileStatistics(infiles, outfile):
     '''merge all file statistics.'''
+
+    to_cluster = False
     infiles = " ".join(sorted(infiles))
 
     statement = '''
-    echo -e "file\\tnlines\\tmd5\\txxx" > %(outfile)s;
-    join -t $'\\t' %(infiles)s >> %(outfile)s'''
+    %(pipeline_scriptsdir)s/merge_testing_output.sh
+    %(infiles)s
+    > %(outfile)s'''
     P.run()
 
 
@@ -409,29 +428,50 @@ def compareCheckSums(infiles, outfile):
     '''compare checksum files against existing reference data.
     '''
 
+    to_cluster = False
     outf = IOTools.openFile(outfile, "w")
     outf.write("\t".join((
         ("track", "status",
+         "job_finished",
          "nfiles", "nref",
          "missing", "extra",
          "different",
-         "different_md5", "different_lines",
-         "files_missing", "files_extra",
+         "different_md5",
+         "different_lines",
+         "same",
+         "same_md5",
+         "same_lines",
+         "same_exist",
+         "files_missing",
+         "files_extra",
          "files_different_md5",
          "files_different_lines"))) + "\n")
 
     for infile in infiles:
+        E.info("working on {}".format(infile))
         track = P.snip(infile, ".stats")
+
+        logfiles = glob.glob(track + "*.log")
+        job_finished = True
+        for logfile in logfiles:
+            is_complete = IOTools.isComplete(logfile)
+            E.debug("logcheck: {} = {}".format(logfile, is_complete))
+            job_finished = job_finished and is_complete
+
         reffile = track + ".ref"
 
         # regular expression of files to test only for existence
         regex_exist = PARAMS.get('%s_regex_exist' % track, None)
         if regex_exist:
-            regex_exist = re.compile(regex_exist)
+            regex_exist = re.compile("|".join(P.asList(regex_exist)))
 
         regex_linecount = PARAMS.get('%s_regex_linecount' % track, None)
         if regex_linecount:
-            regex_linecount = re.compile(regex_linecount)
+            regex_linecount = re.compile("|".join(P.asList(regex_linecount)))
+
+        regex_md5 = PARAMS.get('%s_regex_md5' % track, None)
+        if regex_md5:
+            regex_md5 = re.compile("|".join(P.asList(regex_md5)))
 
         if not os.path.exists(reffile):
             raise ValueError('no reference data defined for %s' % track)
@@ -452,8 +492,13 @@ def compareCheckSums(infiles, outfile):
 
         # remove those for which only check for existence
         if regex_exist:
+            same_exist = set([x for x in different
+                              if regex_exist.search(x)])
+
             different = set([x for x in different
                              if not regex_exist.search(x)])
+        else:
+            same_exist = set()
 
         # select those for which only check for number of lines
         if regex_linecount:
@@ -462,18 +507,36 @@ def compareCheckSums(infiles, outfile):
 
             dd = (cmp_data['nlines'][check_lines] !=
                   ref_data['nlines'][check_lines])
-
             different_lines = set(dd.index[dd])
             different = different.difference(check_lines)
+
+            dd = (cmp_data['nlines'][check_lines] ==
+                  ref_data['nlines'][check_lines])
+            same_lines = set(dd.index[dd])
+
         else:
             different_lines = set()
+            same_lines = set()
 
         # remainder - check md5
-        dd = cmp_data['md5'][different] != ref_data['md5'][different]
-        different_md5 = set(dd.index[dd])
+        if regex_md5:
+            check_md5 = [x for x in different
+                         if regex_md5.search(x)]
 
-        if len(missing) + len(extra) + \
-           len(different_md5) + len(different_lines) == 0:
+            dd = (cmp_data['md5'][check_md5] !=
+                  ref_data['md5'][check_md5])
+            different_md5 = set(dd.index[dd])
+
+            dd = (cmp_data['md5'][check_md5] ==
+                  ref_data['md5'][check_md5])
+            same_md5 = set(dd.index[dd])
+
+        else:
+            different_md5 = set()
+            same_md5 = set()
+
+        if job_finished and (len(missing) + len(extra) +
+                             len(different_md5) + len(different_lines) == 0):
             status = "OK"
         else:
             status = "FAIL"
@@ -481,6 +544,7 @@ def compareCheckSums(infiles, outfile):
         outf.write("\t".join(map(str, (
             track,
             status,
+            job_finished,
             len(cmp_data),
             len(ref_data),
             len(missing),
@@ -488,6 +552,10 @@ def compareCheckSums(infiles, outfile):
             len(different_md5) + len(different_lines),
             len(different_md5),
             len(different_lines),
+            len(same_md5) + len(same_lines) + len(same_exist),
+            len(same_md5),
+            len(same_lines),
+            len(same_exist),
             ",".join(missing),
             ",".join(extra),
             ",".join(different_md5),
@@ -534,9 +602,11 @@ def full():
 @files(None, 'reset.log')
 def reset(infile, outfile):
     '''remove all data in pipeline.'''
+
     to_cluster = False
 
     statement = '''
+    rm -rf prereq_* ctmp*;
     rm -rf test_* _cache _static _templates _tmp report;
     rm -f *.log csvdb *.load *.tsv'''
     P.run()
@@ -570,6 +640,13 @@ def publish_report():
 
     E.info("publishing report")
     P.publish_report()
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

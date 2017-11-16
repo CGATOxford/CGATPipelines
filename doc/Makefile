@@ -42,7 +42,7 @@ images:
 build-images: images $(IMAGES)
 
 images/%.svg: ../CGATPipelines/%.py
-	python $< --is-test -v 0 svg full > $@
+	-python $< --is-test -v 0 svg full > $@
 
 # remove the pyc file - otherwise errors when importing pipeline and other scripts
 html: build-images

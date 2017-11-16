@@ -1,6 +1,5 @@
 from CGATReport.Tracker import *
 from CGATReport.Utils import PARAMS as P
-from collections import OrderedDict as odict
 
 ###################################################################
 # parameterization

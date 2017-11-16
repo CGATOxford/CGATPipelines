@@ -11,6 +11,8 @@ biopython>=1.61
 drmaa>=0.5
 matplotlib-venn>=0.5
 matplotlib>=1.3.0
+# used in pipeline_exome
+beautifulsoup4>=4.5.3
 networkx>=1.8.1
 openpyxl>=1.5.7
 pandas>=0.12.0
@@ -18,6 +20,16 @@ pysam>=0.8.4
 rdflib>=0.4.1
 psycopg2>=2.5
 rpy2>=2.6
+
+# for pipeline_Geneset
+httplib2>=0.10.3
+intermine>=1.09
+toposort>=1.5
+mygene>=3.0.0
+
+# note: does not install as a requirement, but directly via pip is ok
+# pyBigWig>=0.3.3
+
 ruffus>=2.4
 scipy>=0.11
 #https://bitbucket.org/james_taylor/bx-python/get/tip.tar.bz2
@@ -31,4 +43,4 @@ ggplot>=0.11.5
 xlwt>=0.7.4
 pybedtools>=0.6.5
 pep8>=1.4.0
-CGATReport>=0.2.1
+CGATReport>=0.7.5

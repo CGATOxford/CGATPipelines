@@ -13,7 +13,6 @@ import itertools
 import math
 import numpy as np
 import pandas as pd
-import pandas.rpy.common as com
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.packages import importr
 from rpy2.robjects import r as R
@@ -78,7 +77,7 @@ def deseqNormalize(infile,
                                header=0,
                                sep="\t",
                                compression=comp)
-    rdf = com.convert_to_r_dataframe(data_frame)
+    rdf = pandas2ri.py2ri(data_frame)
 
     if not conditions:
         time_rep_comb = [x for x in itertools.product(time_points, reps)]
@@ -137,7 +136,7 @@ def deseqNormalize(infile,
     else:
         R('''trans_vst = data.frame(t(exprs(vst)), times, replicates)''')
 
-    data_file = com.load_data('trans_vst')
+    data_file = pandas2ri.ri2py('trans_vst')
 
     return data_file
 
@@ -234,7 +233,7 @@ def covarFilter(infile,
     R('''filtered_frame <- data.frame(diff_data[, filtered_genes],'''
       '''times, replicates)''')
 
-    filtered_frame = com.load_data('filtered_frame').T
+    filtered_frame = pandas2i.ri2py('filtered_frame').T
 
     return filtered_frame
 

@@ -1,10 +1,5 @@
 from CGATReport.Tracker import *
 
-import CGAT.IOTools as IOTools
-import CGAT.GTF as GTF
-import numpy as np
-import scipy.stats
-import collections
 import CGATPipelines.PipelineLncRNA as PipelineLncRNA
 
 #################################################

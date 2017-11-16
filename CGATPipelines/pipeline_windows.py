@@ -1,11 +1,6 @@
-"""
-pipeline_windows.py - Window based genomic analysis
+"""===================================================
+pipeline_windows - Window based genomic analysis
 ===================================================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 This pipeline takes mapped reads from ChIP-Seq experiments
 such has chromatin marks, MeDIP and performs analyses
@@ -606,10 +601,14 @@ def buildCpGCoverage(infiles, outfile):
 
     job_memory = "32G"
 
+    # bedtools < 0.26.0:
+    # column = 6
+    column = 5
+
     statement = '''
     zcat %(infile)s
     | bedtools coverage -a stdin -b %(cpg_file)s -counts
-    | cut -f 6
+    | cut -f %(column)i
     | cgat data2histogram
     | gzip
     > %(outfile)s
@@ -1090,8 +1089,10 @@ def mapTrack2Input(tracks):
     return map_track2input
 
 
-@transform(loadWindowsTagCounts,
-           suffix(".load"),
+@follows(loadWindowsTagCounts,
+         aggregateWindowsTagCounts)
+@transform(aggregateWindowsTagCounts,
+           suffix(".tsv.gz"),
            "_l2foldchange_input.tsv.gz")
 def buildWindowsFoldChangesPerInput(infile, outfile):
     '''
@@ -1108,27 +1109,48 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     '''
 
     # get all data
+    # don't use the database! only 10,000 windows are
+    # loaded!!
     dbh = connect()
     cc = dbh.cursor()
     cc.execute("SELECT * FROM windows_counts")
-    data = cc.fetchall()
+    # data = cc.fetchall()
 
     # transpose, remove interval_id column
-    data = list(zip(*data))
-    columns = [x[0] for x in cc.description]
+    # data = list(zip(*data))
+    if infile.split(".")[-1] == "gz":
+        compression = "gzip"
+    else:
+        compression = None
 
+    data = pandas.read_table(infile, sep="\t",
+                             compression=compression,
+                             index_col=0, header=0)
+
+    new_columns = [x.replace("-", "_", 3) for x in data.columns]
+    data.columns = new_columns
+    columns = [x[0] for x in cc.description]
+    # columns = [data.columns]
+    E.warn(columns)
     map_track2input = mapTrack2Input(columns)
-    take_tracks = [x for x, y in enumerate(columns) if y in map_track2input]
-    take_input = [x for x, y in enumerate(
+    take_tracks = [y for x, y in enumerate(columns) if y in map_track2input]
+    E.warn([y for x, y in enumerate(columns) if y in map_track2input])
+    take_input = [y for x, y in enumerate(
         columns) if y in list(map_track2input.values()) and y is not None]
 
     # build data frame
-    dataframe = pandas.DataFrame(
-        dict([(columns[x], data[x]) for x in take_tracks]))
+    E.warn(take_tracks)
+    E.warn(take_input)
+    # dataframe = pandas.DataFrame(
+    #    dict([(columns[x], data[x]) for x in take_tracks]))
+    dataframe = data[[x for x in take_tracks]]
     dataframe = dataframe.astype('float64')
-    dataframe_input = pandas.DataFrame(
-        dict([(columns[x], data[x]) for x in take_input]))
+    # dataframe_input = pandas.DataFrame(
+    #   dict([(columns[x], data[x]) for x in take_input]))
+    dataframe_input = data[[q for q in take_input]]
 
+    E.warn(dataframe.index)
+    # raise ValueError("break here")
     # add pseudocounts
     pseudocount = 1
     for column in dataframe.columns:
@@ -1138,6 +1160,8 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
 
     # compute normalization ratios
     # total_input / total_column
+    # MM: note that the input in pipeline.ini needs to be the same
+    # as the dataframe header, not the actual filename
     ratios = {}
     for column in dataframe.columns:
         i = map_track2input[column]
@@ -1159,7 +1183,7 @@ def buildWindowsFoldChangesPerInput(infile, outfile):
     dataframe = numpy.log2(dataframe)
 
     dataframe.to_csv(IOTools.openFile(outfile, "w"),
-                     sep="\t", index=False)
+                     sep="\t", index_label="Window")
 
 
 @transform(loadWindowsTagCounts,
@@ -1923,7 +1947,6 @@ def diff_windows():
     '''
     Records when all differential expression analysis is complete
     '''
-    pass
 
 
 @transform(DIFFTARGETS, suffix(".gz"), ".cpg.tsv.gz")
@@ -2442,7 +2465,6 @@ def dmr():
     '''
     Records when all DMR analysis in pipeline is complete.
     '''
-    pass
 
 
 @follows(mergeDMRWindows)
@@ -2705,7 +2727,6 @@ def buildTranscriptProfiles(infiles, outfile):
 @follows(loadTagContextOverlap, loadSummarizedContextStats)
 def context():
     """Indicates that the context_stats part of the pipeline is complete"""
-    pass
 
 
 @follows(buildTranscriptProfiles,
@@ -2753,6 +2774,13 @@ def publish():
 
     # publish web pages
     P.publish_report(export_files=export_files)
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

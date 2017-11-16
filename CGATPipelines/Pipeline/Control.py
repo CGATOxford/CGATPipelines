@@ -1,25 +1,3 @@
-##########################################################################
-#
-#   MRC FGU Computational Genomics Group
-#
-#   $Id$
-#
-#   Copyright (C) 2009 Andreas Heger
-#
-#   This program is free software; you can redistribute it and/or
-#   modify it under the terms of the GNU General Public License
-#   as published by the Free Software Foundation; either version 2
-#   of the License, or (at your option) any later version.
-#
-#   This program is distributed in the hope that it will be useful,
-#   but WITHOUT ANY WARRANTY; without even the implied warranty of
-#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#   GNU General Public License for more details.
-#
-#   You should have received a copy of the GNU General Public License
-#   along with this program; if not, write to the Free Software
-#   Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-##########################################################################
 """Control.py - Command line control for ruffus pipelines
 =========================================================
 
@@ -48,10 +26,7 @@ import subprocess
 import sys
 import tempfile
 import time
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import io
 
 from multiprocessing.pool import ThreadPool
 
@@ -81,7 +56,7 @@ from CGATPipelines.Pipeline.Utils import isTest, getCaller, getCallerLocals
 from CGATPipelines.Pipeline.Execution import execute, startSession,\
     closeSession
 from CGATPipelines.Pipeline.Local import getProjectName, getPipelineName
-
+from CGATPipelines.Pipeline.Parameters import inputValidation
 # Set from Pipeline.py
 PARAMS = {}
 
@@ -123,17 +98,17 @@ def printConfigFiles():
     '''
 
     filenames = PARAMS['pipeline_ini']
-    print ("\n List of .ini files used to configure the pipeline")
+    print("\n List of .ini files used to configure the pipeline")
     s = len(filenames)
     if s == 0:
-        print (" No ini files passed!")
+        print(" No ini files passed!")
     elif s >= 1:
-        print (" %-11s: %s " % ("Priority", "File"))
+        print(" %-11s: %s " % ("Priority", "File"))
         for f in filenames:
             if s == 1:
-                print (" (highest) %s: %s\n" % (s, f))
+                print(" (highest) %s: %s\n" % (s, f))
             else:
-                print (" %-11s: %s " % (s, f))
+                print(" %-11s: %s " % (s, f))
             s -= 1
 
 
@@ -369,23 +344,22 @@ def peekParameters(workingdir,
 
     # process.stdin.close()
     stdout, stderr = process.communicate()
-
     if process.returncode != 0:
         raise OSError(
             ("Child was terminated by signal %i: \n"
-             "The stderr was: \n%s\n") %
-            (-process.returncode, stderr))
+             "Statement: %s\n"
+             "The stderr was: \n%s\n"
+             "Stdout: %s") %
+            (-process.returncode, statement, stderr, stdout))
 
-    dump = None
-    for line in stdout.decode().split("\n"):
-        if line.startswith("dump"):
-            # TS exec cannot change local variables in Python 3- See:
-            # http://stackoverflow.com/questions/15086040/behavior-of-exec-function-in-python-2-and-python-3
-            # Solution here is to pass a namespace to exec and extract
-            # from namespace
-            namespace = {}
-            exec(line, namespace)
-            dump = namespace['dump']
+    # subprocess only accepts encoding argument in py >= 3.6 so
+    # decode here.
+    stdout = stdout.decode("utf-8").splitlines()
+    # remove any log messages
+    stdout = [x for x in stdout if x.startswith("{")]
+    if len(stdout) > 1:
+        raise ValueError("received multiple configurations")
+    dump = json.loads(stdout[0])
 
     # update interface
     if update_interface:
@@ -784,6 +758,11 @@ def main(args=sys.argv):
                       help="RabbitMQ host to send log messages to "
                       "[default=%default].")
 
+    parser.add_option("--input-validation", dest="input_validation",
+                      action="store_true",
+                      help="perform input validation before starting "
+                      "[default=%default].")
+
     parser.set_defaults(
         pipeline_action=None,
         pipeline_format="svg",
@@ -799,7 +778,8 @@ def main(args=sys.argv):
         is_test=False,
         ruffus_checksums_level=0,
         rabbitmq_host="saruman",
-        rabbitmq_exchange="ruffus_pipelines")
+        rabbitmq_exchange="ruffus_pipelines",
+        input_validation=False)
 
     (options, args) = E.Start(parser,
                               add_cluster_options=True)
@@ -812,6 +792,7 @@ def main(args=sys.argv):
     # configuration files.
 
     PARAMS["dryrun"] = options.dry_run
+    PARAMS["input_validation"] = options.input_validation
 
     # use cli_cluster_* keys in PARAMS to ensure highest priority
     # of cluster_* options passed with the command-line
@@ -851,6 +832,10 @@ def main(args=sys.argv):
         if len(args) > 1:
             options.pipeline_targets.extend(args[1:])
 
+    # see inputValidation function in Parameters.py
+    if options.input_validation:
+        inputValidation(PARAMS, sys.argv[0])
+
     if options.pipeline_action == "check":
         counter, requirements = Requirements.checkRequirementsFromAllModules()
         for requirement in requirements:
@@ -886,7 +871,7 @@ def main(args=sys.argv):
 
                 # get tasks to be done. This essentially replicates
                 # the state information within ruffus.
-                stream = StringIO()
+                stream = io.StringIO()
                 pipeline_printout(
                     stream,
                     options.pipeline_targets,
@@ -959,7 +944,7 @@ def main(args=sys.argv):
 
             elif options.pipeline_action == "svg":
                 pipeline_printout_graph(
-                    options.stdout,
+                    options.stdout.buffer,
                     options.pipeline_format,
                     options.pipeline_targets,
                     checksum_level=options.ruffus_checksums_level)
@@ -967,7 +952,7 @@ def main(args=sys.argv):
             elif options.pipeline_action == "plot":
                 outf, filename = tempfile.mkstemp()
                 pipeline_printout_graph(
-                    os.fdopen(outf, "w"),
+                    os.fdopen(outf, "wb"),
                     options.pipeline_format,
                     options.pipeline_targets,
                     checksum_level=options.ruffus_checksums_level)
@@ -1020,9 +1005,7 @@ def main(args=sys.argv):
                 raise
 
     elif options.pipeline_action == "dump":
-        # convert to normal dictionary (not defaultdict) for parsing purposes
-        # do not change this format below as it is exec'd in peekParameters()
-        print("dump = %s" % str(dict(PARAMS)))
+        print(json.dumps(PARAMS))
 
     elif options.pipeline_action == "printconfig":
         print("Printing out pipeline parameters: ")
@@ -1032,7 +1015,7 @@ def main(args=sys.argv):
 
     elif options.pipeline_action == "config":
         f = sys._getframe(1)
-        caller = inspect.getargvalues(f).locals["__file__"]
+        caller = f.f_globals["__file__"]
         pipeline_path = os.path.splitext(caller)[0]
         general_path = os.path.join(os.path.dirname(pipeline_path),
                                     "configuration")

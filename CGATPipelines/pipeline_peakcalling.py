@@ -1,138 +1,125 @@
-"""=====================
-Peak calling pipeline
-=====================
-
-:Author: Andreas Heger
-:Release: $Id$
-:Date: |today|
-:Tags: Python
-
-The peak calling pipeline applies various peak calling algorithms
-on mapped reads.
+"""=========================================================
+pipeline_peakcalling - Produce Peaklist from Bam Files
+=========================================================
 
 Overview
 ========
 
-pipeline_peakcalling takes as input reads aligned to genomic sequence
-as :term:`bam` formatted files and calls peaks. The pipeline
-implements several peak callers:
+The aim of this pipeline is to create peaklists in :term:`bed` files from
+aligned reads in :term:`bam` files that can then be taken on to downstream
+analysis (e.g. motif identification, quantification of peaks etc.). Pipeline
+also and generates QC  statistics that will inform you about the quality of
+the peaksets generated.
 
-macs_
-   Model-based Analysis of ChIP-Seq (MACS), for identifying
-   transcript factor binding sites. MACS captures the influence of
-   genome complexity to evaluate the significance of enriched ChIP
-   regions, and MACS improves the spatial resolution of binding sites
-   through combining the information of both sequencing tag position
-   and orientation. MACS can be easily used for ChIP-Seq data alone,
-   or with control sample with the increase of specificity.
+Functionality
+-------------
 
-macs2_
-   MACS 2 is the new release of the MACS peak caller. Among other
-   improvements it adds support for handling paired end reads.
+- Takes Paired-end or single end :term:`Bam` files you want to call peaks in
+  (e.g. ChIP-Seq or ATAC-Seq samples and their appropriate 'input' controls).
+- Runs peakcallers
+- Runs ChIPQC R package for QC statistics
+- Produces peak lists in bed files to takeforward for downstream analysis.
 
-spp_
-   SPP is a R package especially designed for the analysis of
-   Chip-Seq data from Illummina platform. The package was developed by
-   Peter Park's group from Harvard Medical School.
 
-zinba_
-   ZINBA (Zero Inflated Negative Binomial Algorithm) is a
-   computational and statistical framework used to call regions of the
-   genome enriched for sequencing reads originating from a diverse
-   array of biological experiments. We collectively refer to the
-   sequencing data derived from these experiments as DNA-seq,
-   including FAIRE-seq, ChIP-seq, and DNAase-seq experiments
+    Optional functions:
+    -------------------
+    - Filter :term:`Bam` files to remove:
+            - Duplicates
+            - Secondary alignments
+            - Unpaired reads for paired-end files
+            - Reads overlapping 'blacklisted' regions
+            - Mapping quality (MAPQ) score
+    - Pool input files for peakcalling to give better peakcalling results
+      when inputs have poor coverage or lack sequening depth
+    - Perform Irreproducible Discovery Rate (IDR) analysis (described
+      further below) to get a consensus list of 'highly reproducible peaks'
+      and assess replicate quaility.
 
-sicer_narrow
-    A clustering approach for identification of enriched
-    domains from histone modification ChIP-Seq data.  The types of
-    region called by the sicer alogrithm reflect the paramaters it is
-    run with. In this pipeline sicer is run by default with two
-    different parameter sets, to allow the simultaneous detection of
-    narrower and broader regions of enrichmnet.
 
-sicer_broad
-    (See above)
+NOTE: WARNINGS!!!!
+------------------
 
-peakranger_ranger
-    PeakRanger is a multi-purpose, ultrafast ChIP Seq
-    peak caller. It is used in the modENCODE project and included in
-    the iPlant pipeline system.  PeakRanger v1.02 was developed in
-    Dr.Lincoln Stein's lab at OICR and is now in continual development
-    at Dr.Helen Hobbs's lab of the McDermott Center of UT
-    Southwestern.  PeakRanger can run two separate algorithms for peak
-    detection, "ranger" for point-source binding event detection and
-    "ccat" for the detection of broader regions of enrichment.  In
-    this pipeline, both alorighms are presented as separate peak
-    callers for convience.
+1. IDR analysis may not be approprate for all type of peak file - It works
+best with transcription factor ChIPs or methodologies producing 'narrow peaks'
+or peaks with well defined boundaries.
 
-peakranger_ccat
-    PeakRanger is here run using the CCAT alogorithm (See:
-    Xu, H., L. Handoko, et al. (2010).A signal-noise model for
-    significance analysis of ChIP-seq with negative
-    control. Bioinformatics 26(9): 1199-1204)
+'BroadPeak' IDR (e.g. for widespread histone marks such as H3K27ac)
+might not work because peak boundary's are harder to define and thus may
+not be so reproducible between replicates
 
-scripture
-    As of version 2, scripture has added a ChIP-Seq module. The current
-    version (5/11/2013) is still marked beta. Scripture implements a
-    continuous segmentation algorithm. It scans windows of a fixed size
-    across the genome, identifies significant windows and merges/trims
-    to obtain peaks. Significance is assessed using the scan statistic
-    (Wallenstein and Neff, 1987).
-    Scripture in the pipeline is used according to Garber et al. (2012)
-    (PMID:22940246). Significant windows are filtered against input or
-    other control data (Garber et al.: whole cell extract) by computing
-    an enrichment scrore. Only significant windows above a certain
-    enrichment score are kept.
 
-Peak callers have different strengths and weaknesses. Some might work
-well on broad peaks such as some histone marks, others work better for
-narrow, sharp peaks. Many callers these days attempt to call both
-types of peaks.  This pipeline implements the following nomenclature
-for peaks:
+2. Always check your output from this pipeline in a genome browser to check
+peaks are being called suffiently!
 
-.. glossary::
+3. This pipeline references :term:`ChIP bams` throughout in the code -this
+references the immunoprecipitated (IP) sample from a ChIP experiment
+(i.e. the file you want to find peaks in), :term:`Input bams` refer to the
+bams of the input control samples that are used for background
+normalisation in peak calling. Although we refer to :term:`ChIP bams`
+this is only nomenclature and you could just as easily use
+an ATAC-Seq :term:`bam` file or other :term:`bam` files in which you are
+looking for peaks.
 
-   region
-      A broad region defined by a peak caller. Regions are usually
-      created in the first step of peak calling, before peak
-      refinement or detection of subpeaks is performed.
+4) Whilst you can call peaks with as many peakcallers that are implemented in
+the pipeline, only the results from one peakcaller can be taken forward for IDR
+analysis. If you want to run IDR analysis on the output of multiple peakcallers
+you will need first run IDR with one peakcaller then clone the pipeline, modify
+pipeline.ini file and delete the appropriate files to rerun the IDR analysis on
+the output from a different peakcaller. Be warned that IDR analysis generates
+a large number of peakfiles and it's best to decide on your prefered peakcaller
+before running the IDR analysis.
 
-   summit
-      A narrow region defined by a caller. These are the output of any
-      peak refinement or subpeak detection steps
 
-   interval
-      Generic term for an interval in which the read density is higher
-      then expected. Both a :term:`region` or a :term:`summit` are an
-      :term:`interval`.
+References
+==========
 
-   peak
-      Within a :term:`region` or :term:`summit` the position with the
-      highest base coverage.
+This pipeline follows closely the ENCODE3 version 1 peakprocessing pipeline
+described by Anshul Kundaje's group and the open source AQUAS TF ChIP-Seq
+pipeline implemented by the Kundaje group:
+    * (https://docs.google.com/document/d/1lG_Rd7fnYgRpSIqrIfuVlAz2dW1VaSQThzk836Db99c/edit#heading=h.9ecc41kilcvq)
+    * (https://github.com/kundajelab/TF_chipseq_pipeline)
 
-The pipeline computes some basic measures to validate peak calling. In
-order to fully annotate peaks, use :doc:`pipeline_intervals`.
+IDR analysis workflow is described here
+    * (https://sites.google.com/site/anshulkundaje/projects/idr)
 
-.. note::
+for troubleshooting/discussion of the IDR workflow see and extra documentation
+see:
+    * (https://groups.google.com/forum/#!forum/idr-discuss)
 
-   The pipeline currently expects that mulit-mapping reads (reads
-   mapping to multiple locations) have been removed.
+for ChIP and ATAC-Seq quality guidelines see:
+    * (https://www.encodeproject.org/data-standards/)
 
-QC
----
 
-The pipeline implements the following QC measures. See :pmid:`22955991`.
+IDR Analysis
+============
 
-NSC
-   normalized strand coefficient.
+IDR analysis is used to:
+    * Give an indication of how reproducible the peaks that are produced by the
+      peakcallers are within a single sample
+    * Give an indication of how reproducible the peaks that are produced by the
+      peakcallers are within biological replicates
+    * produce a `conservative` peak list of highly reproducible peaks that
+      can be taken forward to downstream analysis
+    * produce an `oracle` peakset of the a large number of mostly reproducible
+      peaks that can be taken forward to downstream analysis
+    * sometimes the `conserative` and the `oracle` peakset will be the same
+      list.
+    * for further information on IDR analysis see the links above
 
-RSC
-  relative strand correlacion.
+Important notes:
+IDR analysis requires peaks are called with a relaxed threshold to generate
+a peaklist that contains (ideally) > 120,000 peaks that will contain
+reproducible or 'true' peaks along with alot of irreproduible 'false' peaks.
 
-The pipeline will also do and IDR analysis (see
-https://sites.google.com/site/anshulkundaje/projects/idr) for spp
-called peaks.
+Requirements
+============
+
+The pipeline requires the results from
+:doc:`pipeline_annotations`. Set the configuration variable
+:py:data:`annotations_database` and :py:data:`annotations_dir`.
+
+The software environment is handled by the CGATPipelines conda environment
+and all software is installed as part of the installation process.
 
 Usage
 =====
@@ -140,157 +127,94 @@ Usage
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general
 information how to use CGAT pipelines.
 
-Configuration
--------------
-
-The pipeline requires a configured :file:`pipeline.ini` file.
-
-The sphinxreport report requires a :file:`conf.py` and
-:file:`sphinxreport.ini` file (see :ref:`PipelineReporting`). To start
-with, use the files supplied with the Example_ data.
-
-Input
------
+See :ref:`Tutorials` for a comprehensive introduction of how to run a
+CGATPipeline.
 
 
-TS re-write this to described input file format:
-cell-factor-replicate
-Mapped reads
-++++++++++++
+Pipeline Input
+==============
 
-The principal input of this pipeline is a collection of reads mapped
-to a reference genome.  Mapped reads are imported by placing files are
-linking to files in the :term:`working directory`.
+Sample_bam = bam file you want to call peaks on (i.e. ChiP Bam or ATAC-Seq Bam)
 
-The default file format assumes the following convention:
+Input_bam = control file used as background reference in peakcalling
+(e.g. input file for ChIP-seq)
 
-   <sample>-<condition>-<replicate>.genome.bam
+pipeline.ini = File containing paramaters and options for
+running the pipeline
 
-``sample`` and ``condition`` make up an :term:`experiment`, while
-``replicate`` denotes the :term:`replicate` within an
-:term:`experiment`.
+design.tsv = This is a tab seperated file based on the design file for R package
+DiffBind
 
-Please not the suffix ``genome.bam`` which is required to distinguish
-the input :term:`bam` formatted files from those that are created in
-the pipeline after duplication removal (``.prep.bam`` and
-``.call.bam``)
+It has the following collumns:
 
-Optional inputs
-+++++++++++++++
++---------+--------+--------+-----------+-----------+-----------+----------+-----------+--------------+
+|SampleID | Tissue | Factor | Condition | Treatment | Replicate | bamReads | ControlID | bamControl   |
++---------+--------+--------+-----------+-----------+-----------+----------+-----------+--------------+
+|F123     |blood   |H3K4    |normal     |NA         |1          |F123.bam  |           |F123_input.bam|
++---------+--------+--------+-----------+-----------+-----------+----------+-----------+--------------+
 
-Requirements
-------------
-
-The pipeline requires the results from
-:doc:`pipeline_annotations`. Set the configuration variable
-:py:data:`annotations_database` and :py:data:`annotations_dir`.
-
-On top of the default CGAT setup, the pipeline requires the following
-software to be in the path:
-
-+--------------------+-------------------+-------------------------+
-|*Program*           |*Version*          |*Purpose*                |
-+--------------------+-------------------+-------------------------+
-|spp_                |1.11               |R package                |
-+--------------------+-------------------+-------------------------+
-|macs_               |>1.4               |                         |
-+--------------------+-------------------+-------------------------+
-|zinba_              |2.02.03            |R package                |
-+--------------------+-------------------+-------------------------+
-|peakranger          |1.15               |                         |
-+--------------------+-------------------+-------------------------+
-|sicer               |1.1                |                         |
-+--------------------+-------------------+-------------------------+
 
 Pipeline output
 ===============
 
-The major output is in the database file :file:`csvdb`. For each peak
-caller there are tables called:
+The aim of this pipeline is to output a list of peaks that
+can be used for further downstream analysis.
 
-<track>_<caller>_regions
-<track>_<caller>_summits
+The pipeline generates several new directories containing
+output files - these can roughly be grouped into XXX main
+stages of the pipeline
 
-Each of these tables contains the following columns:
+1) filtered_bams.dir
+   ---------------------
+    Directory containing filtered bam files created by removing duplicates and
+    filtering of origional bam files. These filtered bam files are then taken
+    forward to IDR/peakcalling. If no filtering or deduplication is specified
+    in the ini file then this directory will contain symbolic links to the
+    origional bam files.
 
-+------------------+-----------------------------------------+
-|*Column*          |*Content*                                |
-+------------------+-----------------------------------------+
-|avgval            |Average read depth in interval           |
-+------------------+-----------------------------------------+
-|contig            |Contig                                   |
-+------------------+-----------------------------------------+
-|control_avgval    |Average read depth in control within     |
-|                  |inter val                                |
-+------------------+-----------------------------------------+
-|control_length    |Interval length                          |
-+------------------+-----------------------------------------+
-|control_npeaks    |Number of peaks in control               |
-+------------------+-----------------------------------------+
-|control_nreads    |Number of control reads in interval      |
-+------------------+-----------------------------------------+
-|control_peakcenter|Peak center of control                   |
-+------------------+-----------------------------------------+
-|control_peakval   |Number of reads at peak in control       |
-+------------------+-----------------------------------------+
-|end               |End coordinate of interval               |
-+------------------+-----------------------------------------+
-|length            |Length of interval                       |
-+------------------+-----------------------------------------+
-|npeaks            |Number of peaks in interval              |
-+------------------+-----------------------------------------+
-|nreads            |Number of reads in interval              |
-+------------------+-----------------------------------------+
-|peakcenter        |Peak center in interval                  |
-+------------------+-----------------------------------------+
-|peakval           |Number of reads at peak                  |
-+------------------+-----------------------------------------+
-|start             |246251                                   |
-+------------------+-----------------------------------------+
+    Directory contains:
+            * :term:`bams` files (and thier indexes) that have been filtered
+            according to specifications in pipeline.ini
+            * a number of log files detailing the number of reads that have been
+            filtered out for each reason.
+            * for paired-end samples a file with the frequency of fragment
+              lengths (the distance between the paired reads 5' start positions)
 
-The unprocessed output files created by the peak callers are in
-individual subdirectories for each caller (:file:`macs.dir`,
-:file:`zinba.dir`, etc.).
 
-IDR analysis
-------------
+2) IDR.dir
+    -------
+    Directory conatining the output files from IDR analysis
+    IDR is currently only set up to use with macs2 because this
+    is recomended by the authors of IDR. If you require IDR for broad
+    peaks it is recomended to use the macs2 broad peaks setting.
+    These include the lists of reproducible peaks and stats and
+    QC tables summarising the output of the IDR analysis
 
-The output of the IDR analysis is in the :file:`idr.dir` directory.
+    Directory contains:
+            * IDR_inputs.dir
+    This directory contains the files that are
+broad
+    IDR_inputs.dir
 
-Example
-=======
+    macs2.dir/
 
-Example data is available at
-http://www.cgat.org/~andreas/sample_data/pipeline_mapping.tgz.  To run
-the example, simply unpack and untar::
+    peakcalling_bams.dir/
 
-   wget http://www.cgat.org/~andreas/sample_data/pipeline_mapping.tgz
-   tar -xvzf pipeline_mapping.tgz
-   cd pipeline_mapping
-   python <srcdir>/pipeline_mapping.py make full
+    peaks_for_IDR.dir/
 
-.. note::
-   For the pipeline to run, install the :doc:`pipeline_annotations` as well.
+    pooled_bams.dir/
+    Peaksets:
 
-.. _macs: http://liulab.dfci.harvard.edu/MACS/00README.html
-.. _macs2: http://liulab.dfci.harvard.edu/MACS/00README.html
-.. _spp: http://compbio.med.harvard.edu/Supplements/ChIP-seq/tutorial.html
-.. _sicer: http://home.gwu.edu/~wpeng/Software.htm
-.. _zinba: http://code.google.com/p/zinba/
-.. _peakranger: http://ranger.sourceforge.net/
-.. _scripture: http://www.broadinstitute.org/software/scripture/home
+    Conservative Peakset = Only obtained if IDR analysis run
+    IDR analysis
+    This analysis does a comparision on a pair of peak files to
 
-ChangeLog
-=========
+    Tables
+    Contained in the database are several tables used for QC and
+    analysis
 
-10/04/14 AH
-    * added prediction of tag and fragment sizes
-    * SICER, SPP now use predicted fragment size instead
-      of fragment size supplied in options.
 
-24/04/14 AH
-    * added background filtering to pipeline. All intervals are output as
-      well as intervals that do not overlap with regions of high input.
+
 
 Code
 ====
@@ -299,1552 +223,1409 @@ Code
 
 # load modules
 from ruffus import *
-
-import logging as L
+from ruffus.combinatorics import *
 import sys
 import os
-import re
-import shutil
-import itertools
-import glob
+import math
 import sqlite3
-
+import shutil
 import CGAT.Experiment as E
-import CGATPipelines.Pipeline as P
-import CGAT.Bed as Bed
 import CGAT.IOTools as IOTools
-import CGAT.Database as Database
-import CGAT.BamTools as BamTools
-
-import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
-import CGATPipelines.PipelineTracks as PipelineTracks
+import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
+import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
+import CGAT.BamTools as Bamtools
+import CGAT.Database as DB
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 
-###################################################
-###################################################
-###################################################
-# Pipeline configuration
-###################################################
-# load options from the config file
 
+#########################################################################
+# Load PARAMS Dictionary from Pipeline.innni file options ###############
+#########################################################################
+# load options from pipeline.ini file into PARAMS dictionary
 P.getParameters(
     ["%s/pipeline.ini" % os.path.splitext(__file__)[0],
      "../pipeline.ini",
-     "pipeline.ini"],
-    defaults={
-        'annotations_dir': "",
-        'paired_end': False})
+     "pipeline.ini"])
+
 
 PARAMS = P.PARAMS
 
+# add parameters from annotations pipeline.ini
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
     "pipeline_annotations.py",
     prefix="annotations_",
-    update_interface=True))
-
-PipelinePeakcalling.PARAMS = PARAMS
-
-###################################################################
-###################################################################
-# Helper functions mapping tracks to conditions, etc
-###################################################################
-Sample = PipelineTracks.AutoSample
-Sample.attributes = ('experiment', 'condition', 'tissue')
-
-# collect tracks, exclude any control tracks
-TRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
-    [x for x in glob.glob("*.genome.bam") if
-     PARAMS["tracks_control"] not in x],
-    "(\S+).genome.bam")
-
-CONTROLTRACKS = PipelineTracks.Tracks(Sample).loadFromDirectory(
-    [x for x in glob.glob("*.genome.bam") if
-     PARAMS["tracks_control"] in x],
-    "(\S+).genome.bam")
-
-EXPERIMENTS = PipelineTracks.Aggregate(TRACKS, labels=("condition", "tissue"))
-CONDITIONS = PipelineTracks.Aggregate(TRACKS, labels=("condition", ))
-TISSUES = PipelineTracks.Aggregate(TRACKS, labels=("tissue", ))
+    update_interface=True,
+    restrict_interface=True))
 
 
-##################################################################
-def getControl(track, suffix='.genome.bam'):
-    '''return appropriate control(s) for a track.
-    '''
-    fn = track.asFile().lower()
-    control = PARAMS.get("controls_%s" % fn.lower(), None)
-    if control is not None:
-        if not os.path.exists(control + suffix):
-            raise ValueError("control file %s does not exist for %s" %
-                             (fn + suffix,
-                              track))
-        controls = [Sample(filename=control)]
-        return controls
+# load IDR parameters into a dictionary to pass to the IDR step
+# IDR requires multiple parameters from the PARAMS dictionary
+idrPARAMS = dict()
 
-    prefix = PipelineTracks.FILE_SEPARATOR.join(
-        (track.experiment,
-         PARAMS["tracks_control"]))
-
-    controlfiles = glob.glob(prefix + "*" + suffix)
-    controls = [Sample(filename=x[:-len(suffix)]) for x in controlfiles]
-    # if multiple, filter by number of parts
-    if len(controls) > 1:
-        controls = [x for x in controls if
-                    len(x.attributes) == len(track.attributes)]
-    return controls
+# get IDR peakcaller and params
+idrpc = PARAMS['peakcalling_idrpeakcaller']
+idrPARAMS['idrsuffix'] = PARAMS["%s_idrsuffix" % idrpc]
+idrPARAMS['idrcol'] = PARAMS["%s_idrcol" % idrpc]
+idrPARAMS['idrcolname'] = PARAMS['%s_idrcolname' % idrpc]
+idrPARAMS['useoracle'] = PARAMS['IDR_useoracle']
 
 
-def getControlFile(track, controls, pattern):
-    if not controls:
-        L.warn("controls for track '%s' not found " % (track))
-        controlfile = None
-    else:
-        if PARAMS["tracks_matched_control"]:
-            n = track.clone()
-            n.condition = PARAMS["tracks_control"]
-            control = n.asFile()
-            assert control in controls, \
-                ("None of the control files (%s) "
-                 "match track (%s)") % \
-                (" ".join(controls), track.asFile())
-            controlfile = pattern % control
-        else:
-            controlfile = pattern % controls[0].asFile()
+#######################################################################
+# Check for design file & Match ChIP/ATAC-Seq Bams with Inputs ########
+#######################################################################
 
-    return controlfile
+# This section checks for the design table and generates:
+# 1. A dictionary, inputD, linking each input file and each of the various
+#    IDR subfiles to the appropriate input, as specified in the design table
+# 2. A pandas dataframe, df, containing the information from the
+#    design table.
+# 3. INPUTBAMS: a list of control (input) bam files to use as background for
+#    peakcalling.
+# 4. CHIPBAMS: a list of experimental bam files on which to call peaks on.
 
+# if design table is missing the input and chip bams  to empty list. This gets
+# round the import tests
 
-def getUnstimulated(track):
-    '''return unstimulated condition for a track
-    '''
-    n = track.clone()
-    n.condition = PARAMS["tracks_unstimulated"]
-    return n
+if os.path.exists("design.tsv"):
+    df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
+                                                     PARAMS['IDR_poolinputs'])
+    INPUTBAMS = list(set(df['bamControl'].values))
+    CHIPBAMS = list(set(df['bamReads'].values))
 
 
-def getSubtracted(track):
-    '''return "subtracted" condition for a track
-    '''
-    n = track.clone()
-    n.condition += PARAMS["tracks_subtract"]
-    return n
+else:
+    E.warn("design.tsv is not located within the folder")
+    INPUTBAMS = []
+    CHIPBAMS = []
+
+# TODO we need to add code to pick up empty input and chipbams list and cause
+# pipeline to throw an error
 
 
-def getUnsubtracted(track):
-    '''return "unsubtracted" condition for a track
-    '''
-    n = track.clone()
-    if PARAMS["tracks_subtract"]:
-        if n.condition.endswith(PARAMS["tracks_subtract"]):
-            n.condition = n.condition[:-len(PARAMS["tracks_subtract"])]
-    return n
+########################################################################
+# Check if reads are paired end
+########################################################################
+
+if CHIPBAMS and Bamtools.isPaired(CHIPBAMS[0]) is True:
+    PARAMS['paired_end'] = True
+else:
+    PARAMS['paired_end'] = False
 
 
-def getBamFiles(infile, suffix):
-    '''return associated bamfiles with infiles.'''
-    track = P.snip(os.path.basename(infile), suffix)
-    bamfile = P.snip(os.path.basename(infile), suffix) + ".call.bam"
-    assert os.path.exists(bamfile), "bamfile %s does not exist" % bamfile
+########################################################################
+# Set template notebooks dir
+########################################################################
 
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    if not os.path.exists(str(controlfile)):
-        L.warn("no controlfile '%s' for track '%s' not found " %
-               (controlfile, track))
-        controlfile = None
 
-    return bamfile, controlfile
+if PARAMS['notebook_template_dir'] == '':
+    PARAMS['notebook_template_dir'] = '/'.join([PARAMS['pipelinedir'],
+                                                'pipeline_docs/pipeline_peakcalling/notebooks'])
 
-###################################################################
-###################################################################
-###################################################################
+#########################################################################
+# Connect to database
+#########################################################################
 
 
 def connect():
     '''connect to database.
-
     This method also attaches to helper databases.
     '''
 
     dbh = sqlite3.connect(PARAMS["database_name"])
-    statement = '''ATTACH DATABASE '%s' as annotations''' % (
-        os.path.join(PARAMS["annotations_dir"],
-                     PARAMS["annotations_database"]))
+    statement = '''ATTACH DATABASE '%s' as annotations''' %\
+                (PARAMS["annotations_database"])
     cc = dbh.cursor()
     cc.execute(statement)
     cc.close()
 
     return dbh
 
-###################################################################
-###################################################################
-###################################################################
-##
-###################################################################
-if os.path.exists("pipeline_conf.py"):
-    L.info("reading additional configuration from pipeline_conf.py")
-    exec(compile(open("pipeline_conf.py").read(), "pipeline_conf.py", 'exec'))
 
-############################################################
-############################################################
-############################################################
+###########################################################################
+# start of pipelined tasks
+# 1) Preprocessing Steps - Filter bam files & generate bam stats
+###########################################################################
 
 
-@merge(["%s.genome.bam" % x.asFile() for x in TRACKS],
-       'check_input.dummy')
-def checkInput(infiles, outfile):
-    '''perform a check if every track has a control/input.'''
-
-    c = E.Counter()
-    for infile in infiles:
-        c.input += 1
-        track = P.snip(infile, ".genome.bam")
-        control = getControl(Sample(track))
-        if len(control) == 0:
-            E.warn('no control file found for %s' % track)
-            c.notfound += 1
-        elif len(control) > 1:
-            E.warn('multiple control files found for %s: %s' %
-                   (track, control))
-            c.multiple += 1
-        else:
-            E.info('track->control: %s -> %s' % (track, control[0]))
-            c.found += 1
-    E.info(c)
-
-
-@transform("*.genome.bam",
-           suffix(".genome.bam"),
-           ".prep.bam")
-def prepareBAMForPeakCalling(infile, outfile):
-    '''Prepare BAM files for peak calling.
-
-        - unmapped reads are removed.
-
-        - if the option "calling_deduplicate" is Picard.MarkDuplicates
-            is run to remove duplicate reads
-
-        - reads may be filtered with a black-list of genomic regions.
-             "calling_filter_regions" should specify a bed file.
-
-        The resulting bam file has a .prep.bam extension. Merging
-        infiles is currently untested and the methods only consider
-        single end reads.
-
-    '''
-    if PARAMS["calling_filter_regions"]:
-
-        mask = PARAMS["calling_filter_regions"]
-        if not os.path.exists(mask):
-            raise IOError("filter file '%s' does not exist")
-    else:
-        mask = None
-
-    PipelinePeakcalling.buildBAMforPeakCalling(
-        infile, outfile, PARAMS["calling_deduplicate"], mask)
-
-
-@merge(prepareBAMForPeakCalling, "preparation_stats.load")
-def loadDuplicationStats(infiles, outfile):
-    '''load output from Picard Deduplication step.'''
-
-    PipelineMappingQC.loadPicardMetrics(infiles, outfile,
-                                        pipeline_suffix=".prep.bam",
-                                        suffix=".picard_metrics")
-
-
-if PARAMS["calling_normalize"] is True:
-    '''Normalise the number of reads in a set of prepared bam files.
-
-    The minimum number of reads in a prepared bam file is calculated
-    and this number of reads is used as a threshold to randomly sample
-    from each bam file in order to create a set of bam files with near
-    identical numbers of reads.
-
-    This may result in considerable data loss.
-
-    Per experimental contrast normalisation could be preferable.
-
-    Potentially usefull if using a peak caller that does not correct for tag
-    count between experimental and input samples.
-
-    '''
-    # First count the number of reads in each bam
-    @transform(prepareBAMForPeakCalling, suffix("prep.bam"), "prep.count")
-    def countReadsInBAM(infile, outfile):
-        statement = '''samtools idxstats %s
-        | awk '{s+=$3} END {print s}' > %s ''' % (
-            infile, outfile)
-        P.run()
-
-    # Get the lowest number of reads
-    @merge(countReadsInBAM, "minreads")
-    def minReads(infiles, outfile):
-        counts = []
-        countfiles = glob.glob("*.prep.count")
-        for cf in countfiles:
-            fh = IOTools.openFile(cf, "r")
-            counts.append(int(fh.read()))
-            fh.close()
-        fh = IOTools.openFile(outfile, "w")
-        fh.write(str(min(counts)))
-        fh.close
-
-    # Make normalised files
-    @follows(minReads)
-    @transform(prepareBAMForPeakCalling,
-               regex(r"(.*).prep.bam"),
-               r"\1.call.bam")
-    def normalizeBAM(infile, outfile):
-        '''build a normalized BAM file such that all files
-        have approximately
-        the same number of reads.
-        '''
-        fh = IOTools.openFile("minreads")
-        minreads = int(fh.read())
-        fh.close
-        PipelinePeakcalling.buildSimpleNormalizedBAM(
-            infile,
-            outfile,
-            minreads)
-else:
-    @transform(prepareBAMForPeakCalling,
-               suffix(".prep.bam"),
-               ".call.bam")
-    def normalizeBAM(infile, outfile):
-        P.clone(infile, outfile)
-        P.clone(infile + ".bai", outfile + ".bai")
-
-
-######################################################################
-#                                                                  ##
-#                 Statistics and QC Functions                      ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("readstats.dir"))
-@transform(normalizeBAM,
-           regex("(.*).bam"),
-           r"readstats.dir/\1.readstats")
-def buildBAMStats(infile, outfile):
-    '''count number of reads mapped, duplicates, etc.
-    '''
-
-    job_memory = "4G"
-
-    statement = '''
-    cgat bam2stats
-         --force-output
-         --output-filename-pattern=%(outfile)s.%%s
-    < %(infile)s
-    > %(outfile)s
-    '''
-
-    P.run()
-
-
-@merge(buildBAMStats, "bam_stats.load")
-def loadBAMStats(infiles, outfile):
-    '''import bam statisticis.'''
-
-    PipelineMappingQC.loadBAMStats(infiles, outfile)
-
-
-@follows(mkdir("background.dir"))
-@transform("*%s*.genome.bw" % PARAMS["tracks_control"],
-           regex("(.*).bw"),
-           r"background.dir/\1.bed.gz")
-def buildBackgroundWindows(infile, outfile):
-    '''compute regions with high background count in input
-
-    Requires bigwig files in the data directory.
-    '''
-
-    job_options = "-l mem_free=16G"
-
-    statement = '''
-    cgat wig2bed
-             --bigwig-file=%(infile)s
-             --genome-file=%(genome_dir)s/%(genome)s
-             --threshold=%(calling_background_density)f
-             --method=threshold
-             --log=%(outfile)s.log
-    | bgzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-
-@merge(buildBackgroundWindows, "background.dir/background.bed.gz")
-def mergeBackgroundWindows(infiles, outfile):
-    '''build a single bed file of regions with elevated background.'''
-
-    if len(infiles) == 0:
-        # write a dummy file with a dummy chromosome
-        # an empty background file would otherwise cause
-        # errors downstream in bedtools intersect
-        outf = IOTools.openFile(outfile, "w")
-        outf.write("chrXXXX\t1\t2\n")
-        outf.close()
-        return
-
-    infiles = " ".join(infiles)
-    genomefile = os.path.join(
-        PARAMS["annotations_dir"], PARAMS['annotations_interface_contigs'])
-    statement = '''
-    zcat %(infiles)s
-    | bedtools slop -i stdin
-                -b %(calling_background_extension)i
-                -g %(genomefile)s
-    | mergeBed
-    | bgzip
-    > %(outfile)s
-    '''
-
-    P.run()
-
-
-@follows(normalizeBAM)
-@files([("%s.call.bam" % (x.asFile()),
-         "%s.data_quality" % x.asFile()) for x in TRACKS])
-def checkDataQuality(infile, outfile):
-    '''uses peakranger to check data quality.
-
-    nr is the signal/noise ratio.
-    '''
-
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-
-    if not os.path.exists(controlfile):
-        L.warn("controlfile '%s' for track '%s' not found " %
-               (controlfile, track))
-        P.touch(outfile)
-        return
-
-    statement = '''peakranger nr --format bam %(infile)s %(controlfile)s
-    | awk -v FS=":" '/Estimated noise rate/
-      { printf("estimated_noise_rate\\n%%f\\n", $2) }'
-    > %(outfile)s'''
-    P.run()
-
-
-@merge(checkDataQuality, "data_quality.load")
-def loadDataQuality(infiles, outfile):
-    '''load data quality information.'''
-
-    P.concatenateAndLoad(infiles, outfile,
-                         regex_filename="(.*).data_quality",
-                         has_titles=False)
-
-
-@follows(normalizeBAM)
-@files([("%s.call.bam" % (x.asFile()),
-         "%s.library_complexity" % x.asFile()) for x in TRACKS])
-def checkLibraryComplexity(infile, outfile):
-    '''uses peakranger to check library complexity.'''
-
-    statement = '''peakranger lc --format bam %(infile)s > %(outfile)s'''
-    P.run()
-
-
-####################################################################
-@follows(normalizeBAM, mkdir('fragment_size.dir'))
-@files([("%s.call.bam" % (x.asFile()),
-         "fragment_size.dir/%s.fragment_size" % x.asFile()) for x in TRACKS])
-def predictFragmentSize(infile, outfile):
-    '''predict fragment size.
-
-    For single end data, use MACS2, for paired-end data
-    use the bamfile.
-
-    In some BAM files the read length (rlen) attribute
-    is not set, which causes MACS2 to predict a 0.
-
-    Thus it is computed here from the CIGAR string if rlen is 0.
-    '''
-    tagsize = BamTools.estimateTagSize(infile, multiple="mean")
-
-    if BamTools.isPaired(infile):
-        mode = "PE"
-        mean, std, n = BamTools.estimateInsertSizeDistribution(infile, 10000)
-    else:
-        mode = "SE"
-        statement = '''macs2 predictd
-        --format BAM
-        --ifile %(infile)s
-        --outdir %(outfile)s.dir
-        --verbose 2
-        %(macs2_predictd_options)s
-        >& %(outfile)s.tsv
-        '''
-        P.run()
-
-        with IOTools.openFile(outfile + ".tsv") as inf:
-            lines = inf.readlines()
-            line = [x for x in lines
-                    if "# predicted fragment length is" in x]
-            if len(line) == 0:
-                raise ValueError(
-                    'could not find predicted fragment length')
-            mean = re.search(
-                "# predicted fragment length is (\d+)",
-                line[0]).groups()[0]
-            std = 'na'
-
-    outf = IOTools.openFile(outfile, "w")
-    outf.write("mode\tfragmentsize_mean\tfragmentsize_std\ttagsize\n")
-    outf.write("\t".join(
-        map(str, (mode, mean, std, tagsize))) + "\n")
-    outf.close()
-
-
-@merge(predictFragmentSize, "fragment_sizes.tsv")
-def buildFragmentSizeTable(infiles, outfile):
-    '''build a table with fragment sizes.'''
-    statement = '''
-    cgat combine_tables
-    --cat=track
-    --regex-filename=".*/(\\S+).fragment_size"
-    fragment_size.dir/*.fragment_size
-    > %(outfile)s
-    '''
-    P.run()
-
-
-@E.cachedfunction
-def getFragmentSizeTable():
-    if not os.path.exists('fragment_sizes.tsv'):
-        raise ValueError('can not read fragment_sizes.tsv')
-    table = IOTools.readMap(IOTools.openFile('fragment_sizes.tsv'),
-                            columns='all',
-                            has_header=True)
-    return table
-
-
-def getFragmentSize(track):
-    '''return fragment size for track.
-
-    returns None if not available.
-    '''
-    table = getFragmentSizeTable()
-    if track in table:
-        return int(round(float(table[track].fragmentsize_mean)))
-    else:
-        return None
-
-
-def getTagSize(track):
-    '''return tag size for track.
-
-    returns None if not available.
-    '''
-    table = getFragmentSizeTable()
-    if track in table:
-        return int(table[track].tagsize)
-    else:
-        return None
-
-
-@follows(mkdir("macs.dir"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "macs.dir/%s.macs" % x.asFile()) for x in TRACKS])
-def callPeaksWithMACS(infile, outfile):
-    '''run MACS for peak detection.
-
-    output bed files are compressed and indexed.
-    '''
-    track = P.snip(infile, ".call.bam")
-    # if BamTools.isPaired(infile):
-    #     E.warn("macs will not work with paired-ended data: %s skipped" %
-    #            infile)
-    #     P.touch(outfile)
-    #     return
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-
-    PipelinePeakcalling.runMACS(
-        infile,
-        outfile,
-        controlfile,
-        tagsize=getTagSize(track))
-
-
-@transform(callPeaksWithMACS,
-           regex(r"(.*).macs"),
-           r"\1_macs.load")
-def loadMACS(infile, outfile):
-    '''load macs results.'''
-    bamfile, controlfile = getBamFiles(infile, ".macs")
-    PipelinePeakcalling.loadMACS(infile, outfile, bamfile, controlfile)
-
-
-@follows(mkdir(os.path.join(PARAMS["exportdir"], "macs")))
-@transform(callPeaksWithMACS,
-           regex(r"(.*)/(.*).macs"),
-           add_inputs(os.path.join(
-               PARAMS["annotations_dir"],
-               PARAMS["annotations_interface_contigs"])),
-           (os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.treat.bw"),
-            os.path.join(PARAMS["exportdir"], "macs", r"\2.macs.control.bw")))
-def cleanMACS(infiles, outfiles):
-    '''clean up MACS - build bigwig file and remove wig files.'''
-
-    infile, contigfile = infiles
-
-    for indir, outfile in zip(
-            (os.path.join(infile + "_MACS_wiggle", "treat"),
-             os.path.join(infile + "_MACS_wiggle", "control")),
-            outfiles):
-
-        if os.path.exists(indir):
-
-            statement = '''
-        zcat %(indir)s/*.wig.gz
-        | awk '/track/ { if (skip) {next} skip=1; } { print }'
-        | cgat wig2wig
-                --method=sanitize-genome
-                --log=%(outfile)s.log
-                --genome=%(genome_dir)s/%(genome)s
-        | wigToBigWig /dev/stdin %(contigfile)s %(outfile)s'''
-
-            P.run()
-
-            shutil.rmtree(indir)
-
-
-@merge(callPeaksWithMACS, "macs.summary")
-def summarizeMACS(infiles, outfile):
-    '''summarize MACS results.'''
-    PipelinePeakcalling.summarizeMACS(infiles, outfile)
-
-############################################################
-
-
-@merge(callPeaksWithMACS, "macs_fdr.summary")
-def summarizeMACSFDR(infiles, outfile):
-    '''summarize MACS results.'''
-    PipelinePeakcalling.summarizeMACSFDR(infiles, outfile)
-
-############################################################
-
-
-@transform(summarizeMACS,
-           suffix(".summary"),
-           "_summary.load")
-def loadMACSSummary(infile, outfile):
-    '''load macs summary.'''
-    P.load(infile, outfile, "--add-index=track")
-
-############################################################
-
-
-@transform(summarizeMACSFDR,
-           suffix("_fdr.summary"),
-           "_fdr.load")
-def loadMACSSummaryFDR(infile, outfile):
-    '''load macs summary.'''
-    P.load(infile, outfile, "--add-index=track", transpose="fdr")
-
-
-@follows(mkdir("macs2.dir"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "macs2.dir/%s.macs2" % x.asFile()) for x in TRACKS])
-def callPeaksWithMACS2(infile, outfile):
-    '''run MACS 2 for peak detection.
-    output bed files are compressed and indexed.
-    '''
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track), suffix=".call.bam")
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    contigsfile = os.path.join(PARAMS["annotations_dir"],
-                               PARAMS["annotations_interface_contigs"])
-
-    print("annoatations.dir", PARAMS["annotations_dir"])
-    print("interfact_contigs_tsv: ", PARAMS["annotations_interface_contigs"])
-    print("contigsfile: ", contigsfile)
-
-    PipelinePeakcalling.runMACS2(
-        infile,
-        outfile,
-        controlfile,
-        contigsfile,
-        P.isTrue('macs2_force_single_end',
-                 **locals()),
-        tagsize=getTagSize(track)
-    )
-
-############################################################
-
-
-@transform(callPeaksWithMACS2,
-           regex(r"(.*).macs2"),
-           r"\1_macs2.load")
-def loadMACS2(infile, outfile):
-    '''load macs results.'''
-    bamfile, controlfile = getBamFiles(infile, ".macs2")
-    PipelinePeakcalling.loadMACS2(infile, outfile, bamfile, controlfile)
-
-############################################################
-
-
-@merge(callPeaksWithMACS2, "macs2.summary")
-def summarizeMACS2(infiles, outfile):
-    '''summarize MACS results.'''
-    PipelinePeakcalling.summarizeMACS2(infiles, outfile)
-
-############################################################
-
-
-@merge(callPeaksWithMACS2, "macs2_fdr.summary")
-def summarizeMACS2FDR(infiles, outfile):
-    '''summarize MACS results.'''
-    PipelinePeakcalling.summarizeMACS2FDR(infiles, outfile)
-
-############################################################
-
-
-@transform(summarizeMACS2,
-           suffix(".summary"),
-           "_summary.load")
-def loadMACS2Summary(infile, outfile):
-    '''load macs2 summary.'''
-    P.load(infile, outfile, "--add-index=track")
-
-############################################################
-
-
-@transform(summarizeMACS2FDR,
-           suffix("_fdr.summary"),
-           "_fdr.load")
-def loadMACS2SummaryFDR(infile, outfile):
-    '''load macs2 summary.'''
-    P.load(infile, outfile, "--add-index=track", transpose="fdr")
-
-
-######################################################################
-#                                                                  ##
-#                              Zinba                               ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("zinba.dir"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "zinba.dir/%s.zinba" % x.asFile()) for x in TRACKS])
-def callPeaksWithZinba(infile, outfile):
-    '''run Zinba for peak detection.'''
-
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-
-    if os.path.exists(os.path.join(outfile + "_files", outfile + ".model")):
-        PipelinePeakcalling.runZinba(
-            infile,
-            outfile,
-            controlfile,
-            action="model",
-            fragment_size=getFragmentSize(track),
-            tag_size=getTagSize(track))
-
-    elif os.path.exists(os.path.join(outfile + "_files", outfile + ".list")):
-        PipelinePeakcalling.runZinba(
-            infile,
-            outfile,
-            controlfile,
-            action="predict",
-            fragment_size=getFragmentSize(track),
-            tag_size=getTagSize(track))
-    else:
-        PipelinePeakcalling.runZinba(
-            infile,
-            outfile,
-            controlfile,
-            action="full",
-            fragment_size=getFragmentSize(track),
-            tag_size=getTagSize(track))
-
-############################################################
-
-
-@transform(callPeaksWithZinba,
-           suffix(".zinba"),
-           "_zinba.load")
-def loadZinba(infile, outfile):
-    '''load Zinba results.'''
-
-    bamfile, controlfile = getBamFiles(infile, ".zinba")
-    PipelinePeakcalling.loadZinba(infile, outfile,
-                                  bamfile,
-                                  controlfile=controlfile)
-
-
-###################################################################
-###################################################################
-#                       (SICER) Narrower
-####################################################################
-###################################################################
-@follows(mkdir("sicer.narrow.dir"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "sicer.narrow.dir/%s.narrow.sicer" % x.asFile()) for x in TRACKS])
-def callNarrowerPeaksWithSICER(infile, outfile):
-    '''run SICER for peak detection.'''
-    track = P.snip(infile, ".call.bam")
-
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    PipelinePeakcalling.runSICER(infile, outfile,
-                                 controlfile,
-                                 "narrow",
-                                 fragment_size=getFragmentSize(track))
-
-
-######################################################################
-######################################################################
-#                                                                  ##
-#                       (SICER) Broader                            ##
-#                                                                  ##
-######################################################################
-######################################################################
-@follows(mkdir("sicer.broad.dir"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "sicer.broad.dir/%s.broad.sicer" % x.asFile()) for x in TRACKS])
-def callBroaderPeaksWithSICER(infile, outfile):
-    '''run SICER for peak detection.'''
-    track = P.snip(infile, ".call.bam")
-
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    PipelinePeakcalling.runSICER(infile,
-                                 outfile,
-                                 controlfile,
-                                 "broad",
-                                 fragment_size=getFragmentSize(track))
-
-
-####################################################################
-#                                                                  #
-#                  SICER Narrower + Broader                        #
-#                                                                  #
-####################################################################
-@transform([callNarrowerPeaksWithSICER, callBroaderPeaksWithSICER],
-           regex(r"(sicer.)(.*)(.dir/)([^.]*).([^.]*).sicer"),
-           r"\1\2\3\4_\5Sicer.load")
-def loadSICER(infile, outfile):
-    '''load sicer results.'''
-
-    # TS. identify original bam file name from infile name
-    # to identify fragment size
-    track = os.path.basename(infile)
-    if "broad" in track:
-        track = P.snip(track, ".broad.sicer")
-    elif "narrow" in track:
-        track = P.snip(track, ".narrow.sicer")
-    else:
-        E.Warn("can't identify bam file for fragment size analysis")
-
-    mode = infile.split(".")[1]
-    bamfile, controlfile = getBamFiles(infile, "." + mode + ".sicer")
-
-    PipelinePeakcalling.loadSICER(infile, outfile, bamfile,
-                                  controlfile, mode,
-                                  fragment_size=getFragmentSize(track))
-
-############################################################
-
-
-@merge([callNarrowerPeaksWithSICER, callBroaderPeaksWithSICER],
-       "sicer.summary")
-def summarizeSICER(infiles, outfile):
-    '''summarize SICER results.'''
-    PipelinePeakcalling.summarizeSICER(infiles, outfile)
-
-############################################################
-
-
-@transform(summarizeSICER, regex(r"(sicer.)(.*)(.summary)"),
-           r"\1_\2_summary.load")
-def loadSICERSummary(infile, outfile):
-    '''load sicer summary.'''
-    P.load(infile, outfile, "--add-index=track")
-
-
-######################################################################
-#                                                                  ##
-#                       (PeakRanger) Ranger                        ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("peakranger.ranger.dir/"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "peakranger.ranger.dir/%s.peakranger" % x.asFile()) for x in TRACKS])
-def callPeaksWithPeakRanger(infile, outfile):
-    '''run PeakRanger Ranger for peak detection.'''
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    PipelinePeakcalling.runPeakRanger(infile, outfile, controlfile)
-
-
-@transform(callPeaksWithPeakRanger,
-           regex(r"(.*).peakranger"),
-           r"\1_peakranger.load")
-def loadPeakRanger(infile, outfile):
-    '''load macs results.'''
-    bamfile, controlfile = getBamFiles(infile, ".peakranger")
-    PipelinePeakcalling.loadPeakRanger(infile,
-                                       outfile,
-                                       bamfile,
-                                       controlfile,
-                                       "peaks")
-
-
-@merge(callPeaksWithPeakRanger, "peakranger.ranger.summary")
-def summarizePeakRanger(infiles, outfiles):
-    '''summarize peakranger results.'''
-    PipelinePeakcalling.summarizePeakRanger(infiles, outfiles)
-
-
-@transform(summarizePeakRanger, suffix(".summary"), "_summary.load")
-def loadPeakRangerSummary(infile, outfile):
-    '''load Peakranger summarys.'''
-    P.load(infile, outfile, "--add-index=track")
-
-
-######################################################################
-#                                                                  ##
-#                       (PeakRanger) CCAT                          ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("peakranger.ccat.dir/"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "peakranger.ccat.dir/%s.ccat" % x.asFile()) for x in TRACKS])
-def callPeaksWithPeakRangerCCAT(infile, outfile):
-    '''run Peak Ranger CCAT for broad peak detection.'''
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    PipelinePeakcalling.runPeakRangerCCAT(infile, outfile, controlfile)
-
-
-@transform(callPeaksWithPeakRangerCCAT,
-           regex(r"(.*).ccat"),
-           r"\1_ccat.load")
-def loadPeakRangerCCAT(infile, outfile):
-    '''load macs results.'''
-    bamfile, controlfile = getBamFiles(infile, ".ccat")
-    PipelinePeakcalling.loadPeakRanger(
-        infile, outfile, bamfile, controlfile, "regions")
-
-############################################################
-
-
-@merge(callPeaksWithPeakRangerCCAT, "peakranger.ccat.summary")
-def summarizePeakRangerCCAT(infiles, outfiles):
-    '''summarize peakranger results.'''
-    PipelinePeakcalling.summarizePeakRanger(infiles, outfiles)
-
-############################################################
-
-
-@transform(summarizePeakRanger, suffix(".summary"), "_summary.load")
-def loadPeakRangerSummaryCCAT(infile, outfile):
-    '''load Peakranger summarys.'''
-    P.load(infile, outfile, "--add-index=track")
-
-
-######################################################################
-#                                                                  ##
-#                           BroadPeak                              ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("broadpeak.dir"), normalizeBAM)
-@files(os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fasta"),
-       "broadpeak.dir/genome_windows.bed.gz")
-def buildBroadPeakGenomeWindows(infile, outfile):
-    windows = PARAMS["broadpeak_genome_windows"]
-    PipelinePeakcalling.createGenomeWindows(infile, outfile, windows)
-
-
-@transform(["%s.call.bam" % x.asFile() for x in TRACKS],
-           regex("(.+)/(.+).call.bam"),
-           add_inputs(buildBroadPeakGenomeWindows),
-           r"./broadpeak.dir/\2.bedgraph")
-def buildBroadPeakBedgraphFiles(infiles, outfile):
-    logfile = outfile + ".log"
-    overlap = str(float(PARAMS["broadpeak_read_length"]) /
-                  float(2 * PARAMS["broadpeak_genome_windows"]))
-    if PARAMS["broadpeak_remove_background"]:
-        remove_background = "true"
-        track = P.snip(infile, ".call.bam")
-        controls = getControl(Sample(track))
-        controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-        infiles.append(controlfile)
-    else:
-        remove_background = "false"
-
-    params = [overlap, remove_background]
-
-    P.info("Creating BroadPeak bedgraph with the following options:\n"
-           " subtract INPUT from SAMPLE = %s\n"
-           " create .bdg file with window size of %s\n"
-           " reads must overlap window by %s bases to be counted"
-           % (params[1],
-              PARAMS["broadpeak_genome_windows"],
-              params[0]))
-
-    P.submit("/ifs/devel/projects/proj010/PipelineProj010",
-             "createBroadPeakBedgraphFile",
-             params,
-             infiles,
-             outfile,
-             to_cluster=True,
-             logfile=logfile,
-             jobOptions="-l mem_free=20G")
-
-
-@transform(buildBroadPeakBedgraphFiles,
-           regex("(.+)/(.+).bedgraph"),
-           r"\1/\2")
-def callPeaksWithBroadPeak(infile, outfile):
-    if isinstance(PARAMS["broadpeak_genome_size"], int):
-        genome_size = PARAMS["broadpeak_genome_size"]
-    elif PARAMS["broadpeak_genome_size"].startswith("hg"):
-        genome_size = 3107677273
-    elif PARAMS["broadpeak_genome_size"].startswith("mm"):
-        genome_size = 2730871774
-    else:
-        ValueError("Broadpeak genome size not recognised,"
-                   " try entering a numeric value")
-
-    training_set = PARAMS["broadpeak_intervals"]
-
-    logfile = P.snip(infile, ".bedgraph") + ".log"
-
-    PipelinePeakcalling.runBroadPeak(infile,
-                                     outfile,
-                                     logfile,
-                                     genome_size,
-                                     training_set)
-
-
-@merge(callPeaksWithBroadPeak, "./broadpeak.dir/broadpeak.stats")
-def summarizeBroadPeak(infiles, outfile):
-    if PARAMS["broadpeak_intervals"]:
-        PipelinePeakcalling.summarizeBroadPeak(infiles, outfile, intervals)
-    else:
-        PipelinePeakcalling.summarizeBroadPeak(infiles, outfile)
-
-
-@transform(summarizeBroadPeak, suffix(".stats"), ".load")
-def loadBroadPeak(infile, outfile):
+@transform("design.tsv", suffix(".tsv"), ".load")
+def loadDesignTable(infile, outfile):
+    ''' load design.tsv to database '''
     P.load(infile, outfile)
 
 
-######################################################################
-#                                                                  ##
-#                              SPP                                 ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("spp.dir"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "spp.dir/%s.spp" % x.asFile()) for x in TRACKS])
-def callPeaksWithSPP(infile, outfile):
-    '''run SICER for peak detection.'''
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    PipelinePeakcalling.runSPP(infile, outfile, controlfile)
+@active_if(PARAMS['input'] != 0)
+@follows(mkdir("filtered_bams.dir"))
+@transform(INPUTBAMS, regex("(.*).bam"),
+           [r"filtered_bams.dir/\1_filtered.bam",
+            r"filtered_bams.dir/\1_counts.tsv"])
+def filterInputBAMs(infile, outfiles):
+    '''
+    Applies various filters specified in the pipeline.ini to the bam file
+    Currently implemented are filtering:
+        unwanted contigs based on partial name matching
+        unmapped reads
+        unpaired reads
+        duplicate reads
+        secondary alignment reads
+        reads below a mapping quality (MAPQ) score
+        reads overlapping with blacklisted regions specified in bed file.
+    '''
+    filters = PARAMS['filters_bamfilters'].split(",")
+    bedfiles = PARAMS['filters_bedfiles'].split(",")
+    blthresh = PARAMS['filters_blacklistthresh']
+    if blthresh != "":
+        blthresh = float(blthresh)
+    PipelinePeakcalling.filterBams(infile, outfiles, filters, bedfiles,
+                                   blthresh,
+                                   PARAMS['paired_end'],
+                                   PARAMS['filters_strip'],
+                                   PARAMS['filters_qual'],
+                                   PARAMS['filters_contigs_to_remove'],
+                                   PARAMS['filters_keepint'])
 
 
-@transform(callPeaksWithSPP,
-           regex(r"(.*).spp"),
-           r"\1_spp.load")
-def loadSPP(infile, outfile):
-    '''load spp results.'''
-    bamfile, controlfile = getBamFiles(infile, ".spp")
-    PipelinePeakcalling.loadSPP(infile, outfile, bamfile, controlfile)
+@follows(mkdir("filtered_bams.dir"))
+@transform(CHIPBAMS, regex("(.*).bam"), [r"filtered_bams.dir/\1_filtered.bam",
+                                         r"filtered_bams.dir/\1_counts.tsv"])
+def filterChipBAMs(infile, outfiles):
+    '''
+    Applies various filters specified in the pipeline.ini to the bam file
+    Currently implemented are filtering:
+        unmapped reads
+        unpaired reads
+        duplicate reads
+        secondary alignment reads
+        reads below a mapping quality (MAPQ) score
+        reads overlapping with blacklisted regions specified in bed file.
+    '''
+    filters = PARAMS['filters_bamfilters'].split(",")
+    bedfiles = PARAMS['filters_bedfiles'].split(",")
+    blthresh = PARAMS['filters_blacklistthresh']
+    if blthresh != "":
+        blthresh = float(blthresh)
+    PipelinePeakcalling.filterBams(infile, outfiles, filters, bedfiles,
+                                   float(blthresh),
+                                   PARAMS['paired_end'],
+                                   PARAMS['filters_strip'],
+                                   PARAMS['filters_qual'],
+                                   PARAMS['filters_contigs_to_remove'],
+                                   PARAMS['filters_keepint'])
 
 
-@merge(callPeaksWithSPP, "spp.summary")
-def summarizeSPP(infiles, outfile):
-    '''summarize SPP results.'''
-    PipelinePeakcalling.summarizeSPP(infiles, outfile)
+# ############################################################################
+# ##### Filtering Stats and QC
+# ############################################################################
+@transform((filterChipBAMs, filterInputBAMs), suffix("_filtered.bam"),
+           [r"\1_filtered.bam",
+            r"\1_counts.tsv"])
+def filteredBams(infiles, outfiles):
+    ''' dummy task to collect filtered bams and counts.tsv tables
+    for imput and chip file for downstream QC & Stats'''
 
 
-@transform(summarizeSPP, suffix(".summary"), "_summary.load")
-def loadSPPSummary(infile, outfile):
-    '''load sicer summary.'''
-    P.load(infile, outfile, "--add-index=track")
+@merge((filterChipBAMs, filterInputBAMs), "post_filtering_read_counts.tsv")
+def mergeFilteringStats(infiles, outfile):
+    '''
+    Generates a table of read counts in each bam file after removal of:
+    duplicates: duplicates reads
+    secondary:  secondary alignment
+    unpaired: unpaired reads
+    unmapped: unmapped reads
+    lowqual: low quality reads
+    blacklist_xxx: reads in the blacklist file xxx
+    contigs: removal of contigs that match patterns specified in ini file
+    '''
+    counts = [i[1] for i in infiles]
+    bigtab = pd.DataFrame()
+    for c in counts:
+        tab = pd.read_csv(c, sep="\t")
+        tab['Input_Bam'] = c.replace("_counts.tsv", ".bam").split("/")[-1]
+        bigtab = bigtab.append(tab)
+    bigtab = bigtab.rename(columns={'none': 'pre_filtering'})
+    cs = []
+    for c in bigtab.columns:
+        if c.endswith(".bed"):
+            c = "blacklist_%s" % c.split("/")[-1]
+        cs.append(c)
+    bigtab.columns = cs
+    bigtab.to_csv(outfile, sep="\t", index=False)
 
 
-@follows(mkdir(os.path.join(PARAMS["exportdir"], "quality")),
-         mkdir("spp.dir"),
-         normalizeBAM)
-@files([("%s.call.bam" % (x.asFile()),
-         "spp.dir/%s.qual" % x.asFile()) for x in TRACKS])
-def estimateSPPQualityMetrics(infile, outfile):
-    '''estimate ChIP-Seq quality metrics using SPP'''
-
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-    if controlfile is None:
-        raise ValueError("idr analysis requires a control")
-
-    PipelinePeakcalling.estimateSPPQualityMetrics(
-        infile, track, controlfile, outfile)
+@merge(mergeFilteringStats, "post_filtering_read_counts.load")
+def loadFilteringStats(infile, outfile):
+    '''load filtering stats to database'''
+    P.load(infile, outfile)
 
 
-@merge(estimateSPPQualityMetrics, "spp_quality.load")
-def loadSPPQualityMetrics(infiles, outfile):
-    '''load spp quality metrics.'''
-    P.concatenateAndLoad(
-        infiles,
-        outfile,
-        regex_filename="spp.dir/(.*).qual",
-        has_titles=False,
-        header="track,bamfile,mapped_reads,estFragLen,"
-        "corr_estFragLen,phantomPeak,corr_phantomPeak,"
-        "argmin_corr,min_corr,nsc,rsc,quality")
+@merge((filterChipBAMs, filterInputBAMs), "post_filtering_check.tsv")
+def mergeFilteringChecks(infiles, outfile):
+    '''take individual filering checks that detail the number of reads in the
+    filtered bam file that are found for each flag that should have set in the
+    filters and merge them to produce single table'''
+
+    counts = [i[0].replace(".bam", ".filteringlog") for i in infiles]
+    bigtab = pd.DataFrame()
+    for c in counts:
+        tab = pd.read_csv(c, sep="\t", index_col=0,  header=None)
+        tab = tab.transpose()
+        tab['Input_Filename'] = c.split("/")[-1].replace(".filteringlog",
+                                                         "")
+        bigtab = bigtab.append(tab)
+    bigtab.to_csv(outfile, sep="\t", index=False)
 
 
-######################################################################
-#                                                                  ##
-#        IDR Analysis (using relaxed SPP peak calling)             ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("idr.dir"), normalizeBAM, buildFragmentSizeTable)
-@files([("%s.call.bam" % (x.asFile()),
-         "idr.dir/%s.spp" % x.asFile()) for x in TRACKS])
-def callPeaksWithSPPForIDR(infile, outfile):
-    '''run SICER for peak detection.'''
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
+@transform(mergeFilteringChecks, suffix(".tsv"), ".load")
+def loadFilteringChecks(infile, outfile):
+    '''load filtering stats to database '''
+    P.load(infile, outfile)
 
-    job_options = "-l mem_free=4G"
 
-    if controlfile is None:
-        raise ValueError("idr analysis requires a control")
+@active_if(PARAMS['paired_end'])
+@transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
+           "_fraglengths.load")
+def loadFragmentLengthDistributions(infiles, outfile):
+    '''loads fragment length distributions into database - fragment length can
+    only be computed if sample is paired-end if samples are not this function
+    is not run'''
+    infile = infiles[0].replace(".bam", ".fraglengths")
+    if len(IOTools.openFile(infile).readlines()) > 2:
+        P.load(infile, outfile)
+    else:
+        os.system("touch %s" % outfile)
 
-    executable = IOTools.which("run_spp.R")
-    if executable is None:
-        raise ValueError("could not find run_spp.R")
 
-    statement = '''
-    Rscript %(executable)s -c=%(infile)s -i=%(controlfile)s
-            -npeak=%(idr_npeaks)s
-            -odir=idr.dir -savr -savp -rf -out=%(outfile)s
-    >& %(outfile)s.log'''
-
+@transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
+           ".idxstats")
+def getIdxstats(infiles, outfile):
+    '''gets idxstats for bam file so number of reads per chromosome can
+    be plotted later'''
+    infile = infiles[0]
+    statement = '''samtools idxstats %(infile)s > %(outfile)s''' % locals()
     P.run()
 
-    track = P.snip(infile, ".bam")
 
-    if os.path.exists(track + ".pdf"):
-        shutil.move(infile + ".pdf", os.path.join(PARAMS["exportdir"], "idr"))
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(getIdxstats, "idxstats_reads_per_chromosome.load")
+def loadIdxstats(infiles, outfile):
+    '''merge idxstats files into single dataframe and load
+    to database
+
+    Loads tables into the database
+       * mapped_reads_per_chromosome
+
+    Arguments
+    ---------
+    infiles : list
+        list where each element is a string of the filename containing samtools
+        idxstats output. Filename format is expected to be 'sample.idxstats'
+    outfile : string
+        Logfile. The table name will be derived from `outfile`.'''
+    PipelineMappingQC.loadIdxstats(infiles, outfile)
 
 
-@collate(callPeaksWithSPPForIDR,
-         regex(r"idr.dir/(.+)-[^-]+.spp"),
-         r"idr.dir/\1.idr")
-def applyIDR(infiles, outfile):
-    '''apply IDR analysis.'''
+@transform((filterChipBAMs, filterInputBAMs),
+           suffix(".bam"),
+           ".picard_stats")
+def buildPicardStats(infiles, outfile):
+    ''' build Picard alignment stats '''
+    infile = infiles[0]
+    reffile = os.path.join(PARAMS["genome_dir"], PARAMS["genome"] + ".fa")
 
-    job_options = "-l mem_free=4G"
+    PipelineMappingQC.buildPicardAlignmentStats(infile,
+                                                outfile,
+                                                reffile)
 
-    chromosome_table = os.path.join(
-        PARAMS["annotations_dir"], PARAMS["annotations_interface_contigs"])
 
-    for infile1, infile2 in itertools.combinations(infiles, 2):
-        E.info("applyIDR: processing %s and %s" % (infile1, infile2))
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
+@merge(buildPicardStats, "picard_stats.load")
+def loadPicardStats(infiles, outfile):
+    '''merge alignment stats into single tables.
+    '''
+    PipelineMappingQC.loadPicardAlignmentStats(infiles, outfile)
 
-        basename1 = os.path.basename(infile1)
-        basename2 = os.path.basename(infile2)
 
-        track1 = P.snip(basename1, ".spp")
-        control1 = getControl(Sample(track1)).asFile()
-        track2 = P.snip(basename2, ".spp")
-        control2 = getControl(Sample(track2)).asFile()
+@follows(loadFilteringStats,
+         loadFilteringChecks,
+         loadIdxstats,
+         loadPicardStats,
+         loadFragmentLengthDistributions)
+def filtering():
+    ''' dummy task to allow all the filtering of bams & collection of stats
+    '''
 
-        statement = '''
-          cgat WrapperIDR
-                 --action=run
-                 --output-prefix=%(track1)s_vs_%(track2)s.idr
-                 --chromosome-table=%(chromosome_table)s
-                 idr.dir/%(track1)s.call_VS_%(control1)s.call.regionPeak.gz
-                 idr.dir/%(track2)s.call_VS_%(control2)s.call.regionPeak.gz
-          >> %(outfile)s'''
+
+# ### Make bigwigs of filtered bam files #####################################
+
+@transform((filterChipBAMs, filterInputBAMs),
+           suffix(".bam"),
+           ".bw")
+def buildBigWig(infile, outfile):
+    '''build wiggle files from bam files.
+
+    Generate :term:`bigWig` format file from :term:`bam` alignment file
+
+    Parameters
+    ----------
+    infile : str
+       Input filename in :term:`bam` format
+    outfile : str
+       Output filename in :term:`bigwig` format
+    annotations_interface_contigs : str
+       :term:`PARAMS`
+       Input filename in :term:`bed` format
+
+    '''
+    inf = infile[0]
+    # scale by Million reads mapped
+    reads_mapped = Bamtools.getNumberOfAlignments(inf)
+    scale = 1000000.0 / float(reads_mapped)
+    tmpfile = P.getTempFilename()
+    contig_sizes = PARAMS["annotations_interface_contigs"]
+    job_memory = "3G"
+    statement = '''bedtools genomecov
+    -ibam %(inf)s
+    -g %(contig_sizes)s
+    -bg
+    -scale %(scale)f
+    > %(tmpfile)s;
+    checkpoint;
+    bedGraphToBigWig %(tmpfile)s %(contig_sizes)s %(outfile)s;
+    checkpoint;
+    rm -f %(tmpfile)s
+    '''
+    P.run()
+
+
+###############################################################################
+#
+# 2) IDR  - preparation of files (pooled & pseudobams) for IDR
+#
+###############################################################################
+
+
+# These steps are required for IDR and are only run if IDR is requested
+if int(PARAMS['IDR_run']) == 1:
+    @follows(mkdir("pooled_bams.dir"))
+    @split(filterChipBAMs,
+           r"pooled_bams.dir/*_pooled_filtered.bam")
+    def makePooledBams(infiles, outfiles):
+        '''
+        IDR requires one bam file for each replicate and a pooled bam
+        file of all replicates for a particular condition and tissue.
+        This function generates the pooled bam files.
+        '''
+        cond_tissues = set(df['Condition'] + "_" + df['Tissue'])
+
+        # Take each combination of tissues and conditions from the design
+        # tables
+        for ct in cond_tissues:
+            p = ct.split("_")
+            cond = p[0]
+            tissue = p[1].split(".")[0]
+
+            # identify and read all bam files for this combination of
+            # tissue and condition
+            subdf = df[((df['Condition'] == cond) & (df['Tissue'] == tissue))]
+            innames = subdf['bamReads'].values
+            innames = set(
+                ["filtered_bams.dir/%s" % s.replace(".bam", "_filtered.bam")
+                 for s in innames])
+
+            out = "pooled_bams.dir/%s_pooled_filtered.bam" % ct
+
+            # Generate a merged, sorted, indexed bam file combining
+            # all bam files for this tissue and condition
+            PipelinePeakcalling.mergeSortIndex(innames, out)
+
+    @active_if(PARAMS['IDR_poolinputs'] != "all" and PARAMS['input'] != 0)
+    @follows(mkdir('IDR_inputs.dir'))
+    @split(filterInputBAMs, "IDR_inputs.dir/*_pooled_filtered.bam")
+    def makePooledInputs(infiles, outfiles):
+        '''
+        As pooled BAM files are used in the IDR, pooled input files also
+        need to be generated - combined bam files of all the input bam
+        files for this tissue.
+        If you have chosen the "all" option for IDR_poolinputs in the
+        pipeline.ini, this step is skipped, as all inputs are pooled for
+        all IDR analyses.
+        '''
+        cond_tissues = set(df['Condition'] + "_" + df['Tissue'])
+
+        # Take each combination of tissues and conditions from the design
+        # tables
+        for ct in cond_tissues:
+            p = ct.split("_")
+            cond = p[0]
+            tissue = p[1].split(".")[0]
+            subdf = df[((df['Condition'] == cond) & (df['Tissue'] == tissue))]
+
+            # find the inputs linked to any bam files for this combination of
+            # tissues and conditions
+            inputs = subdf['bamControl'].values
+            inputs = set(
+                ["filtered_bams.dir/%s" % s.replace(".bam", "_filtered.bam")
+                 for s in inputs])
+            out = "IDR_inputs.dir/%s_pooled_filtered.bam" % ct
+
+            # generate a sorted, index, merged bam file for all of these
+            # inputs
+            PipelinePeakcalling.mergeSortIndex(inputs, out)
+
+else:
+    @transform(filterChipBAMs, regex("filtered_bams.dir/(.*).bam"),
+               r'filtered_bams.dir/\1.bam')
+    def makePooledBams(infile, outfile):
+        '''
+        Dummy task if IDR not requested.
+        '''
+
+    @active_if(PARAMS['input'] != 0)
+    @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
+               r'filtered_bams.dir/\1.bam')
+    def makePooledInputs(infile, outfile):
+        pass
+
+
+if int(PARAMS['IDR_run']) == 1:
+    @follows(mkdir("peakcalling_bams.dir"))
+    @subdivide((filterChipBAMs, makePooledBams),
+               regex("(.*)_bams.dir/(.*).bam"),
+               [r"peakcalling_bams.dir/\2_pseudo_1.bam",
+                r"peakcalling_bams.dir/\2_pseudo_2.bam",
+                r"peakcalling_bams.dir/\2.bam"])
+    def makePseudoBams(infiles, outfiles):
+        '''
+        Generates pseudo bam files each containing approximately 50% of reads
+        from the original bam file for IDR self consistency analysis.
+        Also generates a link to the original BAM file in the
+        peakcalling_bams.dir directory.
+
+        '''
+        # makePooledBams generates a single output whereas filterChipBAMS
+        # generates a bam file and a table - a list of outputs
+        if isinstance(infiles, list):
+            infile = infiles[0]
+        else:
+            infile = infiles
+
+        pseudos = outfiles[0:2]
+        orig = outfiles[2]
+
+        PipelinePeakcalling.makeBamLink(infile, orig)
+
+        PipelinePeakcalling.makePseudoBams(infile, pseudos,
+                                           PARAMS['paired_end'],
+                                           PARAMS['IDR_randomseed'],
+                                           PARAMS['filters_bamfilters'].split(
+                                               ","),
+                                           submit=True)
+else:
+    @follows(mkdir('peakcalling_bams.dir'))
+    @transform(filterChipBAMs, regex("filtered_bams.dir/(.*)_filtered.bam"),
+               r'peakcalling_bams.dir/\1.bam')
+    def makePseudoBams(infile, outfile):
+        '''
+        Link to original BAMs without generating pseudo bams
+        if IDR not requested.
+        '''
+        PipelinePeakcalling.makeBamLink(infile[0], outfile)
+
+
+# These three functions gather and parse the input (control) bam files into the
+# IDR_inputs.dir directory prior to IDR analysis.
+# The method used to do this depends on the IDR_poolinputs parameter
+
+if PARAMS['IDR_poolinputs'] == "none":
+    @active_if(PARAMS['input'] != 0)
+    @follows(mkdir('IDR_inputs.dir'))
+    @transform(filterInputBAMs, regex("filtered_bams.dir/(.*).bam"),
+               r'IDR_inputs.dir/\1.bam')
+    def makeIDRInputBams(infile, outfile):
+        '''
+        When pooled inputs are not requested, the appropriate inputs are
+        generated above in the filterInputBAMS step - this function links to
+        these in the IDR_inputs.dir directory.
+        '''
+        infile = infile[0]
+        PipelinePeakcalling.makeBamLink(infile, outfile)
+
+
+elif PARAMS['IDR_poolinputs'] == "all":
+    @active_if(PARAMS['input'] != 0)
+    @follows(mkdir('IDR_inputs.dir'))
+    @merge(filterInputBAMs, "IDR_inputs.dir/pooled_all.bam")
+    def makeIDRInputBams(infiles, outfile):
+        '''
+        When all inputs are to be pooled and used as a control against all
+        samples, a single merged bam is generated from the output of
+        the filterInputBAMs step above in the IDR_inputs.dir directory.
+        '''
+        infiles = [i[0] for i in infiles]
+        PipelinePeakcalling.mergeSortIndex(infiles, outfile)
+
+
+elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] != 1:
+    @active_if(PARAMS['input'] != 0)
+    @follows(mkdir('IDR_inputs.dir'))
+    @split(filterInputBAMs, r'IDR_inputs.dir/*.bam')
+    def makeIDRInputBams(infiles, outfiles):
+        '''
+        When IDR is going to be performed, inputs which are pooled by tissue
+        and condition are automatically generated as these are always required.
+
+        This function pools tissues and conditions when IDR is switched
+        off if inputs pooled by condition are requested.
+
+        The appropriate outputs from filterInputBAMs are identified and
+        merged into a single BAM stored in the IDR_inputs.dir directory.
+        '''
+        outs = set(inputD.values())
+        for out in outs:
+            p = out.split("_")
+            cond = p[0]
+            tissue = p[1]
+
+            # collect the appropriate bam files from their current location
+            subdf = df[((df['Condition'] == cond) & (df['Tissue'] == tissue))]
+            innames = subdf['bamControl'].values
+            innames = set(
+                ["filtered_bams.dir/%s" % s.replace(".bam", "_filtered.bam")
+                 for s in innames])
+            out = "IDR_inputs.dir/%s" % out
+            out = out.replace(".bam", "_filtered.bam")
+            PipelinePeakcalling.mergeSortIndex(innames, out)
+
+
+elif PARAMS['IDR_poolinputs'] == "condition" and PARAMS['IDR_run'] == 1:
+    @active_if(PARAMS['input'] != 0)
+    @follows(mkdir('IDR_inputs.dir'))
+    @follows(mkdir('IDR_inputs.dir'))
+    @transform(makePooledInputs, regex("IDR_inputs.dir/(.*).bam"),
+               r'IDR_inputs.dir/\1.bam')
+    def makeIDRInputBams(infiles, outfiles):
+        '''
+        If IDR is going to be run, pooled inputs are generated above so
+        they don't need to be generated again if requested.
+        '''
+
+
+@follows(makeIDRInputBams,
+         filterInputBAMs,
+         makePooledBams,
+         makePooledInputs,
+         makePseudoBams)
+@originate("peakcalling_bams_and_inputs.tsv")
+def makeBamInputTable(outfile):
+    '''
+    Generates a tab delimited file - peakcalling_bams_and_inputs.tsv
+    which links each filtered bam file in the peakcalling_bams.dir
+    directory to the appropriate input in the IDR_inputs.dir
+    directory.
+    Uses the dictionary inputD generated as a global variable based
+    on the user-specified design table plus pooled input files generated
+    above.
+    '''
+    ks = inputD.keys()
+    out = IOTools.openFile(outfile, "w")
+    out.write('ChipBam\tInputBam\n')
+    bamfiles = os.listdir("peakcalling_bams.dir")
+
+    for k in ks:
+        inputstem = inputD[k]
+        chipstem = k
+        chipstem = P.snip(chipstem)
+        if PARAMS['input'] == 0:
+            inputfile = "-"
+        else:
+            inputstem = P.snip(inputstem)
+            inputfile = "IDR_inputs.dir/%s_filtered.bam" % inputstem
+
+        for b in bamfiles:
+            if b.startswith(chipstem) and b.endswith('bam'):
+                out.write("peakcalling_bams.dir/%s\t%s\n" % (b, inputfile))
+    out.close()
+
+
+@transform(makeBamInputTable, suffix(".tsv"), ".load")
+def loadBamInputTable(infile, outfile):
+    P.load(infile, outfile)
+
+
+@transform(makePseudoBams, suffix(".bam"), "_insertsize.tsv")
+def estimateInsertSize(infile, outfile):
+    '''
+    Predicts insert size using MACS2 for single end data and using Bamtools
+    for paired end data.
+    Output is stored in insert_size.tsv
+    '''
+
+    PipelinePeakcalling.estimateInsertSize(infile,
+                                           outfile,
+                                           PARAMS['paired_end'],
+                                           PARAMS['insert_alignments'],
+                                           PARAMS['insert_macs2opts'],
+                                           PARAMS['python2_macs2'])
+
+
+@merge(estimateInsertSize, "insert_sizes.tsv")
+def mergeInsertSizes(infiles, outfile):
+    '''
+    Combines insert size outputs into one file
+    '''
+    out = IOTools.openFile(outfile, "w")
+    out.write("filename\tmode\tfragmentsize_mean\tfragmentsize_std\ttagsize\n")
+    for infile in infiles:
+        res = IOTools.openFile(infile).readlines()
+        out.write("%s\t%s\n" % (infile, res[-1].strip()))
+    out.close()
+
+
+@transform(mergeInsertSizes, suffix(".tsv"), ".load")
+def loadInsertSizes(infile, outfile):
+    P.load(infile, outfile)
+
+
+@follows(filtering,
+         loadInsertSizes,
+         loadDesignTable,
+         loadBamInputTable)
+@transform(makePseudoBams, regex("(.*)_bams\.dir\/(.*)\.bam"),
+           r"\1_bams.dir/\2.bam")
+def preprocessing(infile, outfile):
+    '''
+    Dummy task to ensure all preprocessing has run and
+    bam files are passed individually to the next stage.
+    '''
+
+#################################################################
+# 3) Peakcalling
+#################################################################
+
+
+@follows(mkdir('macs2.dir'))
+@transform(preprocessing,
+           regex("peakcalling_bams.dir/(.*).bam"),
+           add_inputs(makeBamInputTable),
+           r"macs2.dir/\1.macs2")
+def callMacs2peaks(infiles, outfile):
+    '''
+    Takes Bam and pairs with input using design files to
+    call peaks using macs2
+
+    Inputs
+    ======
+    bam file
+    design file - looks up to identify which input file should be used
+    for peakcalling
+    instertsize.tsv - gets insert size to use for peak calling
+
+    Output
+    -----
+    Macs2 output files
+    hmmm- plus a couple of others - check the module file
+
+    '''
+    D = PipelinePeakcalling.readTable(infiles[1])
+    bam = infiles[0]
+    if PARAMS['input'] == 0:
+        inputf = None
+    else:
+        inputf = D[bam]
+    insertsizef = "%s_insertsize.tsv" % (P.snip(bam))
+
+    peakcaller = PipelinePeakcalling.Macs2Peakcaller(
+        threads=1,
+        paired_end=PARAMS['paired_end'],
+        tool_options=PARAMS['macs2_options'],
+        tagsize=None,
+        force_single_end=PARAMS['macs2_force_single_end'])
+
+    job_memory = "50G"
+    statement = peakcaller.build(bam, outfile,
+                                 PARAMS['macs2_contigsfile'],
+                                 inputf,
+                                 insertsizef,
+                                 PARAMS['IDR_run'],
+                                 PARAMS['macs2_idrkeeppeaks'],
+                                 PARAMS['macs2_idrsuffix'],
+                                 PARAMS['macs2_idrcol'],
+                                 PARAMS['macs2_broad_peak'],
+                                 PARAMS['python2_macs2'])
+    P.run()
+    peakcaller.summarise(outfile)
+
+
+@follows(mkdir('sicer_narrow.dir'))
+@transform(preprocessing,
+           regex("peakcalling_bams.dir/(.*).bam"),
+           add_inputs(makeBamInputTable),
+           r"sicer_narrow.dir/\1.narrow_sicer")
+def callNarrowerPeaksWithSicer(infiles, outfile):
+    '''
+    Takes Bam and pairs with input using design files to
+    call peaks using sicer
+
+    Inputs
+    ======
+    bam file
+    design file - looks up to identify which input file should be used
+    for peakcalling
+    instertsize.tsv - gets insert size to use for peak calling
+
+    Output
+    -----
+    Sicer output files
+    '''
+    D = PipelinePeakcalling.readTable(infiles[1])
+    bam = infiles[0]
+    snip_bam = P.snip(bam)
+    bam_name = snip_bam + "_insertsize.tsv"
+
+    insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
+                                     PARAMS["database_name"])
+    fragment_size = insert_size[insert_size['filename'].str.contains(bam_name)][
+        'fragmentsize_mean']
+    fragment_size = int(fragment_size.tolist()[0])
+
+    window_size = PARAMS["sicer_narrow_window_size"]
+    gap_size = PARAMS["sicer_narrow_gap_size"]
+    fdr_threshold = PARAMS["sicer_fdr_threshold"]
+    genome = PARAMS["genome"]
+    redundancy_threshold = PARAMS["sicer_redundancy_threshold"]
+    effective_genome_fraction = PARAMS['sicer_effective_genome_fraction']
+    minfragsize = PARAMS['sicer_min_insert_size']
+    maxfragsize = PARAMS['sicer_max_insert_size']
+
+    # If there are no inputs
+    if PARAMS['input'] == 0:
+        inputf = None
+    else:
+        inputf = D[bam]
+
+    peakcaller = PipelinePeakcalling.SicerPeakcaller(
+        threads=1,
+        tool_options=PARAMS['sicer_options'],
+        window_size=window_size,
+        gap_size=gap_size,
+        fragment_size=fragment_size,
+        fdr_threshold=fdr_threshold,
+        effective_genome_fraction=effective_genome_fraction,
+        genome=genome,
+        redundancy_threshold=redundancy_threshold,
+        minfragsize=minfragsize,
+        maxfragsize=maxfragsize)
+
+    statement = peakcaller.build(bam,
+                                 outfile,
+                                 controlfile=inputf,
+                                 idr=PARAMS['IDR_run'],
+                                 idrc=PARAMS['sicer_idrkeeppeaks'],
+                                 idrcol=PARAMS['sicer_idrcol'],
+                                 broad_peak=0,
+                                 conda_env=PARAMS['python2_sicer'])
+
+    P.run()
+    peakcaller.summarise(outfile, mode="narrow")
+
+
+@follows(mkdir('sicer_broad.dir'))
+@transform(preprocessing,
+           regex("peakcalling_bams.dir/(.*).bam"),
+           add_inputs(makeBamInputTable),
+           r"sicer_broad.dir/\1.broad_sicer")
+def callBroaderPeaksWithSicer(infiles, outfile):
+    '''
+    Takes Bam and pairs with input using design files to
+    call peaks using sicer
+
+    Inputs
+    ======
+    bam file
+    design file - looks up to identify which input file should be used
+    for peakcalling
+    instertsize.tsv - gets insert size to use for peak calling
+
+    Output
+    -----
+    Sicer output files
+    '''
+    D = PipelinePeakcalling.readTable(infiles[1])
+    bam = infiles[0]
+    snip_bam = P.snip(bam)
+    bam_name = snip_bam + "_insertsize"
+    insert_size = DB.fetch_DataFrame("SELECT * FROM insert_sizes",
+                                     PARAMS["database_name"])
+    fragment_size = insert_size[insert_size[
+        'filename'].str.contains(bam_name)]['fragmentsize_mean']
+    fragment_size = int(fragment_size.tolist()[0])
+
+    window_size = PARAMS["sicer_broad_window_size"]
+    gap_size = PARAMS["sicer_broad_gap_size"]
+    fdr_threshold = PARAMS["sicer_fdr_threshold"]
+    genome = PARAMS["genome"]
+    redundancy_threshold = PARAMS["sicer_redundancy_threshold"]
+    effective_genome_fraction = PARAMS['sicer_effective_genome_fraction']
+
+    minfragsize = PARAMS['sicer_min_insert_size']
+    maxfragsize = PARAMS['sicer_max_insert_size']
+
+    # If there are no inputs
+    if PARAMS['input'] == 0:
+        inputf = None
+    else:
+        inputf = D[bam]
+
+    peakcaller = PipelinePeakcalling.SicerPeakcaller(
+        threads=1,
+        tool_options=PARAMS['sicer_options'],
+        window_size=window_size,
+        gap_size=gap_size,
+        fragment_size=fragment_size,
+        fdr_threshold=fdr_threshold,
+        effective_genome_fraction=effective_genome_fraction,
+        genome=genome,
+        redundancy_threshold=redundancy_threshold,
+        minfragsize=minfragsize,
+        maxfragsize=maxfragsize)
+
+    statement = peakcaller.build(bam,
+                                 outfile,
+                                 controlfile=inputf,
+                                 idr=PARAMS['IDR_run'],
+                                 idrc=PARAMS['sicer_idrkeeppeaks'],
+                                 idrcol=PARAMS['sicer_idrcol'],
+                                 broad_peak=1,
+                                 conda_env=PARAMS['python2_sicer'])
+
+    P.run()
+    peakcaller.summarise(outfile, mode="broad")
+
+
+@follows(callNarrowerPeaksWithSicer, callBroaderPeaksWithSicer)
+def runSicer():
+    pass
+
+
+# list of peak callers to use
+PEAKCALLERS = []
+# list of peakcallers to use for IDR - currently IDR only works with a
+# single peakcaller at a time
+IDRPEAKCALLERS = []
+# create dictionary of peakcallers and thier functions
+mapToPeakCallers = {'macs2': (callMacs2peaks,),
+                    'sicer': (runSicer,), }
+
+# Call the peakcallers specified in the list
+for x in P.asList(PARAMS['peakcalling_peakcallers']):
+    PEAKCALLERS.extend(mapToPeakCallers[x])
+
+
+@merge(PEAKCALLERS, "peakcalling_summary.tsv")
+def summarisePeakCalling(infiles, outfile):
+    bigtab = pd.DataFrame()
+    for i in infiles:
+        i = "%s_log.table" % i
+        tab = pd.read_csv(i, sep="\t")
+        bigtab = bigtab.append(tab)
+    bigtab.to_csv(outfile, sep="\t", index=False)
+
+
+@transform(summarisePeakCalling, suffix(".tsv"), ".load")
+def loadPeakCallingStats(infile, outfile):
+    P.load(infile, outfile)
+
+
+@follows(loadPeakCallingStats)
+def peakcalling():
+    '''
+    dummy task to collate upstream peakcalling tasks
+    '''
+
+################################################################
+# 4) post peakcalling IDR Steps
+################################################################
+
+
+if PARAMS['IDR_run']:
+    IDR_ON = True
+else:
+    IDR_ON = False
+
+
+@active_if(IDR_ON)
+@follows(peakcalling)
+@follows(mkdir("peaks_for_IDR.dir"))
+@transform(mapToPeakCallers[PARAMS['peakcalling_idrpeakcaller']],
+           regex("(.*)/(.*)"),
+           r"peaks_for_IDR.dir/\2.IDRpeaks")
+def getIDRInputs(infile, outfile):
+    '''
+    Get the resulting peaks file from peakcalling
+    and place them in IDR.dir so they can all be
+    easilly found and indentified for IDR analysis
+
+    inputs
+    ======
+    _IDRpeak files in peakcaller directorys
+    (e.g. macs2.dir)
+
+    output
+    copy of _IDRpeak files in 'peaks_for_IDR.dir'
+
+    '''
+    IDRpeaks = "%s_IDRpeaks" % infile
+    shutil.copy(IDRpeaks, outfile)
+
+
+@active_if(IDR_ON)
+@merge(getIDRInputs, "IDR_pairs.tsv")
+def makeIDRPairs(infiles, outfile):
+    '''
+    generate table of files to pair up for
+    IDR analysis
+
+    inputs
+    -----
+    list of peak files in 'peaks_for_IDR.dir'
+
+    Outputs
+    -------
+    table detailing the file pairings for IDR
+    analysis
+    '''
+    useoracle = PARAMS['IDR_useoracle']
+    PipelinePeakcalling.makePairsForIDR(infiles, outfile,
+                                        PARAMS['IDR_useoracle'],
+                                        df, submit=True)
+
+
+@active_if(IDR_ON)
+@transform(makeIDRPairs, suffix(".tsv"), ".load")
+def loadIDRPairs(infile, outfile):
+    P.load(infile, outfile)
+
+
+@active_if(IDR_ON)
+@follows(mkdir("IDR.dir"))
+@split(makeIDRPairs, "IDR.dir/*.dummy")
+def splitForIDR(infile, outfiles):
+    '''
+    infile = "IDR_pairs.tsv" file
+    output =
+    dummy file to act as placeholder for ruffus
+    updated "IDR_pairs.tsv" file
+    containaing tissue and condition information and
+    the name of IDR output file
+    '''
+    pairs = pd.read_csv(infile, sep="\t")
+    pairs['Condition'] = pairs['Condition'].astype('str')
+    pairs['Tissue'] = pairs['Tissue'].astype('str')
+    for p in pairs.index.values:
+        p = pairs.ix[p]
+        p1 = P.snip(p[0].split("/")[-1])
+        p2 = P.snip(p[1].split("/")[-1])
+
+        pairstring = "%s_v_%s" % (p1, p2)
+
+        out = IOTools.openFile("IDR.dir/%s.dummy" % pairstring, "w")
+        out.write("%s\n" % "\n".join(p))
+        out.close()
+
+
+@active_if(IDR_ON)
+@transform(splitForIDR, suffix(".dummy"), ".tsv")
+def runIDR(infile, outfile):
+    ''' takes the  "IDR_pairs.tsv" detailing the files to be compared
+    for IDR and uses this to run IDR analysis for the approriate files
+
+    IDR_options = string from pipeline ini file detailing IDR options
+    Different IDR comparisions (e.g. selfconistency, pooledconsistency or
+    replicate consistancy might require different IDR thresholds) these can be
+    set in the pipeline.ini file in the IDR section
+
+    Oracle files = oracle peakset - see IDR analysis for details of what this
+    means?
+
+    '''
+    lines = [line.strip() for line in IOTools.openFile(infile).readlines()]
+    infile1, infile2, setting, oraclefile, condition, tissue = lines
+    options = PARAMS['IDR_options']
+
+    if setting == 'self_consistency':
+        idrthresh = PARAMS['IDR_softthresh_selfconsistency']
+        options += " %s" % PARAMS['IDR_options_selfconsistency']
+    elif setting == "pooled_consistency":
+        idrthresh = PARAMS['IDR_softthresh_pooledconsistency']
+        options += " %s" % PARAMS['IDR_options_pooledconsistency']
+
+    elif setting == "replicate_consistency":
+        idrthresh = PARAMS['IDR_softthresh_replicateconsistency']
+        options += " %s" % PARAMS['IDR_options_replicateconsistency']
+
+    # Make the statement to run the test and check merged peak list length
+    T = P.getTempFilename(".")
+    statement = PipelinePeakcalling.buildIDRStatement(
+        infile1, infile2,
+        T,
+        PARAMS['IDR_sourcecommand'],
+        PARAMS['IDR_unsourcecommand'],
+        idrthresh,
+        idrPARAMS, options, oraclefile, test=True)
+
+    P.run()
+    lines = IOTools.openFile(T).readlines()
+    os.remove(T)
+    os.remove('%s.log' % T)
+
+    # actually run the IDR
+    if len(lines) >= 20:
+        statement = PipelinePeakcalling.buildIDRStatement(
+            infile1, infile2,
+            outfile,
+            PARAMS['IDR_sourcecommand'],
+            PARAMS['IDR_unsourcecommand'],
+            idrthresh,
+            idrPARAMS, options, oraclefile)
 
         P.run()
 
-
-@follows(mkdir(os.path.join(PARAMS["exportdir"], "idr")))
-@transform(applyIDR,
-           suffix(".idr"),
-           ".plot")
-def plotIDR(infile, outfile):
-    '''plot IDR results.'''
-
-    track = P.snip(infile, ".idr")
-    files = glob.glob(track + "*.idr-em.sav")
-    files = " ".join([P.snip(x, "-em.sav") for x in files])
-    output_prefix = os.path.join(
-        PARAMS["exportdir"], "idr", os.path.basename(track))
-    statement = '''
-    cgat WrapperIDR
-               --action=plot
-               --output-prefix=%(output_prefix)s
-               %(files)s
-    > %(outfile)s'''
-
-    P.run()
+    else:
+        E.warn("""
+        *******************************************************\
+        IDR failed for %(infile1)s vs %(infile2)s - fewer than 20\
+        peaks in the merged peak list\
+        *******************************************************""" % locals())
+        out = IOTools.openFile(outfile, "w")
+        out.write("IDR FAILED - NOT ENOUGH PEAKS IN MERGED PEAK LIST")
+        out.close()
 
 
-######################################################################
-#                                                                  ##
-#                           Scripture                              ##
-#                                                                  ##
-######################################################################
-@follows(mkdir("scripture.dir"), normalizeBAM)
-@files([("%s.call.bam" % (x.asFile()),
-         "scripture.dir/%s.scripture" % x.asFile()) for x in TRACKS])
-def callPeaksWithScripture(infile, outfile):
-    '''run SICER for peak detection.'''
-    track = P.snip(infile, ".call.bam")
-    controls = getControl(Sample(track))
-    controlfile = getControlFile(Sample(track), controls, "%s.call.bam")
-
-    contig_sizes = os.path.join(PARAMS["annotations_dir"],
-                                PARAMS["annotations_interface_contigs"])
-
-    PipelinePeakcalling.runScripture(infile,
-                                     outfile,
-                                     contig_sizes)
-
-
-@transform(callPeaksWithScripture, suffix(".scripture"), ".load")
-def loadScripture(infile, outfile):
-    '''load scripture data.'''
-    bamfile, controlfile = getBamFiles(infile, ".scripture")
-    PipelinePeakcalling.loadScripture(infile, outfile, bamfile, controlfile)
-
-######################################################################
-#                                                                  ##
-#            ___ Collate peak calling results ___                  ##
-#                                                                  ##
-######################################################################
-CALLINGTARGETS, SUMMARYTARGETS = [], []
-mapToCallingTargets = {'macs': loadMACS,
-                       'macs2': loadMACS2,
-                       'zinba': loadZinba,
-                       'sicer': loadSICER,
-                       'peakranger': loadPeakRanger,
-                       'ccat': loadPeakRangerCCAT,
-                       'spp': loadSPP,
-                       'scripture': loadScripture,
-                       }
-
-mapToSummaryTargets = {'macs': [loadMACSSummary, loadMACSSummaryFDR],
-                       'macs2': [loadMACS2Summary, loadMACS2SummaryFDR],
-                       'sicer': [loadSICERSummary],
-                       'spp': [loadSPPSummary],
-                       'peakranger': [loadPeakRangerSummary],
-                       'ccat': [loadPeakRangerSummaryCCAT],
-                       }
-
-for x in P.asList(PARAMS["peakcallers"]):
-    CALLINGTARGETS.append(mapToCallingTargets[x])
-    if x in mapToSummaryTargets:
-        SUMMARYTARGETS.extend(mapToSummaryTargets[x])
-
-
-@follows(*(CALLINGTARGETS + SUMMARYTARGETS))
-def calling():
-    pass
-
-
-@follows(mkdir(os.path.join(PARAMS["exportdir"], "filtered_bedfiles")),
-         mkdir('filtering.dir'))
-@transform(CALLINGTARGETS, regex("(.*)/(.*).load"),
-           add_inputs(mergeBackgroundWindows),
-           (os.path.join(
-               PARAMS["exportdir"],
-               "filtered_bedfiles",
-               r"\2.peaks.bed.gz"),
-            os.path.join(
-                PARAMS["exportdir"],
-                "filtered_bedfiles",
-                r"\2.regions.bed.gz"),
-            os.path.join(
-                PARAMS["exportdir"],
-                "filtered_bedfiles",
-                r"\2.summits.bed.gz"),
-            r"filtering.dir/\2.tsv"))
-def exportFilteredIntervalsAsBed(infiles, outfiles):
-    '''export filtered intervals as bed files.
-
-    Intervals are filtered by:
-
-    * removing all intervals that overlap a background interval
-    * merging overlapping intervals
+@active_if(IDR_ON)
+@transform(runIDR, suffix(".tsv"), ["_filtered.tsv",
+                                    "_table.tsv"])
+def filterIDR(infile, outfiles):
     '''
+    Take the IDR output, which is in ENCODE narrowPeaks format if the input
+    is narrowPeaks, gtf or bed and ENCODE broadPeaks format if the input is
+    broadPeaks.
+    Input is filtered based on whether it passes the soft IDR thresholds
+    provided in the pipeline.ini.  Peaks which pass this threshold
+    with have a score in the "globalIDR" column which is greater
+    than -log10(soft_threshold) where soft_threshold is the soft threshold
+    provided in the pipeline.ini.
+    Column headings are added and output is sorted by signalValue.
 
-    infile, background_bed = infiles
+    outfile name is split and looked up in database to find the appropriate
+    threshold type to set the filtering threshold
 
-    outfile_peaks, outfile_regions, outfile_summits, \
-        outfile_summary = outfiles
+    NOTE CG MAY2017 - There is a bug in the IDR output file which means filtering
+    on the threshold score does not give you the same number that is output by
+    IDR itself- this code is the closest to get to it until they push the fix it
+    only really effects a few peaks so its not really something to worry about
 
-    track = P.snip(os.path.basename(infile), ".load")
+    '''
+    IDRdata = pd.read_csv(infile, sep="\t", header=None)
 
-    logfile = IOTools.openFile(outfile_summary, "w")
-    logfile.write(
-        "category\tinput\toutput\tremoved_background\tremoved_merged\n")
+    # use filenane of infile to look at the IDR_comparision type
+    x = P.snip(infile, '.tsv')
+    x = x.split('/')[1]
+    x = x.split('_v_')
+    file1 = 'peaks_for_IDR.dir/%s.IDRpeaks' % x[0]
+    file2 = 'peaks_for_IDR.dir/%s.IDRpeaks' % x[1]
 
-    for category, tablename, outfile in (
-            ('peaks', "%s_peaks" % P.tablequote(track),
-             outfile_peaks),
-            ('regions', "%s_regions" % P.tablequote(track),
-             outfile_regions),
-            ('summits', "%s_summits" % P.tablequote(track),
-             outfile_summits)):
-        dbh = connect()
-        if tablename in Database.getTables(dbh):
-            c = PipelinePeakcalling.exportIntervalsAsBed(
-                infile, outfile, tablename,
-                dbh,
-                bedfilter=background_bed,
-                merge=True)
-            logfile.write("\t".join(map(str, (
-                category, c.input,
-                c.output,
-                c.removed_bedfilter,
-                c.removed_merging))) + "\n")
+    conn = sqlite3.connect(PARAMS['database_name'])
+    c = conn.cursor()
+    x = c.execute(
+        "SELECT IDR_comparison_type FROM IDR_pairs WHERE file1 = '%s' AND file2 = '%s'" % (file1, file2))
+    x = x.fetchall()
+
+    if len(x) != 1:
+        E.warn("""incorrect pairing of IDR output and IDR_comparision
+               type for filtering!!!""")
+    else:
+        IDR_comparision_type = str(x[0][0])
+
+    if IDR_comparision_type == 'self_consistency':
+        idrthresh = PARAMS['IDR_softthresh_selfconsistency']
+    elif IDR_comparision_type == "pooled_consistency":
+        idrthresh = PARAMS['IDR_softthresh_pooledconsistency']
+    elif IDR_comparision_type == "replicate_consistency":
+        idrthresh = PARAMS['IDR_softthresh_replicateconsistency']
+
+    if 'FAILED' in IDRdata[0][0]:
+        IDRdata.to_csv(outfiles[0], sep="\t")
+        IDRpassed = 0
+    else:
+        IDRpassed = 1
+
+        if idrPARAMS['idrsuffix'] == "broadPeak":
+            IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name",
+                               "score", "strand", "signalValue",
+                               "p-value", "q-value",
+                               "localIDR", "globalIDR",
+                               "rep1_chromStart", "rep2_chromEnd",
+                               "rep1_signalValue", "rep2_chromStart",
+                               "rep2_chromEnd", "rep2_signalValue"]
         else:
-            E.warn("no table %s - empty bed file output" % tablename)
-            P.touch(outfile)
+            IDRdata.columns = ["chrom", "chromStart", "chromEnd", "name",
+                               "score", "strand", "signalValue", "p-value",
+                               "q-value",
+                               "summit", "localIDR", "globalIDR",
+                               "rep1_chromStart", "rep2_chromEnd",
+                               "rep1_signalValue", "rep1_summit",
+                               "rep2_chromStart", "rep2_chromEnd",
+                               "rep2_signalValue", "rep2_summit"]
 
-    logfile.close()
+        # this code might change in python3 -> be aware!!
 
+        # CG: this uses global idr column to filter on - requires idr code to
+        # be modified so that it does not round idr output (line 334 - Jun17)
+        idr_score_threshold = -math.log(idrthresh, 10)
 
-@merge(exportFilteredIntervalsAsBed, 'exported_intervals.load')
-def loadFilteredExportSummary(infiles, outfile):
-    '''load export summary.'''
-    infiles = [x[-1] for x in infiles]
-    P.concatenateAndLoad(infiles,
-                         outfile,
-                         regex_filename=('filtering.dir/(.*)_([^_]+).tsv'),
-                         cat="track,method")
+        IDRdataP = IDRdata[IDRdata['globalIDR'] >= idr_score_threshold]
+        IDRdataF = IDRdata[IDRdata['globalIDR'] < idr_score_threshold]
 
+        IDRdataP = IDRdataP.sort_values('signalValue', ascending=False)
+        IDRdataF = IDRdataF.sort_values('signalValue', ascending=False)
+        IDRdataP.to_csv(outfiles[0], sep="\t")
 
-@follows(mkdir(os.path.join(PARAMS["exportdir"], "bedfiles")))
-@transform(CALLINGTARGETS, regex("(.*)/(.*).load"),
-           (os.path.join(
-               PARAMS["exportdir"],
-               "bedfiles",
-               r"\2.peaks.bed.gz"),
-            os.path.join(
-                PARAMS["exportdir"],
-                "bedfiles",
-                r"\2.regions.bed.gz"),
-            os.path.join(
-                PARAMS["exportdir"],
-                "bedfiles",
-                r"\2.summits.bed.gz")))
-def exportIntervalsAsBed(infile, outfiles):
-    '''export all intervals as bed files.'''
+    H = ['Total_Peaks', 'Peaks_Passing_IDR', 'Peaks_Failing_IDR',
+         'Percentage_Peaks_Passing_IDR', 'IDR_Successful']
 
-    outfile_peaks, outfile_regions, outfile_summits = outfiles
-    track = P.snip(os.path.basename(infile), ".load")
+    if IDRpassed == 1:
+        T = ((len(IDRdata), len(IDRdataP), len(IDRdataF),
+              round(float(len(IDRdataP)) / float(len(IDRdata)), 4) * 100,
+              "TRUE"))
+    else:
+        T = ((0, 0, 0, 0, 0, "FALSE"))
 
-    for tablename, outfile in (
-            ("%s_peaks" % P.tablequote(track), outfile_peaks),
-            ("%s_regions" % P.tablequote(track), outfile_regions),
-            ("%s_summits" % P.tablequote(track), outfile_summits)):
-        dbh = connect()
-        if tablename in Database.getTables(dbh):
-            PipelinePeakcalling.exportIntervalsAsBed(
-                infile, outfile, tablename, dbh)
-        else:
-            E.warn("no table %s - empty bed file output" % tablename)
-            P.touch(outfile)
+    out = IOTools.openFile(outfiles[1], "w")
+    out.write("%s\n" % "\t".join(H))
+    out.write("%s\n" % "\t".join([str(t) for t in T]))
 
 
-###################################################################
-###################################################################
-###################################################################
-# Targets for the annotation of intervals.
-###################################################################
-@split(exportIntervalsAsBed, os.path.join(
-    PARAMS["exportdir"],
-    "bedfiles", "*.bed.gz"))
-def flattenBedFiles(infile, outfile):
-    '''dummy target - merge all files in exportIntervalsAsBed'''
-
-
-def getPeakShift(track, method):
-    '''return peak shift for track and method.'''
-    dbh = connect()
-    result = Database.executewait(
-        dbh,
-        "SELECT shift FROM %(method)s_summary where track = '%(track)s'" %
-        locals())
-    return result.fetchone()[0]
-
-###################################################################
-###################################################################
-###################################################################
-
-
-@follows(mkdir("peakshapes.dir"))
-@transform(flattenBedFiles,
-           regex(".*/(.*).bed.gz"),
-           r"peakshapes.dir/\1.peakshape.tsv.gz")
-def buildPeakShapeTable(infile, outfile):
-    '''build a table with peak shape parameters.'''
-
-    # compute suffix (includes method name)
-    track, method, section = re.match(
-        "(.*)_(.*)\.(.*).bed.gz", os.path.basename(infile)).groups()
-
-    suffix = "_%s.%s.bed.gz" % (method, section)
-    bamfile, controlfile = getBamFiles(infile, suffix)
-
-    shift = getPeakShift(track, method)
-
-    if shift:
-        E.info("applying read shift %i for track %s" % (shift, track))
-
-    options = []
-    if controlfile:
-        options.append("--control-bam-file=%s" % controlfile)
-    options = " ".join(options)
-
-    statement = '''cgat bam2peakshape
-                      --window-size=%(peakshape_window_size)i
-                      --bin-size=%(peakshape_bin_size)i
-                      --output-filename-pattern="%(outfile)s.%%s"
-                      --force-output
-                      --shift-size=%(shift)i
-                      --method=sort --sort-order=peak-height
-                      --method=sort --sort-order=peak-width
-                      %(options)s
-                      --log=%(outfile)s.log
-                      %(bamfile)s %(infile)s
-                   | gzip
-                   > %(outfile)s
-                '''
-    P.run()
-
-###################################################################
-
-
-@transform(buildPeakShapeTable, suffix(".tsv.gz"), ".load")
-def loadPeakShapeTable(infile, outfile):
-    '''load peak shape information.'''
-    P.load(
-        infile,
-        outfile,
-        "--ignore-column=bins --ignore-column=counts --allow-empty-file")
-
-############################################################
-############################################################
-############################################################
-# targets to do with the analysis of replicates
-############################################################
-# dummy task - flatten the nested list of result files created
-# by exportIntervalsAsBed
-
-
-@split(exportIntervalsAsBed,
-       os.path.join(
-           PARAMS["exportdir"],
-           "bedfiles",
-           "*.bed.gz"))
-def allIntervalsAsBed(infile, outfile):
-    pass
-
-############################################################
-############################################################
-############################################################
-
-
-@follows(mkdir("reproducibility.dir"))
-@collate(allIntervalsAsBed,
-         regex(
-             os.path.join(
-                 PARAMS["exportdir"],
-                 "bedfiles",
-                 r"(.+)_(.+)\.(.+).bed.gz")),
-         r"reproducibility.dir/\1.\3.reproducibility")
-def makeReproducibilityOfMethods(infiles, outfile):
-    '''compute overlap between intervals.
-
-    Note the exon percentages are approximations assuming that there
-    are not more than one intervals in one set overlapping one in the
-    other set.
-
+@active_if(IDR_ON)
+@merge((filterIDR, makeIDRPairs), "IDR_results.tsv")
+def summariseIDR(infiles, outfile):
     '''
-    PipelinePeakcalling.makeReproducibility(infiles, outfile)
-
-############################################################
-############################################################
-############################################################
-
-
-@follows(mkdir("reproducibility.dir"))
-@collate(allIntervalsAsBed,
-         regex(
-             os.path.join(
-                 PARAMS["exportdir"],
-                 "bedfiles",
-                 r"(.+)-[^-]+_(.+)\.(.+).bed.gz")),
-         r"reproducibility.dir/\1-\2.\3.reproducibility")
-def makeReproducibilityOfReplicates(infiles, outfile):
-    '''compute overlap between intervals.
-
-    Note the exon percentages are approximations assuming that there
-    are not more than one intervals in one set overlapping one in the
-    other set.
-
     '''
-    PipelinePeakcalling.makeReproducibility(infiles, outfile)
+    pooledc, selfc, repc = (PARAMS['IDR_softthresh_pooledconsistency'],
+                            PARAMS['IDR_softthresh_selfconsistency'],
+                            PARAMS['IDR_softthresh_replicateconsistency'])
 
-############################################################
-############################################################
-############################################################
+    PipelinePeakcalling.summariseIDR(infiles, outfile, pooledc, selfc, repc)
 
 
-@transform((makeReproducibilityOfMethods,
-            makeReproducibilityOfReplicates),
-           suffix(".reproducibility"),
-           "_reproducibility.load")
-def loadReproducibility(infile, outfile):
-    '''load Reproducibility results
+@active_if(IDR_ON)
+@transform(summariseIDR, suffix(".tsv"), ".load")
+def loadIDRsummary(infile, outfile):
+    P.load(infile, outfile)
+
+
+@active_if(IDR_ON)
+@transform(summariseIDR, suffix("results.tsv"), "QC.tsv")
+def runIDRQC(infile, outfile):
+    PipelinePeakcalling.doIDRQC(infile, outfile)
+
+
+@active_if(IDR_ON)
+@transform(runIDRQC, suffix(".tsv"), ".load")
+def loadIDRQC(infile, outfile):
+    P.load(infile, outfile)
+
+
+@active_if(IDR_ON)
+@follows(mkdir("conservative_peaks.dir"))
+@split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
+def findConservativePeaks(infile, outfiles):
+    '''function selects row from IDR_results.tsv that represents the
+    conservative peak list'''
+    tab = pd.read_csv(infile, sep="\t")
+    cps = tab[tab['Conservative_Peak_List'] == 'Yes']
+    experiments = cps['Experiment'].values
+    peakfiles = cps['Output_Filename'].values
+
+    peakfiles = ["IDR.dir/%s" %
+                 i.replace("_table", "_filtered") for i in peakfiles]
+    i = 0
+    for peakfile in peakfiles:
+        outnam = "conservative_peaks.dir/%s.tsv" % experiments[i]
+        PipelinePeakcalling.makeLink(peakfile, outnam)
+        bedname = outnam.replace(".tsv", ".bed")
+        statement = "cut -f2-4 %(peakfile)s | awk 'NR!=1' | bedtools sort -i stdin > %(bedname)s"
+        P.run()
+        i += 1
+
+
+@active_if(IDR_ON)
+@follows(mkdir("optimal_peaks.dir"))
+@split(summariseIDR, "conservative_peaks.dir\/*\.tsv")
+def findOptimalPeaks(infile, outfiles):
+    '''function selects row from IDR_results.tsv that represents the
+    optimal peak list'''
+    tab = pd.read_csv(infile, sep="\t")
+    cps = tab[tab['Optimal_Peak_List'] == 'Yes']
+    experiments = cps['Experiment'].values
+    peakfiles = cps['Output_Filename'].values
+
+    peakfiles = ["IDR.dir/%s" %
+                 i.replace("_table", "_filtered") for i in peakfiles]
+
+    i = 0
+    for peakfile in peakfiles:
+        outnam = "optimal_peaks.dir/%s.tsv" % experiments[i]
+        PipelinePeakcalling.makeLink(peakfile, outnam)
+        bedname = outnam.replace(".tsv", ".bed")
+        statement = "cut -f2-4 %(peakfile)s | awk 'NR!=1' | bedtools sort -i stdin > %(bedname)s"
+        P.run()
+        i += 1
+
+
+@active_if(IDR_ON)
+@merge(runIDR, ['IDR.dir/self_consistency.png',
+                'IDR.dir/replicate_consistency.png',
+                'IDR.dir/pooled_consistency.png'])
+def plotIDR(infiles, outfiles):
     '''
-    P.load(infile, outfile, options="--allow-empty-file")
+    Generates plots showing the correlation between the ranking in the
+    two subsets for self consistency, replicate consistency and
+    pooled consistency datasets.
+
+    Ideally the plots should show a strong correlation for highly ranked
+    peaks and the blue section (which represents the peaks which pass IDR)
+    should represent the part of the graph where the correlation is strong.
+    '''
+    sns.set_style('ticks')
+
+    infiles = np.array(infiles)
+    self_c = infiles[['pseudo' in p and 'pooled' not in p for p in infiles]]
+    pooled_c = infiles[['pseudo' in p and 'pooled' in p for p in infiles]]
+    replicate_c = infiles[['pseudo' not in p and 'pooled' not in p
+                           for p in infiles]]
+    cols = ['chrom', 'chromStart', 'chromEnd', 'name',
+            'score', 'strand', 'signalValue', 'p-value',
+            'q-value', 'summit', 'localIDR', 'globalIDR',
+            'rep1_chromStart', 'rep1_chromEnd', 'rep1_signalValue',
+            'rep1_summit', 'rep2_chromStart', 'rep2_chromEnd',
+            'rep2_signalValue', 'rep2_summit']
+
+    i = 0
+
+    for L in self_c, replicate_c, pooled_c:
+        if i == 0:
+            thresh = PARAMS['IDR_softthresh_selfconsistency']
+            label = 'Self'
+        elif i == 1:
+            thresh = PARAMS['IDR_softthresh_replicateconsistency']
+            label = 'Replicate'
+        elif i == 2:
+            thresh = PARAMS['IDR_softthresh_pooledconsistency']
+            label = 'Pooled'
+
+        idr_score_threshold = -math.log(thresh, 10)
+        nrows = math.ceil(len(L) / 4)
+        ncols = 4
+        fig = plt.figure(figsize=(ncols * 3, nrows * 3))
+        f = gridspec.GridSpec(nrows, ncols)
+        j = 0
+        row = 0
+        col = 0
+        for item in L:
+            a = plt.subplot(f[row, col])
+            tab = pd.read_csv(item, sep="\t", names=cols)
+            tab['sig'] = tab['globalIDR'] >= idr_score_threshold
+            colours = ['#0571b0' if x else '#404040' for x in tab['sig']]
+            tab1 = tab.sort_values('rep1_signalValue', ascending=False)
+            tab2 = tab.sort_values('rep2_signalValue', ascending=False)
+            tab1['rank1'] = range(len(tab1))
+            tab2['rank2'] = range(len(tab2))
+            tab = tab.merge(tab1).merge(tab2)
+            a.scatter(tab['rank1'], tab['rank2'],
+                      s=0.1, alpha=1, color=colours)
+            sns.despine()
+            title = item.replace("_v_", "\n")
+            title = title.replace(".macs2", "")
+            title = title.replace("_filtered", "").replace("IDR.dir/", "")
+            a.set_title(title, fontsize=8)
+            a.set_xlabel('rank subset 1', fontsize=8)
+            a.set_ylabel('rank subset 2', fontsize=8)
+            col += 1
+            if col == ncols:
+                col = 0
+                row += 1
+        fig.suptitle(
+            '''Correlation Between Ranks in Pairs of Subsets: %(label)s Consistency\nblue = peak passing IDR, grey = peak not passing IDR''' % locals())
+        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        fig.savefig(outfiles[i])
+        i += 1
 
 
-@follows(loadReproducibility)
-def reproducibility():
+@active_if(IDR_ON)
+@follows(loadIDRPairs)
+@follows(loadIDRsummary)
+@follows(loadIDRQC)
+@follows(findConservativePeaks)
+@follows(findOptimalPeaks)
+@follows(runIDRQC)
+@follows(plotIDR)
+def IDR():
     pass
 
 
-# TS. removed loadSPPQualityMetrics as run_spp.R cannot be found
-# ValueError("could not find run_spp.R")
-@follows(loadBAMStats,
-         loadDuplicationStats)
-def qc():
-    pass
+################################################################
+# QC Steps
 
 
-@follows(calling,
-         qc,
-         exportIntervalsAsBed,
-         loadFilteredExportSummary)
+@merge(("design.tsv", makeBamInputTable),
+       ["ChIPQC_design_conservative.tsv",
+        "ChIPQC_design_optimal.tsv"])
+def makeCHIPQCInputTables(infiles, outfiles):
+    design = pd.read_csv(infiles[0], sep="\t")
+    inputs = pd.read_csv(infiles[1], sep="\t")
+    inputs['SampleID'] = inputs[
+        'ChipBam'].str.split("/").str.get(-1).str.split(".").str.get(0)
+    inputs['SampleID'] = [i.replace("_filtered", "")
+                          for i in inputs['SampleID']]
+    tab = design.merge(inputs)
+    tab = tab.drop("ControlID", 1)
+    tab = tab.drop("bamReads", 1)
+    tab = tab.rename(columns={"ChipBam": "bamReads"})
+    tab = tab[['SampleID', 'Tissue', 'Condition', 'Replicate',
+               'bamReads']]
+    tab = tab.rename(columns={'Condition': 'Factor'})
+    tab['Factor'] = tab['Factor'].astype('str')
+    tab['Tissue'] = tab['Tissue'].astype('str')
+
+    tab['Peaks'] = ("conservative_peaks.dir/" + tab['Factor'] + "_" +
+                    tab['Tissue'] + ".tsv")
+
+    tab.to_csv(outfiles[0], sep="\t", index=None)
+
+    tab['Peaks'] = ("optimal_peaks.dir/" + tab['Factor'] + "_" +
+                    tab['Tissue'] + ".tsv")
+    tab.to_csv(outfiles[1], sep="\t", index=None)
+
+# TODO
+# @follows(mkdir("ChIPQC.dir"))
+# @transform(makeCHIPQCInputTable,regex("(.*)_(.*).tsv"), r'ChIPQC.dir/\1.pdf')
+# def runCHIPQC(infiles, outfiles):
+#    R('''''')
+
+
+@follows(filtering, peakcalling, IDR)
 def full():
-    pass
+    ''' runs entire pipeline '''
+
+
+###############################################################
+# Report functions
+###############################################################
 
 
 @follows(mkdir("report"))
@@ -1863,37 +1644,116 @@ def update_report():
     P.run_report(clean=False)
 
 
-@follows(update_report)
+@follows(mkdir("%s/bamfiles" % PARAMS["web_dir"]),
+         mkdir("%s/medips" % PARAMS["web_dir"]),
+         )
 def publish():
-    '''publish files.'''
-    P.publish_report()
+    '''publish files to web directory'''
+
+    # directory : files
+
+    # publish web pages
+    # P.publish_report(export_files=export_files)
+
+###############################################################
+# Notebook reports
+###############################################################
 
 
-@merge(None, "clean.log")
-def clean(infile, outfile):
-    '''remove various files of no interest.
-
+@follows(filtering)
+@follows(mkdir('notebooks.dir'))
+@originate("notebooks.dir/1_peakcalling_filtering_Report.ipynb")
+def buildFilteringNotebook(outfile):
+    ''' copies ipython notebook template from directory
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising filtering stats
     '''
-    # Note that this is a patch to reduce disk usage.
-    # Longer term implement for each caller strategies
-    # for keeping or removing files and compression of
-    # all files that are being kept.
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_filtering_Report.ipynb')
 
-    to_cluster = False
+    shutil.copyfile(notebook_path, outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
 
-    statement = '''
-    rm -f macs2.dir/*.bdg;
-    rm -rf zinba.dir/*.zinba_files;
-    rm -rf macs.dir/*_wiggle;
-    rm -f sicer.*.dir/*/*.wig;
-    rm -f sicer.*.dir/*/*.bed;
-    '''
     P.run()
 
-    E.info('zapping .call.bam')
-    P.clean(glob.glob("*.call.bam"), 'zap.log')
-    E.info('zapping .prep.bam')
-    P.clean(glob.glob("*.prep.bam"), 'zap.log')
+
+@follows(buildFilteringNotebook)
+@originate("notebooks.dir/2_filteredbam_reads_per_chr.ipynb")
+def buildReadsPerChrNotebook(outfile):
+    ''' copies ipython notebook template from directory
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising reads per chromosome from idxstats output.
+    '''
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_filtering_Report_reads_per_chr.ipynb')
+
+    shutil.copyfile(notebook_path, outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+
+    P.run()
+
+
+@active_if(PARAMS['paired_end'])
+@follows(buildReadsPerChrNotebook)
+@originate("notebooks.dir/3_peakcalling_filtering_Report_insert_sizes.ipynb")
+def buildReadsInsertSizeNotebook(outfile):
+    ''' copies ipython notebook template from directory
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising insertsize distribution. Only active for PE bams.
+    '''
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_filtering_Report_insert_sizes.ipynb')
+    shutil.copyfile(notebook_path, outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+
+    P.run()
+
+
+@follows(buildReadsInsertSizeNotebook)
+@originate("notebooks.dir/4_peakcalling_peakstats.ipynb")
+def buildPeakStatsNotebook(outfile):
+    ''' copies ipython notebook template from directory
+    specified in ini  'notebook_template_dir' and runs through the analysis
+    summarising peaknumbers.
+    '''
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_peakstats.ipynb')
+    shutil.copyfile(notebook_path, outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+
+    P.run()
+
+
+@follows(buildPeakStatsNotebook)
+@originate("notebooks.dir/0_peakcalling_report_contents.ipynb")
+def buildNotebookIndex(outfile):
+    '''copies ipython notebook template from directory
+    specified in ini 'notebook_template_dir' and runs through the analysis
+    summarising reads per chromosome from idxstats output'''
+
+    notebook_path = os.path.join(PARAMS['notebook_template_dir'],
+                                 'template_peakcalling_report_contents.ipynb')
+    shutil.copyfile(notebook_path, outfile)
+    statement = '''jupyter nbconvert --to=html --execute %s''' % outfile
+
+    P.run()
+
+
+@follows(buildFilteringNotebook,
+         buildReadsPerChrNotebook,
+         buildReadsInsertSizeNotebook,
+         buildPeakStatsNotebook,
+         buildNotebookIndex)
+def buildNotebooks():
+    '''build notebooks'''
+
+##############################################################################
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
 
 
 if __name__ == "__main__":

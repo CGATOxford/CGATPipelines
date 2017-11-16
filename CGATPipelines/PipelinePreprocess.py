@@ -80,6 +80,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         tracks = [track]
 
     found_contaminants = []
+
     for t in tracks:
         table = PipelineTracks.AutoSample(os.path.basename(t)).asTable()
 
@@ -92,6 +93,7 @@ def makeAdaptorFasta(infile, outfile, track, dbh, contaminants_file):
         %s_fastqc_Overrepresented_sequences;''' % table
 
         cc = dbh.cursor()
+
         # if there is no contamination table for even a single sample
         # it will prevent the whole pipeline progressing
         try:
@@ -297,7 +299,6 @@ class MasterProcessor(Mapping.SequenceCollectionProcessor):
 
 class ProcessTool(object):
     '''defines class attributes for a sequence utility tool
-
     Derived classes need to implement a :func:`ProcessTools.build`
     method.
 
@@ -365,10 +366,10 @@ class Trimgalore(ProcessTool):
 
         offset = Fastq.getOffset("sanger", raises=False)
         processing_options = self.processing_options
-
         if len(infiles) == 1:
             infile = infiles[0]
             outfile = outfiles[0]
+            outdir = os.path.dirname(outfile)
             trim_out = "%s_trimmed.fq.gz" % (output_prefix)
             cmd = '''trim_galore %(processing_options)s
             --phred%(offset)s
@@ -379,18 +380,18 @@ class Trimgalore(ProcessTool):
             ''' % locals()
             outfiles = (outfile,)
 
-        elif self.num_files == 2:
+        elif len(infiles) == 2:
             infile1, infile2 = infiles
             outfile1, outfile2 = outfiles
-
+            outdir = os.path.dirname(outfile1)
             cmd = '''trim_galore %(processing_options)s
             --paired
             --phred%(offset)s
             --output_dir %(outdir)s
             %(infile1)s %(infile2)s
             2>>%(output_prefix)s.log;
-            mv %(infile1)s_val_1.fq.gz %(outfile1)s;
-            mv %(infile2)s_val_2.fq.gz %(outfile2)s;
+            mv %(outdir)s/%(infile1)s_val_1.fq.gz %(outfile1)s;
+            mv %(outdir)s/%(infile2)s_val_2.fq.gz %(outfile2)s;
             ''' % locals()
 
         return cmd

@@ -7,7 +7,6 @@ from CGATPipelines.Pipeline import cluster_runnable
 import json
 import decimal
 from sklearn.cluster import KMeans
-import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.patches as mpatches

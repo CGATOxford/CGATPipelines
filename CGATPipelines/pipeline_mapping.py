@@ -3,9 +3,6 @@
 Read mapping pipeline
 =====================
 
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 The read mapping pipeline imports unmapped reads from one or more
 NGS experiments and maps reads against a reference genome.
@@ -15,7 +12,7 @@ This pipeline works on a single genome.
 Overview
 ========
 
-The pipeline implements various mappers and QC plots. It can be used for
+The pipeline implements various mappers. It can be used for
 
 * Mapping against a genome
 * Mapping RNASEQ data against a genome
@@ -26,9 +23,6 @@ Principal targets
 
 mapping
     perform all mappings
-
-qc
-    perform all QC steps
 
 full
     compute all mappings and QC
@@ -387,9 +381,9 @@ def identifyProteinCodingGenes(outfile):
 
 
 @active_if(SPLICED_MAPPING)
-@transform(buildReferenceGeneSet,
-           suffix("reference.gtf.gz"),
-           "refflat.txt")
+@follows(mkdir("geneset.dir"))
+@merge(PARAMS["annotations_interface_geneset_all_gtf"],
+       "geneset.dir/refflat.txt")
 def buildRefFlat(infile, outfile):
     '''build flat geneset for Picard RnaSeqMetrics.
     '''
@@ -405,7 +399,6 @@ def buildRefFlat(infile, outfile):
     os.unlink(tmpflat)
 
 
-@active_if(SPLICED_MAPPING)
 @transform(buildReferenceGeneSet,
            suffix("reference.gtf.gz"),
            add_inputs(identifyProteinCodingGenes),
@@ -711,6 +704,7 @@ def buildGSNAPSpliceSites(infile, outfile):
 #########################################################################
 # Read mapping
 #########################################################################
+
 
 SEQUENCESUFFIXES = ("*.fastq.1.gz",
                     "*.fastq.gz",
@@ -1509,7 +1503,7 @@ def mapReadsWithBowtie(infiles, outfile):
 @transform(SEQUENCEFILES,
            SEQUENCEFILES_REGEX,
            add_inputs(
-               os.path.join(PARAMS["bowtie_index_dir"],
+               os.path.join(PARAMS["bowtie2_index_dir"],
                             PARAMS["genome"] + ".fa")),
            r"bowtie2.dir/\1.bowtie2.bam")
 def mapReadsWithBowtie2(infiles, outfile):
@@ -1868,7 +1862,6 @@ for x in P.asList(PARAMS["mappers"]):
 @follows(*MAPPINGTARGETS)
 def mapping():
     ''' dummy task to define upstream mapping tasks'''
-    pass
 
 
 if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
@@ -2339,12 +2332,12 @@ def loadReadCounts(infiles, outfile):
     '''
 
     outf = P.getTempFile(".")
-    outf.write("track\ttotal_reads\n".encode('utf-8'))
+    outf.write("track\ttotal_reads\n")
     for infile in infiles:
         track = P.snip(infile, ".nreads")
         lines = IOTools.openFile(infile).readlines()
         nreads = int(lines[0][:-1].split("\t")[1])
-        outf.write(("%s\t%i\n" % (track, nreads)).encode('utf-8'))
+        outf.write("%s\t%i\n" % (track, nreads))
     outf.close()
 
     P.load(outf.name, outfile)
@@ -2741,6 +2734,12 @@ def publish():
 
     E.info("publishing UCSC data hub")
     P.publish_tracks(export_files)
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
 
 
 if __name__ == "__main__":

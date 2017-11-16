@@ -2,10 +2,6 @@
 Interval pipeline
 =================
 
-:Author: Andreas Heger
-:Release: $Id: pipeline_chipseq.py 2900 2010-04-13 14:38:00Z andreas $
-:Date: |today|
-:Tags: Python
 
 The interval pipeline takes a several set of :term:`bed` formatted
 genomic intervals and annotates them. The intervals are expected to
@@ -183,7 +179,7 @@ import CGATPipelines.Pipeline as P
 import CGAT.IOTools as IOTools
 import CGAT.Bed as Bed
 import CGAT.MatrixTools as MatrixTools
-import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
+import CGATPipelines.PipelineIntervals as PipelineIntervals
 import CGATPipelines.PipelineMotifs as PipelineMotifs
 import CGATPipelines.PipelineWindows as PipelineWindows
 import CGATPipelines.PipelineTracks as PipelineTracks
@@ -192,6 +188,7 @@ import CGATPipelines.PipelineTracks as PipelineTracks
 # product available in ruffus 2.3.6, but not exported
 class product(task_decorator):
     pass
+
 
 ###################################################
 ###################################################
@@ -213,7 +210,7 @@ PARAMS.update(P.peekParameters(
     prefix="annotations_",
     update_interface=True))
 
-PipelinePeakcalling.PARAMS = PARAMS
+PipelineIntervals.PARAMS = PARAMS
 PipelineMotifs.PARAMS = PARAMS
 
 ###################################################################
@@ -462,7 +459,7 @@ def loadIntervals(infile, outfile):
 
         if samfiles:
             npeaks, peakcenter, length, avgval, peakval, nprobes = \
-                PipelinePeakcalling.countPeaks(
+                PipelineIntervals.countPeaks(
                     bed.contig,
                     bed.start,
                     bed.end,
@@ -1850,7 +1847,6 @@ def annotate_intervals():
          gat)
 def full():
     '''run the full pipeline.'''
-    pass
 
 
 @follows(mkdir("report"))
@@ -1892,6 +1888,12 @@ def reset(infile, outfile):
     rm -rf *.dir;
     '''
     P.run()
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
 
 
 if __name__ == "__main__":

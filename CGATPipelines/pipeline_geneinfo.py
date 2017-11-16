@@ -1,12 +1,7 @@
-"""
-====================
+"""====================
 Gene Info Pipeline
 ====================
 
-:Author: Katy Brown
-:Release: $Id$
-:Date: |today|
-:Tags: Python
 
 Overview
 ========
@@ -81,6 +76,7 @@ mygene.info provides many regularly updated annotations via its API
   as listed in the pipeline.ini
 
 DataMineAnnotation
+
 Communicates with the "mine" databases - humanmine.org, mousemine.org,
 ratmine.org etc. which provide many annotations for these species
 
@@ -88,10 +84,10 @@ ratmine.org etc. which provide many annotations for these species
 - MGIAnnotation - mouse phenotype annotation (based on homologous genes)
 
 OntologyAnnotation
+
 Communicates with the obolibrary (obo foundry) API for hierarchical
-ontology annotations.
-Can be used to download and parse any OWL formatted ontology available
-on this site.
+ontology annotations.  Can be used to download and parse any OWL
+formatted ontology available on this site.
 
 """
 
@@ -142,7 +138,11 @@ def GetAndTranslateAllGenes(outfile):
     '''
     GeneAnnot = PipelineGeneInfo.EntrezGeneAnnotation(
         PARAMS['db_name'], PARAMS['entrez_email'])
-    entrezgenelist = GeneAnnot.download_all(PARAMS['entrez_host'])
+    if PARAMS['test'] == 1:
+        entrezgenelist = GeneAnnot.download_all(PARAMS['entrez_host'],
+                                                count=100)
+    else:
+        entrezgenelist = GeneAnnot.download_all(PARAMS['entrez_host'])
 
     # Generate a SymbolAnnotation object
     Sym = PipelineGeneInfo.SymbolAnnotation(PARAMS['my_gene_info_source'],
@@ -340,6 +340,13 @@ def MakeSubDBs(infile, outfile):
 @follows(MakeSubDBs)
 def full():
     pass
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+    P.main(argv)
+
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))
