@@ -1,3 +1,4 @@
+
 """=====================
 Read mapping pipeline
 =====================
@@ -2094,7 +2095,8 @@ def loadBAMStats(infiles, outfile):
 def buildContextStats(infiles, outfile):
     ''' build mapping context stats '''
     PipelineWindows.summarizeTagsWithinContext(
-        infiles[0], infiles[1], outfile)
+        infiles[0], infiles[1], outfile,
+        bam_vs_bed_options=PARAMS['context_bam_vs_bed_options'])
 
 
 @P.add_doc(PipelineWindows.loadSummarizedContextStats)

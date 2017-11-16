@@ -1151,7 +1151,8 @@ def summarizeTagsWithinContext(tagfile,
                                contextfile,
                                outfile,
                                min_overlap=0.5,
-                               job_memory="4G"):
+                               job_memory="4G",
+                               bam_vs_bed_options=""):
     '''count occurances of tags in genomic context.
 
     Examines the genomic context to where tags align.
@@ -1178,7 +1179,8 @@ def summarizeTagsWithinContext(tagfile,
     cgat bam_vs_bed
     --min-overlap=%(min_overlap)f
     --log=%(outfile)s.log
-    %(tagfile)s %(contextfile)s
+    %(bam_vs_bed_options)s
+    %(tagfile)s %(contextfile)s 
     | gzip
     > %(outfile)s
     '''

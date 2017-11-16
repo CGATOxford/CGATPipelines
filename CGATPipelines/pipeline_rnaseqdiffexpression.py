@@ -492,7 +492,7 @@ def buildReferenceTranscriptome(infile, outfile):
     zcat %(infile)s |
     awk '$3=="exon"'|
     cgat gff2fasta
-    --is-gtf --genome-file=%(genome_file)s --fold-at=60 -v 0
+    --is-gtf --genome-file=%(genome_file)s --fold-at=60
     --log=%(outfile)s.log > %(outfile)s;
     checkpoint;
     samtools faidx %(outfile)s
