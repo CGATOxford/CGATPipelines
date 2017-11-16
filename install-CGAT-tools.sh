@@ -226,8 +226,8 @@ wget -O env-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRI
 
 wget -O env-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/${CONDA_INSTALL_TYPE_PIPELINES}
 
-conda env create --quiet --name ${CONDA_INSTALL_ENV} -f env-pipelines.yml
-conda env update --quiet --name ${CONDA_INSTALL_ENV} -f env-scripts.yml
+conda env create --quiet --name ${CONDA_INSTALL_ENV} --file env-pipelines.yml
+conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-scripts.yml
 
 # activate cgat environment
 source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
@@ -242,6 +242,10 @@ if [[ "$OS" != "travis" ]] ; then
    DEV_RESULT=0
 
    if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] ; then
+
+      # install extra deps
+      wget -O env-extra.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
+      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra.yml
 
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME

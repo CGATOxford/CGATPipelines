@@ -10,7 +10,7 @@ channels:
 - defaults
 
 dependencies:
-- cutadapt
-- blast
-- bashlex
+- cutadapt=1.14
+- blast=2.7.1
+- bashlex=0.12
 

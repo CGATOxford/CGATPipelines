@@ -99,6 +99,21 @@ def is_cgat_executable_name(node):
     return result
 
 
+def is_cgat_cmd(node):
+    '''
+       Auxiliary function to check for cgat statement:
+           cmd = "command"
+    '''
+
+    result = False
+    result = type(node) is ast.Assign and \
+        hasattr(node, 'targets') and \
+        hasattr(node.targets[0], 'id') and \
+        node.targets[0].id == "cmd"
+
+    return result
+
+
 def is_cgat_append(node):
     '''
        Auxiliary function to check for cgat statement:
@@ -218,7 +233,8 @@ def checkDepedencies(pipeline):
         statement = ""
         if is_cgat_statement(node) or \
            is_cgat_executable(node) or \
-           is_cgat_executable_name(node):
+           is_cgat_executable_name(node) or \
+           is_cgat_cmd(node):
 
             statement = get_cmd_string(node)
 

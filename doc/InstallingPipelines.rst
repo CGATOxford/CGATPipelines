@@ -27,13 +27,20 @@ Here are the steps::
         # see help:
         bash install-CGAT-tools.sh
 
-        # install set of production scripts (well tested):
-        bash install-CGAT-tools.sh --production [--location </full/path/to/folder/without/trailing/slash>]
-
-        # or go for the latest development version:
+        # install the development version (recommended, no production version yet):
         bash install-CGAT-tools.sh --devel [--location </full/path/to/folder/without/trailing/slash>]
 
-The installation script will put everything under the specified location. The aim of the
+        # enable the conda environment as requested by the installation script:
+        source </full/path/to/folder/without/trailing/slash>/conda-install/bin/activate cgat-p
+
+        # and uninstall pika, which we use internally for our dashboard:
+        conda remove pika
+
+        # finally, please run the cgatflow command-line tool to check the installation:
+        cgatflow --help
+
+The installation script will put everything under the specified location. It needs
+15 GB of disk space and it takes about 35 minutes to complete. The aim of the
 script is to provide a portable installation that does not interfere with the existing
 software. As a result, you will have a conda environment working with the CGAT Pipelines
 which can be enabled on demand according to your needs.
@@ -79,7 +86,24 @@ tasks are sent to the cluster, but for some tasks this is not possible.
 These might thus run on the :term:`submit host`, so make sure it is fairly powerful.
 
 Pipelines expects that the :term:`working directory` is accessible with
-the same path both from the submit and the :term:`execution host`. 
+the same path both from the submit and the :term:`execution host`.
+
+Also, please make sure that you configure the following environment variables::
+
+        # Access to the DRMAA library: https://en.wikipedia.org/wiki/DRMAA
+        export DRMAA_LIBRARY_PATH=/<full-path>/libdrmaa.so
+
+        # You can get this value from your configured environment:
+        env | grep DRMAA_LIBRARY_PATH
+
+        # or just look for the library:
+        find <path-to-DRMS-install-folder> -name "*libdrmaa.so"
+
+        # Also, make sure you have defined temporary folders
+        # 1. Local to execution hosts with
+        export TMPDIR=/tmp
+        # 2. Shared to pipeline working directory
+        export SHARED_TMPDIR=/<path-to-network-folder>/scratch
 
 Software requirements
 =====================
