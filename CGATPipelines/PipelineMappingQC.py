@@ -683,7 +683,9 @@ def buildPicardRnaSeqMetrics(infiles, strand, outfile):
     os.unsetenv("CGAT_JAVA_OPTS")
 
 
-def loadPicardRnaSeqMetrics(infiles, outfiles):
+def loadPicardRnaSeqMetrics(infiles, outfiles,
+                            tablename_metrics="picard_rna_metrics",
+                            tablename_hist="picard_rna_histogram"):
     '''load picard rna stats into database.
 
     Loads tables into the database
@@ -708,7 +710,7 @@ def loadPicardRnaSeqMetrics(infiles, outfiles):
     infile_names = [x[:-len("." + suffix)] for x in infiles]
 
     loadPicardMetrics(infile_names, outfile_metrics, suffix, "",
-                      tablename="picard_rna_metrics")
+                      tablename=tablename_metrics)
 
     infiles_with_histograms = []
 
@@ -727,7 +729,7 @@ def loadPicardRnaSeqMetrics(infiles, outfiles):
                             suffix,
                             "coverage_multiple",
                             "",
-                            tablename="picard_rna_histogram")
+                            tablename=tablename_hist)
     else:
         with open(outfile_histogram, "w") as ofh:
             ofh.write("No histograms detected, no data loaded.")
