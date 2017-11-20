@@ -242,10 +242,6 @@ gc_segmentation.bed.gz
    bed file with genome segmented into regions of similar G+C content
    using naive window based classification
 
-gcprofile_bins.bed.gz
-   bed file with genome segmented according to similar G+C content
-   using the GCProfile method
-
 Tables:
    genome
       Nucleotide composition of chromosomes
@@ -854,91 +850,6 @@ def buildGenomeGCSegmentation(infile, outfile):
         --window-size=%(segmentation_window_size)i
         --log=%(outfile)s.log
     < %(infile)s
-    | cgat bed2bed
-        --method=bins
-        --num-bins=%(segmentation_num_bins)s
-        --binning-method=%(segmentation_method)s
-        --log=%(outfile)s.log
-    | bgzip
-    > %(outfile)s'''
-
-    P.run()
-
-
-@follows(mkdir('assembly.dir'))
-@files(os.path.join(PARAMS["genome_dir"],
-                    PARAMS["genome"]) + ".fasta",
-       "assembly.dir/gcprofile.bed.gz")
-def runGenomeGCProfile(infile, outfile):
-    '''
-    Uses a HMM to profile the genome based on G+C content
-    and segment into windows (isochores).
-
-    Parameters
-    ----------
-    infile: str
-      infile is constructed from ``PARAMS`` variable to retrieve
-      the ``genome`` :term:`fasta` file
-
-    segmentation_min_length: int
-      `PARAMS` - minimum length for GCProfile segmentation
-
-    segmentation_halting_parameter: int
-      `PARAMS` - GCProfile halting parameter
-
-    Returns
-    -------
-    outfile: str
-      :term:`BED` format file containing predicted genome
-      isochores.  Outfile is `BGZIP` compressed.
-    '''
-
-    # on some cgat109 I got libstc++ error:
-    # error while loading shared libraries: libstdc++.so.5
-    # cannot open shared object file: No such file or directory
-    to_cluster = False
-
-    statement = '''
-    cat %(infile)s
-    | cgat fasta2bed
-        --verbose=2
-        --method=GCProfile
-        --gcprofile-min-length=%(segmentation_min_length)i
-        --gcprofile-halting-parameter=%(segmentation_halting_parameter)i
-        --log=%(outfile)s.log
-    | bgzip
-    > %(outfile)s
-    '''
-    P.run()
-
-
-@merge(runGenomeGCProfile, PARAMS["interface_gc_profile_bed"])
-def buildGenomeGCProfile(infile, outfile):
-    '''
-    Aggregate predicted isochores with similar G+C content into
-    bins.
-
-    Parameters
-    ----------
-    infile: str
-      output from GCProfile in :term:`BED` format. Infile is
-      `BGZIP` compressed
-
-    segmentation_num_bins: str
-      `PARAMS` - the number of score bins to create for interval merging
-
-    segmentation_methods: str
-      `PARAMS` - method to use for merging intervals. See `bed2bed`
-      documentation for details.
-
-    Returns
-    -------
-    outfile: str
-      :term:`BED` format file containing genome segments with similar G+C
-      content.  Output file format is `BGZIP` compressed.
-    '''
-    statement = '''
-    zcat %(infile)s
     | cgat bed2bed
         --method=bins
         --num-bins=%(segmentation_num_bins)s
@@ -2858,7 +2769,6 @@ def loadIntervalSummary(infile, outfile):
          buildContigBed,
          buildUngappedContigBed,
          loadGenomeInformation,
-         buildGenomeGCProfile,
          buildCpGBed)
 def assembly():
     """convenience target : assembly derived annotations"""
