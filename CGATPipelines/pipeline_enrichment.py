@@ -379,7 +379,7 @@ def runGsea(infile, outfile):
     statement = '''basename %(infile)s .processed |
                    awk '{split($0,a,"/"); print a[1]}'
                    | xargs mkdir; cd $(basename %(infile)s .processed | awk '{split($0,a,"/"); print a[1]}')
-                   ; cgat runGSEA -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
+                   ; xvfb-run cgat runGSEA -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
                    -s %(seed)s -n %(no)s -d %(p_no)s -l %(l_no)s'''
     P.run()
 

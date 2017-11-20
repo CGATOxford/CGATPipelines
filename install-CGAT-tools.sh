@@ -244,8 +244,10 @@ if [[ "$OS" != "travis" ]] ; then
    if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] ; then
 
       # install extra deps
-      wget -O env-extra.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
-      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra.yml
+      wget -O env-extra-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
+      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-pipelines.yml
+      wget -O env-extra-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
+      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-scripts.yml
 
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME

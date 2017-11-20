@@ -684,7 +684,6 @@ echo "- zlib" >> ${TMP_DEPS}
 echo "# Misc dependencies"
 egrep -v 'CGATparameter|BEGIN|END|local_tmpdir|outfile.gz|\||\+|\(|\)|\[|\]|\/|\=|\{|\}|-p|-l|\\t' ${TMP_DEPS} \
  | sed 's/^- macs2/# WARNING: macs2 is Py2 only. Please install it on a separate conda env/g' \
- | sed 's/^- meme/# WARNING: meme is Py2 only. Please install it on a separate conda env/g' \
  | sed 's/^- tophat/# WARNING: tophat is Py2 only. Please install it on a separate conda env/g' \
  | sed 's/^- sicer/# WARNING: sicer is Py2 only. Please install it on a separate conda env/g' \
  | sort -u
