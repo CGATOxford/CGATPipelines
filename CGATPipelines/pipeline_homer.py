@@ -284,7 +284,7 @@ def getDiffExprs(infile, outfile):
     P.run()
 
 
-# ruffus decorator is wrong but it need changhing later
+# ruffus decorator is wrong but it need changing later
 @active_if(PARAMS['homer'])
 @follows(mkdir("Replicates.dir"))
 @follows(makeTagDirectoryChips)
@@ -354,6 +354,31 @@ def coverage_plot(infiles, outfile):
     P.run()
 
 
+@active_if(PARAMS['deeptools'])
+@follows(mkdir("Fingerprint.dir"))
+@follows(loadDesignTable)
+@merge([CHIPBAMS,INPUTBAMS], "Fingerprint.dir/fingerprints_plot.tab")
+def fingerprint_plot(infiles, outfile):
+
+    infile = [item for sublist in infiles for item in sublist]
+    infile = " ".join(infile)
+
+    if PARAMS['deep_ignore_dups'] == True:
+        duplicates = "--ignoreDuplicates"
+    elif PARAMS['deep_ignore_dups'] == False:
+        duplicates = ""
+    else:
+        raise ValueError('''Please set a ignore_dups value in the
+                   pipeline.ini''')
+
+    statement = '''plotFingerprint -b %(infile)s
+                   --plotFile Fingerprint.dir/fingerprints_plot
+                   --plotTitle "Fingerprints of samples"
+                   --outRawCounts Fingerprint.dir/fingerprints_plot.tab
+                   %(duplicates)s
+                   --minMappingQuality %(deep_mapping_qual)s'''
+
+    P.run()
 
 
 # ---------------------------------------------------
