@@ -123,8 +123,11 @@ else
 
 fi # if travis install
 
+# set installation folder
 CONDA_INSTALL_DIR=$CGAT_HOME/conda-install
-CONDA_INSTALL_ENV="cgat-p"
+
+# set conda environment name
+[[ ${CONDA_INSTALL_ENV} ]] || CONDA_INSTALL_ENV="cgat-p"
 
 } # get_cgat_env
 
@@ -244,10 +247,7 @@ if [[ "$OS" != "travis" ]] ; then
    if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] ; then
 
       # install extra deps
-      wget -O env-extra-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
-      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-pipelines.yml
-      wget -O env-extra-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
-      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-scripts.yml
+      install_extra_deps
 
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
@@ -325,6 +325,27 @@ fi # if travis install
 
 } # conda install
 
+
+# install extra dependencies
+install_extra_deps() {
+
+log "install extra deps"
+
+   wget -O env-extra-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
+   wget -O env-extra-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
+
+   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-pipelines.yml
+   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-scripts.yml
+
+   if [[ $INSTALL_IDE ]] ; then
+
+      wget -O env-ide.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-ide.yml
+
+      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-ide.yml
+
+   fi
+
+}
 
 # need to install the CGAT Code Collection as well
 install_cgat_scripts() {
@@ -608,7 +629,10 @@ SCRIPTS_BRANCH="master"
 # type of installation
 CONDA_INSTALL_TYPE_PIPELINES=
 CONDA_INSTALL_TYPE_SCRIPTS=
-
+# rename conda environment
+CONDA_INSTALL_ENV=
+# install additional IDEs
+INSTALL_IDE=
 
 # parse input parameters
 # https://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
@@ -681,6 +705,16 @@ case $key in
 
     --scripts-branch)
     SCRIPTS_BRANCH="$2"
+    shift 2
+    ;;
+
+    --ide)
+    INSTALL_IDE=1
+    shift
+    ;;
+
+    --env-name)
+    CONDA_INSTALL_ENV="$2"
     shift 2
     ;;
 
