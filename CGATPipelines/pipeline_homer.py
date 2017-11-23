@@ -137,7 +137,7 @@ def loadDesignTable(infile, outfile):
 # makeTagDirectory Inputs
 #####################################################
 
-
+@active_if(PARAMS['homer'])
 @follows(loadDesignTable)
 @transform(INPUTBAMS, regex("(.*).bam"),
            r"\1/\1.txt")
@@ -165,6 +165,7 @@ def makeTagDirectoryInput(infile, outfile):
 #####################################################
 
 
+@active_if(PARAMS['homer'])
 @follows(loadDesignTable)
 @transform(CHIPBAMS, regex("(.*).bam"),
            r"\1/\1.txt")
@@ -186,7 +187,7 @@ def makeTagDirectoryChips(infile, outfile):
 
     P.run()
 
-
+@active_if(PARAMS['homer'])
 @transform((makeTagDirectoryChips),
            regex("(.*)/(.*).txt"),
            r"\1/regions.txt")
@@ -214,6 +215,7 @@ def findPeaks(infile, outfile):
     P.run()
 
 
+@active_if(PARAMS['homer'])
 @transform(findPeaks,
            regex("(.*)/regions.txt"),
            r"\1/\1.bed")
@@ -226,6 +228,7 @@ def bedConversion(infile, outfile):
     P.run()
 
 
+@active_if(PARAMS['homer'])
 @transform(findPeaks,
            regex("(.*)/regions.txt"),
            r"\1/annotate.txt")
@@ -238,6 +241,7 @@ def annotatePeaks(infile, outfile):
     P.run()
 
 
+@active_if(PARAMS['homer'])
 @transform(findPeaks,
            regex("(.*)/regions.txt"),
            r"\1/motifs.txt")
@@ -251,6 +255,7 @@ def findMotifs(infile, outfile):
     P.run()
 
 
+@active_if(PARAMS['homer'])
 @merge(makeTagDirectoryChips, "countTable.peaks.txt")
 def annotatePeaksRaw(infiles, outfile):
 
@@ -267,6 +272,7 @@ def annotatePeaksRaw(infiles, outfile):
     P.run()
 
 
+@active_if(PARAMS['homer'])
 @transform(annotatePeaksRaw,
            suffix(".peaks.txt"),
            ".diffexprs.txt")
@@ -279,6 +285,7 @@ def getDiffExprs(infile, outfile):
 
 
 # ruffus decorator is wrong but it need changhing later
+@active_if(PARAMS['homer'])
 @follows(mkdir("Replicates.dir"))
 @follows(makeTagDirectoryChips)
 @originate("Replicates.dir/outputPeaks.txt")
@@ -312,6 +319,18 @@ def getDiffPeaksReplicates(outfile):
                        Replicates.dir/Repeat-%(x)s.outputPeaks.txt'''
 
     P.run()
+
+
+#####################################################
+## This is the section where the deeptool
+## functions are specified
+#####################################################
+
+
+@active_if(PARAMS['deeptools'])
+
+
+
 
 
 # ---------------------------------------------------
