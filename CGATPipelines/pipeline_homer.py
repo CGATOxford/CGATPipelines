@@ -328,7 +328,30 @@ def getDiffPeaksReplicates(outfile):
 
 
 @active_if(PARAMS['deeptools'])
+@follows(mkdir("Coverage.dir"))
+@follows(loadDesignTable)
+@merge([CHIPBAMS,INPUTBAMS], "Coverage.dir/coverage_plot.tab")
+def coverage_plot(infiles, outfile):
 
+    infile = [item for sublist in infiles for item in sublist]
+    infile = " ".join(infile)
+
+    if PARAMS['deep_ignore_dups'] == True:
+        duplicates = "--ignoreDuplicates"
+    elif PARAMS['deep_ignore_dups'] == False:
+        duplicates = ""
+    else:
+        raise ValueError('''Please set a ignore_dups value in the
+                   pipeline.ini''')
+
+    statement = '''plotCoverage -b %(infile)s
+                   --plotFile Coverage.dir/coverage_plot
+                   --plotTitle "coverage_plot"
+                   --outRawCounts Coverage.dir/coverage_plot.tab
+                   %(duplicates)s
+                   --minMappingQuality %(deep_mapping_qual)s'''
+
+    P.run()
 
 
 
@@ -343,7 +366,8 @@ def getDiffPeaksReplicates(outfile):
          annotatePeaksRaw,
          getDiffExprs,
          getDiffPeaksReplicates,
-         findMotifs)
+         findMotifs,
+         coverage_plot)
 def full():
     pass
 
