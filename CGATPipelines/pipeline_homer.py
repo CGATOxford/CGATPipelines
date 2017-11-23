@@ -372,7 +372,7 @@ def fingerprint_plot(infiles, outfile):
                    pipeline.ini''')
 
     statement = '''plotFingerprint -b %(infile)s
-                   --plotFile Fingerprint.dir/fingerprints_plot
+                   --plotFile Fingerprint.dir/fingerprints_plot.pdf
                    --plotTitle "Fingerprints of samples"
                    --outRawCounts Fingerprint.dir/fingerprints_plot.tab
                    %(duplicates)s
@@ -392,7 +392,9 @@ def fingerprint_plot(infiles, outfile):
          getDiffExprs,
          getDiffPeaksReplicates,
          findMotifs,
-         coverage_plot)
+         coverage_plot,
+         fingerprint_plot)
+
 def full():
     pass
 
