@@ -89,9 +89,9 @@ PARAMS = P.getParameters(
 if os.path.exists("design.tsv"):
     df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
                                                      PARAMS['IDR_poolinputs'])
-    INPUTBAMS = list(set(df['bamControl'].values))
-    CHIPBAMS = list(set(df['bamReads'].values))
-
+    INPUTBAMS = list(df['bamControl'].values)
+    CHIPBAMS = list(df['bamReads'].values)
+    TOTALBAMS = INPUTBAMS + CHIPBAMS
 
 else:
     E.warn("design.tsv is not located within the folder")
@@ -380,7 +380,57 @@ def fingerprint_plot(infiles, outfile):
 
     P.run()
 
+@active_if(PARAMS['deep_bam_coverage'])
+@active_if(PARAMS['deeptools'])
+@follows(mkdir("DeepOutput.dir/bamCoverage.dir"))
+@transform(TOTALBAMS, regex("(.*).bam"),
+           r"DeepOutput.dir/bamCoverage.dir/\1.bw")
+def bamCoverage(infiles, outfile):
 
+    if PARAMS['deep_ignore_norm'] == 'None':
+        normalise  = ''
+        norm_value = ''
+    else:
+        normalise  = '--ignoreForNormalization '
+        norm_value = PARAMS['deep_ignore_norm']
+    if PARAMS['deep_extendreads'] == True:
+        extend = '--extendReads'
+    elif PARAMS['deep_extendreads'] == False:
+        extend = ''
+    else:
+        raise ValueError('''Please set the extendreads to a value 0 or 1''')
+
+    statement = '''bamCoverage --bam %(infiles)s
+                   -o %(outfile)s
+                   --binSize %(deep_binsize)s
+                   %(normalise)s %(norm_value)s
+                   %(extend)s
+                   %(deep_bamcoverage_options)s'''
+
+    P.run()
+
+@active_if(PARAMS['deep_bam_compare'])
+@active_if(PARAMS['deeptools'])
+@follows(mkdir("DeepOutput.dir/bamCompare.dir"))
+@transform((CHIPBAMS, INPUTBAMS),
+           suffix('.bam'),
+           r"DeepOutput.dir/bamCompare.dir/\1.bw")
+def bamCompare(infiles, outfile):
+
+    chipbam = infiles[0]
+    inputbam = infiles[1]
+
+    statement = '''bamCompare -b1 %(chipbam)s
+                   -b2 %(inputbam)s
+                   -o %(outfile)s
+                   %(deep_bamcompare_options)s'''
+
+    P.run()
+
+@merge((bamCoverage,bamCompare), "bigWig_summary.npz")
+def multiBigWigSummary(infiles, outfile):
+
+    pass
 # ---------------------------------------------------
 # Generic pipeline tasks
 
@@ -393,7 +443,9 @@ def fingerprint_plot(infiles, outfile):
          getDiffPeaksReplicates,
          findMotifs,
          coverage_plot,
-         fingerprint_plot)
+         fingerprint_plot,
+         bamCompare,
+         bamCoverage)
 
 def full():
     pass
