@@ -380,6 +380,21 @@ def fingerprint_plot(infiles, outfile):
 
     P.run()
 
+@active_if(PARAMS['deeptools'])
+@follows(mkdir("FragmentSize.dir"))
+@follows(loadDesignTable)
+@merge([CHIPBAMS,INPUTBAMS], "FragmentSize.dir/FragmentSize.png")
+def fragment_size(infiles, outfile):
+
+    infile = [item for sublist in infiles for item in sublist]
+    infile = " ".join(infile)
+
+    statement = '''bamPEFFragmnentSize -b %(infile)s
+                   --histogram FragmentSize.dir/FragmentSize.png
+                   --plotTitle "Fragment Sizes of PE samples"'''
+
+    P.run()
+
 @active_if(PARAMS['deep_bam_coverage'])
 @active_if(PARAMS['deeptools'])
 @follows(mkdir("DeepOutput.dir/bamCoverage.dir"))
@@ -431,6 +446,7 @@ def bamCompare(infiles, outfile):
 def multiBigWigSummary(infiles, outfile):
 
     pass
+
 # ---------------------------------------------------
 # Generic pipeline tasks
 
