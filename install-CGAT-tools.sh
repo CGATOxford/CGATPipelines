@@ -54,6 +54,16 @@ log() {
    echo "# install-CGAT-tools.sh log | `hostname` | `date` | $1 "
 }
 
+# report error and exit
+report_error() {
+   echo
+   echo $1
+   echo
+   echo "Aborting."
+   echo
+   exit 1
+}
+
 # detect CGAT installation
 detect_cgat_installation() {
 
@@ -252,15 +262,21 @@ if [[ "$OS" != "travis" ]] ; then
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
-      if [[ $INSTALL_ZIP ]] ; then
+      if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
          # get the latest version from Git Hub in zip format
          wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
          unzip $PIPELINES_BRANCH.zip
          rm $PIPELINES_BRANCH.zip
          mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
-      else
+
+      elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
          # get latest version from Git Hub with git clone
          git clone --branch=$PIPELINES_BRANCH https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+      elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
+         # get latest version from Git Hub with git clone
+         git clone --branch=$PIPELINES_BRANCH git@github.com:CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+      else
+         report_error " Unknown download type for CGAT code... "
       fi
 
       # make sure you are in the CGAT_HOME/cgat-pipelines folder
@@ -280,9 +296,7 @@ if [[ "$OS" != "travis" ]] ; then
       sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
       python setup.py develop
 
-      DEV_RESULT=$?
-
-      if [[ $DEV_RESULT -ne 0 ]] ; then
+      if [[ $? -ne 0 ]] ; then
          echo
          echo " There was a problem doing: 'python setup.py develop' "
          echo " Installation did not finish properly. "
@@ -294,6 +308,10 @@ if [[ "$OS" != "travis" ]] ; then
          print_env_vars
 
       fi # if-$?
+
+      # revert setup.py if downloaded with git
+      [[ $CODE_DOWNLOAD_TYPE -ge 1 ]] && git checkout -- setup.py
+
    fi # if INSTALL_DEVEL
 
    # check whether conda create went fine
@@ -361,15 +379,20 @@ if [[ $JENKINS_INSTALL ]] ; then
 
 else
 
-   if [[ $INSTALL_ZIP ]] ; then
+   if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
       # get the latest version from Git Hub in zip format
       wget https://github.com/CGATOxford/cgat/archive/$SCRIPTS_BRANCH.zip
       unzip $SCRIPTS_BRANCH.zip
       rm $SCRIPTS_BRANCH.zip
       mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
-   else
+   elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
       # get latest version from Git Hub with git clone
       git clone --branch=$SCRIPTS_BRANCH https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-scripts
+   elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
+      # get latest version from Git Hub with git clone
+      git clone --branch=$SCRIPTS_BRANCH git@github.com:CGATOxford/cgat.git $CGAT_HOME/cgat-scripts
+   else
+      report_error " Unknown download type for CGAT code... "
    fi
 
    cd cgat-scripts/
@@ -380,6 +403,21 @@ fi
 sed -i'' -e '/REPO_REQUIREMENT/,/pass/d' setup.py
 sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
 python setup.py develop
+
+if [[ $? -ne 0 ]] ; then
+   echo
+   echo " There was a problem doing: 'python setup.py develop' "
+   echo " Installation did not finish properly. "
+   echo
+   echo " Please submit this issue via Git Hub: "
+   echo " https://github.com/CGATOxford/CGATPipelines/issues "
+   echo
+   print_env_vars
+
+fi # if-$?
+
+# revert setup.py if downloaded with git
+[[ $CODE_DOWNLOAD_TYPE -ge 1 ]] && git checkout -- setup.py
 
 # go back to old working directory
 cd $OLDWD
@@ -560,6 +598,21 @@ fi
 }
 
 
+# test whether --git-ssh download is doable
+test_git_ssh() {
+   ssh-add -L >& /dev/null || SSH_KEYS_LOADED=$?
+   if [[ $SSH_KEYS_LOADED -ne 0 ]] ; then
+      echo
+      echo " Please load your ssh keys for GitHub before proceeding!"
+      echo
+      echo " Try: "
+      echo " 1. eval \$(ssh-agent)"
+      echo " 2. ssh-add ~/.ssh/id_rsa # or the file where your private key is"
+      report_error " and run this script again. "
+   fi
+}
+
+
 # function to display help message
 help_message() {
 echo
@@ -621,8 +674,11 @@ UNINSTALL=
 UNINSTALL_DIR=
 # where to install CGAT code
 CGAT_HOME=
-# instead of cloning with git, we can download zipped CGAT code
-INSTALL_ZIP=1
+# how to download CGAT code:
+# 0 = as zip (default)
+# 1 = git clone with https
+# 2 = git clone with ssh
+CODE_DOWNLOAD_TYPE=0
 # which github branch to use (default: master)
 PIPELINES_BRANCH="master"
 SCRIPTS_BRANCH="master"
@@ -658,9 +714,20 @@ case $key in
     shift # past argument
     ;;
 
-    --git)
-    INSTALL_ZIP=
+    --zip)
+    CODE_DOWNLOAD_TYPE=0
     shift
+    ;;
+
+    --git)
+    CODE_DOWNLOAD_TYPE=1
+    shift
+    ;;
+
+    --git-ssh)
+    CODE_DOWNLOAD_TYPE=2
+    shift
+    test_git_ssh
     ;;
 
     --production)
@@ -691,11 +758,6 @@ case $key in
     --location)
     CGAT_HOME="$2"
     shift 2
-    ;;
-
-    --zip)
-    INSTALL_ZIP=1
-    shift
     ;;
 
     --pipelines-branch)
