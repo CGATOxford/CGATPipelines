@@ -328,8 +328,7 @@ def reconcileReads(infile, outfile):
         outfile = outfile.replace(".fastq.1.gz",  "")
         job_threads = PARAMS["threads"]
         job_memory = "8G"
-        statement = """python
-            cgat fastqs2fastqs
+        statement = """cgat fastqs2fastqs
             --method=reconcile
             --output-filename-pattern=%(outfile)s.fastq.%%s.gz
             %(in1)s %(in2)s"""
