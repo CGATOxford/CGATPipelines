@@ -13,4 +13,6 @@ dependencies:
 - cutadapt=1.14
 - blast=2.7.1
 - bashlex=0.12
+- r-rmarkdown=1.6
+- pandoc=1.19.2
 
