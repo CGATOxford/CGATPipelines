@@ -22,13 +22,10 @@ free to give it a go::
         bash install-CGAT-tools.sh
 
         # install the development version (recommended, no production version yet):
-        bash install-CGAT-tools.sh --devel [--location </full/path/to/folder/without/trailing/slash>]
+        bash install-CGAT-tools.sh --devel --no-dashboard [--location </full/path/to/folder/without/trailing/slash>]
 
         # enable the conda environment as requested by the installation script:
         source </full/path/to/folder/without/trailing/slash>/conda-install/bin/activate cgat-p
-
-        # and uninstall pika, which we use internally for our dashboard:
-        conda remove pika
 
         # finally, please run the cgatflow command-line tool to check the installation:
         cgatflow --help
