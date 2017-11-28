@@ -239,6 +239,9 @@ wget -O env-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRI
 
 wget -O env-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/${CONDA_INSTALL_TYPE_PIPELINES}
 
+[[ ${CGAT_DASHBOARD} -eq 0 ]] && sed -i'' -e '/pika/d' env-pipelines.yml
+[[ ${CLUSTER} -eq 0 ]] && sed -i'' -e '/drmaa/d' env-pipelines.yml
+
 conda env create --quiet --name ${CONDA_INSTALL_ENV} --file env-pipelines.yml
 conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-scripts.yml
 
@@ -355,7 +358,7 @@ log "install extra deps"
    conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-pipelines.yml
    conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-scripts.yml
 
-   if [[ $INSTALL_IDE ]] ; then
+   if [[ ${INSTALL_IDE} -eq 1 ]] ; then
 
       wget -O env-ide.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-ide.yml
 
@@ -687,8 +690,18 @@ CONDA_INSTALL_TYPE_PIPELINES=
 CONDA_INSTALL_TYPE_SCRIPTS=
 # rename conda environment
 CONDA_INSTALL_ENV=
-# install additional IDEs
-INSTALL_IDE=
+# install additional IDEs?
+# 0 = no (default)
+# 1 = yes
+INSTALL_IDE=0
+# Is the dashboard available?
+# 0 = no
+# 1 = yes (default)
+CGAT_DASHBOARD=1
+# Use cluster?
+# 0 = no
+# 1 = yes (default)
+CLUSTER=1
 
 # parse input parameters
 # https://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
@@ -775,6 +788,16 @@ case $key in
     shift
     ;;
 
+    --no-dashboard)
+    CGAT_DASHBOARD=0
+    shift
+    ;;
+
+    --no-cluster)
+    CLUSTER=0
+    shift
+    ;;
+
     --env-name)
     CONDA_INSTALL_ENV="$2"
     shift 2
@@ -789,11 +812,18 @@ done
 
 # sanity checks
 if [[ $INSTALL_PRODUCTION ]] && [[ $INSTALL_DEVEL ]] ; then
-   echo
-   echo " Incorrect input arguments: mixing --production and --devel is not permitted."
-   echo " Installation aborted. Please run -h option."
-   echo
-   exit 1
+
+   report_error " Incorrect input arguments: mixing --production and --devel is not permitted. "
+
+fi
+
+if [[ -z $INSTALL_PRODUCTION ]] && \
+   [[ -z $INSTALL_DEVEL ]] && \
+   [[ -z $TRAVIS_INSTALL ]] && \
+   [[ -z $JENKINS_INSTALL ]] ; then
+
+   report_error " You need to select either --devel or --production. "
+
 fi
 
 # perform actions according to the input parameters processed
@@ -803,7 +833,7 @@ if [[ $TRAVIS_INSTALL ]] ; then
   conda_install
   conda_test
 
-elif [[ $JENKINS_INSTALL  ]] ; then
+elif [[ $JENKINS_INSTALL ]] ; then
 
   conda_install
   conda_test
