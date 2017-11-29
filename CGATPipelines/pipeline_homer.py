@@ -260,6 +260,7 @@ def findMotifs(infile, outfile):
 def annotatePeaksRaw(infiles, outfile):
 
     directories = []
+
     for infile in infiles:
         directory = infile.split("/")[0]
         directories.append(directory + "/")
@@ -395,6 +396,7 @@ def fragment_size(infiles, outfile):
 
     P.run()
 
+
 @active_if(PARAMS['deep_bam_coverage'])
 @active_if(PARAMS['deeptools'])
 @follows(mkdir("DeepOutput.dir/bamCoverage.dir"))
@@ -408,6 +410,7 @@ def bamCoverage(infiles, outfile):
     else:
         normalise  = '--ignoreForNormalization '
         norm_value = PARAMS['deep_ignore_norm']
+
     if PARAMS['deep_extendreads'] == True:
         extend = '--extendReads'
     elif PARAMS['deep_extendreads'] == False:
@@ -423,6 +426,7 @@ def bamCoverage(infiles, outfile):
                    %(deep_bamcoverage_options)s'''
 
     P.run()
+
 
 @active_if(PARAMS['deep_bam_compare'])
 @active_if(PARAMS['deeptools'])
@@ -442,10 +446,101 @@ def bamCompare(infiles, outfile):
 
     P.run()
 
-@merge((bamCoverage,bamCompare), "bigWig_summary.npz")
-def multiBigWigSummary(infiles, outfile):
 
-    pass
+@active_if(PARAMS['deeptools'])
+@follows(loadDesignTable)
+@follows(mkdir("Summary.dir"))
+@merge([CHIPBAMS,INPUTBAMS], "Summary.dir/Bam_Summary.npz")
+def multiBamSummary(infiles, outfile):
+
+    infile = [item for sublist in infiles for item in sublist]
+    infile = " ".join(infile)
+
+    if PARAMS['deep_compare_setting'] == 'None':
+        compare_set = 'bins'
+        compare_region = ''
+    else:
+        compare_set  = 'BED-file --BED '
+        compare_region = PARAMS['deep_compare_setting']
+
+    if PARAMS['deep_ignore_dups'] == True:
+        duplicates = "--ignoreDuplicates"
+    elif PARAMS['deep_ignore_dups'] == False:
+        duplicates = ""
+    else:
+        raise ValueError('''Please set a ignore_dups value in the
+                   pipeline.ini''')
+
+    statement = '''multiBamSummary %(compare_set)s %(compare_region)s
+                   -b %(infile)s
+                   -o %(outfile)s
+                   --outRawCounts Summary.dir/Bam_Summary.tab
+                   --minMappingQuality %(deep_mapping_qual)s
+                   %(deep_summary_options)s'''
+
+    P.run()
+
+@active_if(PARAMS['deeptools'])
+@merge(bamCoverage, "Summary.dir/bw_summary.npz")
+def multiBwSummary(infiles, outfile):
+     
+    infiles = " ".join(infiles)
+
+    if PARAMS['deep_compare_setting'] == 'None':
+        compare_set = 'bins'
+        compare_region = ''
+    else:
+        compare_set  = 'BED-file --BED '
+        compare_region = PARAMS['deep_compare_setting']
+
+
+    statement = '''multiBigwigSummary %(compare_set)s %(compare_region)s
+                   -b %(infiles)s
+                   -out %(outfile)s
+                   --outRawCounts Summary.dir/Bw_Summary.tab
+                   %(deep_summary_options)s'''
+
+    P.run()
+
+@active_if(PARAMS['deeptools'])
+@follows(mkdir("plot.dir"))
+@transform((multiBamSummary, multiBwSummary),
+            suffix(".npz"),
+            r"\1corr")
+
+def plotCorrelation(infiles, outfile):
+               
+    statement = '''plotCorrelation -in %(infiles)s -o %(outfile)s
+                   --corMethod %(deep_cormethod)s -p %(deep_plot)s
+                   --plotFileFormat %(deep_filetype)s
+                   --skipZeros %(deep_plot_options)s'''
+    P.run()
+
+@active_if(PARAMS['deeptools'])
+@transform((multiBamSummary, multiBwSummary),
+            suffix(".npz"),
+            r"\1PCA")
+
+def plotPCA(infiles, outfile):
+               
+    statement = '''plotPCA -in %(infiles)s -o %(outfile)s
+                   --plotFileFormat %(deep_filetype)s
+                   %(deep_plot_options)s'''
+    P.run()
+
+# Continue...do not have materials to test pipeline
+
+@active_if(PARAMS['deeptools']
+
+def computeMatrix(Infiles, outfile):
+
+    statement = '''computeMatrix scale-regions -S %(deep_bwfile)s 
+                   -R %(deep_bedfile)s --upstream %(deep_brslength)s
+                   --downstream %(deep_arslength)s
+                   %(deep_matrix_options)s'''
+
+
+
 
 # ---------------------------------------------------
 # Generic pipeline tasks
@@ -461,7 +556,11 @@ def multiBigWigSummary(infiles, outfile):
          coverage_plot,
          fingerprint_plot,
          bamCompare,
-         bamCoverage)
+         bamCoverage,
+         multiBamSummary,
+         multiBwSummary,
+         plotCorrelation,
+         plotPCA)
 
 def full():
     pass
