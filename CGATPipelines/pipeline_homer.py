@@ -528,18 +528,62 @@ def plotPCA(infiles, outfile):
                    %(deep_plot_options)s'''
     P.run()
 
-# Continue...do not have materials to test pipeline
+# Not sure the arguments which would be good to be included; do not have materials to test pipeline
 
 @active_if(PARAMS['deeptools']
+@transform(
 
 def computeMatrix(Infiles, outfile):
+    
+    if PARAMS['deep_startfactor'] == 'reference-point':
+       reference_point = '--referencePoint'
+       regions = PARAMS['deep_regions']
+       region_length = " "
+    else:
+       reference_point == '--regionBodyLength'
+       regions = " "
+       region_length = PARAMS['deep_region_length']
 
-    statement = '''computeMatrix scale-regions -S %(deep_bwfile)s 
-                   -R %(deep_bedfile)s --upstream %(deep_brslength)s
+
+    statement = '''computeMatrix %(deep_startfactor)s -S %(deep_bwfile)s 
+                   -R %(deep_bedfile)s
+                   %(reference_point)s %(deep_regions)s %(deep_region_length)s
+                   --upstream %(deep_brslength)s
                    --downstream %(deep_arslength)s
+                   --binSize %(deep_binsize)s
+                   --skipZeros
+                   -out %(deep_outfilename)s 
+                   --outFileNameMatrix %(deep_outmatrixfile)s
+                   --outFileSortedRegions %(deep_outsortedfile)s                   
                    %(deep_matrix_options)s'''
 
 
+@active_if(PARAMS['deeptools']
+@transform( 
+
+def Matrixplot(Infiles, outfile):
+    
+    if PARAMS['deep_plottype'] == 'heatmap':
+       plot_argu = 'plotHeatmap'
+    else:
+       plot_argu = 'plotProfile' 
+
+    if PARAMS['deep_infileplot'] == 'filematrix':
+       infile_argu = '--outFileNameMatrix'
+       infile_name = PARAMS['deep_outmatrixfile']
+    elif PARAMS['deep_infileplot'] == 'sorted':
+       infile_argu = '--outFileSortedRegions'
+       infile_name = PARAMS['deep_outsortedfile']
+    else:
+       infile_argu = '--matrixFile'
+       infile_name = PARAMS['deep_outfilename']
+
+
+
+    statement = '''%(plot_argu)s %(infile_argu)s %(infile_name)s
+                   -out %(deep_outfilename)s
+                   --colormap %(deep_colormap)s
+                   --dpi %(deep_dpi)s '''
 
 
 # ---------------------------------------------------
