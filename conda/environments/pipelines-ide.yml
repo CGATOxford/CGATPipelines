@@ -1,0 +1,16 @@
+
+# This environment will include other dependencies to assist with the development and running of pipelines
+
+name: cgat-p
+
+channels:
+- bioconda
+- conda-forge
+- defaults
+
+dependencies:
+- sphinx_bootstrap_theme
+- rstudio
+- spyder
+- multiqc
+

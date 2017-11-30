@@ -1,0 +1,47 @@
+
+name: cgat-p
+
+channels:
+- bioconda
+- conda-forge
+- defaults
+
+dependencies:
+# system deps
+- nomkl
+- gcc
+- zlib
+# bioinformatics tools
+# python deps
+- python
+- beautifulsoup4
+- biopython
+- brewer2mpl
+- cgat-report
+- future
+- httplib2
+- intermine
+- matplotlib
+- mygene
+- nose
+- numpy
+- pandas
+- pep8
+- pika
+- pybedtools
+- pybigwig
+- pysam
+- python-drmaa
+- rpy2
+- ruffus
+- scikit-learn
+- scipy
+- seaborn
+- setuptools
+- six
+- sqlalchemy
+- toposort
+# R deps
+- r-base
+- bioconductor-hpar
+

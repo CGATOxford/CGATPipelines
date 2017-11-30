@@ -1,26 +1,59 @@
 .. _CGATSetup:
 
 =========================
-Installing CGAT pipelines
+Installation instructions
 =========================
 
-The CGAT pipelines, scripts and libraries make several assumptions about
-the computing environment. This section describes how to install the code
-and set up your computing environment.
+The section below describes how to install the CGAT_ Pipelines. We distinguish between two
+different installation types: production and development. The former refers to a well
+tested subset of pipelines, and is the recommended installation. The latter refers to
+the whole collection of pipelines developed at CGAT, which may contain code under active
+development.
 
-Downloading and installing the source code
-==========================================
+Please note that we can not test our code on all systems and configurations out there so
+please bear with us.
 
-To obtain the latest code, check it out from the public git_
-repository and activate it::
+Automated installation
+======================
 
-   git clone https://github.com/CGATOxford/cgat.git
-   cd cgat
+The preferred method to install the CGAT Pipelines is using the installation script,
+which uses conda_.
+
+Here are the steps::
+
+        # download installation script:
+        curl -O https://raw.githubusercontent.com/CGATOxford/CGATPipelines/master/install-CGAT-tools.sh
+
+        # see help:
+        bash install-CGAT-tools.sh
+
+        # install the development version (recommended, no production version yet):
+        bash install-CGAT-tools.sh --devel --no-dashboard [--location </full/path/to/folder/without/trailing/slash>]
+
+        # enable the conda environment as requested by the installation script:
+        source </full/path/to/folder/without/trailing/slash>/conda-install/bin/activate cgat-p
+
+        # finally, please run the cgatflow command-line tool to check the installation:
+        cgatflow --help
+
+The installation script will put everything under the specified location. It needs
+15 GB of disk space and it takes about 35 minutes to complete. The aim of the
+script is to provide a portable installation that does not interfere with the existing
+software. As a result, you will have a conda environment working with the CGAT Pipelines
+which can be enabled on demand according to your needs.
+
+Manual installation
+===================
+
+To obtain the latest code, check it out from the public git_ repository and activate it::
+
+   git clone https://github.com/CGATOxford/CGATPipelines.git
+   cd CGATPipelines
    python setup.py develop
 
-Please see the installation instructions for the `CGAT Toolkit
-<http://www.cgat.org/downloads/public/cgat/documentation/CGATInstallation.html>`_
-if you run into problems.
+The CGAT Pipelines depends on the CGAT scripts, which can be installed by following the
+installation instructions `here
+<http://www.cgat.org/downloads/public/cgat/documentation/CGATInstallation.html>`_.
 
 Once checked-out, you can get the latest changes via pulling::
 
@@ -32,7 +65,7 @@ for example after updating the repository, type::
 
    python cgat/scripts/cgat_rebuild_extensions.py
 
-Recompilation requires a C compiler to be installed. 
+Recompilation requires a C compiler to be installed.
 
 Setting up the computing environment
 ====================================
@@ -50,121 +83,34 @@ tasks are sent to the cluster, but for some tasks this is not possible.
 These might thus run on the :term:`submit host`, so make sure it is fairly powerful.
 
 Pipelines expects that the :term:`working directory` is accessible with
-the same path both from the submit and the :term:`execution host`. 
+the same path both from the submit and the :term:`execution host`.
+
+Also, please make sure that you configure the following environment variables::
+
+        # Access to the DRMAA library: https://en.wikipedia.org/wiki/DRMAA
+        export DRMAA_LIBRARY_PATH=/<full-path>/libdrmaa.so
+
+        # You can get this value from your configured environment:
+        env | grep DRMAA_LIBRARY_PATH
+
+        # or just look for the library:
+        find <path-to-DRMS-install-folder> -name "*libdrmaa.so"
+
+        # Also, make sure you have defined temporary folders
+        # 1. Local to execution hosts with
+        export TMPDIR=/tmp
+        # 2. Shared to pipeline working directory
+        export SHARED_TMPDIR=/<path-to-network-folder>/scratch
 
 Software requirements
 =====================
 
-On top of pipeline specific bioinformatics software, CGAT pipelines
-make use a variety of software. Unfortunately we can't support many
-versions. The following table gives a list software that are currently
-being required, installed and the location where the dependency
-arises:
+CGAT Pipelines make use of a variety of software. We keep a list of software dependencies
+in the form of a conda_ environment file `here
+<https://github.com/CGATOxford/CGATPipelines/blob/master/conda/environments/pipelines-devel.yml>`_.
 
-.. How to create this table:
-.. python scripts/cgat_list_dependencies.py | tab2rst
-
-+-------------+------------+---------------+-----------+----------------------------------------+
-|tool         |required    |installed      |is_required|locations                               |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|BroadPeak    |>=1.0       |?              |False      |CGATPipelines/PipelinePeakcalling.py    |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|DESeq        |>=1.17      |1.17.0         |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|DESeq2       |>=1.5.62    |1.5.62         |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|GATK         |>=2.7       |2.7-2          |True       |CGATPipelines/pipeline_exome.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|Gemini       |>=?         |-              |True       |CGATPipelines/pipeline_exome.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|HiddenMarkov |>=1.8.0     |1.8-0          |True       |CGATPipelines/PipelineRnaseq.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|MASS         |>=7.3.34    |7.3-34         |True       |CGATPipelines/PipelineRnaseq.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|MEDIPS       |>=1.15.0    |1.15.0         |True       |CGATPipelines/PipelineWindows.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|RColorBrewer |>=1.0.5     |1.0-5          |True       |CGAT/Expression.py                      |
-|             |            |               |           |CGATPipelines/PipelineRnaseq.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|SICER        |>=1.1       |?              |False      |CGATPipelines/PipelinePeakcalling.py    |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|bedtools     |>=2.21.0    |2.21.0         |True       |CGATPipelines/PipelinePeakcalling.py    |
-|             |            |               |           |CGATPipelines/PipelineWindows.py        |
-|             |            |               |           |CGATPipelines/pipeline_windows.py       |
-|             |            |               |           |scripts/runSPP.py                       |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|bismark      |>=0.12.5    |0.12.5         |False      |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|bowtie       |>=1.0.0     |1.0.0          |False      |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|bowtie2      |>=2.2.3     |2.2.3          |False      |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|bwa          |>=0.7.8     |0.7.8-r455     |True       |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|cufflinks    |>=2.2.1     |2.2.1          |True       |CGATPipelines/PipelineMapping.py        |
-|             |            |               |           |CGATPipelines/PipelineRnaseq.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|edgeR        |>=3.7.16    |3.7.16         |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|fastq-dump   |>=2.1.7     |2.1.7          |True       |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|fastqc       |>=0.9.2     |0.9.2          |True       |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|featureCounts|>=1.4.3     |1.4.3-p1       |True       |CGATPipelines/PipelineRnaseq.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|ggplot2      |>=1.0.0     |1.0.0          |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|gplots       |>=2.14.2    |2.14.2         |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|grid         |>=3.1.1     |3.1.1          |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|gsnap        |>=2014-01-21|2014-01-21     |False      |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|limma        |>=3.21.18   |3.21.18        |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|macs1        |>=1.4.2     |1.4.2          |False      |CGATPipelines/PipelinePeakcalling.py    |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|macs2        |>=2.0.10    |2.0.10.20131216|False      |CGATPipelines/PipelinePeakcalling.py    |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|peakranger   |>=1.16      |1.16           |False      |CGATPipelines/PipelinePeakcalling.py    |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|picardtools  |>=1.106     |1.106          |True       |CGATPipelines/PipelineMapping.py        |
-|             |            |               |           |CGATPipelines/PipelineWindows.py        |
-|             |            |               |           |CGATPipelines/pipeline_exome.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|reshape      |>=0.8.5     |0.8.5          |True       |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|sailfish     |>=0.6.3     |0.6.3          |True       |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|samr         |>=2.0       |2.0            |False      |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|samtools     |>=1.1       |1.1            |True       |CGATPipelines/PipelineMapping.py        |
-|             |            |               |           |CGATPipelines/PipelinePeakcalling.py    |
-|             |            |               |           |CGATPipelines/PipelineRnaseq.py         |
-|             |            |               |           |CGATPipelines/PipelineWindows.py        |
-|             |            |               |           |CGATPipelines/pipeline_exome.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|scripture    |>=2.0       |?              |True       |CGATPipelines/PipelinePeakcalling.py    |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|siggenes     |>=1.39.0    |1.39.0         |False      |CGAT/Expression.py                      |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|snow         |>=0.3.13    |0.3-13         |True       |scripts/runSPP.py                       |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|snpEff       |>=4.0       |4.0e           |True       |CGATPipelines/pipeline_exome.py         |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|spp          |>=?         |-              |True       |scripts/runSPP.py                       |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|stampy       |>=1.0.23    |1.0.23         |False      |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|star         |>=2.3.0e    |?              |False      |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|tophat       |>=2.0.13    |2.0.13         |False      |CGATPipelines/PipelineMapping.py        |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|ucsctools    |==?         |?              |True       |CGATPipelines/pipeline_windows.py       |
-+-------------+------------+---------------+-----------+----------------------------------------+
-|zinba        |>=2.01      |2.01           |True       |CGATPipelines/PipelinePeakcalling.py    |
-|             |            |               |           |scripts/runZinba.py                     |
-+-------------+------------+---------------+-----------+----------------------------------------+
+All these dependencies will be automatically installed with the automated installation
+script as explained above.
 
 What exactly is required will depend on the particular pipeline. The
 pipeline assumes that the executables are in the users :envvar:`PATH`
@@ -172,33 +118,7 @@ and that the rest of the environment has been set up for each tool.
 
 To check if the dependencies within a particular pipeline are satisfied, type::
 
-   python cgat/CGATPipelines/pipeline_mapping.py check
+   python CGATPipelines/pipeline_mapping.py --input-validation
 
-To check all external dependencies, type::
-
-   python scripts/cgat_list_dependencies.py
-
-The dependencies are tracked through the module
-:doc:`modules/Requirements`. Dependency tracking works by adding a
-list of dependencies to the docstring of the module or script in which
-the dependency arises.
-
-Additionally, there is a list of additional software that is required
-that are usually shipped as a source package with the operating system
-such as sqlite_.
-
-Please see the installation instructions for the `CGAT Toolkit
-<http://www.cgat.org/downloads/public/cgat/documentation/CGATInstallation.html>`_.
-
-Python libraries
-----------------
-
-CGAT uses python extensively and is currently developed against python
-2.7.1. Python 2.6 should work as well, but some libraries present in
-2.7.1 but missing in 2.6 might need to be installed. Scripts have not
-yet been ported to python 3.
-
-The CGAT pipelines require several python libraries to be installed.
-When installing the CGAT code collection, these dependencies are
-listed in the :file:` should be automatically installed
-
+.. _conda: https://conda.io
+.. _CGAT: http://www.cgat.org

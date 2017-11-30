@@ -1,3 +1,5 @@
+.. _readqc:
+
 .. image:: ../images/pipeline_readqc.svg
 
 .. automodule:: pipeline_readqc

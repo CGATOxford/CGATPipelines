@@ -118,42 +118,17 @@ The pipeline requires the results from
 :doc:`pipeline_annotations`. Set the configuration variable
 :py:data:`annotations_database` and :py:data:`annotations_dir`.
 
-On top of the default CGAT setup, the pipeline requires the following
-software to be in the path:
-
-+---------+------------+------------------------------------------------+
-|*Program*|*Version*   |*Purpose*                                       |
-+---------+------------+------------------------------------------------+
-|samtools |>=0.1.16    |bam/sam file manipulation & stats               |
-+---------+------------+------------------------------------------------+
-|bedtools |            |working with intervals                          |
-+---------+------------+------------------------------------------------+
-|picard   |>=1.42      |duplication stats. The .jar files need to be in |
-|         |            | your CLASSPATH environment variable.           |
-+---------+------------+------------------------------------------------+
-|macs2	  |>=2.1.1.    |peakcalling                                 	|
-+---------+------------+------------------------------------------------+
-|Conda	  |	           |		?????????????		                  	|
-+---------+------------+------------------------------------------------+
-|python   |>= 3.0      |run IDR analysis - currently set up in a        |
-|         | 	       |conda enviroment that the pipeline calls	    |
-+---------+------------+------------------------------------------------+
-|IDR      |>= 2.0.2    |IDR analysis of peaks (bed files)               |
-|         |            |from: (https://github.com/nboley/idr)           |
-+---------+------------+------------------------------------------------+
-|R        |            | used for QC stats                              |
-+---------+------------+------------------------------------------------+
-|ChIPQC   |            |                                                |
-|R Package|            |                                                |
-+---------+------------+------------------------------------------------+
-|SICER
-+---------+------------+------------------------------------------------+
+The software environment is handled by the CGATPipelines conda environment
+and all software is installed as part of the installation process.
 
 Usage
 =====
 
 See :ref:`PipelineSettingUp` and :ref:`PipelineRunning` on general
 information how to use CGAT pipelines.
+
+See :ref:`Tutorials` for a comprehensive introduction of how to run a
+CGATPipeline.
 
 
 Pipeline Input
@@ -167,8 +142,16 @@ Input_bam = control file used as background reference in peakcalling
 pipeline.ini = File containing paramaters and options for
 running the pipeline
 
-design.tsv = Design file based on design file for R package DiffBind
-Has the following collumns:
+design.tsv = This is a tab seperated file based on the design file for R package
+DiffBind
+
+It has the following collumns:
+
++---------+--------+--------+-----------+-----------+-----------+----------+-----------+--------------+
+|SampleID | Tissue | Factor | Condition | Treatment | Replicate | bamReads | ControlID | bamControl   |
++---------+--------+--------+-----------+-----------+-----------+----------+-----------+--------------+
+|F123     |blood   |H3K4    |normal     |NA         |1          |F123.bam  |           |F123_input.bam|
++---------+--------+--------+-----------+-----------+-----------+----------+-----------+--------------+
 
 
 Pipeline output

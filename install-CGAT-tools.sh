@@ -16,111 +16,53 @@ set -o pipefail
 # trace what gets executed
 #set -o xtrace
 
+# Bash traps
+# http://aplawrence.com/Basics/trapping_errors.html
+# https://stelfox.net/blog/2013/11/fail-fast-in-bash-scripts/
+
+set -o errtrace
+
+SCRIPT_NAME="$0"
+SCRIPT_PARAMS="$@"
+
+error_handler() {
+   echo
+   echo " ########################################################## "
+   echo
+   echo " An error occurred in:"
+   echo
+   echo " - line number: ${1}"
+   shift
+   echo " - exit status: ${1}"
+   shift
+   echo " - command: ${@}"
+   echo
+   echo " The script will abort now. User input was: "
+   echo
+   echo " ${SCRIPT_NAME} ${SCRIPT_PARAMS}"
+   echo
+   echo " Please copy and paste this error and report it via Git Hub: "
+   echo " https://github.com/CGATOxford/CGATPipelines/issues "
+   print_env_vars
+   echo " ########################################################## "
+}
+
+trap 'error_handler ${LINENO} $? ${BASH_COMMAND}' ERR INT TERM
+
 # log installation information
 log() {
    echo "# install-CGAT-tools.sh log | `hostname` | `date` | $1 "
 }
 
-# message to display when the OS is not correct
-sanity_check_os() {
+# report error and exit
+report_error() {
    echo
-   echo " Unsupported operating system: $OS"
-   echo " Installation aborted."
-   echo 
-   echo " Supported operating systems are: "
-   echo " Ubuntu 12.x"
-   echo " CentOS 6.x"
-   echo " Scientific Linux 6.x"
+   echo $1
    echo
-   exit 1;
-} # sanity_check_os
-
-
-# function to detect the Operating System
-detect_os() {
-
-if [[ -f /etc/os-release ]]; then
-
-   OS=$(cat /etc/os-release | awk '/VERSION_ID/ {sub("="," "); print $2;}' | sed 's/\"//g' | awk '{sub("\\."," "); print $1;}')
-   if [[ "$OS" != "12" ]] ; then
-
-      echo       
-      echo " Sorry, this version of Ubuntu has not been tested. Only Ubuntu 12.x is supported so far. "
-      echo
-      exit 1;
-
-   fi
-
-   OS="ubuntu"
-
-elif [[ -f /etc/system-release ]]; then
-
-   OP=$(cat /etc/system-release | awk ' {print $1;}')
-   if [[ "$OP" == "Scientific" ]] ; then
-      OP=$(cat /etc/system-release | awk ' {print $4;}' | awk '{sub("\\."," "); print $1;}')
-      if [[ "$OP" != "6" ]] ; then
-         echo
-         echo " Sorry, this version of Scientific Linux has not been tested. Only 6.x versions are supported so far. "
-         echo
-         exit 1;
-      else
-         OS="sl"
-      fi
-   elif [[ "$OP" == "CentOS" ]] ; then
-      OP=$(cat /etc/system-release | awk ' {print $3;}' | awk '{sub("\\."," "); print $1;}')
-      if [[ "$OP" != "6" ]] ; then
-         echo
-         echo " Sorry, this version of CentOS has not been tested. Only 6.x versions are supported so far. "
-         echo
-         exit 1;
-      else
-         OS="centos"
-      fi
-   else
-      sanity_check_os
-   fi
-
-else
-
-   sanity_check_os
-
-fi
-} # detect_os
-
-
-# install operating system dependencies
-install_os_packages() {
-
-detect_os
-
-if [[ "$OS" == "ubuntu" ]] || [[ "$OS" == "travis" ]] ; then
-
-   log " Installing packages for Ubuntu "
-
-   sudo apt-get --quiet install -y gcc g++ zlib1g-dev libssl-dev libssl1.0.0 libbz2-dev libfreetype6-dev libpng12-dev libblas-dev libatlas-dev liblapack-dev gfortran libpq-dev r-base-dev libreadline-dev libmysqlclient-dev libboost-dev libsqlite3-dev;
-
-elif [[ "$OS" == "sl" ]] || [[ "$OS" == "centos" ]] ; then
-
-   log " Installing packages for Scientific Linux / CentOS "
-
-   yum -y install gcc zlib-devel openssl-devel bzip2-devel gcc-c++ freetype-devel libpng-devel blas atlas lapack gcc-gfortran postgresql-devel R-core-devel readline-devel mysql-devel boost-devel sqlite-devel
-
-   # additional configuration for scipy (Scientific Linux only)
-   if [[ "$OS" == "sl" ]] ; then
-      ln -s /usr/lib64/libatlas.so.3 /usr/lib64/libatlas.so
-   fi
-
-   # additional configuration for blas and lapack
-   ln -s /usr/lib64/libblas.so.3 /usr/lib64/libblas.so
-   ln -s /usr/lib64/liblapack.so.3 /usr/lib64/liblapack.so;
-
-else
-
-   sanity_check_os $OS
-
-fi # if-OS
-} # install_os_packages
-
+   echo "Aborting."
+   echo
+   exit 1
+}
 
 # detect CGAT installation
 detect_cgat_installation() {
@@ -143,20 +85,20 @@ fi
 
 
 # configure environment variables 
-# set: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE
+# set: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE_PIPELINES
 get_cgat_env() {
 
 if [[ $TRAVIS_INSTALL ]] ; then
 
    CGAT_HOME=$TRAVIS_BUILD_DIR
-   CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
-   INSTALL_PYTHON_VERSION=$TRAVIS_PYTHON_VERSION
+   CONDA_INSTALL_TYPE_PIPELINES="pipelines-nosetests.yml"
+   CONDA_INSTALL_TYPE_SCRIPTS="scripts-nosetests.yml"
 
 elif [[ $JENKINS_INSTALL ]] ; then
 
    CGAT_HOME=$WORKSPACE
-   CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
-   INSTALL_PYTHON_VERSION=$JENKINS_PYTHON_VERSION
+   CONDA_INSTALL_TYPE_PIPELINES="pipelines-devel.yml"
+   CONDA_INSTALL_TYPE_SCRIPTS="scripts-devel.yml"
 
 else
 
@@ -164,18 +106,16 @@ else
       CGAT_HOME=$HOME/cgat-install
    fi
 
-   if [[ -z $INSTALL_PYTHON_VERSION ]] ; then
-      INSTALL_PYTHON_VERSION=2
-   fi
-
-   if [[ $INSTALL_SCRIPTS ]] ; then
-      CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
+   if [[ $INSTALL_PRODUCTION ]] ; then
+      CONDA_INSTALL_TYPE_PIPELINES="pipelines-production.yml"
+      CONDA_INSTALL_TYPE_SCRIPTS="scripts-production.yml"
    elif [[ $INSTALL_DEVEL ]] ; then
-      CONDA_INSTALL_TYPE="cgat-pipelines-nosetests"
+      CONDA_INSTALL_TYPE_PIPELINES="pipelines-devel.yml"
+      CONDA_INSTALL_TYPE_SCRIPTS="scripts-devel.yml"
    elif [[ $INSTALL_TEST ]] || [[ $INSTALL_UPDATE ]] ; then
       if [[ -d $CGAT_HOME/conda-install ]] ; then
          AUX=`find $CGAT_HOME/conda-install/envs/cgat-* -maxdepth 0`
-         CONDA_INSTALL_TYPE=`basename $AUX`
+         CONDA_INSTALL_TYPE_PIPELINES=`basename $AUX`
       else
          echo
          echo " The location of the CGAT code was not found (function: get_cgat_env). "
@@ -193,8 +133,11 @@ else
 
 fi # if travis install
 
+# set installation folder
 CONDA_INSTALL_DIR=$CGAT_HOME/conda-install
-CONDA_INSTALL_ENV=$(echo $CONDA_INSTALL_TYPE | cut -c1-6)
+
+# set conda environment name
+[[ ${CONDA_INSTALL_ENV} ]] || CONDA_INSTALL_ENV="cgat-p"
 
 } # get_cgat_env
 
@@ -224,10 +167,11 @@ echo " LIBRARY_PATH: "$LIBRARY_PATH
 echo " LD_LIBRARY_PATH: "$LD_LIBRARY_PATH
 echo " CGAT_HOME: "$CGAT_HOME
 echo " CONDA_INSTALL_DIR: "$CONDA_INSTALL_DIR
-echo " CONDA_INSTALL_TYPE: "$CONDA_INSTALL_TYPE
+echo " CONDA_INSTALL_TYPE_SCRIPTS: "$CONDA_INSTALL_TYPE_SCRIPTS
+echo " CONDA_INSTALL_TYPE_PIPELINES: "$CONDA_INSTALL_TYPE_PIPELINES
+echo " CONDA_INSTALL_ENV: "$CONDA_INSTALL_ENV
 echo " PYTHONPATH: "$PYTHONPATH
-[[ ! $INSTALL_TEST ]] && echo " INSTALL_PYTHON_VERSION: "$INSTALL_PYTHON_VERSION
-[[ ! $INSTALL_TEST ]] && echo " INSTALL_BRANCH: "$INSTALL_BRANCH
+[[ ! $INSTALL_TEST ]] && echo " PIPELINES_BRANCH: "$PIPELINES_BRANCH
 echo
 
 } # print_env_vars
@@ -265,7 +209,7 @@ if [[ -n "$UNINSTALL_DIR" ]] ; then
 
 fi
 
-# get environment variables: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE
+# get environment variables: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE_PIPELINES
 get_cgat_env
 
 mkdir -p $CGAT_HOME
@@ -277,19 +221,35 @@ wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
 
 log "installing miniconda"
 bash Miniconda3-latest-Linux-x86_64.sh -b -p $CONDA_INSTALL_DIR
-export PATH="$CONDA_INSTALL_DIR/bin:$PATH"
+source ${CONDA_INSTALL_DIR}/bin/activate
 hash -r
 
 # install cgat environment
-log "updating conda environment"
-conda update -q conda --yes
+conda install --quiet --yes 'conda=4.3'
 conda info -a
 
 log "installing conda CGAT environment"
-# SLV workaround until problems are resolved for:
-# * Latest R 3.3.2 available in conda: Problems with icu here https://travis-ci.org/CGATOxford/cgat/builds/240711411 and here https://github.com/ContinuumIO/anaconda-issues/issues/1403
-# * Latest pysam works with the CGAT code: the gff3 support is broken, best not to use 0.11.2 for now (AH comment)
-conda create -q -n $CONDA_INSTALL_ENV $CONDA_INSTALL_TYPE python=$INSTALL_PYTHON_VERSION pysam=0.11.1 r=3.3.1 gcc --override-channels --channel bioconda --channel conda-forge --channel defaults  --yes
+
+# Now using conda environment files:
+# https://conda.io/docs/using/envs.html#use-environment-from-file
+
+[[ -z ${TRAVIS_BRANCH} ]] && TRAVIS_BRANCH=${PIPELINES_BRANCH}
+
+wget -O env-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/${CONDA_INSTALL_TYPE_SCRIPTS}
+
+wget -O env-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/${CONDA_INSTALL_TYPE_PIPELINES}
+
+[[ ${CGAT_DASHBOARD} -eq 0 ]] && sed -i'' -e '/pika/d' env-pipelines.yml
+[[ ${CLUSTER} -eq 0 ]] && sed -i'' -e '/drmaa/d' env-pipelines.yml
+
+conda env create --quiet --name ${CONDA_INSTALL_ENV} --file env-pipelines.yml
+conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-scripts.yml
+
+# activate cgat environment
+source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
+
+# bx-python is not py3 yet
+pip install 'bx-python==0.7.3'
 
 log "installing CGAT code into conda environment"
 # if installation is 'devel' (outside of travis), checkout latest version from github
@@ -297,34 +257,39 @@ if [[ "$OS" != "travis" ]] ; then
 
    DEV_RESULT=0
 
-   if [[ $INSTALL_DEVEL ]] ; then
+   if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] ; then
 
+      # install extra deps
+      install_extra_deps
+
+      # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
-      if [[ $INSTALL_ZIP ]] ; then
-	 # get the latest version from Git Hub in zip format
-         wget https://github.com/CGATOxford/CGATPipelines/archive/master.zip
-         unzip master.zip
-	 cd CGATPipelines-master/
-      else
+      if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
+         # get the latest version from Git Hub in zip format
+         wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
+         unzip $PIPELINES_BRANCH.zip
+         rm $PIPELINES_BRANCH.zip
+         mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
+
+      elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
          # get latest version from Git Hub with git clone
-         git clone https://github.com/CGATOxford/CGATPipelines.git
-         cd CGATPipelines/
+         git clone --branch=$PIPELINES_BRANCH https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+      elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
+         # get latest version from Git Hub with git clone
+         git clone --branch=$PIPELINES_BRANCH git@github.com:CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+      else
+         report_error " Unknown download type for CGAT code... "
       fi
 
-      # activate cgat environment
-      source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
-
-      # SLV: workaround until these Python packages are available with Python 3
-      pip install bx-python
-      # pip install MySQL-python # Not available in Python 3
-      pip install CGATReport
+      # make sure you are in the CGAT_HOME/cgat-pipelines folder
+      cd $CGAT_HOME/cgat-pipelines
 
       # Set up other environment variables
       setup_env_vars
 
       # brute force: modify console_scripts variable/entry point for cgat command
-      sed -i 's/CGATScripts/scripts/g' setup.py
+      sed -i'' -e 's/CGATScripts/scripts/g' setup.py
 
       # need to install the CGAT Code Collection as well
       install_cgat_scripts
@@ -334,9 +299,7 @@ if [[ "$OS" != "travis" ]] ; then
       sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
       python setup.py develop
 
-      DEV_RESULT=$?
-
-      if [[ $DEV_RESULT -ne 0 ]] ; then
+      if [[ $? -ne 0 ]] ; then
          echo
          echo " There was a problem doing: 'python setup.py develop' "
          echo " Installation did not finish properly. "
@@ -348,6 +311,10 @@ if [[ "$OS" != "travis" ]] ; then
          print_env_vars
 
       fi # if-$?
+
+      # revert setup.py if downloaded with git
+      [[ $CODE_DOWNLOAD_TYPE -ge 1 ]] && git checkout -- setup.py
+
    fi # if INSTALL_DEVEL
 
    # check whether conda create went fine
@@ -365,11 +332,10 @@ if [[ "$OS" != "travis" ]] ; then
    else
       clear
       echo 
-      echo " The CGAT code was successfully installed!"
+      echo " The code successfully installed!"
       echo
       echo " To activate the CGAT environment type: "
       echo " $ source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV"
-      [[ $INSTALL_SCRIPTS ]] && echo " cgat --help"
       echo
       echo " To deactivate the environment, use:"
       echo " $ source deactivate"
@@ -381,6 +347,27 @@ fi # if travis install
 } # conda install
 
 
+# install extra dependencies
+install_extra_deps() {
+
+log "install extra deps"
+
+   wget -O env-extra-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
+   wget -O env-extra-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
+
+   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-pipelines.yml
+   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-scripts.yml
+
+   if [[ ${INSTALL_IDE} -eq 1 ]] ; then
+
+      wget -O env-ide.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-ide.yml
+
+      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-ide.yml
+
+   fi
+
+}
+
 # need to install the CGAT Code Collection as well
 install_cgat_scripts() {
 
@@ -389,23 +376,51 @@ log "install cgat scripts"
 OLDWD=`pwd`
 cd $CGAT_HOME
 
-if [[ $TRAVIS_INSTALL ]] ; then
-   git clone https://github.com/CGATOxford/cgat.git cgat-code-at-travis
-   cd cgat-code-at-travis ;
-elif [[ $JENKINS_INSTALL ]] ; then
-   cd cgat ;
+if [[ $JENKINS_INSTALL ]] ; then
+
+   cd cgat/
+
 else
-   wget https://github.com/CGATOxford/cgat/archive/master.zip
-   unzip master.zip
-   rm master.zip
-   mv cgat-master cgat
-   cd cgat ;
+
+   if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
+      # get the latest version from Git Hub in zip format
+      wget https://github.com/CGATOxford/cgat/archive/$SCRIPTS_BRANCH.zip
+      unzip $SCRIPTS_BRANCH.zip
+      rm $SCRIPTS_BRANCH.zip
+      mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
+   elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
+      # get latest version from Git Hub with git clone
+      git clone --branch=$SCRIPTS_BRANCH https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-scripts
+   elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
+      # get latest version from Git Hub with git clone
+      git clone --branch=$SCRIPTS_BRANCH git@github.com:CGATOxford/cgat.git $CGAT_HOME/cgat-scripts
+   else
+      report_error " Unknown download type for CGAT code... "
+   fi
+
+   cd cgat-scripts/
+
 fi
 
 # remove install_requires (no longer required with conda package)
 sed -i'' -e '/REPO_REQUIREMENT/,/pass/d' setup.py
 sed -i'' -e '/# dependencies/,/dependency_links=dependency_links,/d' setup.py
 python setup.py develop
+
+if [[ $? -ne 0 ]] ; then
+   echo
+   echo " There was a problem doing: 'python setup.py develop' "
+   echo " Installation did not finish properly. "
+   echo
+   echo " Please submit this issue via Git Hub: "
+   echo " https://github.com/CGATOxford/CGATPipelines/issues "
+   echo
+   print_env_vars
+
+fi # if-$?
+
+# revert setup.py if downloaded with git
+[[ $CODE_DOWNLOAD_TYPE -ge 1 ]] && git checkout -- setup.py
 
 # go back to old working directory
 cd $OLDWD
@@ -418,7 +433,7 @@ conda_test() {
 
 log "starting conda_test"
 
-# get environment variables: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE
+# get environment variables: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE_PIPELINES
 get_cgat_env
 
 setup_env_vars
@@ -430,12 +445,8 @@ if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
    log "activating CGAT conda environment"
    source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 
-   # SLV: workaround until these Python packages are available with Python 3
-   log "pip-installing additional packages"
-   pip install bx-python
-   # MySQL-python Not available in Python 3
-   # pip install MySQL-python  
-   pip install CGATReport
+   # show conda environment used for testing
+   conda env export
 
    # need to install the CGAT Code Collection as well
    install_cgat_scripts
@@ -471,18 +482,12 @@ if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
 
 else
 
-   if [[ $CONDA_INSTALL_TYPE ]] ; then
+   if [[ $CONDA_INSTALL_TYPE_PIPELINES ]] ; then
       # prepare environment
       source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
 
-      if [[ $INSTALL_ZIP ]] ; then
-         cd $CGAT_HOME/cgat-master
-      else
-         cd $CGAT_HOME/cgat-code
-      fi
-
-      # need to install the CGAT Code Collection as well
-      install_cgat_scripts
+      # make sure you are in the CGAT_HOME/cgat-pipelines folder
+      cd $CGAT_HOME/cgat-pipelines
 
       # python preparation
       sed -i'' -e 's/install_requires=install_requires,//g' setup.py
@@ -537,7 +542,7 @@ fi # if-OS
 # update conda installation
 conda_update() {
 
-# get environment variables: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE
+# get environment variables: CGAT_HOME, CONDA_INSTALL_DIR, CONDA_INSTALL_TYPE_PIPELINES
 get_cgat_env
 
 source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV
@@ -596,33 +601,40 @@ fi
 }
 
 
+# test whether --git-ssh download is doable
+test_git_ssh() {
+   ssh-add -L >& /dev/null || SSH_KEYS_LOADED=$?
+   if [[ $SSH_KEYS_LOADED -ne 0 ]] ; then
+      echo
+      echo " Please load your ssh keys for GitHub before proceeding!"
+      echo
+      echo " Try: "
+      echo " 1. eval \$(ssh-agent)"
+      echo " 2. ssh-add ~/.ssh/id_rsa # or the file where your private key is"
+      report_error " and run this script again. "
+   fi
+}
+
+
 # function to display help message
 help_message() {
 echo
-echo " This script uses Conda to install the CGAT Code Collection:"
-echo " https://www.cgat.org/downloads/public/cgat/documentation/"
+echo " This script uses Conda to install the CGAT pipelines:"
+echo " https://www.cgat.org/downloads/public/cgatpipelines/documentation/"
 echo
-echo " If you only need to use the scripts published here:"
-echo "   https://www.cgat.org/downloads/public/cgat/documentation/cgat.html"
-echo " type:"
-echo " ./install-CGAT-tools.sh --cgat-scripts [--location </full/path/to/folder/without/trailing/slash>]"
+echo " To install a set of production pipelines, please type:"
+echo " ./install-CGAT-tools.sh --production [--location </full/path/to/folder/without/trailing/slash>]"
+echo
+echo " If you want to try out a set of pipelines under active development, please type:"
+echo " ./install-CGAT-tools.sh --devel [--location </full/path/to/folder/without/trailing/slash>]"
 echo
 echo " The default location is: $HOME/cgat-install"
 echo
-echo " Otherwise, if you prefer to use the latest development version of the scripts instead, type:"
-echo " ./install-CGAT-tools.sh --cgat-devel [--location </full/path/to/folder/without/trailing/slash>]"
-echo
-echo " Both installations create a new Conda environment ready to run the CGAT code."
-echo
-echo " The default Python version for CGAT is 2.7 but we are moving the code to Python 3."
-echo " If you want to try our code running with Python 3, please type:"
-echo " ./install-CGAT-tools.sh --cgat-devel --python 3 [--location </full/path/to/folder/without/trailing/slash>]"
-echo
 echo " It is also possible to install/test a specific branch of the code on github:"
-echo " ./install-CGAT-tools.sh --cgat-devel --python 3 --branch <name-of-branch> [--location </full/path/to/folder/without/trailing/slash>]"
+echo " ./install-CGAT-tools.sh --devel --pipelines-branch <branch> --scripts-branch <branch>"
 echo
-echo " On the other hand, if you are looking for other alternative installation options please visit:"
-echo " https://www.cgat.org/downloads/public/cgat/documentation/CGATInstallation.html"
+echo " This will create an isolated Conda environment with both the pipelines and the scripts from:"
+echo " https://github.com/CGATOxford/cgat"
 echo
 echo " To test the installation:"
 echo " ./install-CGAT-tools.sh --test [--location </full/path/to/folder/without/trailing/slash>]"
@@ -648,14 +660,13 @@ if [[ $# -eq 0 ]] ; then
 fi
 
 # these variables will store the information about input parameters
+OS="default"
 # travis execution
 TRAVIS_INSTALL=
 # jenkins testing
 JENKINS_INSTALL=
-# install operating system's dependencies
-OS_PKGS=
 # conda installation type
-INSTALL_SCRIPTS=
+INSTALL_PRODUCTION=
 INSTALL_DEVEL=
 # test current installation
 INSTALL_TEST=
@@ -666,116 +677,153 @@ UNINSTALL=
 UNINSTALL_DIR=
 # where to install CGAT code
 CGAT_HOME=
-# instead of cloning with git, we can download zipped CGAT code
-INSTALL_ZIP=
-# which python version to use
-INSTALL_PYTHON_VERSION=
+# how to download CGAT code:
+# 0 = as zip (default)
+# 1 = git clone with https
+# 2 = git clone with ssh
+CODE_DOWNLOAD_TYPE=0
 # which github branch to use (default: master)
-INSTALL_BRANCH="master"
-# variable to store input parameters
-INPUT_ARGS=$(getopt -n "$0" -o htj1234567:zp:b: --long "help,
-                                                        travis,
-                                                        jenkins,
-                                                        install-os-packages,
-                                                        cgat-scripts,
-                                                        cgat-devel,
-                                                        test,
-                                                        update,
-                                                        uninstall,
-                                                        location:,
-                                                        zip,
-                                                        python:,
-                                                        branch:"  -- "$@")
-eval set -- "$INPUT_ARGS"
+PIPELINES_BRANCH="master"
+SCRIPTS_BRANCH="master"
+# type of installation
+CONDA_INSTALL_TYPE_PIPELINES=
+CONDA_INSTALL_TYPE_SCRIPTS=
+# rename conda environment
+CONDA_INSTALL_ENV=
+# install additional IDEs?
+# 0 = no (default)
+# 1 = yes
+INSTALL_IDE=0
+# Is the dashboard available?
+# 0 = no
+# 1 = yes (default)
+CGAT_DASHBOARD=1
+# Use cluster?
+# 0 = no
+# 1 = yes (default)
+CLUSTER=1
 
-# process all the input parameters first
-while [[ "$1" != "--" ]]
+# parse input parameters
+# https://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
+# https://stackoverflow.com/questions/192249/how-do-i-parse-command-line-arguments-in-bash
+
+while [[ $# -gt 0 ]]
 do
+key="$1"
 
-  if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]] ; then
+case $key in
 
+    --help)
     help_message
+    ;;
 
-  elif [[ "$1" == "--travis" ]] ; then
-      
-      TRAVIS_INSTALL=1
-      shift ;
+    --travis)
+    TRAVIS_INSTALL=1
+    shift # past argument
+    ;;
 
-  elif [[ "$1" == "--jenkins" ]] ; then
+    --jenkins)
+    JENKINS_INSTALL=1
+    shift # past argument
+    ;;
 
-      JENKINS_INSTALL=1
-      shift ;
+    --zip)
+    CODE_DOWNLOAD_TYPE=0
+    shift
+    ;;
 
-  elif [[ "$1" == "--install-os-packages" ]] ; then
-      
-      OS_PKGS=1
-      shift ;
+    --git)
+    CODE_DOWNLOAD_TYPE=1
+    shift
+    ;;
 
-  elif [[ "$1" == "--cgat-scripts" ]] ; then
-      
-      INSTALL_SCRIPTS=1
-      shift ;
+    --git-ssh)
+    CODE_DOWNLOAD_TYPE=2
+    shift
+    test_git_ssh
+    ;;
 
-  elif [[ "$1" == "--cgat-devel" ]] ; then
+    --production)
+    INSTALL_PRODUCTION=1
+    shift
+    ;;
 
-      INSTALL_DEVEL=1
-      shift ;
+    --devel)
+    INSTALL_DEVEL=1
+    shift
+    ;;
 
-  elif [[ "$1" == "--test" ]] ; then
+    --test)
+    INSTALL_TEST=1
+    shift
+    ;;
 
-      INSTALL_TEST=1
-      shift ;
+    --update)
+    INSTALL_UPDATE=1
+    shift
+    ;;
 
-  elif [[ "$1" == "--update" ]] ; then
+    --uninstall)
+    UNINSTALL=1
+    shift
+    ;;
 
-      INSTALL_UPDATE=1
-      shift ;
+    --location)
+    CGAT_HOME="$2"
+    shift 2
+    ;;
 
-  elif [[ "$1" == "--uninstall" ]] ; then
+    --pipelines-branch)
+    PIPELINES_BRANCH="$2"
+    shift 2
+    ;;
 
-      UNINSTALL=1
-      shift ; 
+    --scripts-branch)
+    SCRIPTS_BRANCH="$2"
+    shift 2
+    ;;
 
-  elif [[ "$1" == "--location" ]] ; then
+    --ide)
+    INSTALL_IDE=1
+    shift
+    ;;
 
-      CGAT_HOME="$2"
-      shift 2 ;
+    --no-dashboard)
+    CGAT_DASHBOARD=0
+    shift
+    ;;
 
-  elif [[ "$1" == "--zip" ]] ; then
+    --no-cluster)
+    CLUSTER=0
+    shift
+    ;;
 
-      INSTALL_ZIP=1
-      shift ;
+    --env-name)
+    CONDA_INSTALL_ENV="$2"
+    shift 2
+    ;;
 
-  elif [[ "$1" == "--python" ]] ; then
-
-      if [[ $2 -ne 2 ]] && [[ $2 -ne 3 ]] ; then
-          help_message
-      else
-          INSTALL_PYTHON_VERSION=$2
-          shift 2 ;
-      fi
-
-  elif [[ "$1" == "--branch" ]] ; then
-
-      INSTALL_BRANCH="$2"
-      shift 2 ;
-
-  else
-
+    *)
     help_message
+    ;;
 
-  fi # if-args
-  
-
-done # while-loop
+esac
+done
 
 # sanity checks
-if [[ $INSTALL_SCRIPTS ]] && [[ $INSTALL_DEVEL ]] ; then
-   echo
-   echo " Incorrect input arguments: mixing --cgat-scripts and --cgat-devel is not permitted."
-   echo " Installation aborted. Please run -h option."
-   echo
-   exit 1
+if [[ $INSTALL_PRODUCTION ]] && [[ $INSTALL_DEVEL ]] ; then
+
+   report_error " Incorrect input arguments: mixing --production and --devel is not permitted. "
+
+fi
+
+if [[ -z $INSTALL_PRODUCTION ]] && \
+   [[ -z $INSTALL_DEVEL ]] && \
+   [[ -z $TRAVIS_INSTALL ]] && \
+   [[ -z $JENKINS_INSTALL ]] ; then
+
+   report_error " You need to select either --devel or --production. "
+
 fi
 
 # perform actions according to the input parameters processed
@@ -785,7 +833,7 @@ if [[ $TRAVIS_INSTALL ]] ; then
   conda_install
   conda_test
 
-elif [[ $JENKINS_INSTALL  ]] ; then
+elif [[ $JENKINS_INSTALL ]] ; then
 
   conda_install
   conda_test
@@ -796,7 +844,7 @@ else
      install_os_packages
   fi
 
-  if [[ $INSTALL_SCRIPTS ]] || [[ $INSTALL_DEVEL ]] ; then
+  if [[ $INSTALL_PRODUCTION ]] || [[ $INSTALL_DEVEL ]] ; then
      conda_install
   fi
 
