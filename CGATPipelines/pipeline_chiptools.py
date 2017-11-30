@@ -51,6 +51,9 @@ Glossary
 .. glossary::
 
 
+
+####### need to add that the reuirements are a bed file#####
+
 Code
 ====
 
@@ -62,6 +65,7 @@ import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
 import CGAT.BamTools as Bamtools
+import CGAT.IOTools as IOTools
 
 # load options from the config file
 PARAMS = P.getParameters(
@@ -88,7 +92,7 @@ PARAMS = P.getParameters(
 
 if os.path.exists("design.tsv"):
     df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
-                                                     PARAMS['IDR_poolinputs'])
+                                                     PARAMS["IDR_poolinputs"])
     INPUTBAMS = list(df['bamControl'].values)
     CHIPBAMS = list(df['bamReads'].values)
     TOTALBAMS = INPUTBAMS + CHIPBAMS
@@ -481,7 +485,7 @@ def multiBamSummary(infiles, outfile):
     P.run()
 
 @active_if(PARAMS['deeptools'])
-@merge(bamCoverage, "Summary.dir/bw_summary.npz")
+@merge([bamCoverage,bamCompare], "Summary.dir/bw_summary.npz")
 def multiBwSummary(infiles, outfile):
      
     infiles = " ".join(infiles)
@@ -530,38 +534,69 @@ def plotPCA(infiles, outfile):
 
 # Not sure the arguments which would be good to be included; do not have materials to test pipeline
 
-@active_if(PARAMS['deeptools']
-@transform(
+@active_if(PARAMS['deeptools'])
+@merge([bamCoverage,bamCompare],
+       "Plot.dir/matrix.gz")
+def computeMatrix(infile, outfile):
 
-def computeMatrix(Infiles, outfile):
-    
-    if PARAMS['deep_startfactor'] == 'reference-point':
+    infile = " ".join(infile)
+
+    if 'reference-point' in PARAMS['deep_startfactor']:
        reference_point = '--referencePoint'
        regions = PARAMS['deep_regions']
        region_length = " "
-    else:
+    elif "scale-regions" in PARAMS['deep_startfactor']:
        reference_point == '--regionBodyLength'
        regions = " "
        region_length = PARAMS['deep_region_length']
+    else:
+        raise(ValueError("Please supply a valid startfactor"))
 
+    if ".gz" in PARAMS['deep_bedfile']:
+        infile = PARAMS['deep_bedfile']
+        bedfile = IOTools.openFile(infile, "r")
+    else:
+        bedfile = PARAMS['deep_bedfile']
 
-    statement = '''computeMatrix %(deep_startfactor)s -S %(deep_bwfile)s 
-                   -R %(deep_bedfile)s
-                   %(reference_point)s %(deep_regions)s %(deep_region_length)s
-                   --upstream %(deep_brslength)s
-                   --downstream %(deep_arslength)s
-                   --binSize %(deep_binsize)s
+    if PARAMS['deep_brslength'] is not "":
+        upstream = ("--upstream %s") % (PARAMS['deep_brslength'])
+    
+    if PARAMS['deep_arslength'] is not "":
+        downstream = ("--downstream %s") % (PARAMS['deep_arslength'])
+    
+    if PARAMS['deep_matrix_bin_size'] is not "":
+        binsize = ("--binSize %s") % (PARAMS['deep_matrix_bin_size'])
+    else:
+        binsize = ""
+
+    if PARAMS['deep_outmatrixfile'] is not "":
+        outmatrix = ("--outFileNameMatrix %s") % (PARAMS['deep_outmatrixfile'])
+    else:
+        outmatrix = ""
+
+    if PARAMS['deep_outsortedfile'] is not "":
+        sortedfile = ("--outFileSortedRegions %s") % (PARAMS['deep_outsortedfile'])
+    else:
+        sortedfile = ""
+
+    statement = '''computeMatrix %(deep_startfactor)s -S %(infile)s 
+                   -R %(bedfile)s
+                   %(reference_point)s %(regions)s %(region_length)s
+                   %(upstream)s
+                   %(downstream)s
+                   %(binsize)s
                    --skipZeros
-                   -out %(deep_outfilename)s 
-                   --outFileNameMatrix %(deep_outmatrixfile)s
-                   --outFileSortedRegions %(deep_outsortedfile)s                   
-                   %(deep_matrix_options)s'''
+                   -o %(outfile)s 
+                   %(outmatrix)s
+                   %(sortedfile)s
+               '''
+    P.run()
 
-
-@active_if(PARAMS['deeptools']
-@transform( 
-
-def Matrixplot(Infiles, outfile):
+@active_if(PARAMS['deeptools'])
+@transform(computeMatrix,
+           suffix(".gz"),
+           r("Plot.dir/"))
+def plotHeatmap(infiles, outfile):
     
     if PARAMS['deep_plottype'] == 'heatmap':
        plot_argu = 'plotHeatmap'
@@ -581,10 +616,38 @@ def Matrixplot(Infiles, outfile):
 
 
     statement = '''%(plot_argu)s %(infile_argu)s %(infile_name)s
-                   -out %(deep_outfilename)s
+                   -o %(deep_outfilename)s
                    --colormap %(deep_colormap)s
                    --dpi %(deep_dpi)s '''
 
+    P.run()
+
+@active_if(PARAMS['deeptools'])
+@transform(computeMatrix,
+           suffix(".gz"),
+           r("Plot.dir/"))
+def plotHeatmap(infiles, outfile):
+    
+    
+
+    if PARAMS['deep_infileplot'] == 'filematrix':
+       infile_argu = '--outFileNameMatrix'
+       infile_name = PARAMS['deep_outmatrixfile']
+    elif PARAMS['deep_infileplot'] == 'sorted':
+       infile_argu = '--outFileSortedRegions'
+       infile_name = PARAMS['deep_outsortedfile']
+    else:
+       infile_argu = '--matrixFile'
+       infile_name = PARAMS['deep_outfilename']
+
+
+
+    statement = '''plotHeatmap %(infile_argu)s %(infile_name)s
+                   -o %(deep_outfilename)s
+                   --colormap %(deep_colormap)s
+                   --dpi %(deep_dpi)s '''
+
+    P.run()
 
 # ---------------------------------------------------
 # Generic pipeline tasks
