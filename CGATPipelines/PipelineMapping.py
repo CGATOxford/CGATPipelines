@@ -2853,6 +2853,8 @@ class STAR(Mapper):
         # index_dir set by environment variable
         index_prefix = "%(genome)s"
 
+        logfile = ("%sLog.final.out") % (P.snip(outfile, ".star.bam"))
+
         if nfiles == 1:
             infiles = "<( zcat %s )" % " ".join([x[0] for x in infiles])
             statement = '''
@@ -2867,7 +2869,7 @@ class STAR(Mapper):
             --readFilesIn %(infiles)s
             | samtools view -bS -
             > %(tmpdir)s/%(track)s.bam
-            2> %(outfile)s.log;
+            2> %(logfile)s;
             ''' % locals()
 
         elif nfiles == 2:
@@ -2896,7 +2898,7 @@ class STAR(Mapper):
             --readFilesIn %(files)s
             | samtools view -bS -
             > %(tmpdir)s/%(track)s.bam
-            2> %(outfile)s.log;
+            2> %(logfile)s;
             ''' % locals()
 
         else:
@@ -2943,10 +2945,12 @@ class STAR(Mapper):
             --strip-method=all
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
+        logfile = ("%sLog.final.out") % (P.snip(outfile, ".star.bam"))
+
         statement = '''
         cp %(tmpdir)s/Log.std.out %(outfile)s.std.log;
         checkpoint;
-        cp %(tmpdir)s/Log.final.out %(outfile)s.final.log;
+        cp %(tmpdir)s/Log.final.out %(logfile)s;
         checkpoint;
         cp %(tmpdir)s/SJ.out.tab %(outfile)s.junctions;
         checkpoint;
