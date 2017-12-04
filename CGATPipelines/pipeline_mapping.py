@@ -1329,7 +1329,7 @@ def buildSTARStats(infiles, outfile):
 
     data = collections.defaultdict(list)
     for infile in infiles:
-        fn = re.sub(r'.star.bam','',infile) + "Log.final.out"
+        fn = re.sub(r'.star.bam', '', infile) + "Log.final.out"
         if not os.path.exists(fn):
             raise ValueError("incomplete run: %s" % infile)
 
