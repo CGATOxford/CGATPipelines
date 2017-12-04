@@ -66,6 +66,7 @@ import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelinePeakcalling as PipelinePeakcalling
 import CGAT.BamTools as Bamtools
 import CGAT.IOTools as IOTools
+import matplotlib.pyplot as plt
 
 # load options from the config file
 PARAMS = P.getParameters(
@@ -333,9 +334,9 @@ def getDiffPeaksReplicates(outfile):
 
 
 @active_if(PARAMS['deeptools'])
-@follows(mkdir("Coverage.dir"))
+@follows(mkdir("Plot.dir/Coverage.dir"))
 @follows(loadDesignTable)
-@merge([CHIPBAMS,INPUTBAMS], "Coverage.dir/coverage_plot.tab")
+@merge([CHIPBAMS,INPUTBAMS], "Plot.dir/Coverage.dir/coverage_plot.eps")
 def coverage_plot(infiles, outfile):
 
     infile = [item for sublist in infiles for item in sublist]
@@ -350,9 +351,9 @@ def coverage_plot(infiles, outfile):
                    pipeline.ini''')
 
     statement = '''plotCoverage -b %(infile)s
-                   --plotFile Coverage.dir/coverage_plot
+                   --plotFile %(outfile)s
                    --plotTitle "coverage_plot"
-                   --outRawCounts Coverage.dir/coverage_plot.tab
+                   --outRawCounts Plot.dir/Coverage.dir/coverage_plot.tab
                    %(duplicates)s
                    --minMappingQuality %(deep_mapping_qual)s'''
 
@@ -360,9 +361,9 @@ def coverage_plot(infiles, outfile):
 
 
 @active_if(PARAMS['deeptools'])
-@follows(mkdir("Fingerprint.dir"))
+@follows(mkdir("Plot.dir/Fingerprint.dir"))
 @follows(loadDesignTable)
-@merge([CHIPBAMS,INPUTBAMS], "Fingerprint.dir/fingerprints_plot.tab")
+@merge([CHIPBAMS,INPUTBAMS], "Plot.dir/Fingerprint.dir/fingerprints.eps")
 def fingerprint_plot(infiles, outfile):
 
     infile = [item for sublist in infiles for item in sublist]
@@ -377,35 +378,35 @@ def fingerprint_plot(infiles, outfile):
                    pipeline.ini''')
 
     statement = '''plotFingerprint -b %(infile)s
-                   --plotFile Fingerprint.dir/fingerprints_plot.pdf
+                   --plotFile %(outfile)s
                    --plotTitle "Fingerprints of samples"
-                   --outRawCounts Fingerprint.dir/fingerprints_plot.tab
+                   --outRawCounts Plot.dir/Fingerprint.dir/fingerprints_plot.tab
                    %(duplicates)s
                    --minMappingQuality %(deep_mapping_qual)s'''
 
     P.run()
 
 @active_if(PARAMS['deeptools'])
-@follows(mkdir("FragmentSize.dir"))
+@follows(mkdir("Plot.dir/FragmentSize.dir"))
 @follows(loadDesignTable)
-@merge([CHIPBAMS,INPUTBAMS], "FragmentSize.dir/FragmentSize.png")
+@merge([CHIPBAMS,INPUTBAMS], "Plot.dir/FragmentSize.dir/FragmentSize.eps")
 def fragment_size(infiles, outfile):
 
     infile = [item for sublist in infiles for item in sublist]
     infile = " ".join(infile)
 
     statement = '''bamPEFFragmnentSize -b %(infile)s
-                   --histogram FragmentSize.dir/FragmentSize.png
+                   --histogram %(outfile)s
                    --plotTitle "Fragment Sizes of PE samples"'''
 
     P.run()
 
 
-@active_if(PARAMS['deep_bam_coverage'])
 @active_if(PARAMS['deeptools'])
-@follows(mkdir("DeepOutput.dir/bamCoverage.dir"))
+@active_if(PARAMS['deep_bam_coverage'])
+@follows(mkdir("Bwfiles.dir/bamCoverage.dir"))
 @transform(TOTALBAMS, regex("(.*).bam"),
-           r"DeepOutput.dir/bamCoverage.dir/\1.bw")
+           r"Bwfiles.dir/bamCoverage.dir/\1.bw")
 def bamCoverage(infiles, outfile):
 
     if PARAMS['deep_ignore_norm'] == 'None':
@@ -424,6 +425,7 @@ def bamCoverage(infiles, outfile):
 
     statement = '''bamCoverage --bam %(infiles)s
                    -o %(outfile)s
+                   -of bigwig
                    --binSize %(deep_binsize)s
                    %(normalise)s %(norm_value)s
                    %(extend)s
@@ -431,13 +433,14 @@ def bamCoverage(infiles, outfile):
 
     P.run()
 
-
-@active_if(PARAMS['deep_bam_compare'])
 @active_if(PARAMS['deeptools'])
-@follows(mkdir("DeepOutput.dir/bamCompare.dir"))
+@active_if(PARAMS['deep_bam_compare'])
+@follows(loadDesignTable)
+@follows(mkdir("Bwfiles.dir/bamCompare.dir"))
 @transform((CHIPBAMS, INPUTBAMS),
            suffix('.bam'),
-           r"DeepOutput.dir/bamCompare.dir/\1.bw")
+           r"Bwfiles.dir/bamCompare.dir/\1.bw")
+
 def bamCompare(infiles, outfile):
 
     chipbam = infiles[0]
@@ -446,6 +449,7 @@ def bamCompare(infiles, outfile):
     statement = '''bamCompare -b1 %(chipbam)s
                    -b2 %(inputbam)s
                    -o %(outfile)s
+                   -of bigwig
                    %(deep_bamcompare_options)s'''
 
     P.run()
@@ -507,15 +511,21 @@ def multiBwSummary(infiles, outfile):
     P.run()
 
 @active_if(PARAMS['deeptools'])
-@follows(mkdir("plot.dir"))
+@follows(mkdir("Plot.dir/Summary.dir/"))
 @transform((multiBamSummary, multiBwSummary),
             suffix(".npz"),
-            r"\1corr")
+            r"Plot.dir/\1corr")
 
 def plotCorrelation(infiles, outfile):
                
+    if PARAMS['deep_plot'] == 'heatmap':
+        colormap = ("--colorMap %s") % (PARAMS['deep_colormap'])
+    else:
+        colormap = ""
+
     statement = '''plotCorrelation -in %(infiles)s -o %(outfile)s
                    --corMethod %(deep_cormethod)s -p %(deep_plot)s
+                   %(colormap)s
                    --plotFileFormat %(deep_filetype)s
                    --skipZeros %(deep_plot_options)s'''
     P.run()
@@ -523,7 +533,7 @@ def plotCorrelation(infiles, outfile):
 @active_if(PARAMS['deeptools'])
 @transform((multiBamSummary, multiBwSummary),
             suffix(".npz"),
-            r"\1PCA")
+            r"Plot.dir/\1PCA")
 
 def plotPCA(infiles, outfile):
                
@@ -532,11 +542,12 @@ def plotPCA(infiles, outfile):
                    %(deep_plot_options)s'''
     P.run()
 
-# Not sure the arguments which would be good to be included; do not have materials to test pipeline
 
 @active_if(PARAMS['deeptools'])
+@follows(mkdir("Plot.dir/matrix.dir/"))
 @merge([bamCoverage,bamCompare],
-       "Plot.dir/matrix.gz")
+       "Plot.dir/matrix.dir/matrix.gz")
+
 def computeMatrix(infile, outfile):
 
     infile = " ".join(infile)
@@ -569,13 +580,13 @@ def computeMatrix(infile, outfile):
     else:
         binsize = ""
 
-    if PARAMS['deep_outmatrixfile'] is not "":
-        outmatrix = ("--outFileNameMatrix %s") % (PARAMS['deep_outmatrixfile'])
+    if PARAMS['deep_out_namematrix'] is not "":
+        outmatrix = ("--outFileNameMatrix %s") % (PARAMS['deep_out_namematrix'])
     else:
         outmatrix = ""
 
-    if PARAMS['deep_outsortedfile'] is not "":
-        sortedfile = ("--outFileSortedRegions %s") % (PARAMS['deep_outsortedfile'])
+    if PARAMS['deep_out_sorted'] is not "":
+        sortedfile = ("--outFileSortedRegions %s") % (PARAMS['deep_out_sorted'])
     else:
         sortedfile = ""
 
@@ -588,66 +599,55 @@ def computeMatrix(infile, outfile):
                    --skipZeros
                    -o %(outfile)s 
                    %(outmatrix)s
-                   %(sortedfile)s
-               '''
+                   %(sortedfile)s '''
     P.run()
 
 @active_if(PARAMS['deeptools'])
 @transform(computeMatrix,
            suffix(".gz"),
-           r("Plot.dir/"))
-def plotHeatmap(infiles, outfile):
+           r"\1_heatmap.eps")
+
+def plotHeatmap(infile, outfile):
     
-    if PARAMS['deep_plottype'] == 'heatmap':
-       plot_argu = 'plotHeatmap'
-    else:
-       plot_argu = 'plotProfile' 
+    infile ="".join(infile)
 
-    if PARAMS['deep_infileplot'] == 'filematrix':
-       infile_argu = '--outFileNameMatrix'
-       infile_name = PARAMS['deep_outmatrixfile']
-    elif PARAMS['deep_infileplot'] == 'sorted':
-       infile_argu = '--outFileSortedRegions'
-       infile_name = PARAMS['deep_outsortedfile']
-    else:
-       infile_argu = '--matrixFile'
-       infile_name = PARAMS['deep_outfilename']
-
-
-
-    statement = '''%(plot_argu)s %(infile_argu)s %(infile_name)s
-                   -o %(deep_outfilename)s
-                   --colormap %(deep_colormap)s
-                   --dpi %(deep_dpi)s '''
+    statement = '''plotHeatmap -m %(infile)s
+                   -o %(outfile)s
+                   --outFileNameMatrix %(deep_out_namematrix)s
+                   --outFileSortedRegions %(deep_out_sorted)s
+                   --dpi %(deep_dpi)s
+                   --colorMap %(deep_colormap)s
+                   --kmeans %(deep_kmeans)s 
+                   --legendLocation %(deep_legendlocation)s
+                   --refPointLabel %(deep_refpointlabel)s'''
 
     P.run()
 
 @active_if(PARAMS['deeptools'])
 @transform(computeMatrix,
            suffix(".gz"),
-           r("Plot.dir/"))
-def plotHeatmap(infiles, outfile):
-    
-    
+           r"\1_profile.eps")
 
-    if PARAMS['deep_infileplot'] == 'filematrix':
-       infile_argu = '--outFileNameMatrix'
-       infile_name = PARAMS['deep_outmatrixfile']
-    elif PARAMS['deep_infileplot'] == 'sorted':
-       infile_argu = '--outFileSortedRegions'
-       infile_name = PARAMS['deep_outsortedfile']
+def plotProfile(infile, outfile):
+
+    infile = "".join(infile)
+
+    if PARAMS['deep_pergroup'] is not "":
+        pergroup = ("--perGroup %s") % (PARAMS['deep_pergroup'])
     else:
-       infile_argu = '--matrixFile'
-       infile_name = PARAMS['deep_outfilename']
+        pergroup = ""
 
-
-
-    statement = '''plotHeatmap %(infile_argu)s %(infile_name)s
-                   -o %(deep_outfilename)s
-                   --colormap %(deep_colormap)s
-                   --dpi %(deep_dpi)s '''
+    statement = '''plotProfile -m %(infile)s
+                   -o %(outfile)s
+                   --kmeans %(deep_kmeans)s
+                   --plotType %(deep_plottype)s
+                   --dpi %(deep_dpi)s
+                   %(pergroup)s
+                   --legendLocation %(deep_legendlocation)s
+                   --refPointLabel %(deep_refpointlabel)s'''
 
     P.run()
+
 
 # ---------------------------------------------------
 # Generic pipeline tasks
@@ -667,7 +667,10 @@ def plotHeatmap(infiles, outfile):
          multiBamSummary,
          multiBwSummary,
          plotCorrelation,
-         plotPCA)
+         plotPCA,
+         computeMatrix,
+         plotHeatmap,
+         plotProfile)
 
 def full():
     pass
