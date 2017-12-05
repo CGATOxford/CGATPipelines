@@ -172,6 +172,12 @@ echo " CONDA_INSTALL_TYPE_PIPELINES: "$CONDA_INSTALL_TYPE_PIPELINES
 echo " CONDA_INSTALL_ENV: "$CONDA_INSTALL_ENV
 echo " PYTHONPATH: "$PYTHONPATH
 [[ ! $INSTALL_TEST ]] && echo " PIPELINES_BRANCH: "$PIPELINES_BRANCH
+[[ ! $INSTALL_TEST ]] && echo " SCRIPTS_BRANCH: "$SCRIPTS_BRANCH
+[[ ! $INSTALL_TEST ]] && echo " RELEASE: "$RELEASE
+echo " CODE_DOWNLOAD_TYPE: "$CODE_DOWNLOAD_TYPE
+echo " INSTALL_IDE: "$INSTALL_IDE
+echo " CGAT_DASHBOARD: "$CGAT_DASHBOARD
+echo " CLUSTER: "$CLUSTER
 echo
 
 } # print_env_vars
@@ -270,8 +276,12 @@ if [[ "$OS" != "travis" ]] ; then
          wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
          unzip $PIPELINES_BRANCH.zip
          rm $PIPELINES_BRANCH.zip
-         mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
-
+         if [[ ${RELEASE} ]] ; then
+            NEW_NAME=`echo $INSTALL_BRANCH | sed 's/^v//g'`
+            mv CGATPipelines-$NEW_NAME/ cgat-pipelines/
+         else
+            mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
+         fi
       elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
          # get latest version from Git Hub with git clone
          git clone --branch=$PIPELINES_BRANCH https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
@@ -387,7 +397,12 @@ else
       wget https://github.com/CGATOxford/cgat/archive/$SCRIPTS_BRANCH.zip
       unzip $SCRIPTS_BRANCH.zip
       rm $SCRIPTS_BRANCH.zip
-      mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
+      if [[ ${RELEASE} ]] ; then
+         NEW_NAME=`echo $INSTALL_BRANCH | sed 's/^v//g'`
+         mv cgat-$NEW_NAME/ cgat-scripts/
+      else
+         mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
+      fi
    elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
       # get latest version from Git Hub with git clone
       git clone --branch=$SCRIPTS_BRANCH https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-scripts
@@ -629,6 +644,59 @@ test_git_ssh() {
 }
 
 
+# don't mix branch and release options together
+test_mix_branch_release() {
+   # don't mix branch and release options together
+   if [[ $RELEASE ]] ; then
+      if [[ "$PIPELINES_BRANCH" != "master" ]] || [[ $SCRIPTS_BRANCH != "master" ]] ; then
+         echo
+         echo " You cannot mix git branches and releases for the installation."
+         echo
+         echo " Your input was: "$SCRIPT_PARAMS
+         report_error " Please either use branches or releases but not both."
+      fi
+   fi
+}
+
+# test whether a release exists or not
+# https://stackoverflow.com/questions/12199059/how-to-check-if-an-url-exists-with-the-shell-and-probably-curl
+test_release() {
+   RELEASE_PIPELINES=0
+   # check pipelines
+   curl --output /dev/null \
+      --silent --head --fail \
+      https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${RELEASE}/README.rst || RELEASE_PIPELINES=$?
+
+if [[ ${RELEASE_PIPELINES} -ne 0 ]] ; then
+      echo
+      echo " The release number provided for the pipelines does not exist: ${RELEASE}"
+      echo
+      echo " Please have a look at valid releases here: "
+      echo " https://github.com/CGATOxford/CGATPipelines/releases"
+      echo
+      echo " An example of valid release is: --release v0.3.1"
+      report_error " Please use a valid release and try again."
+   fi
+      
+   RELEASE_SCRIPTS=0
+   # check scripts
+   curl --output /dev/null \
+      --silent --head --fail \
+      https://raw.githubusercontent.com/CGATOxford/cgat/${RELEASE}/README.rst || RELEASE_SCRIPTS=$?
+      
+   if [[ ${RELEASE_SCRIPTS} -ne 0 ]] ; then
+      echo
+      echo " The release number provided for the scripts does not exist: ${RELEASE}"
+      echo
+      echo " Please have a look at valid releases here: "
+      echo " https://github.com/CGATOxford/cgat/releases"
+      echo
+      echo " An example of valid release is: --release v0.3.1"
+      report_error " Please use a valid release and try again."
+   fi
+}
+
+
 # function to display help message
 help_message() {
 echo
@@ -715,6 +783,8 @@ CGAT_DASHBOARD=1
 # 0 = no
 # 1 = yes (default)
 CLUSTER=1
+# Install a released version?
+RELEASE=
 
 # parse input parameters
 # https://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
@@ -790,11 +860,13 @@ case $key in
 
     --pipelines-branch)
     PIPELINES_BRANCH="$2"
+    test_mix_branch_release
     shift 2
     ;;
 
     --scripts-branch)
     SCRIPTS_BRANCH="$2"
+    test_mix_branch_release
     shift 2
     ;;
 
@@ -811,6 +883,15 @@ case $key in
     --no-cluster)
     CLUSTER=0
     shift
+    ;;
+
+    --release)
+    RELEASE="$2"
+    test_mix_branch_release
+    test_release
+    PIPELINES_BRANCH="$2"
+    SCRIPTS_BRANCH="$2"
+    shift 2
     ;;
 
     --env-name)
