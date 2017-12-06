@@ -277,7 +277,7 @@ if [[ "$OS" != "travis" ]] ; then
          unzip $PIPELINES_BRANCH.zip
          rm $PIPELINES_BRANCH.zip
          if [[ ${RELEASE} ]] ; then
-            NEW_NAME=`echo $INSTALL_BRANCH | sed 's/^v//g'`
+            NEW_NAME=`echo $PIPELINES_BRANCH | sed 's/^v//g'`
             mv CGATPipelines-$NEW_NAME/ cgat-pipelines/
          else
             mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
@@ -398,7 +398,7 @@ else
       unzip $SCRIPTS_BRANCH.zip
       rm $SCRIPTS_BRANCH.zip
       if [[ ${RELEASE} ]] ; then
-         NEW_NAME=`echo $INSTALL_BRANCH | sed 's/^v//g'`
+         NEW_NAME=`echo $SCRIPTS_BRANCH | sed 's/^v//g'`
          mv cgat-$NEW_NAME/ cgat-scripts/
       else
          mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
