@@ -703,19 +703,32 @@ echo
 echo " This script uses Conda to install the CGAT pipelines:"
 echo " https://www.cgat.org/downloads/public/cgatpipelines/documentation/"
 echo
-echo " To install a set of production pipelines, please type:"
-echo " ./install-CGAT-tools.sh --production [--location </full/path/to/folder/without/trailing/slash>]"
-echo
-echo " If you want to try out a set of pipelines under active development, please type:"
-echo " ./install-CGAT-tools.sh --devel [--location </full/path/to/folder/without/trailing/slash>]"
+echo " To install the pipelines please type:"
+echo " ./install-CGAT-tools.sh --devel --no-dashboard [--location </full/path/to/folder/without/trailing/slash>]"
 echo
 echo " The default location is: $HOME/cgat-install"
 echo
-echo " It is also possible to install/test a specific branch of the code on github:"
-echo " ./install-CGAT-tools.sh --devel --pipelines-branch <branch> --scripts-branch <branch>"
+echo " It is also possible to install/test a specific branch of the code on GitHub:"
+echo " ./install-CGAT-tools.sh --devel --no-dashboard --pipelines-branch <branch> --scripts-branch <branch>"
 echo
 echo " This will create an isolated Conda environment with both the pipelines and the scripts from:"
 echo " https://github.com/CGATOxford/cgat"
+echo
+echo " The default name of the newly created conda environment is cgat-p, but you can change it with:"
+echo " --env-name name"
+echo
+echo " The code is downloaded in zip format by default. If you want to get a git clone, use:"
+echo " --git # for an HTTPS clone"
+echo " --git-ssh # for a SSH clone (you need to be a CGATOXford contributor on GitHub to do this!"
+echo
+echo " The pipelines are intended to run on a cluster using the DRMAA API. If that's not your case, please use:"
+echo " --no-cluster"
+echo
+echo " If you want to download and install IDEs like Spyder or RStudio with this installation, please use:"
+echo " --ide"
+echo
+echo " As of release v0.3.1 it is also possible to install specific releases of the code:"
+echo " --release v0.3.1"
 echo
 echo " To test the installation:"
 echo " ./install-CGAT-tools.sh --test [--location </full/path/to/folder/without/trailing/slash>]"
@@ -900,6 +913,10 @@ case $key in
     ;;
 
     *)
+    echo
+    echo
+    echo " Wrong input: ${SCRIPT_NAME} ${SCRIPT_PARAMS}"
+    echo
     help_message
     ;;
 
