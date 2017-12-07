@@ -32,7 +32,7 @@ Here are the steps::
 
         # the code is downloaded in zip format by default. If you want to get a git clone, use:
            --git # for an HTTPS clone
-           --git-ssh # for a SSH clone (you need to be a CGATOXford contributor on GitHub to do this!
+           --git-ssh # for a SSH clone (you need to be a CGATOXford contributor on GitHub to do this)
 
         # the pipelines are intended to run on a cluster using the DRMAA API. If that's not your case, please use:
            --no-cluster
@@ -40,7 +40,7 @@ Here are the steps::
         # if you want to download and install IDEs like Spyder or RStudio with this installation, please use:
            --ide
 
-        # enable the conda environment as requested by the installation script:
+        # once the installation is finished, enable the conda environment as requested by the installation script:
         source </full/path/to/folder/without/trailing/slash>/conda-install/bin/activate cgat-p
 
         # finally, please run the cgatflow command-line tool to check the installation:

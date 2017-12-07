@@ -719,7 +719,7 @@ echo " --env-name name"
 echo
 echo " The code is downloaded in zip format by default. If you want to get a git clone, use:"
 echo " --git # for an HTTPS clone"
-echo " --git-ssh # for a SSH clone (you need to be a CGATOXford contributor on GitHub to do this!"
+echo " --git-ssh # for a SSH clone (you need to be a CGATOXford contributor on GitHub to do this)"
 echo
 echo " The pipelines are intended to run on a cluster using the DRMAA API. If that's not your case, please use:"
 echo " --no-cluster"
