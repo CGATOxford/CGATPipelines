@@ -10,7 +10,7 @@ Overview
 The aim of this pipeline is to create peaklists in :term:`bed` files from
 aligned reads in :term:`bam` files that can then be taken on to downstream
 analysis (e.g., quantification of peaks etc.). The pipeline wraps up
-homer and deeptools software for ATAC and ChIP-seq analysis. 
+homer and deeptools software for ATAC and ChIP-seq analysis.
 
 This pipeline also performs motif analysis and basic QC analysis
 (i.e., basic tag information, read length distribution, clonal tag distribution
@@ -60,7 +60,7 @@ Input files
 -----------
 
 The pipeline requres a sample `bam` file and an optional input `bam` file to
-perform background evaluation.  
+perform background evaluation.
 
 The pipeline requires a pipeline.ini file that needs to be popeluated with information
 that will allow the pipeline to execute correctly. This can be generated using the
@@ -222,6 +222,7 @@ def makeTagDirectoryChips(infile, outfile):
 
     P.run()
 
+
 @active_if(PARAMS['homer'])
 @transform((makeTagDirectoryChips),
            regex("homer/(.*)/(.*).txt"),
@@ -275,7 +276,7 @@ def bedConversion(infile, outfile):
            r"homer/\1/annotate.txt")
 def annotatePeaks(infile, outfile):
 
-    ''' 
+    '''
     The peaks identified in your tag directory will be annotated according
     to the specified genome.
     '''
@@ -302,6 +303,7 @@ def findMotifs(infile, outfile):
                    &> Motif.log'''
 
     P.run()
+
 
 @active_if(PARAMS['homer'])
 @active_if(PARAMS['homer_diffannotat_raw'])
@@ -338,7 +340,7 @@ def getDiffExprs(infile, outfile):
 
     '''
     Once the peaks have been annotated and the reads counted, differential
-    expression is then performed. 
+    expression is then performed.
     '''
     # in the future this should be read from the design file AC 11/12/2017
 
@@ -395,17 +397,17 @@ def getDiffPeaksReplicates(outfile):
 
 
 ##################################################################################################
-## This is the section where the deeptool (http://deeptools.readthedocs.io/en/latest/index.html#)
-#  deepTools is a suite of python tools particularly developed for the efficient analysis 
-#  of high-throughput sequencing data, such as ChIP-seq, RNA-seq or MNase-seq
-## Functions are specified
+# This is the section where the deeptool (http://deeptools.readthedocs.io/en/latest/index.html#)
+# deepTools is a suite of python tools particularly developed for the efficient analysis
+# of high-throughput sequencing data, such as ChIP-seq, RNA-seq or MNase-seq
+# Functions are specified
 ##################################################################################################
 
 
 @active_if(PARAMS['deeptools'])
 @follows(mkdir("deepTools/Plot.dir/Coverage.dir"))
 @follows(loadDesignTable)
-@merge([CHIPBAMS,INPUTBAMS], "deepTools/Plot.dir/Coverage.dir/coverage_plot.eps")
+@merge([CHIPBAMS, INPUTBAMS], "deepTools/Plot.dir/Coverage.dir/coverage_plot.eps")
 def coverage_plot(infiles, outfile):
 
     '''
@@ -419,9 +421,9 @@ def coverage_plot(infiles, outfile):
     infile = [item for sublist in infiles for item in sublist]
     infile = " ".join(infile)
 
-    if PARAMS['deep_ignore_dups'] == True:
+    if PARAMS['deep_ignore_dups'] is True:
         duplicates = "--ignoreDuplicates"
-    elif PARAMS['deep_ignore_dups'] == False:
+    elif PARAMS['deep_ignore_dups'] is False:
         duplicates = ""
     else:
         raise ValueError('''Please set a ignore_dups value in the
@@ -440,7 +442,8 @@ def coverage_plot(infiles, outfile):
 @active_if(PARAMS['deeptools'])
 @follows(mkdir("deepTools/Plot.dir/Fingerprint.dir"))
 @follows(loadDesignTable)
-@merge([CHIPBAMS,INPUTBAMS], "deepTools/Plot.dir/Fingerprint.dir/fingerprints.eps")
+@merge([CHIPBAMS, INPUTBAMS],
+       "deepTools/Plot.dir/Fingerprint.dir/fingerprints.eps")
 def fingerprint_plot(infiles, outfile):
 
     '''
@@ -461,9 +464,9 @@ def fingerprint_plot(infiles, outfile):
     infile = [item for sublist in infiles for item in sublist]
     infile = " ".join(infile)
 
-    if PARAMS['deep_ignore_dups'] == True:
+    if PARAMS['deep_ignore_dups'] is True:
         duplicates = "--ignoreDuplicates"
-    elif PARAMS['deep_ignore_dups'] == False:
+    elif PARAMS['deep_ignore_dups'] is False:
         duplicates = ""
     else:
         raise ValueError('''Please set a ignore_dups value in the
@@ -478,10 +481,12 @@ def fingerprint_plot(infiles, outfile):
 
     P.run()
 
+
 @active_if(PARAMS['deeptools'])
 @follows(mkdir("deepTools/Plot.dir/FragmentSize.dir"))
 @follows(loadDesignTable)
-@merge([CHIPBAMS,INPUTBAMS], "deepTools/Plot.dir/FragmentSize.dir/FragmentSize.png")
+@merge([CHIPBAMS, INPUTBAMS],
+       "deepTools/Plot.dir/FragmentSize.dir/FragmentSize.png")
 def fragment_size(infiles, outfile):
 
     '''
@@ -502,7 +507,7 @@ def fragment_size(infiles, outfile):
         logscale = ("--logScale %s") % (PARAMS['deep_logscale'])
     else:
         logscale = ""
-    
+
     statement = '''bamPEFragmentSize -b %(infile)s
                    --histogram %(outfile)s
                    %(logscale)s'''
@@ -531,17 +536,16 @@ def bamCoverage(infiles, outfile):
     '''
 
     if PARAMS['deep_ignore_norm'] is not "":
-        normalise  = '--ignoreForNormalization '
+        normalise = '--ignoreForNormalization '
         norm_value = PARAMS['deep_ignore_norm']
 
     else:
-        normalise  = ''
+        normalise = ''
         norm_value = ''
 
-
-    if PARAMS['deep_extendreads'] == True:
+    if PARAMS['deep_extendreads'] is True:
         extend = '--extendReads'
-    elif PARAMS['deep_extendreads'] == False:
+    elif PARAMS['deep_extendreads'] is False:
         extend = ''
     else:
         raise ValueError('''Please set the extendreads to a value 0 or 1''')
@@ -556,6 +560,7 @@ def bamCoverage(infiles, outfile):
                    %(deep_bamcoverage_options)s'''
 
     P.run()
+
 
 @active_if(PARAMS['deeptools'])
 @active_if(PARAMS['deep_bam_compare'])
@@ -605,7 +610,7 @@ def bamCompare(infiles, outfile):
 @active_if(PARAMS['deeptools'])
 @follows(loadDesignTable)
 @follows(mkdir("deepTools/Summary.dir"))
-@merge([CHIPBAMS,INPUTBAMS], "deepTools/Summary.dir/Bam_Summary.npz")
+@merge([CHIPBAMS, INPUTBAMS], "deepTools/Summary.dir/Bam_Summary.npz")
 def multiBamSummary(infiles, outfile):
 
     '''
@@ -633,12 +638,12 @@ def multiBamSummary(infiles, outfile):
         mode_set = 'bins'
         mode_region = ''
     else:
-        mode_set  = 'BED-file --BED '
+        mode_set = 'BED-file --BED '
         mode_region = PARAMS['deep_mode_setting']
 
-    if PARAMS['deep_ignore_dups'] == True:
+    if PARAMS['deep_ignore_dups'] is True:
         duplicates = "--ignoreDuplicates"
-    elif PARAMS['deep_ignore_dups'] == False:
+    elif PARAMS['deep_ignore_dups'] is False:
         duplicates = ""
     else:
         raise ValueError('''Please set a ignore_dups value in the
@@ -653,10 +658,11 @@ def multiBamSummary(infiles, outfile):
 
     P.run()
 
+
 @active_if(PARAMS['deeptools'])
-@merge([bamCoverage,bamCompare], "deepTools/Summary.dir/bw_summary.npz")
+@merge([bamCoverage, bamCompare], "deepTools/Summary.dir/bw_summary.npz")
 def multiBwSummary(infiles, outfile):
-    
+
     '''
     This performs and summary accross all of the big wig files
     and is similar to that impliemnted for the multi bam Summary.
@@ -668,9 +674,8 @@ def multiBwSummary(infiles, outfile):
         mode_set = 'bins'
         mode_region = ''
     else:
-        mode_set  = 'BED-file --BED '
+        mode_set = 'BED-file --BED '
         mode_region = PARAMS['deep_mode_setting']
-
 
     statement = '''multiBigwigSummary %(mode_set)s %(mode_region)s
                    -b %(infiles)s
@@ -680,13 +685,14 @@ def multiBwSummary(infiles, outfile):
 
     P.run()
 
+
 @active_if(PARAMS['deeptools'])
 @follows(mkdir("deepTools/Plot.dir/Summary.dir/"))
 @transform((multiBamSummary, multiBwSummary),
-            regex("\S+/(\S+).npz"),
-            r"deepTools/Plot.dir/Summary.dir/\1corr")
+           regex("\S+/(\S+).npz"),
+           r"deepTools/Plot.dir/Summary.dir/\1corr")
 def plotCorrelation(infiles, outfile):
-    
+
     '''
     Tool for the analysis and visualization of sample
     correlations based on the output of multiBamSummary
@@ -712,10 +718,11 @@ def plotCorrelation(infiles, outfile):
                    --skipZeros %(deep_plot_options)s'''
     P.run()
 
+
 @active_if(PARAMS['deeptools'])
 @transform((multiBamSummary, multiBwSummary),
-            regex("\S+/(\S+).npz"),
-            r"deepTools/Plot.dir/Summary.dir/\1PCA")
+           regex("\S+/(\S+).npz"),
+           r"deepTools/Plot.dir/Summary.dir/\1PCA")
 def plotPCA(infiles, outfile):
 
     '''
@@ -729,7 +736,7 @@ def plotPCA(infiles, outfile):
 
 @active_if(PARAMS['deeptools'])
 @follows(mkdir("deepTools/Plot.dir/matrix.dir/"))
-@merge([bamCoverage,bamCompare],
+@merge([bamCoverage, bamCompare],
        "deepTools/Plot.dir/matrix.dir/matrix.gz")
 def computeMatrix(infile, outfile):
 
@@ -739,13 +746,13 @@ def computeMatrix(infile, outfile):
     infile = " ".join(infile)
 
     if 'reference-point' in PARAMS['deep_startfactor']:
-       reference_point = '--referencePoint'
-       regions = PARAMS['deep_regions']
-       region_length = " "
+        reference_point = '--referencePoint'
+        regions = PARAMS['deep_regions']
+        region_length = " "
     elif "scale-regions" in PARAMS['deep_startfactor']:
-       reference_point == '--regionBodyLength'
-       regions = " "
-       region_length = PARAMS['deep_region_length']
+        reference_point == '--regionBodyLength'
+        regions = " "
+        region_length = PARAMS['deep_region_length']
     else:
         raise(ValueError("Please supply a valid startfactor"))
 
@@ -757,10 +764,10 @@ def computeMatrix(infile, outfile):
 
     if PARAMS['deep_brslength'] is not "":
         upstream = ("--upstream %s") % (PARAMS['deep_brslength'])
-    
+
     if PARAMS['deep_arslength'] is not "":
         downstream = ("--downstream %s") % (PARAMS['deep_arslength'])
-    
+
     if PARAMS['deep_matrix_bin_size'] is not "":
         binsize = ("--binSize %s") % (PARAMS['deep_matrix_bin_size'])
     else:
@@ -776,17 +783,18 @@ def computeMatrix(infile, outfile):
     else:
         sortedfile = ""
 
-    statement = '''computeMatrix %(deep_startfactor)s -S %(infile)s 
+    statement = '''computeMatrix %(deep_startfactor)s -S %(infile)s
                    -R %(bedfile)s
                    %(reference_point)s %(regions)s %(region_length)s
                    %(upstream)s
                    %(downstream)s
                    %(binsize)s
                    --skipZeros
-                   -o %(outfile)s 
+                   -o %(outfile)s
                    %(outmatrix)s
                    %(sortedfile)s'''
     P.run()
+
 
 @active_if(PARAMS['deeptools'])
 @transform(computeMatrix,
@@ -799,7 +807,7 @@ def plotHeatmap(infile, outfile):
     The program requires a matrix file generated by the tool computeMatrix.
     '''
 
-    infile ="".join(infile)
+    infile = "".join(infile)
 
     statement = '''plotHeatmap -m %(infile)s
                    -o %(outfile)s
@@ -807,11 +815,12 @@ def plotHeatmap(infile, outfile):
                    --outFileSortedRegions %(deep_out_sorted)s
                    --dpi %(deep_dpi)s
                    --colorMap %(deep_colormap)s
-                   --kmeans %(deep_kmeans)s 
+                   --kmeans %(deep_kmeans)s
                    --legendLocation %(deep_legendlocation)s
                    --refPointLabel %(deep_refpointlabel)s'''
 
     P.run()
+
 
 @active_if(PARAMS['deeptools'])
 @transform(computeMatrix,
@@ -848,6 +857,7 @@ def plotProfile(infile, outfile):
 # ---------------------------------------------------
 # Generic pipeline tasks
 
+
 @follows(loadDesignTable,
          bedConversion,
          annotatePeaks,
@@ -869,6 +879,7 @@ def standard():
     '''a target without the motif generation'''
     pass
 
+
 @follows(makeTagDirectoryInput,
          loadDesignTable,
          bedConversion,
@@ -888,7 +899,6 @@ def standard():
          computeMatrix,
          plotHeatmap,
          plotProfile)
-
 def full():
     pass
 
@@ -903,7 +913,8 @@ def renderJupyterReport():
                                                'Jupyter_report'))
 
     statement = ''' cp %(report_path)s/* Jupyter_report.dir/ ; cd Jupyter_report.dir/;
-                    jupyter nbconvert --ExecutePreprocessor.timeout=None --to html --execute *.ipynb;
+                    jupyter nbconvert --ExecutePreprocessor.timeout=None
+                    --to html --execute *.ipynb;
                  '''
 
     P.run()
