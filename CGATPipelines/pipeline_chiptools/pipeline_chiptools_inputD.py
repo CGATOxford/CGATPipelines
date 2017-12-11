@@ -93,17 +93,90 @@ PARAMS = P.getParameters(
 # if design table is missing the input and chip bams  to empty list. This gets
 # round the import tests
 
+###### problematic...inputD issue and design table
 
 def readDesignTable(infile, poolinputs):
+    '''
+    This function reads a design table named "design.tsv"  and generates
+    objects to be used to match peaks called in samples to the appropriate
+    inputs prior to IDR analysis.
 
-    if os.path.exists("design.tsv"):
-        df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
-                                                 PARAMS["general_poolinputs"])
+    These objects are:
+
+    1. A dictionary, inputD, linking each input file and each of the various
+    subfiles required for IDR to the appropriate input,
+    as specified in the design table
+
+    2. A pandas dataframe, df, containing the information from the
+    design table
+
+    This dictionary includes the filenames that the IDR output files will be
+    generated downstream in pipeline_peakcalling, so if these steps are run
+    outside of the pipeline they need to be named according to the same
+    convention.
+
+    If IDR is not requsted, these dictionary values will still exist but will
+    not be used.
+
+    poolinputs has three possible options:
+
+    none
+    Use the input files per replicate as specified in the design file
+    Input files will still also be pooled if IDR is specified as IDR requires
+    BAM files representing pooled replicates as well as BAM files for each
+    replicate
+
+    all
+    Pool all input files and use this single pooled input BAM file as the input
+    for any peakcalling.  Used when input is low depth or when only a single
+    input or replicates of a single input are available.
+
+    condition
+    pool the input files within each combination of conditions and tissues
+
+    Parameters
+    ----------
+    infile: path to design file
+    poolinputs: can be "none", "all" or "condition" as specified above
+    '''
+
+
+
+# read the design table
+
+    df = pd.read_csv("design.tsv", sep="\t")
+    pairs = zip(df['bamReads'], df['bamControl'])
+    CHIPBAMS = list(set(df['bamReads'].values))
+    print(CHIPBAMS)
+
+# if poolinputs is none, the inputs are as specified in the design table
+
+    if PARAMS['general_poolinputs'] == "none":
+        inputD = dict(pairs)
+        conditions = df['Condition'].values
+        tissues = df['Tissue'].values
+        i = 0
+    else:
+        pass
+
+# preempts what the pooled input files for IDR analysis will be
+# named
+
+    for C in CHIPBAMS:
+        cond = conditions[i]
+        tissue = tissues[i]
+        inputD["%s_%s.bam" % (cond, tissue)] = "%s_%s_pooled.bam" % (
+            cond, tissue)
+        i += 1
+    
+    #if os.path.exists("design.tsv"):
+    #     df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
+    #                                                 PARAMS["general_poolinputs"])
 
         INPUTBAMS = list(df['bamControl'].values)
-        print(INPUTBAMS)
-        CHIPBAMS = list(df['bamReads'].values)
-        print(CHIPBAMS)
+    #    print(INPUTBAMS)
+    #    CHIPBAMS = list(df['bamReads'].values)
+     #   print(CHIPBAMS)
         TOTALBAMS = INPUTBAMS + CHIPBAMS
 
 
@@ -111,12 +184,10 @@ def readDesignTable(infile, poolinputs):
 # Check if reads are paired end
 ########################################################################
 
-## no parameter called paired_end in pipeline.ini
-
-if CHIPBAMS and Bamtools.isPaired(CHIPBAMS[0]) is True:
-    PARAMS['paired_end'] = True
-else:
-    PARAMS['paired_end'] = False
+#if CHIPBAMS and Bamtools.isPaired(CHIPBAMS[0]) is True:
+#    PARAMS['paired_end'] = True
+#else:
+#    PARAMS['paired_end'] = False
 
 #########################################################################
 # Connect to database
