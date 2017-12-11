@@ -94,29 +94,27 @@ PARAMS = P.getParameters(
 # round the import tests
 
 
-def readDesignTable(infile, poolinputs):
-
-    if os.path.exists("design.tsv"):
-        df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
+if os.path.exists("design.tsv"):
+    df, inputD = PipelinePeakcalling.readDesignTable("design.tsv",
                                                  PARAMS["general_poolinputs"])
 
-        INPUTBAMS = list(df['bamControl'].values)
-        print(INPUTBAMS)
-        CHIPBAMS = list(df['bamReads'].values)
-        print(CHIPBAMS)
-        TOTALBAMS = INPUTBAMS + CHIPBAMS
+    INPUTBAMS = list(df['bamControl'].values)
+    CHIPBAMS = list(df['bamReads'].values)
+    TOTALBAMS = INPUTBAMS + CHIPBAMS
 
+    # I have defined a dict of the samples to I can parse the correct
+    # inputs into bamCompare
+    SAMPLE_DICT = {}
+    for chip, inputs in zip(CHIPBAMS, INPUTBAMS):
+        key = chip
+        value = inputs
+        SAMPLE_DICT[key] = value
 
-########################################################################
-# Check if reads are paired end
-########################################################################
-
-## no parameter called paired_end in pipeline.ini
-
-if CHIPBAMS and Bamtools.isPaired(CHIPBAMS[0]) is True:
-    PARAMS['paired_end'] = True
 else:
-    PARAMS['paired_end'] = False
+    E.warn("design.tsv is not located within the folder")
+    INPUTBAMS = []
+    CHIPBAMS = []
+
 
 #########################################################################
 # Connect to database
@@ -455,30 +453,23 @@ def bamCoverage(infiles, outfile):
 @active_if(PARAMS['deep_bam_compare'])
 @follows(loadDesignTable)
 @follows(mkdir("deepTools/Bwfiles.dir/bamCompare.dir"))
-@transform([CHIPBAMS, INPUTBAMS],
+@transform(CHIPBAMS,
            suffix('.bam'),
+           add_inputs(SAMPLE_DICT),
            r"deepTools/Bwfiles.dir/bamCompare.dir/\1.bw")
 def bamCompare(infiles, outfile):
-    
-    df = pd.read_csv("design.tsv", sep="\t")
-    pairs = zip(df['bamReads'], df['bamControl'])
-    CHIPBAMS = list(set(df['bamReads'].values))
-    print(CHIPBAMS)
 
+    chipbam = infiles[0]
+    inputbams = infiles[1]
+    inputbam = inputbams[chipbam]
 
-    #infile= " ".join(infiles)
-    
+    statement = '''bamCompare -b1 %(chipbam)s
+                       -b2 %(inputbam)s
+                       -o %(outfile)s
+                       -of bigwig
+                       %(deep_bamcompare_options)s'''
 
-    #chipbam = infiles[0]
-    #inputbam = infiles[1]
-    
-   #statement = '''bamCompare -b1 %(CHIPBAMS)s
-   #                -b2 %(INPUTBAMS)s
-   #                -o %(outfile)s
-   #                -of bigwig
-   #                %(deep_bamcompare_options)s'''
-
-    #P.run()
+    P.run()
 
 
 @active_if(PARAMS['deeptools'])
