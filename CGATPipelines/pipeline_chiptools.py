@@ -243,7 +243,7 @@ def findPeaks(infile, outfile):
     '''
 
     directory = infile.strip(".txt")
-    _, directory, _ = directory.split("/")
+    _, _, directory, _ = directory.split("/")
     bamfile = directory + ".bam"
 
     df_slice = df[df['bamReads'] == bamfile]
@@ -290,7 +290,7 @@ def annotatePeaks(infile, outfile):
 
 @active_if(PARAMS['homer'])
 @transform(findPeaks,
-           regex("homer/tag.dir/(.*)/regions.txt"),
+           regex("homer/Tag.dir/(.*)/regions.txt"),
            r"homer/motif.dir/\1/motifs.txt")
 def findMotifs(infile, outfile):
 
@@ -321,7 +321,7 @@ def annotatePeaksRaw(infiles, outfile):
     directories = []
 
     for infile in infiles:
-        directory = infile.split("/")[1]
+        directory = infile.split("/")[2]
         directories.append("homer/Tag.dir/" + directory + "/")
 
     directories = " ".join(directories)
@@ -817,7 +817,7 @@ def plotHeatmap(infile, outfile):
 
     infile = "".join(infile)
 
-    statement = '''plotHeatmap -m %(infile)s
+    statement = '''sleep 15; plotHeatmap -m %(infile)s
                    -o %(outfile)s
                    --outFileNameMatrix %(deep_out_namematrix)s
                    --outFileSortedRegions %(deep_out_sorted)s
