@@ -143,6 +143,7 @@ else:
 # Connect to database
 #########################################################################
 
+
 def connect():
     '''
     Setup a connection to an sqlite database
