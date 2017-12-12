@@ -137,7 +137,7 @@ else:
     INPUTBAMS = []
     CHIPBAMS = []
     TOTALBAMS = []
-
+    SAMPLE_DICT = {}
 
 #########################################################################
 # Connect to database
