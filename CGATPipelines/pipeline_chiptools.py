@@ -136,6 +136,7 @@ else:
     E.warn("design.tsv is not located within the folder")
     INPUTBAMS = []
     CHIPBAMS = []
+    TOTALBAMS = []
 
 
 #########################################################################
