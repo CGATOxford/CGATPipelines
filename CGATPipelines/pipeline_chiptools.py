@@ -168,9 +168,10 @@ def loadDesignTable(infile, outfile):
 
 @active_if(PARAMS['homer'])
 @follows(mkdir("homer"))
+@follows(mkdir("homer/Tag.dir"))
 @follows(loadDesignTable)
 @transform(INPUTBAMS, regex("(.*).bam"),
-           r"homer.dir/\1/\1.txt")
+           r"homer/Tag.dir/\1/\1.txt")
 def makeTagDirectoryInput(infile, outfile):
     '''
     This will create a tag file for each bam file
@@ -181,8 +182,8 @@ def makeTagDirectoryInput(infile, outfile):
     samfile = bamstrip + ".sam"
 
     statement = '''
-                   samtools view %(infile)s > homer/%(samfile)s;
-                   cd homer ;
+                   samtools view %(infile)s > homer/Tag.dir/%(samfile)s;
+                   cd homer/Tag.dir/ ;
                    makeTagDirectory %(bamstrip)s
                    %(samfile)s
                    -genome %(homer_maketagdir_genome)s -checkGC
@@ -199,9 +200,10 @@ def makeTagDirectoryInput(infile, outfile):
 
 @active_if(PARAMS['homer'])
 @follows(mkdir("homer"))
+@follows(mkdir("homer/Tag.dir"))
 @follows(makeTagDirectoryInput)
 @transform(CHIPBAMS, regex("(.*).bam"),
-           r"homer/\1/\1.txt")
+           r"homer/Tag.dir/\1/\1.txt")
 def makeTagDirectoryChips(infile, outfile):
     '''
     This will create a tag file for each bam file
@@ -212,8 +214,8 @@ def makeTagDirectoryChips(infile, outfile):
     samfile = bamstrip + ".sam"
 
     statement = '''
-                   samtools view %(infile)s > homer/%(samfile)s;
-                   cd homer/;
+                   samtools view %(infile)s > homer/Tag.dir/%(samfile)s;
+                   cd homer/Tag.dir/;
                    makeTagDirectory %(bamstrip)s
                    %(samfile)s
                    -genome %(homer_maketagdir_genome)s -checkGC
@@ -225,8 +227,8 @@ def makeTagDirectoryChips(infile, outfile):
 
 @active_if(PARAMS['homer'])
 @transform((makeTagDirectoryChips),
-           regex("homer/(.*)/(.*).txt"),
-           r"homer/\1/regions.txt")
+           regex("homer/Tag.dir/(.*)/(.*).txt"),
+           r"homer/Tag.dir/\1/regions.txt")
 def findPeaks(infile, outfile):
 
     '''
@@ -248,7 +250,7 @@ def findPeaks(infile, outfile):
     input_bam = df_slice['bamControl'].values[0]
     input_bam = input_bam.strip(".bam")
 
-    statement = '''cd homer/;
+    statement = '''cd homer/Tag.dir/;
                    findPeaks %(directory)s -style %(homer_findpeaks_style)s -o %(homer_findpeaks_output)s
                    %(homer_findpeaks_options)s -i %(input_bam)s &> %(directory)s.findpeaks.log'''
     P.run()
@@ -256,8 +258,8 @@ def findPeaks(infile, outfile):
 
 @active_if(PARAMS['homer'])
 @transform(findPeaks,
-           regex("homer/(.*)/regions.txt"),
-           r"homer/\1/\1.bed")
+           regex("homer/Tag.dir/(.*)/regions.txt"),
+           r"homer/Tag.dir/\1/\1.bed")
 def bedConversion(infile, outfile):
 
     '''
@@ -272,8 +274,8 @@ def bedConversion(infile, outfile):
 
 @active_if(PARAMS['homer'])
 @transform(findPeaks,
-           regex("homer/(.*)/regions.txt"),
-           r"homer/\1/annotate.txt")
+           regex("homer/Tag.dir/(.*)/regions.txt"),
+           r"homer/Tag.dir/\1/annotate.txt")
 def annotatePeaks(infile, outfile):
 
     '''
@@ -288,8 +290,8 @@ def annotatePeaks(infile, outfile):
 
 @active_if(PARAMS['homer'])
 @transform(findPeaks,
-           regex("homer/(.*)/regions.txt"),
-           r"homer/\1/motifs.txt")
+           regex("homer/tag.dir/(.*)/regions.txt"),
+           r"homer/motif.dir/\1/motifs.txt")
 def findMotifs(infile, outfile):
 
     '''
@@ -320,7 +322,7 @@ def annotatePeaksRaw(infiles, outfile):
 
     for infile in infiles:
         directory = infile.split("/")[1]
-        directories.append("homer/" + directory + "/")
+        directories.append("homer/Tag.dir/" + directory + "/")
 
     directories = " ".join(directories)
 
