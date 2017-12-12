@@ -919,7 +919,7 @@ def renderJupyterReport():
 
     report_path = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                                'pipeline_docs',
-                                               'pipeline_homer',
+                                               'pipeline_chiptools',
                                                'Jupyter_report'))
 
     statement = ''' cp %(report_path)s/* Jupyter_report.dir/ ; cd Jupyter_report.dir/;
