@@ -1,0 +1,23 @@
+---
+title: "Base distribution"
+---
+
+This page describes the base distribution of each of the samples. This is ran as part of picard metrics.
+
+```{r Base_dist, results='asis', echo=FALSE}
+
+setwd("..")
+plots <- Sys.glob("Picard_stats.dir/*.base_distribution_by_cycle.pdf")
+
+
+wd <- getwd()
+
+for (i in plots){
+  filename <- file.path(wd,i)
+  output <- paste("<div id=\"bg\"><embed src=\"",filename,"\" width=\"400\" height=\"400\"></div>")
+  header <- paste("<h4>",i,"</h4>")
+  cat(header)
+  cat(output, sep="\n")
+}
+
+```

@@ -1,0 +1,48 @@
+---
+title: "**Fragment library type**"
+---
+
+This page contains the library fragment type information that is generated using a CGAT specific . This information can be required for a number of downstream processes such as running featurecounts for RNA-seq. We use the nomenclature detailed in the salmon documentation which can be found here. Accoding to the salmon documentation:
+
+*There are numerous library preparation protocols for RNA-seq that result in sequencing reads with different characteristics. For example, reads can be single end (only one side of a fragment is recorded as a read) or paired-end (reads are generated from both ends of a fragment). Further, the sequencing reads themselves may be unstranded or strand-specific. Finally, paired-end protocols will have a specified relative orientation. To characterize the various different typs of sequencing libraries, we’ve created a miniature “language” that allows for the succinct description of the many different types of possible fragment libraries. For paired-end reads, the possible orientations, along with a graphical description of what they mean, are illustrated below: *
+
+![**Fragment library type**](http://salmon.readthedocs.io/en/latest/_images/ReadLibraryIllustration.png)
+
+# **Samples**
+
+The following graphs display the percent of reads mapping to each fragment library type:
+
+Visiting the salmon documentation will help you to determine the library type.
+
+<br>
+<br>
+
+```{r library_type, echo=FALSE}
+library(knitr)
+library("RSQLite")
+library("DBI")
+library(stringr)
+library("rmarkdown") # Make cool dynamic documents
+library("knitr") # Run R Code Chunks
+library("ggplot2") # For plotting
+library("DT") # Interactove html tables
+library(ggplot2)
+library(reshape2)
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+db <- dbGetQuery(mydb, 'SELECT * FROM strand_spec_strand;')
+
+names <- db$track
+for (i in names){
+  row <- db[db$track == i,]
+  row <- melt(row, id.vars ="track")
+  ploted <- ggplot(row, aes(x=variable, y=value)) + geom_bar(stat="identity", fill="red") +
+    theme_bw() + labs(x = "", y="Percent of reads/read pairs")
+  
+  cat(i)
+  print(ploted)
+  
+}
+
+```

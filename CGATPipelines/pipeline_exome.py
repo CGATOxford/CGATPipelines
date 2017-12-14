@@ -691,7 +691,7 @@ def annotateVariantsSNPeff(infile, outfile):
     job_threads = PARAMS["annotation_threads"]
     snpeff_genome = PARAMS["annotation_snpeff_genome"]
     config = PARAMS["annotation_snpeff_config"]
-    statement = '''snpEff.sh eff
+    statement = '''snpEff eff
                    -c %(config)s
                    -v %(snpeff_genome)s
                    -o gatk %(infile)s > %(outfile)s''' % locals()

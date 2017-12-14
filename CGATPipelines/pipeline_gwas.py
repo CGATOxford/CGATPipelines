@@ -94,7 +94,7 @@ PARAMS = P.getParameters(
 #    "annotations_dir" to point to the absolute path names.
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     on_error_raise=__name__ == "__main__",
     prefix="annotations_",
     update_interface=True))

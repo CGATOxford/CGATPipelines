@@ -87,7 +87,7 @@ PARAMS = P.getParameters(
 #    "annotations_dir" to point to the absolute path names.
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))
@@ -527,7 +527,6 @@ def buildFeatureCounts(infiles, outfile):
     featureCounts %(featurecounts_options)s
     -T %(featurecounts_threads)s
     -s %(featurecounts_strand)s
-    -b
     -a %(annotations)s
     -o %(outfile)s
     %(infile)s

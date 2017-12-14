@@ -12,5 +12,4 @@ dependencies:
 - sphinx_bootstrap_theme
 - rstudio
 - spyder
-- multiqc
 

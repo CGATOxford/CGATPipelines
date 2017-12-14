@@ -31,8 +31,9 @@ TMP_DEPS=$(mktemp)
 
 # dictionary with production CGAT pipelines
 declare -A CGAT_PIPELINES
-CGAT_PIPELINES[annotations]="pipeline_annotations.py"
+CGAT_PIPELINES[bamstats]="pipeline_bamstats.py"
 CGAT_PIPELINES[enrichment]="pipeline_enrichment.py"
+CGAT_PIPELINES[genesets]="pipeline_genesets.py"
 CGAT_PIPELINES[intervals]="pipeline_intervals.py"
 CGAT_PIPELINES[mapping]="pipeline_mapping.py"
 CGAT_PIPELINES[peakcalling]="pipeline_peakcalling.py"
@@ -91,9 +92,11 @@ declare -A R_DEPS
 R_DEPS[BiSeq]="bioconductor-biseq"
 R_DEPS[Biobase]="bioconductor-biobase"
 R_DEPS[ChIPQC]="bioconductor-chipqc"
+R_DEPS[DBI]="r-dbi"
 R_DEPS[DESeq2]="bioconductor-deseq2"
 R_DEPS[DESeq]="bioconductor-deseq"
 R_DEPS[DEXSeq]="bioconductor-dexseq"
+R_DEPS[DT]="r-dt"
 R_DEPS[GMD]="r-gmd"
 R_DEPS[HiddenMarkov]="r-hiddenmarkov"
 R_DEPS[HilbertVis]="bioconductor-hilbertvis"
@@ -123,6 +126,7 @@ R_DEPS[gridExtra]="r-gridextra"
 R_DEPS[grid]="r-gridbase"
 R_DEPS[gtools]="r-gtools"
 R_DEPS[hpar]="bioconductor-hpar"
+R_DEPS[knitr]="r-knitr"
 R_DEPS[limma]="bioconductor-limma"
 R_DEPS[maSigPro]="bioconductor-masigpro"
 R_DEPS[mapdata]="r-mapdata"
@@ -135,6 +139,7 @@ R_DEPS[pvclust]="r-pvclust"
 R_DEPS[qqman]="r-qqman"
 R_DEPS[reshape2]="r-reshape2"
 R_DEPS[reshape]="r-reshape"
+R_DEPS[rmarkdown]="r-rmarkdown"
 R_DEPS[rtracklayer]="bioconductor-rtracklayer"
 R_DEPS[samr]="r-samr"
 R_DEPS[scales]="r-scales"
@@ -144,6 +149,7 @@ R_DEPS[simpleaffy]="bioconductor-simpleaffy"
 R_DEPS[sleuth]="r-sleuth"
 R_DEPS[snow]="r-snow"
 R_DEPS[spp]="ignore"
+R_DEPS[stringr]="r-stringr"
 R_DEPS[vegan]="r-vegan"
 R_DEPS[wasabi]="r-wasabi"
 R_DEPS[zinba]="ignore"
@@ -195,6 +201,7 @@ MISC_DEPS[cuffdiff]="cufflinks"
 MISC_DEPS[cufflinks]="cufflinks"
 MISC_DEPS[cuffmerge]="cufflinks"
 MISC_DEPS[diamond]="ignore" # pipeline_metagenomecommunities.py is not in production
+MISC_DEPS[export]="ignore"
 MISC_DEPS[fasta-get-markov]="ignore" # pipeline_motifs.py is not in production (missing tests)
 MISC_DEPS[fastq-to-fasta.py]="ignore" # pipeline_metagenomecommunities.py is not in production
 MISC_DEPS[fastq_screen]="fastq-screen"
@@ -206,7 +213,7 @@ MISC_DEPS[flash]="flash"
 MISC_DEPS[flashpca]="ignore" # pipeline_gwas.py is not in production (missing tests)
 MISC_DEPS[gat-run.py]="gat"
 MISC_DEPS[gemini]="ignore" # pipeline_exome.py is not in production (missing tests)
-MISC_DEPS[go2fmt.pl]="ignore" # ignore: https://github.com/CGATOxford/CGATPipelines/issues/355
+MISC_DEPS[go2fmt.pl]="perl-go-perl"
 MISC_DEPS[grep]="grep"
 MISC_DEPS[gsnap]="gmap"
 MISC_DEPS[gtfToGenePred]="ucsc-gtftogenepred"
@@ -226,7 +233,7 @@ MISC_DEPS[lcamapper.sh]="ignore" # pipeline_metagenomecommunities.py is not in p
 MISC_DEPS[locuszoom]="ignore" # pipeline_gwas.py is not in production (missing tests)
 MISC_DEPS[macs2]="macs2"
 MISC_DEPS[macs]="ignore" # in favour of macs2
-MISC_DEPS[map2slim]="ignore" # ignore: https://github.com/CGATOxford/CGATPipelines/issues/355
+MISC_DEPS[map2slim]="perl-go-perl"
 MISC_DEPS[mast]="meme"
 MISC_DEPS[meme-chip]="ignore" # pipeline_motifs.py is not in production (missing tests)
 MISC_DEPS[meme]="meme"
@@ -246,7 +253,7 @@ MISC_DEPS[salmon]="salmon"
 MISC_DEPS[samtools]="samtools"
 MISC_DEPS[sickle]="sickle-trim"
 MISC_DEPS[slopBed]="bedtools"
-MISC_DEPS[snpEff.sh]="ignore" # pipeline_exome.py is not in production (missing tests)
+MISC_DEPS[snpEff]="snpeff" # add this for exome tests to pass temporarily, but pipeline is not fully portable yet
 MISC_DEPS[solid2fastq]="ignore" # SOLiD sequencing technology is no longer in use
 MISC_DEPS[sortBed]="bedtools"
 MISC_DEPS[sort]="coreutils"
@@ -340,6 +347,7 @@ grep -i 'library(' -r ${REPO_FOLDER}/$1 \
  | sed 's/[()"&,.%'\'']//g' \
  | sed 's/\\n$//g' \
  | egrep '^[a-zA-Z]{2,}' \
+ | awk '{print $1;}' \
  | sort -u \
  >> ${TMP_GREP}
 
@@ -392,7 +400,7 @@ find_misc_programs() {
    do
 
       python ${REPO_FOLDER}/scripts/cgat_check_deps.py ${code} \
-       | egrep -v 'PATH|^$|^cgat$|^No|^R|^Rscript|^cd' \
+       | egrep -v 'PATH|^$|^cgat$|^No|^R|^Rscript|^cd|CGATparameter|LANG|^-' \
        >> ${TMP_MISC}
 
    done
@@ -433,7 +441,7 @@ find_misc_recursive() {
    for code in `cat ${TMP_EXT}` ;
    do
       python ${REPO_FOLDER}/scripts/cgat_check_deps.py ${REPO_FOLDER}/${code} \
-       | egrep -v 'PATH|^$|^cgat$|^No|^R|^Rscript|^cd' \
+       | egrep -v 'PATH|^$|^cgat$|^No|^R|^Rscript|^cd|CGATparameter|LANG|^-' \
        >> ${TMP_MISC}
 
    done
@@ -682,7 +690,7 @@ echo "- nomkl" >> ${TMP_DEPS}
 echo "- zlib" >> ${TMP_DEPS}
 
 echo "# Misc dependencies"
-egrep -v 'CGATparameter|BEGIN|END|local_tmpdir|outfile.gz|\||\+|\(|\)|\[|\]|\/|\=|\{|\}|-p|-l|\\t' ${TMP_DEPS} \
+cat ${TMP_DEPS} \
  | sed 's/^- macs2/# WARNING: macs2 is Py2 only. Please install it on a separate conda env/g' \
  | sed 's/^- tophat/# WARNING: tophat is Py2 only. Please install it on a separate conda env/g' \
  | sed 's/^- sicer/# WARNING: sicer is Py2 only. Please install it on a separate conda env/g' \

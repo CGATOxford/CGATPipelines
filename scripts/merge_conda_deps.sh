@@ -8,7 +8,8 @@ SCRIPT_NAME="$0"
 SCRIPT_OPTS="$@"
 SCRIPT_FOLDER=$(dirname $0)
 REPO_FOLDER=$(dirname ${SCRIPT_FOLDER})
-TMP_ANNOTATIONS=$(mktemp)
+TMP_GENESETS=$(mktemp)
+TMP_BAMSTATS=$(mktemp)
 TMP_ENRICHMENT=$(mktemp)
 TMP_INTERVALS=$(mktemp)
 TMP_MAPPING=$(mktemp)
@@ -59,7 +60,8 @@ if [[ $# -ne 0 ]] ; then
 
 fi
 
-process_env_file ${REPO_FOLDER}/conda/environments/pipeline-annotations-template.yml ${TMP_ANNOTATIONS}
+process_env_file ${REPO_FOLDER}/conda/environments/pipeline-genesets-template.yml ${TMP_GENESETS}
+process_env_file ${REPO_FOLDER}/conda/environments/pipeline-bamstats-template.yml ${TMP_BAMSTATS}
 process_env_file ${REPO_FOLDER}/conda/environments/pipeline-enrichment-template.yml ${TMP_ENRICHMENT}
 process_env_file ${REPO_FOLDER}/conda/environments/pipeline-intervals-template.yml ${TMP_INTERVALS}
 process_env_file ${REPO_FOLDER}/conda/environments/pipeline-mapping-template.yml ${TMP_MAPPING}
@@ -83,7 +85,8 @@ echo "- defaults"
 echo
 echo "dependencies:"
 
-sort -u ${TMP_ANNOTATIONS} \
+sort -u ${TMP_GENESETS} \
+ ${TMP_BAMSTATS} \
  ${TMP_ENRICHMENT} \
  ${TMP_INTERVALS} \
  ${TMP_MAPPING} \

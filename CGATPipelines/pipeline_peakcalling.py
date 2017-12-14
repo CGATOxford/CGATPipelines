@@ -258,7 +258,7 @@ PARAMS = P.PARAMS
 # add parameters from annotations pipeline.ini
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))
@@ -510,10 +510,13 @@ def getIdxstats(infiles, outfile):
     '''gets idxstats for bam file so number of reads per chromosome can
     be plotted later'''
     infile = infiles[0]
-    statement = '''samtools idxstats %(infile)s > %(outfile)s''' % locals()
+    # I have had to add a sleep to make sure the output is written before
+    # the next test.
+    statement = '''samtools idxstats %(infile)s > %(outfile)s && sleep 20'''
     P.run()
 
 
+@follows(getIdxstats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(getIdxstats, "idxstats_reads_per_chromosome.load")
 def loadIdxstats(infiles, outfile):
@@ -1649,17 +1652,6 @@ def update_report():
     E.info("updating documentation")
     P.run_report(clean=False)
 
-
-@follows(mkdir("%s/bamfiles" % PARAMS["web_dir"]),
-         mkdir("%s/medips" % PARAMS["web_dir"]),
-         )
-def publish():
-    '''publish files to web directory'''
-
-    # directory : files
-
-    # publish web pages
-    # P.publish_report(export_files=export_files)
 
 ###############################################################
 # Notebook reports

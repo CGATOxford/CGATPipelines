@@ -360,7 +360,7 @@ P.getParameters(
 PARAMS = P.PARAMS
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))
@@ -1550,18 +1550,9 @@ def update_report():
     P.run_report(clean=False)
 
 
-@follows(update_report)
-def publish():
-    '''publish files.'''
-    # publish web pages
-    P.publish_report()
-
-
 def main(argv=None):
     if argv is None:
         argv = sys.argv
     P.main(argv)
-
-
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

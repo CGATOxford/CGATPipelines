@@ -1,0 +1,48 @@
+name: "GTF report"
+navbar:
+  title: <div><img src="https://pbs.twimg.com/profile_images/491539388799533056/SAylf-7J.jpeg" height=50, width=50></img></div>
+  left:
+    - text: "About"
+      href: index.html
+      icon: fa-home
+    - text: "Context stats"
+      href: context_stats.html
+    - text: "Library type"
+      href: strandness.html
+    - text: "Idx Stats"
+      href: Idxstats.html
+      icon: fa-link
+    - text: "Transcript profile"
+      href: Transcript_profile.html
+      icon: fa-link
+    - text: "Picard Stats"
+      menu:
+         - text: "Base distribution"
+           href: Base_distribution.html
+         - text: "Insert size"
+           href: Insert_size_hist.html
+         - text: "Quality by cycle"
+           href: Quality_by_cycle.html
+         - text: "Quality distribution"
+           href: Quality_distribution.html
+    - text: "Bam Stats"
+      icon: fa-link
+      menu:
+         - text: "Full table"
+           href: bamstats.html
+         - text: "NH tag"
+           href: nh_tag.html
+         - text: "Mapping quality"
+           href: mapq.html
+    - text: "Exon validation"
+      href: exon_validation.html
+output:
+ html_document:
+  fig_caption: yes
+  theme: cosmo
+  highlight: textmate
+  toc: true
+  toc_depth: 2
+  toc_float:
+   collapsed: false
+   smooth_scroll: true

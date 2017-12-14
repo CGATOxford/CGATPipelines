@@ -210,7 +210,7 @@ PARAMS = P.PARAMS
 
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))
@@ -1843,12 +1843,6 @@ def plotStrandednessSalmon(infile, outfile):
          loadStrandednessSalmon)
 def full():
     pass
-
-
-@follows()
-def publish():
-    '''publish files.'''
-    P.publish_report()
 
 
 @follows(mkdir("report"))

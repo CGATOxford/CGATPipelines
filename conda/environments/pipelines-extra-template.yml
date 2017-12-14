@@ -13,6 +13,6 @@ dependencies:
 - cutadapt
 - blast
 - bashlex
-- r-rmarkdown
 - pandoc
+- multiqc
 
