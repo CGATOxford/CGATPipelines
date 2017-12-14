@@ -388,6 +388,7 @@ def indexIntervals(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(BEDFILES,
            suffix(".bed.gz"),
            "_intervals.load")
@@ -736,6 +737,7 @@ def annotateTSSComposition(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((annotateIntervals, annotateBinding,
             annotateTSS,
             annotateRepeats, annotateComposition,
@@ -827,6 +829,7 @@ def buildTranscriptsByIntervalsProfiles(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildTranscriptsByIntervalsProfiles,
            suffix(".tsv.gz"),
            r"\1.geneprofile.counts.load")
@@ -890,6 +893,7 @@ def buildPeakShapeTable(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildPeakShapeTable, suffix(".tsv.gz"), ".load")
 def loadPeakShapeTable(infile, outfile):
     '''load peak shape information.'''
@@ -923,6 +927,7 @@ def buildOverlap(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildOverlap, suffix(".overlap"), "_overlap.load")
 def loadOverlap(infile, outfile):
     '''load overlap results.
@@ -1027,6 +1032,7 @@ def runMeme(infile, outfile):
 ############################################################
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(runMeme, "meme_summary.load")
 def loadMemeSummary(infiles, outfile):
     '''load information about motifs into database.'''
@@ -1068,6 +1074,7 @@ def loadMotifSequenceComposition(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge("*.motif", "motif_info.load")
 def loadMotifInformation(infiles, outfile):
     '''load information about motifs into database.'''
@@ -1101,6 +1108,7 @@ def runTomTom(infile, outfile):
     PipelineMotifs.runTomTom(infile, outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runTomTom, suffix(".tomtom"), "_tomtom.load")
 def loadTomTom(infile, outfile):
     '''load tomtom results'''
@@ -1176,6 +1184,7 @@ def runMast(infiles, outfile):
 ############################################################
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runMast,
            suffix(".mast.gz"),
            "_mast.load")
@@ -1491,6 +1500,7 @@ def runGATOnSets(infiles, outfile, isochorefile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((runGATOnGenomicContext,
             runGATOnGenomicAnnotations,
             runGATOnGeneAnnotations,

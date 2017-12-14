@@ -2752,6 +2752,7 @@ def loadGFFStats(infiles, outfile):
                          options="--allow-empty")
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((buildGFFSummary,
             buildBedSummary,
             buildBedNameSummary,

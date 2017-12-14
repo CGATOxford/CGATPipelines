@@ -361,7 +361,7 @@ def buildBAMforPeakCalling(infiles, outfile, dedup, mask):
 
     if dedup:
         job_memory = "16G"
-        statement.append('''MarkDuplicates
+        statement.append('''picard MarkDuplicates
         INPUT=@IN@
         ASSUME_SORTED=true
         REMOVE_DUPLICATES=true

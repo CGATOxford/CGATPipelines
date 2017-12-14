@@ -1059,6 +1059,7 @@ def mergeCounts(infiles, outfiles):
     mergeinfiles(gene_infiles, gene_outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeCounts, regex("(\S+).dir/transcripts.tsv.gz"),
            [r"\1.dir/\1_transcripts.load",
             r"\1.dir/\1_genes.load"])
@@ -1472,6 +1473,7 @@ def NormaliseExpression():
 
 
 # AH: see below
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(DETARGETS, "differential_expression.load")
 def loadDifferentialExpression(infiles, outfiles):
     for infile in IOTools.flatten(infiles):
@@ -1481,6 +1483,7 @@ def loadDifferentialExpression(infiles, outfiles):
 
 # AH: it seems that this task is executed twice (ruffus bug?) and can
 # cause table exist error. Use a sequential load.
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(NORMTARGETS, "normalised_expression.load")
 def loadNormalisedExpression(infiles, outfiles):
     for infile in IOTools.flatten(infiles):

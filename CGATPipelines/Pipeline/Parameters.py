@@ -253,7 +253,7 @@ def inputValidation(PARAMS, pipeline_script=""):
 
     E.info(''' Checking pipeline configuration ''')
 
-    for key, value in sorted(PARAMS.iteritems()):
+    for key, value in sorted(PARAMS.items()):
 
         key   = str(key)
         value = str(value)
@@ -282,7 +282,7 @@ def inputValidation(PARAMS, pipeline_script=""):
 
     if num_missing == 0 and num_questions == 0:
         while True:
-            confirmation = raw_input('''
+            confirmation = input('''
             ##########################################################
 
             Your input data seems all correct, congratulations!
@@ -301,7 +301,7 @@ def inputValidation(PARAMS, pipeline_script=""):
                 sys.exit(0)
     else:
         while True:
-            start_pipeline = raw_input('''
+            start_pipeline = input('''
             ###########################################################
 
             Please check the WARNING messages and if you are

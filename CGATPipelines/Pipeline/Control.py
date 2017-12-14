@@ -41,7 +41,9 @@ except ImportError:
 try:
     import drmaa
     HAS_DRMAA = True
-except RuntimeError:
+except:
+# the following does not work on Travis
+#except ImportError or RuntimeError:
     HAS_DRMAA = False
 
 from ruffus import pipeline_printout_graph, pipeline_printout, \
@@ -887,7 +889,7 @@ def main(args=sys.argv):
 
                 logger.addFilter(messenger)
 
-                if not options.without_cluster:
+                if not options.without_cluster and HAS_DRMAA:
                     global task
                     # use threading instead of multiprocessing in order to
                     # limit the number of concurrent jobs by using the

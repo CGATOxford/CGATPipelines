@@ -33,7 +33,9 @@ from CGATPipelines.Pipeline.Cluster import *
 try:
     import drmaa
     HAS_DRMAA = True
-except RuntimeError:
+except:
+# the following does not work on Travis
+#except ImportError or RuntimeError:
     HAS_DRMAA = False
 
 # Set from Pipeline.py

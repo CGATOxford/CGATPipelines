@@ -104,7 +104,7 @@ Code
 
 # load modules
 from ruffus import transform, merge, mkdir, follows, \
-    regex, suffix, add_inputs, collate
+    regex, suffix, add_inputs, collate, jobs_limit
 
 import sys
 import os
@@ -363,6 +363,7 @@ def buildCpGAnnotation(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildCpGAnnotation, suffix(".tsv.gz"), ".load")
 def loadCpGAnnotation(infile, outfile):
     '''Load CpG genomic context data into database
@@ -552,6 +553,7 @@ def loadCpgCompositionHistogram(infiles, outfile):
                    row_wise=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((buildCpGComposition, buildReferenceCpGComposition),
            suffix(".tsv.gz"),
            ".composition.load")
@@ -751,6 +753,7 @@ def buildWindowStats(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildWindowStats,
            suffix(".stats"),
            "_stats.load")
@@ -991,6 +994,7 @@ def normalizeTagCounts(infile, outfile):
         method=PARAMS["tags_normalization_method"])
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((aggregateWindowsTagCounts, aggregateContextTagCounts),
            suffix(".tsv.gz"), ".load")
 def loadWindowsTagCounts(infile, outfile):
@@ -1233,6 +1237,7 @@ def buildWindowsFoldChangesPerMedian(infile, outfile):
                      sep="\t", index=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((buildWindowsFoldChangesPerMedian, buildWindowsFoldChangesPerInput),
            suffix(".tsv.gz"), ".load")
 def loadWindowsFoldChanges(infile, outfile):
@@ -1344,6 +1349,7 @@ def dumpWindowsTagCounts(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((summarizeWindowsTagCounts, summarizeAllWindowsTagCounts),
            suffix("_stats.tsv"), "_stats.load")
 def loadTagCountSummary(infile, outfile):
@@ -1613,6 +1619,7 @@ def runDESeq(infiles, outfile):
                           method="deseq")
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runDESeq, suffix(".tsv.gz"), ".load")
 def loadDESeq(infile, outfile):
     '''Load DESeq per-chunk summary stats into database table <track>.
@@ -1706,6 +1713,7 @@ def runDESeq2(infiles, outfile):
                           method="deseq2")
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runDESeq2, suffix(".tsv.gz"), ".load")
 def loadDESeq2(infile, outfile):
     '''Load DESeq per-chunk summary stats into database table <track>.
@@ -1834,6 +1842,7 @@ def runEdgeR(infiles, outfile):
                           method="edger")
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runEdgeR, suffix(".tsv.gz"), ".load")
 def loadEdgeR(infile, outfile):
     '''load EdgeR per-chunk summary stats
@@ -1979,6 +1988,7 @@ def computeWindowComposition(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(computeWindowComposition, suffix(".tsv.gz"), ".load")
 def loadWindowComposition(infile, outfile):
     '''
@@ -2070,6 +2080,7 @@ def mergeDMRWindows(infile, outfile):
 
 
 # @P.add_doc(PipelineWindows.buildSpikeResults)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(DIFFTARGETS, suffix(".gz"), ".power.gz")
 def buildSpikeResults(infile, outfile):
     '''
@@ -2086,6 +2097,7 @@ def buildSpikeResults(infile, outfile):
     PipelineWindows.buildSpikeResults(infile, outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildSpikeResults, suffix('.tsv.power.gz'), '.power.load')
 def loadSpikeResults(infile, outfile):
     '''load spike in results to database table <track>.power where track
@@ -2439,6 +2451,7 @@ def buildOverlapWithinMethod(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((buildOverlapByMethod,
             buildOverlapWithinMethod),
            suffix(".overlap"), "_overlap.load")
@@ -2630,6 +2643,7 @@ def testTagContextOverlap(infiles, outfile):
         options=PARAMS["gat_options"])
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(testTagContextOverlap,
            suffix(".tsv.gz"),
            "_context_gat.load")

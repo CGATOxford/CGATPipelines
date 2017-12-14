@@ -353,6 +353,7 @@ def connect():
 ###########################################################################
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
     ''' load design.tsv to database '''
@@ -457,6 +458,7 @@ def mergeFilteringStats(infiles, outfile):
     bigtab.to_csv(outfile, sep="\t", index=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(mergeFilteringStats, "post_filtering_read_counts.load")
 def loadFilteringStats(infile, outfile):
     '''load filtering stats to database'''
@@ -480,6 +482,7 @@ def mergeFilteringChecks(infiles, outfile):
     bigtab.to_csv(outfile, sep="\t", index=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeFilteringChecks, suffix(".tsv"), ".load")
 def loadFilteringChecks(infile, outfile):
     '''load filtering stats to database '''
@@ -487,6 +490,7 @@ def loadFilteringChecks(infile, outfile):
 
 
 @active_if(PARAMS['paired_end'])
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
            "_fraglengths.load")
 def loadFragmentLengthDistributions(infiles, outfile):
@@ -852,6 +856,7 @@ def makeBamInputTable(outfile):
     out.close()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(makeBamInputTable, suffix(".tsv"), ".load")
 def loadBamInputTable(infile, outfile):
     P.load(infile, outfile)
@@ -886,6 +891,7 @@ def mergeInsertSizes(infiles, outfile):
     out.close()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeInsertSizes, suffix(".tsv"), ".load")
 def loadInsertSizes(infile, outfile):
     P.load(infile, outfile)
@@ -1136,6 +1142,7 @@ def summarisePeakCalling(infiles, outfile):
     bigtab.to_csv(outfile, sep="\t", index=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(summarisePeakCalling, suffix(".tsv"), ".load")
 def loadPeakCallingStats(infile, outfile):
     P.load(infile, outfile)
@@ -1206,6 +1213,7 @@ def makeIDRPairs(infiles, outfile):
 
 
 @active_if(IDR_ON)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(makeIDRPairs, suffix(".tsv"), ".load")
 def loadIDRPairs(infile, outfile):
     P.load(infile, outfile)
@@ -1423,6 +1431,7 @@ def summariseIDR(infiles, outfile):
 
 
 @active_if(IDR_ON)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(summariseIDR, suffix(".tsv"), ".load")
 def loadIDRsummary(infile, outfile):
     P.load(infile, outfile)
@@ -1435,6 +1444,7 @@ def runIDRQC(infile, outfile):
 
 
 @active_if(IDR_ON)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runIDRQC, suffix(".tsv"), ".load")
 def loadIDRQC(infile, outfile):
     P.load(infile, outfile)

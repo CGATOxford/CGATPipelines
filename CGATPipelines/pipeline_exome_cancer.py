@@ -378,7 +378,7 @@ def mergeSampleBams(infile, outfile):
     tumor_id = control_id.replace(
         PARAMS["sample_control"], PARAMS["sample_tumour"])
 
-    statement = '''AddOrReplaceReadGroups
+    statement = '''picard AddOrReplaceReadGroups
                     INPUT=%(infile)s
                     OUTPUT=%(tmpdir_gatk)s/%(infile_base)s
                     RGLB=%(library)s RGPL=%(platform)s
@@ -386,7 +386,7 @@ def mergeSampleBams(infile, outfile):
                     ID=%(track)s
                     VALIDATION_STRINGENCY=SILENT ;
                     checkpoint ;'''
-    statement += '''AddOrReplaceReadGroups
+    statement += '''picard AddOrReplaceReadGroups
                     INPUT=%(infile_tumor)s
                     OUTPUT=%(tmpdir_gatk)s/%(infile_tumor_base)s
                     RGLB=%(library)s RGPL=%(platform)s

@@ -1161,8 +1161,8 @@ def buildTophatStats(infiles, outfile):
     outf.close()
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildTophatStats, suffix(".tsv"), ".load")
 def loadTophatStats(infile, outfile):
     '''
@@ -1350,8 +1350,8 @@ def buildSTARStats(infiles, outfile):
     outf.close()
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildSTARStats, suffix(".tsv"), ".load")
 def loadSTARStats(infile, outfile):
     '''
@@ -2142,8 +2142,8 @@ def buildExonValidation(infiles, outfile):
     P.run()
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(buildExonValidation, "exon_validation.load")
 def loadExonValidation(infiles, outfile):
     ''' load individual and merged exon validation stats
@@ -2225,8 +2225,8 @@ def buildTranscriptLevelReadCounts(infiles, outfile):
     P.run()
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildTranscriptLevelReadCounts,
            suffix(".tsv.gz"),
            ".load")
@@ -2294,8 +2294,8 @@ def buildIntronLevelReadCounts(infiles, outfile):
     P.run()
 
 
-@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @active_if(SPLICED_MAPPING)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(buildIntronLevelReadCounts,
            suffix(".tsv.gz"),
            ".load")

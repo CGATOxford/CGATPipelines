@@ -781,6 +781,7 @@ def runMast(infiles, outfile):
     PipelineMotifs.runMAST(infiles, outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runMast,
            suffix(".mast.gz"),
            "_mast.load")

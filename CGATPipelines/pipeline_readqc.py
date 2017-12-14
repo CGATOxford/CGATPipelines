@@ -461,6 +461,7 @@ def combineExperimentLevelReadQualities(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(combineExperimentLevelReadQualities,
            regex(".+/(.+).tsv"),
            r"\1.load")
@@ -468,6 +469,7 @@ def loadExperimentLevelReadQualities(infile, outfile):
     P.load(infile, outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((buildFastQCSummaryStatus, buildFastQCSummaryBasicStatistics),
            suffix(".tsv.gz"), ".load")
 def loadFastqcSummary(infile, outfile):

@@ -376,10 +376,18 @@ def runGsea(infile, outfile):
     no = PARAMS['stats_gsea_permut']
     p_no = PARAMS['stats_gsea_display_num']
     l_no = PARAMS['stats_gsea_ngeneset']
+
+    # use X11 virtual frame buffer when running on compute nodes
+    xvfb_command = IOTools.which('xvfb-run')
+
+    # permit multiple servers using option -a
+    if xvfb_command:
+        xvfb_command += ' -a'
+
     statement = '''basename %(infile)s .processed |
                    awk '{split($0,a,"/"); print a[1]}'
                    | xargs mkdir; cd $(basename %(infile)s .processed | awk '{split($0,a,"/"); print a[1]}')
-                   ; xvfb-run cgat runGSEA -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
+                   ; %(xvfb_command)s cgat runGSEA -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
                    -s %(seed)s -n %(no)s -d %(p_no)s -l %(l_no)s'''
     P.run()
 

@@ -216,7 +216,7 @@ def appendPicardFilters(statement, inT, tabout, filters, pe, outfile):
         log = outfile.replace(".bam", "_duplicates.log")
         outT = P.getTempFilename("./filtered_bams.dir")
         statement += """
-        MarkDuplicates \
+        picard MarkDuplicates \
         INPUT=%(inT)s.bam \
         ASSUME_SORTED=true \
         REMOVE_DUPLICATES=true \
