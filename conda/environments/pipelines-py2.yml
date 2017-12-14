@@ -1,0 +1,15 @@
+
+# This environment will include Python 2 dependencies that we want to keep
+
+name: cgat-py2
+
+channels:
+- bioconda
+- conda-forge
+- defaults
+
+dependencies:
+- r-base=3.4.1
+- tophat=2.1.1
+- macs2=2.1.1.20160309
+

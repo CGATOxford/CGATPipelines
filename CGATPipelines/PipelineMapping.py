@@ -2151,6 +2151,9 @@ class Tophat(Mapper):
 
         executable = self.executable
 
+        statement = P.getCondaEnvironment(PARAMS['conda_py2'])
+        statement.append(" && ")
+
         num_files = [len(x) for x in infiles]
 
         if max(num_files) != min(num_files):
@@ -2174,7 +2177,7 @@ class Tophat(Mapper):
 
         if nfiles == 1:
             infiles = ",".join([x[0] for x in infiles])
-            statement = '''
+            statement.append('''
             %(executable)s --output-dir %(tmpdir_tophat)s
                    --num-threads %%(tophat_threads)i
                    --library-type %%(tophat_library_type)s
@@ -2183,7 +2186,7 @@ class Tophat(Mapper):
                    %(index_prefix)s
                    %(infiles)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         elif nfiles == 2:
             # this section works both for paired-ended fastq files
@@ -2191,7 +2194,7 @@ class Tophat(Mapper):
             infiles1 = ",".join([x[0] for x in infiles])
             infiles2 = ",".join([x[1] for x in infiles])
 
-            statement = '''
+            statement.append('''
             %(executable)s --output-dir %(tmpdir_tophat)s
                    --mate-inner-dist %%(tophat_mate_inner_dist)i
                     --num-threads %%(tophat_threads)i
@@ -2201,7 +2204,7 @@ class Tophat(Mapper):
                    %(index_prefix)s
                    %(infiles1)s %(infiles2)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
         elif nfiles == 4:
             # this section works both for paired-ended fastq files
             # in color space mapping (separate quality file)
@@ -2211,7 +2214,7 @@ class Tophat(Mapper):
             infiles3 = ",".join([x[2] for x in infiles])
             infiles4 = ",".join([x[3] for x in infiles])
 
-            statement = '''%(executable)s
+            statement.append('''%(executable)s
                    --output-dir %(tmpdir_tophat)s
                    --mate-inner-dist %%(tophat_mate_inner_dist)i
                    --num-threads %%(tophat_threads)i
@@ -2222,7 +2225,7 @@ class Tophat(Mapper):
                    %(infiles1)s %(infiles2)s
                    %(infiles3)s %(infiles4)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         else:
             raise ValueError("unexpected number reads to map: %i " % nfiles)
@@ -2397,9 +2400,12 @@ class TopHat_fusion(Mapper):
 
         data_options = " ".join(data_options)
 
+        statement = P.getCondaEnvironment(PARAMS['conda_py2'])
+        statement.append(" && ")
+
         if nfiles == 1:
             infiles = ",".join([x[0] for x in infiles])
-            statement = '''
+            statement.append('''
 
             tophat2 --output-dir %(tmpdir_tophat)s
                    --num-threads %%(tophat_threads)i
@@ -2410,7 +2416,7 @@ class TopHat_fusion(Mapper):
                    %(index_prefix)s
                    %(infiles)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         elif nfiles == 2:
             # this section works both for paired-ended fastq files
@@ -2418,7 +2424,7 @@ class TopHat_fusion(Mapper):
             infiles1 = ",".join([x[0] for x in infiles])
             infiles2 = ",".join([x[1] for x in infiles])
 
-            statement = '''
+            statement.append('''
 
             tophat2 --output-dir %(tmpdir_tophat)s
                     --mate-inner-dist %%(tophat_mate_inner_dist)i
@@ -2430,7 +2436,8 @@ class TopHat_fusion(Mapper):
                    %(index_prefix)s
                    %(infiles1)s %(infiles2)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
+
         elif nfiles == 4:
             # this section works both for paired-ended fastq files
             # in color space mapping (separate quality file)
@@ -2440,7 +2447,7 @@ class TopHat_fusion(Mapper):
             infiles3 = ",".join([x[2] for x in infiles])
             infiles4 = ",".join([x[3] for x in infiles])
 
-            statement = '''
+            statement.append('''
 
             tophat2 --output-dir %(tmpdir_tophat)s
                    --mate-inner-dist %%(tophat_mate_inner_dist)i
@@ -2453,7 +2460,7 @@ class TopHat_fusion(Mapper):
                    %(infiles1)s %(infiles2)s
                    %(infiles3)s %(infiles4)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         else:
             raise ValueError("unexpected number reads to map: %i " % nfiles)

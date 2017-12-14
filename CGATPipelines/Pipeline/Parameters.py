@@ -41,6 +41,9 @@ CGATPIPELINES_PIPELINE_DIR = os.path.join(CGATPIPELINES_ROOT_DIR,
 # CGAT Pipeline R scripts
 CGATPIPELINES_R_DIR = os.path.join(CGATPIPELINES_ROOT_DIR, "R")
 
+# Location of conda installation folder
+CGATPIPELINES_CONDA_DIR = os.path.abspath(CGATPIPELINES_ROOT_DIR + "/../conda-install")
+
 # if Pipeline.py is called from an installed version, scripts are
 # located in the "bin" directory.
 if not os.path.exists(CGATSCRIPTS_SCRIPTS_DIR):
@@ -82,6 +85,7 @@ HARDCODED_PARAMS = {
     'pipeline_scriptsdir': CGATPIPELINES_SCRIPTS_DIR,
     'pipelinedir': CGATPIPELINES_PIPELINE_DIR,
     'pipeline_rdir': CGATPIPELINES_R_DIR,
+    'pipelines_conda_dir': CGATPIPELINES_CONDA_DIR,
     # script to perform map/reduce like computation.
     'cmd-farm': """python %(pipeline_scriptsdir)s/farm.py
                 --method=drmaa
@@ -679,3 +683,9 @@ def checkParameter(param):
 def getParams():
     """return handle to global parameter dictionary"""
     return PARAMS
+
+def getCondaEnvironment(name):
+    """prepare prefix to call programs in a different conda environment"""
+#    return "PATH=" + str(CGATPIPELINES_CONDA_DIR) + "/envs/" + str(name) + "/bin;" + \
+#            "CONDA_PREFIX=" + str(CGATPIPELINES_CONDA_DIR) + "/envs/" + str(name)
+    return "source " + str(CGATPIPELINES_CONDA_DIR) + "/bin/activate " + str(name)

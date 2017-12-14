@@ -690,6 +690,9 @@ def estimateInsertSize(infile, outfile, pe, nalignments, m2opts, conda_env):
         mean, std, n = BamTools.estimateInsertSizeDistribution(
             infile, int(nalignments))
     else:
+        # configure conda environment
+        conda_env = P.getCondaEnvironment(conda_env)
+
         logfile = "%s.log" % P.snip(outfile)
         mode = "SE"
         statement = '''
@@ -1287,6 +1290,9 @@ class Macs2Peakcaller(Peakcaller):
         # CG put brackets () around conda call and macs statement to run this
         # portion of the statement in subshell with specific conda env
 
+        # configure conda environment
+        conda_env = P.getCondaEnvironment(conda_env)
+
         statement = '''
         (%(conda_env)s &&
         macs2 callpeak
@@ -1785,6 +1791,9 @@ class SicerPeakcaller(Peakcaller):
 
         outfile = os.path.basename(outfile)
 
+        # configure conda environment
+        conda_env = P.getCondaEnvironment(conda_env)
+
         window_size = self.window_size
         gap_size = self.gap_size
         effective_genome_fraction = self.effective_genome_fraction
@@ -2159,7 +2168,7 @@ def makePairsForIDR(infiles, outfile, useoracle, df):
 
 
 def buildIDRStatement(infile1, infile2, outfile,
-                      sourcec, unsourcec, soft_idr_thresh, idrPARAMS, options,
+                      soft_idr_thresh, idrPARAMS, options,
                       oraclefile=None, test=False):
     '''
     Constructs a command line statement to run the idr software package -
@@ -2178,10 +2187,6 @@ def buildIDRStatement(infile1, infile2, outfile,
         path to second IDR input bam file
     outfile: str
         path to main IDR output file
-    sourcec: str
-        statement to source the environment in which to run IDR software
-    unsourcec: str
-        statement to revert to the original environment
     soft_idr_thresh:
         threshold below which to discard peaks
     idrPARAMS: dict
@@ -2204,7 +2209,6 @@ def buildIDRStatement(infile1, infile2, outfile,
         the scripts will fail downstream) 0 = run full IDR analysis
     '''
     statement = []
-    statement.append(sourcec)
 
     log = "%s.log" % P.snip(outfile)
 
@@ -2251,7 +2255,6 @@ def buildIDRStatement(infile1, infile2, outfile,
                              %(options)s
                             --verbose 2>>%(log)s
                          """ % locals())
-    statement.append(unsourcec)
     statement = "; ".join(statement)
     return statement
 

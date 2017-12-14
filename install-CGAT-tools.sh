@@ -268,6 +268,9 @@ if [[ "$OS" != "travis" ]] ; then
       # install extra deps
       install_extra_deps
 
+      # install Python 2 deps
+      install_py2_deps
+
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
@@ -362,21 +365,35 @@ install_extra_deps() {
 
 log "install extra deps"
 
-   wget -O env-extra-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
-   wget -O env-extra-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
+wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
+wget https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
 
-   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-pipelines.yml
-   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-scripts.yml
+conda env update --quiet --name ${CONDA_INSTALL_ENV} --file pipelines-extra.yml
+conda env update --quiet --name ${CONDA_INSTALL_ENV} --file scripts-extra.yml
 
-   if [[ ${INSTALL_IDE} -eq 1 ]] ; then
-
-      wget -O env-ide.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-ide.yml
-
-      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-ide.yml
-
-   fi
+if [[ ${INSTALL_IDE} -eq 1 ]] ; then
+   wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-ide.yml
+   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file pipelines-ide.yml
+fi
 
 }
+
+
+# install Python 2 dependencies in a different conda environment
+install_py2_deps() {
+
+log "install Python 2 deps"
+
+wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-py2.yml
+
+conda env update --quiet --file pipelines-py2.yml
+
+wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipeline-peakcalling-sicer.yml
+
+conda env update --quiet --file pipeline-peakcalling-sicer.yml
+
+}
+
 
 # need to install the CGAT Code Collection as well
 install_cgat_scripts() {
