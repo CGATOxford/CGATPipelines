@@ -259,7 +259,7 @@ pip install 'bx-python==0.7.3'
 
 log "installing CGAT code into conda environment"
 # if installation is 'devel' (outside of travis), checkout latest version from github
-if [[ "$OS" != "travis" ]] ; then
+if [[ -z ${TRAVIS_INSTALL} ]] ; then
 
    DEV_RESULT=0
 
@@ -274,29 +274,38 @@ if [[ "$OS" != "travis" ]] ; then
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
-      if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
-         # get the latest version from Git Hub in zip format
-         wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
-         unzip $PIPELINES_BRANCH.zip
-         rm $PIPELINES_BRANCH.zip
-         if [[ ${RELEASE} ]] ; then
-            NEW_NAME=`echo $PIPELINES_BRANCH | sed 's/^v//g'`
-            mv CGATPipelines-$NEW_NAME/ cgat-pipelines/
-         else
-            mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
-         fi
-      elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
-         # get latest version from Git Hub with git clone
-         git clone --branch=$PIPELINES_BRANCH https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
-      elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
-         # get latest version from Git Hub with git clone
-         git clone --branch=$PIPELINES_BRANCH git@github.com:CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
-      else
-         report_error " Unknown download type for CGAT code... "
-      fi
+      if [[ -z ${JENKINS_INSTALL} ]] ; then
 
-      # make sure you are in the CGAT_HOME/cgat-pipelines folder
-      cd $CGAT_HOME/cgat-pipelines
+         if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
+            # get the latest version from Git Hub in zip format
+            wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
+            unzip $PIPELINES_BRANCH.zip
+            rm $PIPELINES_BRANCH.zip
+            if [[ ${RELEASE} ]] ; then
+               NEW_NAME=`echo $PIPELINES_BRANCH | sed 's/^v//g'`
+               mv CGATPipelines-$NEW_NAME/ cgat-pipelines/
+            else
+               mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
+            fi
+         elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
+            # get latest version from Git Hub with git clone
+            git clone --branch=$PIPELINES_BRANCH https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+         elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
+            # get latest version from Git Hub with git clone
+            git clone --branch=$PIPELINES_BRANCH git@github.com:CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+         else
+            report_error " Unknown download type for CGAT code... "
+         fi
+
+         # make sure you are in the CGAT_HOME/cgat-pipelines folder
+         cd $CGAT_HOME/cgat-pipelines
+
+      else
+
+         # make sure you are in the CGAT_HOME/CGATPipelines folder
+         cd $CGAT_HOME/CGATPipelines
+
+      fi
 
       # Set up other environment variables
       setup_env_vars
@@ -566,7 +575,7 @@ else
       exit 1
    fi
 
-fi # if-OS
+fi # if travis or jenkins
 
 } # conda_test
 
@@ -770,8 +779,6 @@ if [[ $# -eq 0 ]] ; then
 
 fi
 
-# these variables will store the information about input parameters
-OS="default"
 # travis execution
 TRAVIS_INSTALL=
 # jenkins testing
@@ -787,7 +794,8 @@ INSTALL_UPDATE=
 UNINSTALL=
 UNINSTALL_DIR=
 # where to install CGAT code
-CGAT_HOME=
+# default value is in HOME
+CGAT_HOME=$HOME/cgat-install
 # how to download CGAT code:
 # 0 = as zip (default)
 # 1 = git clone with https
@@ -940,13 +948,14 @@ case $key in
 esac
 done
 
-# sanity checks
+# sanity check 1: don't mix production and development installs
 if [[ $INSTALL_PRODUCTION ]] && [[ $INSTALL_DEVEL ]] ; then
 
    report_error " Incorrect input arguments: mixing --production and --devel is not permitted. "
 
 fi
 
+# sanity check 2: make sure one installation option is selected
 if [[ -z $INSTALL_PRODUCTION ]] && \
    [[ -z $INSTALL_DEVEL ]] && \
    [[ -z $TRAVIS_INSTALL ]] && \
@@ -956,10 +965,14 @@ if [[ -z $INSTALL_PRODUCTION ]] && \
 
 fi
 
+# sanity check 3: make sure there is space available in the destination folder (20 GB)
+[[ -d ${CGAT_HOME} ]] || mkdir -p ${CGAT_HOME}
+[[ `df --block-size=1 ${CGAT_HOME} | awk '/\// {print $3}'` -lt 21474836480  ]] && \
+   report_error " Not enought disk space available on the installation folder: "$CGAT_HOME
+
 # perform actions according to the input parameters processed
 if [[ $TRAVIS_INSTALL ]] ; then
 
-  OS="travis"
   conda_install
   conda_test
 
