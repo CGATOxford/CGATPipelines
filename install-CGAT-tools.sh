@@ -274,6 +274,7 @@ if [[ -z ${TRAVIS_INSTALL} ]] ; then
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
+      # download the code out of jenkins
       if [[ -z ${JENKINS_INSTALL} ]] ; then
 
          if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
@@ -302,7 +303,7 @@ if [[ -z ${TRAVIS_INSTALL} ]] ; then
 
       else
 
-         # make sure you are in the CGAT_HOME/CGATPipelines folder
+         # in jenkins the code is in CGAT_HOME/CGATPipelines
          cd $CGAT_HOME/CGATPipelines
 
       fi
@@ -971,12 +972,7 @@ fi
    report_error " Not enought disk space available on the installation folder: "$CGAT_HOME
 
 # perform actions according to the input parameters processed
-if [[ $TRAVIS_INSTALL ]] ; then
-
-  conda_install
-  conda_test
-
-elif [[ $JENKINS_INSTALL ]] ; then
+if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
 
   conda_install
   conda_test
