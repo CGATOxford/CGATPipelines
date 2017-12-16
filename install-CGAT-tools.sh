@@ -263,7 +263,7 @@ if [[ -z ${TRAVIS_INSTALL} ]] ; then
 
    DEV_RESULT=0
 
-   if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] ; then
+   if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] || [[ $JENKINS_INSTALL ]] ; then
 
       # install extra deps
       install_extra_deps
