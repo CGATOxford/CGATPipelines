@@ -258,7 +258,7 @@ PARAMS = P.PARAMS
 # add parameters from annotations pipeline.ini
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))
@@ -353,6 +353,7 @@ def connect():
 ###########################################################################
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform("design.tsv", suffix(".tsv"), ".load")
 def loadDesignTable(infile, outfile):
     ''' load design.tsv to database '''
@@ -457,6 +458,7 @@ def mergeFilteringStats(infiles, outfile):
     bigtab.to_csv(outfile, sep="\t", index=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(mergeFilteringStats, "post_filtering_read_counts.load")
 def loadFilteringStats(infile, outfile):
     '''load filtering stats to database'''
@@ -480,6 +482,7 @@ def mergeFilteringChecks(infiles, outfile):
     bigtab.to_csv(outfile, sep="\t", index=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeFilteringChecks, suffix(".tsv"), ".load")
 def loadFilteringChecks(infile, outfile):
     '''load filtering stats to database '''
@@ -487,6 +490,7 @@ def loadFilteringChecks(infile, outfile):
 
 
 @active_if(PARAMS['paired_end'])
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((filterChipBAMs, filterInputBAMs), suffix(".bam"),
            "_fraglengths.load")
 def loadFragmentLengthDistributions(infiles, outfile):
@@ -506,10 +510,13 @@ def getIdxstats(infiles, outfile):
     '''gets idxstats for bam file so number of reads per chromosome can
     be plotted later'''
     infile = infiles[0]
-    statement = '''samtools idxstats %(infile)s > %(outfile)s''' % locals()
+    # I have had to add a sleep to make sure the output is written before
+    # the next test.
+    statement = '''samtools idxstats %(infile)s > %(outfile)s && sleep 20'''
     P.run()
 
 
+@follows(getIdxstats)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @merge(getIdxstats, "idxstats_reads_per_chromosome.load")
 def loadIdxstats(infiles, outfile):
@@ -852,6 +859,7 @@ def makeBamInputTable(outfile):
     out.close()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(makeBamInputTable, suffix(".tsv"), ".load")
 def loadBamInputTable(infile, outfile):
     P.load(infile, outfile)
@@ -870,7 +878,7 @@ def estimateInsertSize(infile, outfile):
                                            PARAMS['paired_end'],
                                            PARAMS['insert_alignments'],
                                            PARAMS['insert_macs2opts'],
-                                           PARAMS['python2_macs2'])
+                                           PARAMS['conda_py2'])
 
 
 @merge(estimateInsertSize, "insert_sizes.tsv")
@@ -886,6 +894,7 @@ def mergeInsertSizes(infiles, outfile):
     out.close()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeInsertSizes, suffix(".tsv"), ".load")
 def loadInsertSizes(infile, outfile):
     P.load(infile, outfile)
@@ -956,7 +965,7 @@ def callMacs2peaks(infiles, outfile):
                                  PARAMS['macs2_idrsuffix'],
                                  PARAMS['macs2_idrcol'],
                                  PARAMS['macs2_broad_peak'],
-                                 PARAMS['python2_macs2'])
+                                 PARAMS['conda_py2'])
     P.run()
     peakcaller.summarise(outfile)
 
@@ -1028,7 +1037,7 @@ def callNarrowerPeaksWithSicer(infiles, outfile):
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'],
                                  broad_peak=0,
-                                 conda_env=PARAMS['python2_sicer'])
+                                 conda_env=PARAMS['conda_sicer'])
 
     P.run()
     peakcaller.summarise(outfile, mode="narrow")
@@ -1101,7 +1110,7 @@ def callBroaderPeaksWithSicer(infiles, outfile):
                                  idrc=PARAMS['sicer_idrkeeppeaks'],
                                  idrcol=PARAMS['sicer_idrcol'],
                                  broad_peak=1,
-                                 conda_env=PARAMS['python2_sicer'])
+                                 conda_env=PARAMS['conda_sicer'])
 
     P.run()
     peakcaller.summarise(outfile, mode="broad")
@@ -1136,6 +1145,7 @@ def summarisePeakCalling(infiles, outfile):
     bigtab.to_csv(outfile, sep="\t", index=False)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(summarisePeakCalling, suffix(".tsv"), ".load")
 def loadPeakCallingStats(infile, outfile):
     P.load(infile, outfile)
@@ -1206,6 +1216,7 @@ def makeIDRPairs(infiles, outfile):
 
 
 @active_if(IDR_ON)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(makeIDRPairs, suffix(".tsv"), ".load")
 def loadIDRPairs(infile, outfile):
     P.load(infile, outfile)
@@ -1273,8 +1284,6 @@ def runIDR(infile, outfile):
     statement = PipelinePeakcalling.buildIDRStatement(
         infile1, infile2,
         T,
-        PARAMS['IDR_sourcecommand'],
-        PARAMS['IDR_unsourcecommand'],
         idrthresh,
         idrPARAMS, options, oraclefile, test=True)
 
@@ -1288,8 +1297,6 @@ def runIDR(infile, outfile):
         statement = PipelinePeakcalling.buildIDRStatement(
             infile1, infile2,
             outfile,
-            PARAMS['IDR_sourcecommand'],
-            PARAMS['IDR_unsourcecommand'],
             idrthresh,
             idrPARAMS, options, oraclefile)
 
@@ -1423,6 +1430,7 @@ def summariseIDR(infiles, outfile):
 
 
 @active_if(IDR_ON)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(summariseIDR, suffix(".tsv"), ".load")
 def loadIDRsummary(infile, outfile):
     P.load(infile, outfile)
@@ -1435,6 +1443,7 @@ def runIDRQC(infile, outfile):
 
 
 @active_if(IDR_ON)
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runIDRQC, suffix(".tsv"), ".load")
 def loadIDRQC(infile, outfile):
     P.load(infile, outfile)
@@ -1643,17 +1652,6 @@ def update_report():
     E.info("updating documentation")
     P.run_report(clean=False)
 
-
-@follows(mkdir("%s/bamfiles" % PARAMS["web_dir"]),
-         mkdir("%s/medips" % PARAMS["web_dir"]),
-         )
-def publish():
-    '''publish files to web directory'''
-
-    # directory : files
-
-    # publish web pages
-    # P.publish_report(export_files=export_files)
 
 ###############################################################
 # Notebook reports

@@ -1,0 +1,30 @@
+---
+title: "Annotation report"
+---
+
+Typically in a sequencing experiment a lot of focus is directed towards ensuring that the quality control of fastq files is good. However, equally important is quality checking the mapping. Currently there are a number of cgat specific and external tools that have been developed to assess this.
+
+The aim of this report is to collate the quality statistics generated from these tools accross your bam files following mapping. The pipeline inputs a bam file and then runs the following tools:
+
+The pipeline perform the following stats in each folder:
+
+    * IdxStats     -Samtools idxstats is ran and this calculates
+                    the number of mapped and unmapped reads per contig.
+                    
+    * BamStats     -This is a CGAT script (bam2stats) that performs stats
+                    on a bam file and outputs alignment statistics.
+                    
+    * PicardStats  -this runs to CollectRnaSeqMetrics picard tools.
+    
+    * StrandSpec   -Gives a measure of the proportion of reads that map to
+                    each strand. Is used to work out strandness of library
+                    if unknown.
+                    
+    * nreads       -Calculates the number of reads in the bam file.
+    
+    * Paired_QC    -This contains metrics that are only required for paired
+                    end seqencing. Exon validation is perfomred using the cgat script
+                    bam_vs_gtf. Most of the statistics concern 
+                    splicing.
+
+

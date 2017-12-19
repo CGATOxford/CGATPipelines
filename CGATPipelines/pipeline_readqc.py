@@ -115,7 +115,7 @@ Requirements:
 
 # import ruffus
 from ruffus import transform, merge, follows, mkdir, regex, suffix, \
-    jobs_limit, subdivide, collate, active_if
+    jobs_limit, subdivide, collate, active_if, originate
 
 # import useful standard python modules
 import sys
@@ -400,6 +400,14 @@ def runFastqScreen(infiles, outfile):
     tempdir = P.getTempDir(".")
     outdir = os.path.join(PARAMS["exportdir"], "fastq_screen")
 
+    # configure job_threads with fastq_screen_options from PARAMS
+    job_threads = re.findall(r'--threads \d+', PARAMS['fastq_screen_options'])
+    if len(job_threads) != 1:
+        raise ValueError("Wrong number of threads for fastq_screen")
+
+    job_threads = int(re.sub(r'--threads ', '', job_threads[0]))
+    job_memory = "8G"
+
     # Create fastq_screen config file in temp directory
     # using parameters from Pipeline.ini
     with IOTools.openFile(os.path.join(tempdir, "fastq_screen.conf"),
@@ -461,6 +469,7 @@ def combineExperimentLevelReadQualities(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(combineExperimentLevelReadQualities,
            regex(".+/(.+).tsv"),
            r"\1.load")
@@ -468,6 +477,7 @@ def loadExperimentLevelReadQualities(infile, outfile):
     P.load(infile, outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((buildFastQCSummaryStatus, buildFastQCSummaryBasicStatistics),
            suffix(".tsv.gz"), ".load")
 def loadFastqcSummary(infile, outfile):
@@ -482,12 +492,18 @@ def full():
     pass
 
 
-@follows()
-def publish():
-    '''publish files.'''
-    P.publish_report()
+@follows(mkdir("MultiQC_report.dir"))
+@originate("MultiQC_report.dir/multiqc_report.html")
+def renderMultiqc(infile):
+    '''build mulitqc report'''
+
+    statement = '''LANG=en_GB.UTF-8 multiqc . -f;
+                   mv multiqc_report.html MultiQC_report.dir/'''
+
+    P.run()
 
 
+@follows(renderMultiqc)
 @follows(mkdir("report"))
 def build_report():
     '''build report from scratch.'''
@@ -496,19 +512,10 @@ def build_report():
     P.run_report(clean=True)
 
 
-@follows(mkdir("report"))
-def update_report():
-    '''update report.'''
-
-    E.info("updating documentation")
-    P.run_report(clean=False)
-
-
 def main(argv=None):
     if argv is None:
         argv = sys.argv
     P.main(argv)
-
 
 if __name__ == "__main__":
     sys.exit(P.main(sys.argv))

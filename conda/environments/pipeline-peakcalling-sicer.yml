@@ -1,0 +1,13 @@
+
+# This environment will install SICER for pipeline_peakcalling
+
+name: sicer
+
+channels:
+- bioconda
+- conda-forge
+- defaults
+
+dependencies:
+- sicer=1.1
+

@@ -4,6 +4,17 @@ Release notes
 
 The CGAT pipelines have not been published yet. Please use the latest version from the repository.
 
+0.3.2
+-----
+
+* removed GCProfile calls from pipelines; https://github.com/CGATOxford/CGATPipelines/pull/368
+* updated installation; https://github.com/CGATOxford/CGATPipelines/pull/370, https://github.com/CGATOxford/CGATPipelines/pull/371, https://github.com/CGATOxford/CGATPipelines/pull/372, https://github.com/CGATOxford/CGATPipelines/pull/375, https://github.com/CGATOxford/CGATPipelines/pull/377
+* pipeline_readqc.py: call cgat script with cgat command; https://github.com/CGATOxford/CGATPipelines/pull/374
+* PipelineMapping.py: fix so star will work with muti QC; https://github.com/CGATOxford/CGATPipelines/pull/376
+* code changes for improved portability of pipelines; https://github.com/CGATOxford/CGATPipelines/pull/380
+* create Python 2 environments for legacy dependencies; https://github.com/CGATOxford/CGATPipelines/pull/381
+* re-factored pipeline_annotations and pipeline_mappinginto pipeline_genesets and pipeline_bamstats respectively; https://github.com/CGATOxford/CGATPipelines/pull/373
+
 0.3.1
 -----
 

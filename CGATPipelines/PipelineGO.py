@@ -304,15 +304,11 @@ def createGOSlimFromENSEMBL(infile, outfile):
 
     dirname = os.path.dirname(outfile)
 
-    E.info("downloading GOSlim specification from %s" %
-           PARAMS["go_url_goslim"])
     goslim_fn = os.path.join(dirname, "goslim.obo")
     statement = '''wget %(go_url_goslim)s
     --output-document=%(goslim_fn)s'''
     P.run()
 
-    E.info("downloading GO ontology from %s" %
-           PARAMS["go_url_ontology"])
     ontology_fn = os.path.join(dirname, "go_onotology.obo")
     statement = '''wget %(go_url_ontology)s
     --output-document=%(ontology_fn)s'''

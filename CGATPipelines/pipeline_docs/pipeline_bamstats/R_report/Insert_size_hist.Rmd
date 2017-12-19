@@ -1,0 +1,77 @@
+---
+title: "**Insert size**"
+---
+
+This page describes the base distribution of each of the samples. This is ran as part of picard metrics.For more information on the definitions of each of the metrics please see the following 
+<a href="https://broadinstitute.github.io/picard/picard-metric-definitions.html">link</a>.
+<br>
+<br>
+
+# **Insert size metrics**
+
+```{r Insert_metrics, echo=FALSE}
+
+library(knitr)
+library("RSQLite")
+library("DBI")
+library(stringr)
+library("rmarkdown") # Make cool dynamic documents
+library("knitr") # Run R Code Chunks
+library("ggplot2") # For plotting
+library("DT") # Interactove html tables
+library(ggplot2)
+library(reshape2)
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+
+table = dbExistsTable(mydb, "picard_stats_insert_size_metrics")
+
+if (table == TRUE){
+  db <- dbGetQuery(mydb, 'SELECT * FROM picard_stats_insert_size_metrics;')
+  db_1 <- db[,c("track", "MAX_INSERT_SIZE", "MIN_INSERT_SIZE","MEAN_INSERT_SIZE", "MEDIAN_INSERT_SIZE", "PAIR_ORIENTATION", "READ_PAIRS")]
+
+DT::datatable(as.data.frame(db_1, class = 'cell-border stripe'))
+}else{
+  print("The samples are not paired so no insert sizes can be calculated")
+}
+
+db <- NULL
+
+```
+
+<br>
+<br>
+<br>
+The following table shows the picard metrics for the "width" of the bins, centered around the median, that encompass 10-100% of all read pairs. 
+
+```{r picard-percent, echo=FALSE}
+db_2 <- db[,c("track", "WIDTH_OF_10_PERCENT", "WIDTH_OF_40_PERCENT", "WIDTH_OF_60_PERCENT", "WIDTH_OF_80_PERCENT", "WIDTH_OF_90_PERCENT", "WIDTH_OF_99_PERCENT")]
+DT::datatable(as.data.frame(db_2, class = 'cell-border stripe'))
+```
+
+
+<br>
+<br>
+<br>
+
+# **Histogram of insert size distribution**
+
+The following plots show the histograms of insert sizes generated as part of the pipeline.
+
+```{r Insert_size_hist, results='asis', echo=FALSE}
+
+setwd("..")
+plots <- Sys.glob("Picard_stats.dir/*.picard_stats.insert_size_histogram.pdf")
+
+wd <- getwd()
+
+for (i in plots){
+  filename <- file.path(wd,i)
+  output <- paste("<div id=\"bg\"><embed src=\"",filename,"\" width=\"400\" height=\"400\"></div>")
+  header <- paste("<h4>",i,"</h4>")
+  cat(header)
+  cat(output, sep="\n")
+}
+
+```

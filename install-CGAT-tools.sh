@@ -172,6 +172,12 @@ echo " CONDA_INSTALL_TYPE_PIPELINES: "$CONDA_INSTALL_TYPE_PIPELINES
 echo " CONDA_INSTALL_ENV: "$CONDA_INSTALL_ENV
 echo " PYTHONPATH: "$PYTHONPATH
 [[ ! $INSTALL_TEST ]] && echo " PIPELINES_BRANCH: "$PIPELINES_BRANCH
+[[ ! $INSTALL_TEST ]] && echo " SCRIPTS_BRANCH: "$SCRIPTS_BRANCH
+[[ ! $INSTALL_TEST ]] && echo " RELEASE: "$RELEASE
+echo " CODE_DOWNLOAD_TYPE: "$CODE_DOWNLOAD_TYPE
+echo " INSTALL_IDE: "$INSTALL_IDE
+echo " CGAT_DASHBOARD: "$CGAT_DASHBOARD
+echo " CLUSTER: "$CLUSTER
 echo
 
 } # print_env_vars
@@ -253,37 +259,54 @@ pip install 'bx-python==0.7.3'
 
 log "installing CGAT code into conda environment"
 # if installation is 'devel' (outside of travis), checkout latest version from github
-if [[ "$OS" != "travis" ]] ; then
+if [[ -z ${TRAVIS_INSTALL} ]] ; then
 
    DEV_RESULT=0
 
-   if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] ; then
+   if [[ $INSTALL_DEVEL ]] || [[ $INSTALL_PRODUCTION ]] || [[ $JENKINS_INSTALL ]] ; then
 
       # install extra deps
       install_extra_deps
 
+      # install Python 2 deps
+      install_py2_deps
+
       # make sure you are in the CGAT_HOME folder
       cd $CGAT_HOME
 
-      if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
-         # get the latest version from Git Hub in zip format
-         wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
-         unzip $PIPELINES_BRANCH.zip
-         rm $PIPELINES_BRANCH.zip
-         mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
+      # download the code out of jenkins
+      if [[ -z ${JENKINS_INSTALL} ]] ; then
 
-      elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
-         # get latest version from Git Hub with git clone
-         git clone --branch=$PIPELINES_BRANCH https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
-      elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
-         # get latest version from Git Hub with git clone
-         git clone --branch=$PIPELINES_BRANCH git@github.com:CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+         if [[ $CODE_DOWNLOAD_TYPE -eq 0 ]] ; then
+            # get the latest version from Git Hub in zip format
+            wget https://github.com/CGATOxford/CGATPipelines/archive/$PIPELINES_BRANCH.zip
+            unzip $PIPELINES_BRANCH.zip
+            rm $PIPELINES_BRANCH.zip
+            if [[ ${RELEASE} ]] ; then
+               NEW_NAME=`echo $PIPELINES_BRANCH | sed 's/^v//g'`
+               mv CGATPipelines-$NEW_NAME/ cgat-pipelines/
+            else
+               mv CGATPipelines-$PIPELINES_BRANCH/ cgat-pipelines/
+            fi
+         elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
+            # get latest version from Git Hub with git clone
+            git clone --branch=$PIPELINES_BRANCH https://github.com/CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+         elif [[ $CODE_DOWNLOAD_TYPE -eq 2 ]] ; then
+            # get latest version from Git Hub with git clone
+            git clone --branch=$PIPELINES_BRANCH git@github.com:CGATOxford/CGATPipelines.git $CGAT_HOME/cgat-pipelines
+         else
+            report_error " Unknown download type for CGAT code... "
+         fi
+
+         # make sure you are in the CGAT_HOME/cgat-pipelines folder
+         cd $CGAT_HOME/cgat-pipelines
+
       else
-         report_error " Unknown download type for CGAT code... "
-      fi
 
-      # make sure you are in the CGAT_HOME/cgat-pipelines folder
-      cd $CGAT_HOME/cgat-pipelines
+         # in jenkins the code is in CGAT_HOME/CGATPipelines
+         cd $CGAT_HOME/CGATPipelines
+
+      fi
 
       # Set up other environment variables
       setup_env_vars
@@ -352,21 +375,35 @@ install_extra_deps() {
 
 log "install extra deps"
 
-   wget -O env-extra-pipelines.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
-   wget -O env-extra-scripts.yml https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
+wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-extra.yml
+wget https://raw.githubusercontent.com/CGATOxford/cgat/${SCRIPTS_BRANCH}/conda/environments/scripts-extra.yml
 
-   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-pipelines.yml
-   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-extra-scripts.yml
+conda env update --quiet --name ${CONDA_INSTALL_ENV} --file pipelines-extra.yml
+conda env update --quiet --name ${CONDA_INSTALL_ENV} --file scripts-extra.yml
 
-   if [[ ${INSTALL_IDE} -eq 1 ]] ; then
-
-      wget -O env-ide.yml https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-ide.yml
-
-      conda env update --quiet --name ${CONDA_INSTALL_ENV} --file env-ide.yml
-
-   fi
+if [[ ${INSTALL_IDE} -eq 1 ]] ; then
+   wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-ide.yml
+   conda env update --quiet --name ${CONDA_INSTALL_ENV} --file pipelines-ide.yml
+fi
 
 }
+
+
+# install Python 2 dependencies in a different conda environment
+install_py2_deps() {
+
+log "install Python 2 deps"
+
+wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipelines-py2.yml
+
+conda env update --quiet --file pipelines-py2.yml
+
+wget https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${TRAVIS_BRANCH}/conda/environments/pipeline-peakcalling-sicer.yml
+
+conda env update --quiet --file pipeline-peakcalling-sicer.yml
+
+}
+
 
 # need to install the CGAT Code Collection as well
 install_cgat_scripts() {
@@ -387,7 +424,12 @@ else
       wget https://github.com/CGATOxford/cgat/archive/$SCRIPTS_BRANCH.zip
       unzip $SCRIPTS_BRANCH.zip
       rm $SCRIPTS_BRANCH.zip
-      mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
+      if [[ ${RELEASE} ]] ; then
+         NEW_NAME=`echo $SCRIPTS_BRANCH | sed 's/^v//g'`
+         mv cgat-$NEW_NAME/ cgat-scripts/
+      else
+         mv cgat-$SCRIPTS_BRANCH/ cgat-scripts/
+      fi
    elif [[ $CODE_DOWNLOAD_TYPE -eq 1 ]] ; then
       # get latest version from Git Hub with git clone
       git clone --branch=$SCRIPTS_BRANCH https://github.com/CGATOxford/cgat.git $CGAT_HOME/cgat-scripts
@@ -534,7 +576,7 @@ else
       exit 1
    fi
 
-fi # if-OS
+fi # if travis or jenkins
 
 } # conda_test
 
@@ -601,6 +643,19 @@ fi
 }
 
 
+# test whether --git and --git-ssh download is doable
+test_git() {
+   git --version >& /dev/null || GIT_AVAIL=$?
+   if [[ $GIT_AVAIL -ne 0 ]] ; then
+      echo
+      echo " Git is not available but --git or --git-ssh option was given."
+      echo " Please rerun this script on a computer with git installed "
+      echo " or try again without --git or --git-ssh"
+      report_error " "
+   fi
+}
+
+
 # test whether --git-ssh download is doable
 test_git_ssh() {
    ssh-add -L >& /dev/null || SSH_KEYS_LOADED=$?
@@ -616,25 +671,91 @@ test_git_ssh() {
 }
 
 
+# don't mix branch and release options together
+test_mix_branch_release() {
+   # don't mix branch and release options together
+   if [[ $RELEASE ]] ; then
+      if [[ "$PIPELINES_BRANCH" != "master" ]] || [[ $SCRIPTS_BRANCH != "master" ]] ; then
+         echo
+         echo " You cannot mix git branches and releases for the installation."
+         echo
+         echo " Your input was: "$SCRIPT_PARAMS
+         report_error " Please either use branches or releases but not both."
+      fi
+   fi
+}
+
+# test whether a release exists or not
+# https://stackoverflow.com/questions/12199059/how-to-check-if-an-url-exists-with-the-shell-and-probably-curl
+test_release() {
+   RELEASE_PIPELINES=0
+   # check pipelines
+   curl --output /dev/null \
+      --silent --head --fail \
+      https://raw.githubusercontent.com/CGATOxford/CGATPipelines/${RELEASE}/README.rst || RELEASE_PIPELINES=$?
+
+if [[ ${RELEASE_PIPELINES} -ne 0 ]] ; then
+      echo
+      echo " The release number provided for the pipelines does not exist: ${RELEASE}"
+      echo
+      echo " Please have a look at valid releases here: "
+      echo " https://github.com/CGATOxford/CGATPipelines/releases"
+      echo
+      echo " An example of valid release is: --release v0.3.1"
+      report_error " Please use a valid release and try again."
+   fi
+      
+   RELEASE_SCRIPTS=0
+   # check scripts
+   curl --output /dev/null \
+      --silent --head --fail \
+      https://raw.githubusercontent.com/CGATOxford/cgat/${RELEASE}/README.rst || RELEASE_SCRIPTS=$?
+      
+   if [[ ${RELEASE_SCRIPTS} -ne 0 ]] ; then
+      echo
+      echo " The release number provided for the scripts does not exist: ${RELEASE}"
+      echo
+      echo " Please have a look at valid releases here: "
+      echo " https://github.com/CGATOxford/cgat/releases"
+      echo
+      echo " An example of valid release is: --release v0.3.1"
+      report_error " Please use a valid release and try again."
+   fi
+}
+
+
 # function to display help message
 help_message() {
 echo
 echo " This script uses Conda to install the CGAT pipelines:"
 echo " https://www.cgat.org/downloads/public/cgatpipelines/documentation/"
 echo
-echo " To install a set of production pipelines, please type:"
-echo " ./install-CGAT-tools.sh --production [--location </full/path/to/folder/without/trailing/slash>]"
-echo
-echo " If you want to try out a set of pipelines under active development, please type:"
-echo " ./install-CGAT-tools.sh --devel [--location </full/path/to/folder/without/trailing/slash>]"
+echo " To install the pipelines please type:"
+echo " ./install-CGAT-tools.sh --devel --no-dashboard [--location </full/path/to/folder/without/trailing/slash>]"
 echo
 echo " The default location is: $HOME/cgat-install"
 echo
-echo " It is also possible to install/test a specific branch of the code on github:"
-echo " ./install-CGAT-tools.sh --devel --pipelines-branch <branch> --scripts-branch <branch>"
+echo " It is also possible to install/test a specific branch of the code on GitHub:"
+echo " ./install-CGAT-tools.sh --devel --no-dashboard --pipelines-branch <branch> --scripts-branch <branch>"
 echo
 echo " This will create an isolated Conda environment with both the pipelines and the scripts from:"
 echo " https://github.com/CGATOxford/cgat"
+echo
+echo " The default name of the newly created conda environment is cgat-p, but you can change it with:"
+echo " --env-name name"
+echo
+echo " The code is downloaded in zip format by default. If you want to get a git clone, use:"
+echo " --git # for an HTTPS clone"
+echo " --git-ssh # for a SSH clone (you need to be a CGATOXford contributor on GitHub to do this)"
+echo
+echo " The pipelines are intended to run on a cluster using the DRMAA API. If that's not your case, please use:"
+echo " --no-cluster"
+echo
+echo " If you want to download and install IDEs like Spyder or RStudio with this installation, please use:"
+echo " --ide"
+echo
+echo " As of release v0.3.1 it is also possible to install specific releases of the code:"
+echo " --release v0.3.1"
 echo
 echo " To test the installation:"
 echo " ./install-CGAT-tools.sh --test [--location </full/path/to/folder/without/trailing/slash>]"
@@ -659,8 +780,6 @@ if [[ $# -eq 0 ]] ; then
 
 fi
 
-# these variables will store the information about input parameters
-OS="default"
 # travis execution
 TRAVIS_INSTALL=
 # jenkins testing
@@ -676,7 +795,8 @@ INSTALL_UPDATE=
 UNINSTALL=
 UNINSTALL_DIR=
 # where to install CGAT code
-CGAT_HOME=
+# default value is in HOME
+CGAT_HOME=$HOME/cgat-install
 # how to download CGAT code:
 # 0 = as zip (default)
 # 1 = git clone with https
@@ -702,6 +822,8 @@ CGAT_DASHBOARD=1
 # 0 = no
 # 1 = yes (default)
 CLUSTER=1
+# Install a released version?
+RELEASE=
 
 # parse input parameters
 # https://stackoverflow.com/questions/402377/using-getopts-in-bash-shell-script-to-get-long-and-short-command-line-options
@@ -735,11 +857,13 @@ case $key in
     --git)
     CODE_DOWNLOAD_TYPE=1
     shift
+    test_git
     ;;
 
     --git-ssh)
     CODE_DOWNLOAD_TYPE=2
     shift
+    test_git
     test_git_ssh
     ;;
 
@@ -775,11 +899,13 @@ case $key in
 
     --pipelines-branch)
     PIPELINES_BRANCH="$2"
+    test_mix_branch_release
     shift 2
     ;;
 
     --scripts-branch)
     SCRIPTS_BRANCH="$2"
+    test_mix_branch_release
     shift 2
     ;;
 
@@ -798,25 +924,39 @@ case $key in
     shift
     ;;
 
+    --release)
+    RELEASE="$2"
+    test_mix_branch_release
+    test_release
+    PIPELINES_BRANCH="$2"
+    SCRIPTS_BRANCH="$2"
+    shift 2
+    ;;
+
     --env-name)
     CONDA_INSTALL_ENV="$2"
     shift 2
     ;;
 
     *)
+    echo
+    echo
+    echo " Wrong input: ${SCRIPT_NAME} ${SCRIPT_PARAMS}"
+    echo
     help_message
     ;;
 
 esac
 done
 
-# sanity checks
+# sanity check 1: don't mix production and development installs
 if [[ $INSTALL_PRODUCTION ]] && [[ $INSTALL_DEVEL ]] ; then
 
    report_error " Incorrect input arguments: mixing --production and --devel is not permitted. "
 
 fi
 
+# sanity check 2: make sure one installation option is selected
 if [[ -z $INSTALL_PRODUCTION ]] && \
    [[ -z $INSTALL_DEVEL ]] && \
    [[ -z $TRAVIS_INSTALL ]] && \
@@ -826,14 +966,14 @@ if [[ -z $INSTALL_PRODUCTION ]] && \
 
 fi
 
+# sanity check 3: make sure there is space available in the destination folder (20 GB)
+[[ -z ${TRAVIS_INSTALL} ]] && \
+mkdir -p ${CGAT_HOME} && \
+[[ `df --block-size=1 ${CGAT_HOME} | awk '/\// {print $3}'` -lt 21474836480  ]] && \
+   report_error " Not enought disk space available on the installation folder: "$CGAT_HOME
+
 # perform actions according to the input parameters processed
-if [[ $TRAVIS_INSTALL ]] ; then
-
-  OS="travis"
-  conda_install
-  conda_test
-
-elif [[ $JENKINS_INSTALL ]] ; then
+if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
 
   conda_install
   conda_test

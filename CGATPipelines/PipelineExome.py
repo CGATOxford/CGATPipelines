@@ -53,7 +53,7 @@ def GATKReadGroups(infile, outfile, genome,
     job_options = getGATKOptions()
     job_threads = 3
 
-    statement = '''ReorderSam
+    statement = '''picard ReorderSam
                     INPUT=%(infile)s
                     OUTPUT=%(tmpdir_gatk)s/%(track)s.reordered.bam
                     REFERENCE=%(genome)s
@@ -63,7 +63,7 @@ def GATKReadGroups(infile, outfile, genome,
     statement += '''samtools index %(tmpdir_gatk)s/%(track)s.reordered.bam ;
                     checkpoint ;''' % locals()
 
-    statement += '''AddOrReplaceReadGroups
+    statement += '''picard AddOrReplaceReadGroups
                     INPUT=%(tmpdir_gatk)s/%(track)s.reordered.bam
                     OUTPUT=%(outfile)s
                     RGLB=%(library)s

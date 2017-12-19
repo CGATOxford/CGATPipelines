@@ -146,7 +146,7 @@ PARAMS = P.getParameters(
 PARAMS = P.PARAMS
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))  # add config values from associated pipelines

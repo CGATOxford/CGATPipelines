@@ -30,7 +30,17 @@ Here are the steps::
         # install the development version (recommended, no production version yet):
         bash install-CGAT-tools.sh --devel --no-dashboard [--location </full/path/to/folder/without/trailing/slash>]
 
-        # enable the conda environment as requested by the installation script:
+        # the code is downloaded in zip format by default. If you want to get a git clone, use:
+           --git # for an HTTPS clone
+           --git-ssh # for a SSH clone (you need to be a CGATOXford contributor on GitHub to do this)
+
+        # the pipelines are intended to run on a cluster using the DRMAA API. If that's not your case, please use:
+           --no-cluster
+
+        # if you want to download and install IDEs like Spyder or RStudio with this installation, please use:
+           --ide
+
+        # once the installation is finished, enable the conda environment as requested by the installation script:
         source </full/path/to/folder/without/trailing/slash>/conda-install/bin/activate cgat-p
 
         # finally, please run the cgatflow command-line tool to check the installation:

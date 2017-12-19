@@ -87,7 +87,7 @@ PARAMS = P.getParameters(
 #    "annotations_dir" to point to the absolute path names.
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))
@@ -394,6 +394,7 @@ def mergeSailfishRuns(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(mergeSailfishRuns)
 @transform(mergeSailfishRuns,
            suffix(".tpm"),
@@ -434,6 +435,7 @@ def mergeSailfishCounts(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(mergeSailfishCounts)
 @transform(mergeSailfishCounts,
            suffix(".counts"),
@@ -474,7 +476,7 @@ def dedupBamFiles(infile, outfile):
     -XX:UseConcMarkSweepGC''' % job_memory
 
     statement = '''
-    MarkDuplicates
+    picard MarkDuplicates
     INPUT=%(infile)s
     ASSUME_SORTED=true
     METRICS_FILE=%(outfile)s.stats
@@ -525,7 +527,6 @@ def buildFeatureCounts(infiles, outfile):
     featureCounts %(featurecounts_options)s
     -T %(featurecounts_threads)s
     -s %(featurecounts_strand)s
-    -b
     -a %(annotations)s
     -o %(outfile)s
     %(infile)s
@@ -593,6 +594,7 @@ def aggregateAllFeatureCounts(infiles, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(aggregateAllFeatureCounts,
            suffix(".tsv.gz"),
            ".load")
@@ -819,6 +821,7 @@ def cleanQcTable(infile, outfile):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(cleanQcTable)
 @transform(cleanQcTable,
            suffix(".clean"),
@@ -848,6 +851,7 @@ def get_mapping_stats():
 # --------------------------------------------------- #
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform("%s" % PARAMS['meta'],
            suffix(".tsv"),
            ".load")

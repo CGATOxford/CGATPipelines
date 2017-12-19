@@ -1,0 +1,46 @@
+---
+title: "Transcript_profile"
+---
+
+This section of the report details all of the profiles that have been collected and collapsed accross the transcript profile.
+
+```{r Transcript_profile, comment=FALSE, echo=FALSE, cache=FALSE}
+
+library(knitr)
+library("RSQLite")
+library("DBI")
+library(stringr)
+library("rmarkdown") # Make cool dynamic documents
+library("knitr") # Run R Code Chunks
+library("ggplot2") # For plotting
+library("DT") # Interactove html tables
+library(ggplot2)
+library(reshape2)
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+db <- dbGetQuery(mydb, 'SELECT * FROM transcript_profile')
+
+library(ggplot2)
+
+
+sample_names <- colnames(db[,grep("bin|region|region_bin", names(db), invert=TRUE)])
+
+for (i in sample_names){
+  plot <- ggplot(data=db, aes(x=bin, y=db[i])) + geom_line() + geom_vline(xintercept = 999, colour="red") +
+    geom_vline(xintercept = 3999, colour="red") + 
+    geom_vline(xintercept = 4499, colour="red") +
+    labs(x = "transcript profile", y="Counts")+
+    theme(axis.text.x = element_text(angle = 90, hjust = 1), panel.border = element_blank(), 
+          panel.grid.minor = element_blank(),panel.background = element_blank(),
+          axis.line = element_line(colour = "black")) + 
+    annotate("text", x = 400, y = 3e+06, label = "Upstream")+
+    annotate("text", x = 2500, y = 3e+06, label = "Exons Last 3000bp") +
+    annotate("text", x = 4200, y = 3e+06, label = "Intron Last 500bp") +
+    annotate("text", x = 5000, y = 3.4e+06, label = "Downstream 2500bp") +
+    annotate("text", x = 2500, y = 2e+06, label = i, colour = "red")
+  cat(i)
+  print(plot)
+}
+
+```

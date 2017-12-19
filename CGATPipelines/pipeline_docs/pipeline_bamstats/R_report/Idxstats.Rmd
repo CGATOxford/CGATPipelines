@@ -1,0 +1,135 @@
+---
+title: "**Idx Stats**"
+---
+
+This section of the report details all of the stats that have been collates from the running **samtools idxstats**.
+
+
+## **Mapped reads per contig from samtools idxstats**
+
+<br>
+This section will provide information from the output of **samtools idxstats** tool. It outputs the number of mapped reads per chromosome/contig. Chromosomes with <0.1% of the total aligned reads are ommited from this plot.
+
+<br>
+<br>
+<br>
+
+
+```{r Idexstats, echo=FALSE}
+
+library(knitr)
+library("RSQLite")
+library("DBI")
+library(stringr)
+library("rmarkdown") # Make cool dynamic documents
+library("knitr") # Run R Code Chunks
+library("ggplot2") # For plotting
+library("DT") # Interactove html tables
+library(ggplot2)
+library(reshape2)
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+db <- dbGetQuery(mydb, 'SELECT * FROM idxstats_reads_per_chromosome;')
+
+
+db <- db[,grep("chr|track", names(db))]
+
+db <- melt(db, id.vars="track")
+
+
+ggplot(data=db, aes(x=variable, y=value, group=track, colour=track)) + geom_line() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  labs(x = "chromosome name", y="Counts")
+
+```
+
+<br>
+<br>
+<br>
+
+## **Counts of X and Y mapped reads** {.tabset}
+
+<br>
+The following graphs give you an indication of the number and percent of reads mapping to the **X** and **Y** chromosomes. This metric is helpful to determine gender bias.
+<br>
+<br>
+
+### Number of reads
+
+This graph shows the counts of the reads mapping to the X and Y contigs
+
+```{r X_Y_mapping, echo=FALSE}
+
+library(knitr)
+library("RSQLite")
+library("DBI")
+library(stringr)
+library("rmarkdown") # Make cool dynamic documents
+library("knitr") # Run R Code Chunks
+library("ggplot2") # For plotting
+library("DT") # Interactove html tables
+library(ggplot2)
+library(reshape2)
+setwd("./..")
+
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+db <- dbGetQuery(mydb, 'SELECT * FROM idxstats_reads_per_chromosome;')
+
+
+db <- db[,grep("chrX|chrY|track", names(db))]
+
+db <- melt(db, id.vars="track")
+
+
+ggplot(db, aes(x=track, y=value, fill=variable)) + geom_bar(stat="identity") +
+  theme_bw() + labs(x = "track", y="Counts")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  scale_fill_manual("legend", values = c("chrX" = "black", "chrY" = "orange"))+coord_flip()
+```
+
+### Percentage of reads
+
+This graph shows the percentage of the reads mapping to the X and Y contigs
+
+```{r X_Y_mapping_percent, echo=FALSE}
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+db <- dbGetQuery(mydb, 'SELECT * FROM idxstats_reads_per_chromosome;')
+
+
+db <- db[,grep("chrX|chrY|track", names(db))]
+
+percentageX <- function(x){
+  total <- x[1]+x[2]
+  chrX <- x[1]/total*100
+  chrY <- x[2]/total*100
+  chrX
+}
+percentageY <- function(x){
+  total <- x[1]+x[2]
+  chrX <- x[1]/total*100
+  chrY <- x[2]/total*100
+  chrY
+}
+chrX_P <- apply(db[,1:ncol(db)-1],1, percentageX)
+chrY_P <- apply(db[,1:ncol(db)-1],1, percentageY)
+
+db <- cbind(db, chrX_P)
+db <- cbind(db, chrY_P)
+
+db <- melt(db[3:ncol(db)], id.vars="track")
+
+ggplot(db, aes(x=track, y=value, fill=variable)) + geom_bar(stat="identity") +
+  theme_bw() + labs(x = "track", y="Counts")+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1), panel.border = element_blank(), 
+        panel.grid.minor = element_blank(),panel.background = element_blank(),
+        axis.line = element_line(colour = "black")) +
+  scale_fill_manual("legend", values = c("chrX_P" = "black", "chrY_P" = "orange"))+coord_flip()
+
+```

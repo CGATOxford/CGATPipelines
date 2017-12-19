@@ -155,7 +155,7 @@ PARAMS = P.PARAMS
 
 PARAMS_ANNOTATIONS = P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py")
+    "pipeline_genesets.py")
 
 ###################################################################
 ###################################################################
@@ -781,6 +781,7 @@ def runMast(infiles, outfile):
     PipelineMotifs.runMAST(infiles, outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(runMast,
            suffix(".mast.gz"),
            "_mast.load")

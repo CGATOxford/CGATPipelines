@@ -105,7 +105,7 @@ def convertReadsToIntervals(bamfile,
             statement.append('''samtools rmdup - - ''')
 
         elif filtering_dedup_method == 'picard':
-            statement.append('''MarkDuplicates
+            statement.append('''picard MarkDuplicates
             INPUT=%(current_file)s
             OUTPUT=%(next_file)s
             ASSUME_SORTED=TRUE

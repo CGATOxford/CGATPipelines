@@ -210,7 +210,7 @@ PARAMS = P.PARAMS
 
 PARAMS.update(P.peekParameters(
     PARAMS["annotations_dir"],
-    "pipeline_annotations.py",
+    "pipeline_genesets.py",
     prefix="annotations_",
     update_interface=True,
     restrict_interface=True))
@@ -1007,6 +1007,7 @@ def mergeSailfishResults(infiles, outfiles):
     P.run()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeSailfishResults,
            suffix(".tsv.gz"),
            ".load")
@@ -1408,6 +1409,7 @@ def buildFactorTable(infiles, outfile):
                                     ke, ",".join(sample_names)))
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform((buildExperimentTable, buildSamplesTable, buildFactorTable),
            suffix(".tsv"),
            ".load")
@@ -1518,6 +1520,7 @@ def summariseBias(infiles, outfile):
                            index=False, float_format='%.6f')
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(summariseBias,
            suffix(".tsv"),
            ".load")
@@ -1781,6 +1784,7 @@ def checkStrandednessSalmon(infiles, outfile):
     results.to_csv(outfile, sep="\t", index=None)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(checkStrandednessSalmon,
            suffix(".tsv"),
            ".load")
@@ -1839,12 +1843,6 @@ def plotStrandednessSalmon(infile, outfile):
          loadStrandednessSalmon)
 def full():
     pass
-
-
-@follows()
-def publish():
-    '''publish files.'''
-    P.publish_report()
 
 
 @follows(mkdir("report"))

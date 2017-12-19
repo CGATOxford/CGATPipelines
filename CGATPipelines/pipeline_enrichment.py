@@ -2,70 +2,85 @@
 :Tags: Python
 
 Usage
------------------------------------------------------------------------
-       Enrichment analysis (Gene set enrichment analysis(GSEA))
------------------------------------------------------------------------
+========================================================
+Enrichment analysis (Gene set enrichment analysis(GSEA))
+========================================================
+
 This pipeline is a wrapper of script runGSEA.py (enrichment analysis
-                                                by using GSEA. Further
-                                                description is provided
-                                                below.)
+by using GSEA. Further description is provided below.)
+
 To run this pipeline, one needs to specify required parameteres in
 pipeline.ini file (configuration file).
+
 This pipeline entails steps:
------------
+
+----------------------------------------------------------
 First step: Preprocessing of gene list(expression data set)
------------ Note: 1. Input gene list should be tab delimited file.
-                  	a. First line of dataset will be considered as
-                  	   header. Suffix of file name should be ".gene.tsv"
-                  	b. Gene ids within gene list and gene set should be the same
-                   2. Annotations from a Database:(to convert genelists)
-                         a. AnnotationSets are predominantly generated from a database using an
-                            AnnotationParser method.
-                         b. The Database is generated using the pipeline pipeline_geneinfo.py.
-                            This database is required to run pipeline_enrichment.
-            Input gene list is translated into required id type.
-            (Available options are specified in .ini file), sorts
-            the gene list on the basis of provided ranking metric.
-            It also removes all duplicate ids and generates report.
-            A summary of preprocessing steps of the gene list is provided and lists
-	    of duplicate gene ids that were discarded is also listed.
-            A new gene list file (after preprocessing is created in a folder
-            that has the same name as gene list file name. This new file is used
-            for further analysis.
-------------
-Second step: Call runGSEA.py script file for enrichemnt analysis
------------
+-----------------------------------------------------------
+
+Note:
+1. Input gene list should be tab delimited file.
+a. First line of dataset will be considered as
+header. Suffix of file name should be ".gene.tsv"
+b. Gene ids within gene list and gene set should be the same
+
+2. Annotations from a Database:(to convert genelists)
+a. AnnotationSets are predominantly generated from a database using an
+AnnotationParser method.
+b. The Database is generated using the pipeline pipeline_geneinfo.py.
+
+This database is required to run pipeline_enrichment.
+Input gene list is translated into required id type.
+(Available options are specified in .ini file), sorts
+the gene list on the basis of provided ranking metric.
+It also removes all duplicate ids and generates report.
+A summary of preprocessing steps of the gene list is provided and lists
+of duplicate gene ids that were discarded is also listed.
+A new gene list file (after preprocessing is created in a folder
+that has the same name as gene list file name. This new file is used
+for further analysis.
+
+---------------------------------------------------------------
+Second step: Call runGSE.py script file for enrichemnt analysis
+---------------------------------------------------------------
+
 This script will perform the enrichment analysis, by using gene set enrichment analysis
 (GSEA) and leading edge analysis.
-            "Leading edge are defined as genes that are common to multiple
-             significantly enriched gene sets  and  coordinately  enriched
-             in a phenotypic comparison of interest.They represent a rich
-             source of biologically important  genes."
------
-It takes two input files:
-      1. Ranked list of genes (Preprocessed Expression data set file,
-                               created by first step of pipeline).
-      2. Gene set
-          - A gene sets file defines one or more gene sets. For each gene
-            set,the file contains the gene set name and the list of genes in
-            that gene set. A gene sets file is a tab-delimited text file in
-            gmx or gmt format. For descriptions and examples of each file
-            format please refer to:
-            http://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats
+"Leading edge are defined as genes that are common to multiple
+significantly enriched gene sets  and  coordinately  enriched
+in a phenotypic comparison of interest.They represent a rich
+source of biologically important  genes."
 
-          - The Molecular Signatures Database (MSigDB)
-            (http://software.broadinstitute.org/gsea/msigdb/index.jsp)
-            is a collection of annotated gene sets, which can be used for gene
-            set enrichment analysis.OR you can create your own gene set in gmt
-            or gmx format.
-      3. Rest of the parameters can be specified in to pipeline.ini configuration
-         file. Every parameter is set to deafult value.
+===========
+Input files
+===========
+
+It takes two input files:
+1. Ranked list of genes (Preprocessed Expression data set file,
+created by first step of pipeline).
+
+2. Gene set
+- A gene sets file defines one or more gene sets. For each gene
+set,the file contains the gene set name and the list of genes in
+that gene set. A gene sets file is a tab-delimited text file in
+gmx or gmt format. For descriptions and examples of each file
+format please refer to:
+http://software.broadinstitute.org/cancer/software/gsea/wiki/index.php/Data_formats
+
+- The Molecular Signatures Database (MSigDB)
+(http://software.broadinstitute.org/gsea/msigdb/index.jsp)
+is a collection of annotated gene sets, which can be used for gene
+set enrichment analysis.OR you can create your own gene set in gmt
+or gmx format.
+
+3. Rest of the parameters can be specified in to pipeline.ini configuration
+file. Every parameter is set to deafult value.
 
 
 This script will summarize the analysis in the following format:
-       1. GSEA Statistics
-       2. GSEA Report
-       3. Leading edge analysis report
+   1. GSEA Statistics
+   2. GSEA Report
+   3. Leading edge analysis report
 
 example
 -------
@@ -80,55 +95,69 @@ cgat runGSEA -f "Expression_data.tsv" -g "Gene_set.gmt"
 GSEA Statistics
 ---------------
 It includes following statistics for GSEA(for each phenotype):
-          - Enrichment Score (ES)
-          - Normalized Enrichment Score (NES)
-          - False Discovery Rate (FDR)
-          - Nominal P Value
+   - Enrichment Score (ES)
+   - Normalized Enrichment Score (NES)
+   - False Discovery Rate (FDR)
+   - Nominal P Value
 
 --------------
 GSEA reports
 --------------
-	- Global Statistics and Plots include:
-	    a) Enrichment plot,
-            b) Three separate bar plots that provide a quick overview of top 20 (this number is user defined)
-	       enriched upregulated, downregulated and overall enriched genesets on the basis of their FDR values.
-            c) Global distribution of normalized enrichment score
-            d) Global distribution of normalized enrichment score with corresponding FDR q values and p values.
-        - Reports:
-		1 - Enrichment in Phenotype (of up and downregulated genes)
-           	  This report provides summary of enrichment analysis of each phenotype.
-            	  It includes details of which genesets are up and downregulated and a summary
-	    	  of significant enriched gensets on the basis of FDR and p values.)
-         	2 - Gene Set Details
-                  This report provides summary of preprocessing steps of the genesets provided and
-	   	  lists genes sets that were used in the anlysis and which one were discarded due to set thresholds
-         	3 - Detailed Enrichment Results
-         	  This report provides detail statistics of each geneset(for each phenotype). Three reports are
-         	  generated. report for uoregulated genesets, downregulated genesets, and enriched genesets organised
-         	  on the basis of their FDR values.
 
-	    By default, enrichment plot for top 20 gene sets will be reported.
+- Global Statistics and Plots include:
+
+   a) Enrichment plot,
+   b) Three separate bar plots that provide a quick overview of top 20 (this number is user defined)
+   enriched upregulated, downregulated and overall enriched genesets on the basis of their FDR values.
+   c) Global distribution of normalized enrichment score
+   d) Global distribution of normalized enrichment score with corresponding FDR q values and p values.
+
+- Reports:
+
+   1 - Enrichment in Phenotype (of up and downregulated genes)
+   This report provides summary of enrichment analysis of each phenotype.
+   It includes details of which genesets are up and downregulated and a summary
+   of significant enriched gensets on the basis of FDR and p values.)
+
+   2 - Gene Set Details
+   This report provides summary of preprocessing steps of the genesets provided and
+   lists genes sets that were used in the anlysis and which one were discarded due to set thresholds
+
+   3 - Detailed Enrichment Results
+   This report provides detail statistics of each geneset(for each phenotype). Three reports are
+   generated. report for uoregulated genesets, downregulated genesets, and enriched genesets organised
+   on the basis of their FDR values.
+
+By default, enrichment plot for top 20 gene sets will be reported.
+
 ----------------------------
 Leading edge analysis report
 ----------------------------
+
 It will report graphs that help you visualize the overlap between the selected leading edge subsets. It also
 summarises the analysis in the form of reports. By default top 10 enriched genesets will be used for leading edge analysis.
-	- Leading edge plots include:
-             a) Heat Map(unclustered)
-          	This provides an overview of overlap between leading edge subsets
-             b) Heat Map(clustered)
-          	This heat map will be generated after hierarchical clustering of leading edge subset. It will
-          	show you clustered genes among subsets
-       	     c) Set-to-Set Heat Map
-                This plot help you to visualize intensity of overlap between subsets (i.e. the extent of overlap between two genesets)
-             d) Dendogram to illustrate the arrangement of the clusters produced by hierarchical clustering.
-         - Reports:
-             1- Leading_edge_summary_report: summary of genesets and corresponding enrichment statistics that were used for the leading edge analysis.
-             2- Leading edge matrix (gmx) file provides detailed information on leading edge analysis genesets
-                (i.e. participating genes in each gene set).
-             3- Leading edge (gct,cluster format) files for unclustered and clustered gene set. It is a boolean matrix.
-                that can be used as an input into other resources for additional analysis as this is ideal format for cluster representation
-                (in GSEA)
+- Leading edge plots include:
+
+   a) Heat Map(unclustered)
+   This provides an overview of overlap between leading edge subsets
+
+   b) Heat Map(clustered)
+   This heat map will be generated after hierarchical clustering of leading edge subset. It will
+   show you clustered genes among subsets
+
+   c) Set-to-Set Heat Map
+   This plot help you to visualize intensity of overlap between subsets (i.e. the extent of overlap between two genesets)
+
+   d) Dendogram to illustrate the arrangement of the clusters produced by hierarchical clustering.
+
+- Reports:
+   1- Leading_edge_summary_report: summary of genesets and corresponding enrichment statistics that were used for the leading edge analysis.
+   2- Leading edge matrix (gmx) file provides detailed information on leading edge analysis genesets
+   (i.e. participating genes in each gene set).
+   3- Leading edge (gct,cluster format) files for unclustered and clustered gene set. It is a boolean matrix.
+   that can be used as an input into other resources for additional analysis as this is ideal format for cluster representation
+   (in GSEA)
+
 For details on the algorithm please refer to
 Subramanian, Tamayo, et al. (2005, PNAS 102, 15545-15550)
                     and
@@ -137,12 +166,14 @@ Mootha, Lindgren, et al. (2003, Nat Genet 34, 267-273).
 ----------------------------------------------------------------------------
        Enrichment analysis (Overrepresentative analysis(ORA))
 ----------------------------------------------------------------------------
+
 This pipeline calculates if any of a list of "terms" (any list of identifiers
 which has been mapped to correspond to a list of genes) are significantly
 more often mapped to a gene in the "foreground" - a list of genes identified
 in an experiment, e.g. differentially expressed genes, than would be expected
 given the "background" - a list of all genes which could have been identified
 in the experiment.
+
 For example, if looking for enrichment in the list of genes which are
 differentially expressed in diseased vs control kidney samples, the
 foreground would be the list of significantly differentially expressed genes
@@ -376,6 +407,7 @@ def runGsea(infile, outfile):
     no = PARAMS['stats_gsea_permut']
     p_no = PARAMS['stats_gsea_display_num']
     l_no = PARAMS['stats_gsea_ngeneset']
+
     statement = '''basename %(infile)s .processed |
                    awk '{split($0,a,"/"); print a[1]}'
                    | xargs mkdir; cd $(basename %(infile)s .processed | awk '{split($0,a,"/"); print a[1]}')

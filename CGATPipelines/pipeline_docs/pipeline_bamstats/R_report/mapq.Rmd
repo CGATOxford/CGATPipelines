@@ -1,0 +1,70 @@
+---
+title: "Mapping quality"
+---
+
+This page details the mapq results following running the tool bamstats.
+
+
+```{r mapq_plot, echo=FALSE}
+
+library(knitr)
+library("RSQLite")
+library("DBI")
+library(stringr)
+library("rmarkdown") # Make cool dynamic documents
+library("knitr") # Run R Code Chunks
+library("ggplot2") # For plotting
+library("DT") # Interactove html tables
+library(ggplot2)
+library(reshape2)
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+  db <- dbGetQuery(mydb, 'SELECT * FROM bam_stats_mapq;')
+  
+  
+  db <- melt(db, id.vars="mapq")
+  
+  
+  fancy_scientific <- function(l) {
+    # turn in to character string in scientific notation
+    l <- format(l, scientific = TRUE)
+    # quote the part before the exponent to keep all the digits
+    l <- gsub("^(.*)e", "'\\1'e", l)
+    # turn the 'e+' into plotmath format
+    l <- gsub("e", "%*%10^", l)
+    # return this as an expression
+    parse(text=l)
+  }
+  
+ggplot(db, aes(x=mapq, y=value, fill=variable, colour=variable)) + geom_bar(stat="identity") +
+    theme_bw() + labs(x = "mapping quality", y="Counts")+
+    theme(axis.text.x = element_text(angle = 90, hjust = 1), panel.border = element_blank(), 
+          panel.grid.minor = element_blank(),panel.background = element_blank(),
+          axis.line = element_line(colour = "black"))+
+    scale_fill_brewer(palette="Set1") +
+  scale_y_continuous(labels=fancy_scientific)
+
+
+```
+
+
+
+The detailed results are displayed below
+
+
+```{r mapq_table, echo=FALSE}
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+  db <- dbGetQuery(mydb, 'SELECT * FROM bam_stats_mapq;')
+  
+  
+  
+  db <- t(db)
+  colnames(db) <- db["mapq",]
+  db <- db[-which(rownames(db) %in% "mapq"),]
+  
+  DT::datatable(as.data.frame(db, class = 'cell-border stripe'))
+
+```

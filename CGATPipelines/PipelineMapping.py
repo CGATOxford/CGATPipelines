@@ -396,17 +396,17 @@ def resetGTFAttributes(infile, genome, gene_ids, outfile):
     for gtf in GTF.iterator(inf):
         transcript_id = gtf.oId
         gene_id = gene_ids[transcript_id]
-        gtf.setAttribute("transcript_id", transcript_id)
-        gtf.setAttribute("gene_id", gene_id)
+        gtf.transcript_id = transcript_id
+        gtf.gene_id = gene_id
 
         # set tss_id
         try:
             tss_id = gtf.tss_id
-        except AttributeError:
+        except KeyError:
             tss_id = None
         try:
             p_id = gtf.p_id
-        except AttributeError:
+        except KeyError:
             p_id = None
 
         if tss_id:
@@ -2151,6 +2151,9 @@ class Tophat(Mapper):
 
         executable = self.executable
 
+        statement = P.getCondaEnvironment(PARAMS['conda_py2'])
+        statement.append(" && ")
+
         num_files = [len(x) for x in infiles]
 
         if max(num_files) != min(num_files):
@@ -2174,7 +2177,7 @@ class Tophat(Mapper):
 
         if nfiles == 1:
             infiles = ",".join([x[0] for x in infiles])
-            statement = '''
+            statement.append('''
             %(executable)s --output-dir %(tmpdir_tophat)s
                    --num-threads %%(tophat_threads)i
                    --library-type %%(tophat_library_type)s
@@ -2183,7 +2186,7 @@ class Tophat(Mapper):
                    %(index_prefix)s
                    %(infiles)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         elif nfiles == 2:
             # this section works both for paired-ended fastq files
@@ -2191,7 +2194,7 @@ class Tophat(Mapper):
             infiles1 = ",".join([x[0] for x in infiles])
             infiles2 = ",".join([x[1] for x in infiles])
 
-            statement = '''
+            statement.append('''
             %(executable)s --output-dir %(tmpdir_tophat)s
                    --mate-inner-dist %%(tophat_mate_inner_dist)i
                     --num-threads %%(tophat_threads)i
@@ -2201,7 +2204,7 @@ class Tophat(Mapper):
                    %(index_prefix)s
                    %(infiles1)s %(infiles2)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
         elif nfiles == 4:
             # this section works both for paired-ended fastq files
             # in color space mapping (separate quality file)
@@ -2211,7 +2214,7 @@ class Tophat(Mapper):
             infiles3 = ",".join([x[2] for x in infiles])
             infiles4 = ",".join([x[3] for x in infiles])
 
-            statement = '''%(executable)s
+            statement.append('''%(executable)s
                    --output-dir %(tmpdir_tophat)s
                    --mate-inner-dist %%(tophat_mate_inner_dist)i
                    --num-threads %%(tophat_threads)i
@@ -2222,7 +2225,7 @@ class Tophat(Mapper):
                    %(infiles1)s %(infiles2)s
                    %(infiles3)s %(infiles4)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         else:
             raise ValueError("unexpected number reads to map: %i " % nfiles)
@@ -2397,9 +2400,12 @@ class TopHat_fusion(Mapper):
 
         data_options = " ".join(data_options)
 
+        statement = P.getCondaEnvironment(PARAMS['conda_py2'])
+        statement.append(" && ")
+
         if nfiles == 1:
             infiles = ",".join([x[0] for x in infiles])
-            statement = '''
+            statement.append('''
 
             tophat2 --output-dir %(tmpdir_tophat)s
                    --num-threads %%(tophat_threads)i
@@ -2410,7 +2416,7 @@ class TopHat_fusion(Mapper):
                    %(index_prefix)s
                    %(infiles)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         elif nfiles == 2:
             # this section works both for paired-ended fastq files
@@ -2418,7 +2424,7 @@ class TopHat_fusion(Mapper):
             infiles1 = ",".join([x[0] for x in infiles])
             infiles2 = ",".join([x[1] for x in infiles])
 
-            statement = '''
+            statement.append('''
 
             tophat2 --output-dir %(tmpdir_tophat)s
                     --mate-inner-dist %%(tophat_mate_inner_dist)i
@@ -2430,7 +2436,8 @@ class TopHat_fusion(Mapper):
                    %(index_prefix)s
                    %(infiles1)s %(infiles2)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
+
         elif nfiles == 4:
             # this section works both for paired-ended fastq files
             # in color space mapping (separate quality file)
@@ -2440,7 +2447,7 @@ class TopHat_fusion(Mapper):
             infiles3 = ",".join([x[2] for x in infiles])
             infiles4 = ",".join([x[3] for x in infiles])
 
-            statement = '''
+            statement.append('''
 
             tophat2 --output-dir %(tmpdir_tophat)s
                    --mate-inner-dist %%(tophat_mate_inner_dist)i
@@ -2453,7 +2460,7 @@ class TopHat_fusion(Mapper):
                    %(infiles1)s %(infiles2)s
                    %(infiles3)s %(infiles4)s
                    >> %(outfile)s.log 2>&1 ;
-            ''' % locals()
+            ''' % locals())
 
         else:
             raise ValueError("unexpected number reads to map: %i " % nfiles)
@@ -2853,6 +2860,8 @@ class STAR(Mapper):
         # index_dir set by environment variable
         index_prefix = "%(genome)s"
 
+        logfile = ("%sLog.final.out") % (P.snip(outfile, ".star.bam"))
+
         if nfiles == 1:
             infiles = "<( zcat %s )" % " ".join([x[0] for x in infiles])
             statement = '''
@@ -2867,7 +2876,7 @@ class STAR(Mapper):
             --readFilesIn %(infiles)s
             | samtools view -bS -
             > %(tmpdir)s/%(track)s.bam
-            2> %(outfile)s.log;
+            2> %(logfile)s;
             ''' % locals()
 
         elif nfiles == 2:
@@ -2896,7 +2905,7 @@ class STAR(Mapper):
             --readFilesIn %(files)s
             | samtools view -bS -
             > %(tmpdir)s/%(track)s.bam
-            2> %(outfile)s.log;
+            2> %(logfile)s;
             ''' % locals()
 
         else:
@@ -2943,10 +2952,12 @@ class STAR(Mapper):
             --strip-method=all
             --method=strip-sequence --log=%(outfile)s.log''' % locals()
 
+        logfile = ("%sLog.final.out") % (P.snip(outfile, ".star.bam"))
+
         statement = '''
         cp %(tmpdir)s/Log.std.out %(outfile)s.std.log;
         checkpoint;
-        cp %(tmpdir)s/Log.final.out %(outfile)s.final.log;
+        cp %(tmpdir)s/Log.final.out %(logfile)s;
         checkpoint;
         cp %(tmpdir)s/SJ.out.tab %(outfile)s.junctions;
         checkpoint;

@@ -403,7 +403,7 @@ def mergeBAMs(infiles, outfile):
     outf = open(outfile + ".count", "w")
     outf.write(str(len(infiles)))
     outf.close()
-    statement = '''MergeSamFiles
+    statement = '''picard MergeSamFiles
                    INPUT=%(inputfiles)s
                    OUTPUT=%(outfile)s
                    ASSUME_SORTED=true; checkpoint; '''
@@ -529,6 +529,7 @@ def mergeXYRatio(infiles, outfile):
 ###############################################################################
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeXYRatio, regex(r"xy_ratio/xy_ratio.tsv"),
            r"xy_ratio/xy_ratio.load")
 def loadXYRatio(infile, outfile):
@@ -668,6 +669,7 @@ def mergeNDR(infiles, outfile):
 ###############################################################################
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeNDR, regex(r"hapmap/vcfcompare/ndr.tsv"),
            r"hapmap/vcfcompare/ndr.load")
 def loadNDR(infile, outfile):
@@ -689,7 +691,7 @@ def annotateVariantsSNPeff(infile, outfile):
     job_threads = PARAMS["annotation_threads"]
     snpeff_genome = PARAMS["annotation_snpeff_genome"]
     config = PARAMS["annotation_snpeff_config"]
-    statement = '''snpEff.sh eff
+    statement = '''snpEff eff
                    -c %(config)s
                    -v %(snpeff_genome)s
                    -o gatk %(infile)s > %(outfile)s''' % locals()

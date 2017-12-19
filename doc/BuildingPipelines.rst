@@ -243,6 +243,7 @@ default, it is configured to use an sqlite3 database in the
 Tab-separated output files can be loaded into a table using the
 :meth:`Pipeline.load` function. For example::
 
+   @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
    @transform('data_*.tsv.gz', suffix('.tsv.gz'), '.load')
    def loadTables(infile, outfile):
       P.load(infile, outfile)
@@ -256,6 +257,7 @@ configured using the configuration options in the ``database`` section
 of :file:`pipeline.ini`. Additional options can be given via the
 optional *options* argument::
 
+   @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
    @transform('data_*.tsv.gz', suffix('.tsv.gz'), '.load')
    def loadTables( infile, outfile ):
       P.load(infile, outfile, "--add-index=gene_id")

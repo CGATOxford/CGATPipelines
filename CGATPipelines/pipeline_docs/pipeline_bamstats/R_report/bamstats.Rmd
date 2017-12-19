@@ -1,0 +1,56 @@
+---
+title: "Overview"
+---
+
+This page details the bamstats output tables that have been generated as part of running bamstats tool. Information regarding this tools can be found <a href="http://bamstats.sourceforge.net/">here</a>
+
+
+The first table details all of the statistics for the alignments
+
+```{r bamstats_table1, echo=FALSE}
+
+library(knitr)
+library("RSQLite")
+library("DBI")
+library(stringr)
+library("rmarkdown") # Make cool dynamic documents
+library("knitr") # Run R Code Chunks
+library("ggplot2") # For plotting
+library("DT") # Interactove html tables
+library(ggplot2)
+library(reshape2)
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+
+db <- dbGetQuery(mydb, 'SELECT * FROM bam_stats;')
+
+db_1 <- db[,c("track","alignments_duplicate","alignments_filtered",
+              "alignments_mapped","alignments_mate_reverse",
+              "alignments_mate_unmapped", "alignments_no_rna",
+              "alignments_paired","alignments_proper_pair",
+              "alignments_qc_fail","alignments_read1",
+              "alignments_read2","alignments_reverse","alignments_rna",
+              "alignments_secondary","alignments_total","alignments_unmapped"   )]
+
+DT::datatable(as.data.frame(db_1, class = 'cell-border stripe'))
+
+```
+
+
+
+This table details all of the statistics for the reads.
+
+```{r bamstats_table2, echo=FALSE}
+
+setwd("./..")
+mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
+
+db <- dbGetQuery(mydb, 'SELECT * FROM bam_stats;')
+
+db_2 <- db[,c("track","category","pairs_mapped","pairs_total","reads_mapped",            
+              "reads_missing","reads_norna","reads_norna_unique","reads_total",             
+              "reads_unique","reads_unmapped")]
+
+DT::datatable(as.data.frame(db_2, class = 'cell-border stripe'))
+```

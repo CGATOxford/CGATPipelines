@@ -147,7 +147,7 @@ Code
 ====
 
 """
-from ruffus import files, transform, suffix, follows, merge, collate, regex, mkdir
+from ruffus import files, transform, suffix, follows, merge, collate, regex, mkdir, jobs_limit
 import sys
 import pipes
 import os
@@ -264,7 +264,7 @@ def runTest(infile, outfile):
     template_statement = '''
     (cd %%(track)s.dir;
     python %%(pipelinedir)s/%%(pipeline_name)s.py
-    %%(pipeline_options)s make %s) >& %%(outfile)s
+    %%(pipeline_options)s make %s) 1> %%(outfile)s 2> %%(outfile)s.stderr
     '''
     if len(pipeline_targets) == 1:
         statement = template_statement % pipeline_targets[0]
@@ -308,7 +308,7 @@ def runReports(infile, outfile):
 
     statement = '''
     (cd %(track)s.dir; python %(pipelinedir)s/%(pipeline_name)s.py
-    %(pipeline_options)s make build_report) >& %(outfile)s
+    %(pipeline_options)s make build_report) 1> %(outfile)s 2> %(outfile)s.stderr
     '''
 
     P.run(ignore_errors=True)
@@ -565,6 +565,7 @@ def compareCheckSums(infiles, outfile):
     outf.close()
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(compareCheckSums,
            suffix(".tsv"),
            ".load")
@@ -573,6 +574,7 @@ def loadComparison(infile, outfile):
     P.load(infile, outfile)
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeFileStatistics,
            suffix(".stats"),
            "_results.load")
@@ -581,6 +583,7 @@ def loadResults(infile, outfile):
     P.load(infile, outfile, options="--add-index=file")
 
 
+@jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform(mergeFileStatistics,
            suffix(".ref"),
            "_reference.load")

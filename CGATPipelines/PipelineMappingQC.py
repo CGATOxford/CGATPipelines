@@ -15,7 +15,7 @@ import CGAT.IOTools as IOTools
 import CGAT.BamTools as BamTools
 import CGATPipelines.Pipeline as P
 
-PICARD_MEMORY = "5G"
+PICARD_MEMORY = "9G"
 
 
 def getNumReadsFromReadsFile(infile):
@@ -46,6 +46,7 @@ def buildPicardInsertSizeStats(infile, outfile, genome_file):
     '''
 
     job_memory = PICARD_MEMORY
+    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
     job_threads = 3
 
     if BamTools.getNumReads(infile) == 0:
@@ -53,7 +54,7 @@ def buildPicardInsertSizeStats(infile, outfile, genome_file):
         P.touch(outfile)
         return
 
-    statement = '''CollectInsertSizeMetrics
+    statement = '''picard %(picard_opts)s CollectInsertSizeMetrics
     INPUT=%(infile)s
     REFERENCE_SEQUENCE=%(genome_file)s
     ASSUME_SORTED=true
@@ -78,6 +79,7 @@ def buildPicardAlignmentStats(infile, outfile, genome_file):
     '''
 
     job_memory = PICARD_MEMORY
+    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
     job_threads = 3
 
     if BamTools.getNumReads(infile) == 0:
@@ -91,7 +93,7 @@ def buildPicardAlignmentStats(infile, outfile, genome_file):
     statement = '''cat %(infile)s
     | cgat bam2bam -v 0
     --method=set-sequence --output-sam
-    | CollectMultipleMetrics
+    | picard %(picard_opts)s CollectMultipleMetrics
     INPUT=/dev/stdin
     REFERENCE_SEQUENCE=%(genome_file)s
     ASSUME_SORTED=true
@@ -117,6 +119,7 @@ def buildPicardDuplicationStats(infile, outfile):
     '''
 
     job_memory = PICARD_MEMORY
+    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
     job_threads = 3
 
     if BamTools.getNumReads(infile) == 0:
@@ -138,10 +141,7 @@ def buildPicardDuplicationStats(infile, outfile):
         statement = ""
         data_source = infile
 
-    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
-                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
-
-    statement += '''MarkDuplicates
+    statement += '''picard %(picard_opts)s MarkDuplicates
     INPUT=%(data_source)s
     ASSUME_SORTED=true
     METRICS_FILE=%(outfile)s
@@ -149,8 +149,6 @@ def buildPicardDuplicationStats(infile, outfile):
     VALIDATION_STRINGENCY=SILENT
     '''
     P.run()
-
-    os.unsetenv("CGAT_JAVA_OPTS")
 
     if ".gsnap.bam" in infile:
         os.unlink(tmpfile_name)
@@ -177,6 +175,7 @@ def buildPicardDuplicateStats(infile, outfile):
 
     '''
     job_memory = PICARD_MEMORY
+    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
     job_threads = 3
 
     if BamTools.getNumReads(infile) == 0:
@@ -184,9 +183,7 @@ def buildPicardDuplicateStats(infile, outfile):
         P.touch(outfile)
         return
 
-    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
-                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
-    statement = '''MarkDuplicates
+    statement = '''picard %(picard_opts)s MarkDuplicates
     INPUT=%(infile)s
     ASSUME_SORTED=true
     METRICS_FILE=%(outfile)s.duplicate_metrics
@@ -195,7 +192,6 @@ def buildPicardDuplicateStats(infile, outfile):
     '''
     statement += '''samtools index %(outfile)s ;'''
     P.run()
-    os.unsetenv("CGAT_JAVA_OPTS")
 
 
 def buildPicardCoverageStats(infile, outfile, baits, regions):
@@ -216,6 +212,7 @@ def buildPicardCoverageStats(infile, outfile, baits, regions):
     '''
 
     job_memory = PICARD_MEMORY
+    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
     job_threads = 3
 
     if BamTools.getNumReads(infile) == 0:
@@ -223,7 +220,7 @@ def buildPicardCoverageStats(infile, outfile, baits, regions):
         P.touch(outfile)
         return
 
-    statement = '''CalculateHsMetrics
+    statement = '''picard %(picard_opts)s CalculateHsMetrics
     BAIT_INTERVALS=%(baits)s
     TARGET_INTERVALS=%(regions)s
     INPUT=%(infile)s
@@ -249,6 +246,7 @@ def buildPicardGCStats(infile, outfile, genome_file):
     """
 
     job_memory = PICARD_MEMORY
+    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
     job_threads = 3
 
     if BamTools.getNumReads(infile) == 0:
@@ -256,7 +254,7 @@ def buildPicardGCStats(infile, outfile, genome_file):
         P.touch(outfile)
         return
 
-    statement = '''CollectGcBiasMetrics
+    statement = '''picard %(picard_opts) CollectGcBiasMetrics
     INPUT=%(infile)s
     REFERENCE_SEQUENCE=%(genome_file)s
     OUTPUT=%(outfile)s
@@ -406,6 +404,8 @@ def loadPicardHistogram(infiles, outfile, suffix, column,
     | %(load_statement)s
     >> %(outfile)s
     """
+
+    to_cluster = False
 
     P.run()
 
@@ -601,6 +601,9 @@ def loadBAMStats(infiles, outfile):
     | cgat table2table --transpose
     | %(load_statement)s
     > %(outfile)s"""
+
+    to_cluster = False
+
     P.run()
 
     for suffix in ("nm", "nh"):
@@ -620,6 +623,9 @@ def loadBAMStats(infiles, outfile):
         | perl -p -e "s/bin/%(suffix)s/"
         | %(load_statement)s
         >> %(outfile)s """
+
+        to_cluster = False
+
         P.run()
 
     # load mapping qualities, there are two columns per row
@@ -643,6 +649,9 @@ def loadBAMStats(infiles, outfile):
         | perl -p -e "s/bin/%(suffix)s/"
         | %(load_statement)s
         >> %(outfile)s """
+
+        to_cluster = False
+
         P.run()
 
 
@@ -662,6 +671,7 @@ def buildPicardRnaSeqMetrics(infiles, strand, outfile):
 
     '''
     job_memory = PICARD_MEMORY
+    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
     job_threads = 3
     infile, genome = infiles
 
@@ -670,9 +680,7 @@ def buildPicardRnaSeqMetrics(infiles, strand, outfile):
         P.touch(outfile)
         return
 
-    os.environ["CGAT_JAVA_OPTS"] = "-Xmx%s -XX:+UseParNewGC\
-                                    -XX:+UseConcMarkSweepGC" % (PICARD_MEMORY)
-    statement = '''CollectRnaSeqMetrics
+    statement = '''picard %(picard_opts)s CollectRnaSeqMetrics
     REF_FLAT=%(genome)s
     INPUT=%(infile)s
     ASSUME_SORTED=true
@@ -681,7 +689,6 @@ def buildPicardRnaSeqMetrics(infiles, strand, outfile):
     VALIDATION_STRINGENCY=SILENT
     '''
     P.run()
-    os.unsetenv("CGAT_JAVA_OPTS")
 
 
 def loadPicardRnaSeqMetrics(infiles, outfiles):
