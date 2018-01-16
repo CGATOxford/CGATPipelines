@@ -24,7 +24,7 @@ The functionality and the third-party software that they wrap are detailed below
 
 **A summary of what each pipeline does is shown below:**
 
-.. image:: ../../images/Figure_pipelines.png
+.. image:: images/Figure_pipelines.png
    :height: 1000px
    :width: 1000 px
    :scale: 50%
