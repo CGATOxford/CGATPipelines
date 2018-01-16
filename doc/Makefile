@@ -112,5 +112,6 @@ publish:
 	chmod -R a+x $(DIR_PUBLISH)
 	chmod -R a+r $(DIR_PUBLISH)
 	@echo "fixing URLs"
+	cp -r images/ $(DIR_PUBLISH)
 	find $(DIR_PUBLISH)/ -name "*.html" -exec \
 		perl -p -i -e $(URL_SUB) {} \;	

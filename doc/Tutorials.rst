@@ -24,7 +24,7 @@ The functionality and the third-party software that they wrap are detailed below
 
 **A summary of what each pipeline does is shown below:**
 
-.. image:: ../../images/Slide2.png
+.. image:: ../../images/Figure_pipelines.png
    :height: 1000px
    :width: 1000 px
    :scale: 50%
@@ -66,6 +66,13 @@ does not need to be modified. To run the pipeline do the following::
 
 This ``--local`` will run the pipeline locally if you do not have access to a cluster. Alternatively if you have a
 cluster remove the ``--local`` option and the pipleine will distribute your jobs accross the cluster.
+
+.. note:: 
+
+   If you get the following sqlite error while running the pipeline please run with a
+   single process as follows ``cgatflow readqc make full -v5 -p1 --local``. 
+
+
 
 **4.** The **final step** is to generate the report. We have a preference for multiqc, however we also have our own
 CGAT report implimented in this pipeline. To generate the reports run the command::
