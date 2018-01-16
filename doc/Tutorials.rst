@@ -69,8 +69,10 @@ cluster remove the ``--local`` option and the pipleine will distribute your jobs
 
 .. note:: 
 
-   If you get the following sqlite error while running the pipeline please run with a
-   single process as follows ``cgatflow readqc make full -v5 -p1 --local``. 
+   If you get the following sqlite error while running the pipeline please continue running the pipeline with a
+   single process as follows ``cgatflow readqc make full -v5 -p1 --local`` and the pipeline should complete without
+   errors. This occurrs because sqlite cannot handle multi-threaded access. Although we have added a fix for most
+   cases, this can sometimes not always work. 
 
 
 
