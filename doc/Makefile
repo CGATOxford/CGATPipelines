@@ -48,6 +48,7 @@ images/%.svg: ../CGATPipelines/%.py
 html: build-images
 	rm -f ../{CGATPipelines,scripts}/*.pyc
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) _build/html
+	cp -r images/ _build/html/
 	@echo
 	@echo "Build finished. The HTML pages are in _build/html."
 
@@ -112,5 +113,6 @@ publish:
 	chmod -R a+x $(DIR_PUBLISH)
 	chmod -R a+r $(DIR_PUBLISH)
 	@echo "fixing URLs"
+	cp images/ $(DIR_PUBLISH)
 	find $(DIR_PUBLISH)/ -name "*.html" -exec \
 		perl -p -i -e $(URL_SUB) {} \;	

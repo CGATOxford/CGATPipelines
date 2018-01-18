@@ -56,7 +56,7 @@ associated with ChIP-seq.
 
 **Below is a flow and organisation of our production piplines:**
 
-.. image:: ../../images/Figure_for_documentation.png
+.. image:: images/Figure_for_documentation.png
    :height: 1000px
    :width: 2000 px
    :scale: 50%
