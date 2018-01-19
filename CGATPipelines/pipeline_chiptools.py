@@ -48,6 +48,12 @@ information how to use CGAT pipelines.
 Configuration
 -------------
 
+For homer to work with your desired genome please follow the instructions:
+
+   perl {path_to_cgat_pipelines}/conda-install/envs/py36-v1/share/homer-4.9.1-5/configureHomer.pl -install hg19
+
+This will download the genome and you can now use homer to process your samples.
+
 The pipeline requires a configured :file:`pipeline.ini` file.
 CGATReport report requires a :file:`conf.py` and optionally a
 :file:`cgatreport.ini` file (see :ref:`PipelineReporting`).
