@@ -216,12 +216,12 @@ def makeTagDirectoryChips(infile, outfile):
     samfile = bamstrip + ".sam"
 
     statement = '''
-                   samtools view %(infile)s > homer/Tag.dir/%(samfile)s;
-                   cd homer/Tag.dir/;
+                   samtools view %(infile)s > homer/Tag.dir/%(samfile)s &&
+                   cd homer/Tag.dir/ &&
                    makeTagDirectory %(bamstrip)s
                    %(samfile)s
                    -genome %(homer_maketagdir_genome)s -checkGC
-                   &> %(bamstrip)s.makeTagChip.log;
+                   &> %(bamstrip)s.makeTagChip.log &&
                    touch %(bamstrip)s/%(bamstrip)s.txt'''
 
     P.run()
@@ -291,6 +291,7 @@ def annotatePeaks(infile, outfile):
 
 
 @active_if(PARAMS['homer'])
+@follows(mkdir("homer/motif.dir"))
 @transform(findPeaks,
            regex("homer/Tag.dir/(.*)/regions.txt"),
            r"homer/motif.dir/\1/motifs.txt")
@@ -301,7 +302,7 @@ def findMotifs(infile, outfile):
     Jaspar database.
     '''
 
-    _, directory, _ = infile.split("/")
+    _, _, directory, _ = infile.split("/")
 
     statement = '''findMotifsGenome.pl %(infile)s %(homer_motif_genome)s homer/motif.dir/%(directory)s -size %(homer_motif_size)i
                    &> Motif.log'''
@@ -517,7 +518,8 @@ def fragment_size(infiles, outfile):
 
     statement = '''bamPEFragmentSize -b %(infile)s
                    --histogram %(outfile)s
-                   %(logscale)s'''
+                   %(logscale)s &&
+                   sleep 15'''
 
     P.run()
 
@@ -564,7 +566,8 @@ def bamCoverage(infiles, outfile):
                    --binSize %(deep_binsize)s
                    %(normalise)s %(norm_value)s
                    %(extend)s
-                   %(deep_bamcoverage_options)s'''
+                   %(deep_bamcoverage_options)s &&
+                   sleep 15'''
 
     P.run()
 
@@ -610,7 +613,8 @@ def bamCompare(infiles, outfile):
                        -b2 %(inputbam)s
                        -o %(outfile)s
                        -of bigwig
-                       %(deep_bamcompare_options)s'''
+                       %(deep_bamcompare_options)s &&
+                       sleep 15'''
 
     P.run()
 
@@ -664,7 +668,8 @@ def multiBamSummary(infiles, outfile):
                    -o %(outfile)s
                    --outRawCounts deepTools/Summary.dir/Bam_Summary.tab
                    --minMappingQuality %(deep_mapping_qual)s
-                   %(deep_summary_options)s'''
+                   %(deep_summary_options)s &&
+                   sleep 15'''
 
     P.run()
 
@@ -691,7 +696,8 @@ def multiBwSummary(infiles, outfile):
                    -b %(infiles)s
                    -out %(outfile)s
                    --outRawCounts deepTools/Summary.dir/Bw_Summary.tab
-                   %(deep_summary_options)s'''
+                   %(deep_summary_options)s &&
+                   sleep 15'''
 
     P.run()
 
@@ -725,7 +731,8 @@ def plotCorrelation(infiles, outfile):
                    --corMethod %(deep_cormethod)s -p %(deep_plot)s
                    %(colormap)s
                    --plotFileFormat %(deep_filetype)s
-                   --skipZeros %(deep_plot_options)s'''
+                   --skipZeros %(deep_plot_options)s &&
+                   sleep 15'''
     P.run()
 
 
