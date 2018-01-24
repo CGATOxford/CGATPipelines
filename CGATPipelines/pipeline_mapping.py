@@ -2147,7 +2147,8 @@ def export():
     pass
 
 
-@follows(mapping)
+@follows(mapping,
+         loadReadCounts)
 def full():
     pass
 
