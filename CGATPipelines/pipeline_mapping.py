@@ -74,7 +74,7 @@ sra
 fastq.gz
    Single-end reads in fastq format.
 
-fastq.1.gz, fastq2.2.gz
+fastq.1.gz, fastq.2.gz
    Paired-end reads in fastq format. The two fastq files must be
    sorted by read-pair.
 

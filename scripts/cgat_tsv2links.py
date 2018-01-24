@@ -9,8 +9,8 @@ Create links from a tab-separated table. The table should have two
 columns, for example::
 
    source     dest
-   abc.fq.gz  sample1-R1.fq.gz
-   def.fq.gz  sample1-R2.fq.gz
+   abc.fq.gz  sample1-condition-R1.fastq.1.gz
+   def.fq.gz  sample1-condition-R2.fastq.2.gz
 
 If the options ``--source`` is given, filenams will be matched by
 walking through ``--source``. Otherwise, filenames in the source
