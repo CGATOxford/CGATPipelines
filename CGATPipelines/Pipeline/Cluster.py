@@ -199,13 +199,14 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
             spec = ["-N %s" % job_name[0:15],
                     "-l select=1:ncpus=%s:mem=%s" % (job_threads, job_memory)]
 
-        if options["cluster_options"]:
-            if "mem" not in options["cluster_options"]:
-                spec.append("%(cluster_options)s")
+            if options["cluster_options"]:
+                if "mem" not in options["cluster_options"]:
+                    spec.append("%(cluster_options)s")
 
-            elif "mem" in options["cluster_options"]:
-                raise ValueError('''mem resource specified twice, check ~/.cgat config file,
-                ini files, command line options, etc.''')
+                elif "mem" in options["cluster_options"]:
+                    raise ValueError('''mem resource specified twice, check ~/.cgat config file,
+                                        ini files, command line options, etc.
+                                     ''')
 
         if "cluster_pe_queue" in options and multithread:
             spec.append(
