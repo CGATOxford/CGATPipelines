@@ -370,7 +370,7 @@ class Trimgalore(ProcessTool):
             infile = infiles[0]
             outfile = outfiles[0]
             outdir = os.path.dirname(outfile)
-            trim_out = "%s_trimmed.fq.gz" % (output_prefix)
+            trim_out = "%s/%s_trimmed.fq.gz" % (outdir, infile.replace(".fastq.gz", ""))
             cmd = '''trim_galore %(processing_options)s
             --phred%(offset)s
             --output_dir %(outdir)s
