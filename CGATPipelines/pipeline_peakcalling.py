@@ -11,9 +11,15 @@ analysis (e.g. motif identification, quantification of peaks etc.). Pipeline
 also and generates QC  statistics that will inform you about the quality of
 the peaksets generated.
 
+In addition this pipeline will also produce normalised BigWigs if the samples
+are generated using the quantitative ChIP-seq method.
+
 Functionality
 -------------
 
+- Will generate BigWigs. If the samples are ran as a quantitative ChIP-Rx
+  experiment then the samples will be normalised according to spike-in's (
+  usually sp1 or drosophila cells)
 - Takes Paired-end or single end :term:`Bam` files you want to call peaks in
   (e.g. ChIP-Seq or ATAC-Seq samples and their appropriate 'input' controls).
 - Runs peakcallers
@@ -180,8 +186,13 @@ stages of the pipeline
             * for paired-end samples a file with the frequency of fragment
               lengths (the distance between the paired reads 5' start positions)
 
+2) BigWigs
+   -------
+   Wiggle files that are normalised are generated depending on the type of ChIP-seq
+   i.e. ChIP-Rx is normalised to spike-ins.
 
-2) IDR.dir
+
+3) IDR.dir
     -------
     Directory conatining the output files from IDR analysis
     IDR is currently only set up to use with macs2 because this
@@ -192,8 +203,8 @@ stages of the pipeline
 
     Directory contains:
             * IDR_inputs.dir
-    This directory contains the files that are
-broad
+    This directory contains the files that are broad
+
     IDR_inputs.dir
 
     macs2.dir/
@@ -351,7 +362,6 @@ def connect():
 # start of pipelined tasks
 # 1) Preprocessing Steps - Filter bam files & generate bam stats
 ###########################################################################
-
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @transform("design.tsv", suffix(".tsv"), ".load")
@@ -571,6 +581,7 @@ def filtering():
 
 @transform((filterChipBAMs, filterInputBAMs),
            suffix(".bam"),
+           add_inputs([getIdxstats]),
            ".bw")
 def buildBigWig(infile, outfile):
     '''build wiggle files from bam files.
@@ -588,12 +599,34 @@ def buildBigWig(infile, outfile):
        Input filename in :term:`bed` format
 
     '''
-    inf = infile[0]
+    inf = infile[0][0]
+    inf_name = inf.replace(".bam", "")
+    idxstats = infile[1]
+
     # scale by Million reads mapped
     reads_mapped = Bamtools.getNumberOfAlignments(inf)
-    scale = 1000000.0 / float(reads_mapped)
+
+    # To handle quantitative ChIP-seq
+    if PARAMS['quant_norm'] == 1:
+        for idx in idxstats:
+            file_name = idx.replace(".idxstats", "")
+            if file_name == inf_name:
+                # pass to a function that extracts the number of reads aligned to
+                # spike in and human genome
+                regex = str(PARAMS['quant_regex']) + "*"
+                scale = PipelinePeakcalling.getSpikeInReads(idx, regex)
+                contig_sizes = PipelinePeakcalling.getContigSizes(idx)
+            else:
+                continue
+
+    elif PARAMS['quant_norm'] == 0:
+        scale = 1000000.0 / float(reads_mapped)
+        contig_sizes = PARAMS["annotations_interface_contigs"]
+    else:
+        raise KeyError('''please add 0 for FALSE and 1 for TRUE to quant_norm
+                        ini file''')
+
     tmpfile = P.getTempFilename()
-    contig_sizes = PARAMS["annotations_interface_contigs"]
     job_memory = "3G"
     statement = '''bedtools genomecov
     -ibam %(inf)s
@@ -601,7 +634,7 @@ def buildBigWig(infile, outfile):
     -bg
     -scale %(scale)f
     > %(tmpfile)s;
-    checkpoint;
+    sort -k1,1 -k2,2n -o %(tmpfile)s %(tmpfile)s;
     bedGraphToBigWig %(tmpfile)s %(contig_sizes)s %(outfile)s;
     checkpoint;
     rm -f %(tmpfile)s
@@ -1627,7 +1660,7 @@ def makeCHIPQCInputTables(infiles, outfiles):
 #    R('''''')
 
 
-@follows(filtering, peakcalling, IDR)
+@follows(filtering, peakcalling, IDR, buildBigWig)
 def full():
     ''' runs entire pipeline '''
 
