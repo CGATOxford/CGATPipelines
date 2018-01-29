@@ -166,20 +166,19 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
 
         # PBSPro only takes the first 15 characters, throws uninformative error if longer.
         # mem is maximum amount of RAM used by job; mem_free doesn't seem to be available.
-        spec = ["-N %s" % job_name[0:15],
-                "-l mem=%s" % job_memory]
+        # For qsub job requirements would be passed as e.g.
+        #PBS -lselect=N:ncpus=X:mem=Ygb
+        #PBS -lwalltime=HH:00:00
+        # 'select=1' determines de number of nodes. Should go in a config file.
+        # mem is per node and maximum memory
+        # Site dependent but in general setting '#PBS -l select=NN:ncpus=NN:mem=NN{gb|mb}'
+        # is sufficient for parallel jobs (OpenMP, MPI).
+        # Also architecture dependent, jobs could be hanging if resource doesn't exist.
+        # TO DO: Kill if long waiting time?
+        nodes = 1 # TO DO: hard coding as unsure of definitions between
+                  # threads, nodes, etc. between programmes for now
 
-        # Leaving walltime to be specified by user as difficult to set dynamically and
-        # depends on site/admin configuration of default values. Likely means setting for
-        # longest job with trade-off of longer waiting times for resources to be
-        # available for other jobs.
-        if options["cluster_options"]:
-            if "mem" not in options["cluster_options"]:
-                spec.append("%(cluster_options)s")
-            elif "mem" in options["cluster_options"]:
-                spec = ["-N %s" % job_name[0:15]]
-                spec.append("%(cluster_options)s")
-
+        # Set up basic requirements for job submission:
         # if process has multiple threads, use a parallel environment:
         # TO DO: error in fastqc build_report, var referenced before assignment.
         # For now adding to workaround:
@@ -188,29 +187,26 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
         else:
             job_threads = 1
 
-        multithread = 'job_threads' in options and options['job_threads'] > 1
-        if multithread:
-            # TO DO 'select=1' determines de number of nodes. Should go in a config file.
-            # mem is per node and maximum memory
-            # Site dependent but in general setting '#PBS -l select=NN:ncpus=NN:mem=NN{gb|mb}'
-            # is sufficient for parallel jobs (OpenMP, MPI).
-            # Also architecture dependent, jobs could be hanging if resource doesn't exist.
-            # TO DO: Kill if long waiting time?
-            spec = ["-N %s" % job_name[0:15],
-                    "-l select=1:ncpus=%s:mem=%s" % (job_threads, job_memory)]
+        spec = ["-N %s" % job_name[0:15],
+                "-l select=%s:ncpus=%s:mem=%s" % (nodes, job_threads, job_memory)]
 
-            if options["cluster_options"]:
-                if "mem" not in options["cluster_options"]:
-                    spec.append("%(cluster_options)s")
-
-                elif "mem" in options["cluster_options"]:
-                    raise ValueError('''mem resource specified twice, check ~/.cgat config file,
-                                        ini files, command line options, etc.
-                                     ''')
+        # Leaving walltime to be specified by user as difficult to set dynamically and
+        # depends on site/admin configuration of default values. Likely means setting for
+        # longest job with trade-off of longer waiting times for resources to be
+        # available for other jobs.
+        if options["cluster_options"]:
+            conds = ('mem' in options["cluster_options"],
+                     'ncpus' in options["cluster_options"],
+                     'select' in options["cluster_options"]
+                     )
+            if any(conds):
+                spec = ["-N %s" % job_name[0:15]]
+                spec.append("%(cluster_options)s")
+            else:
+                spec.append("%(cluster_options)s")
 
         if "cluster_pe_queue" in options and multithread:
-            spec.append(
-                "-q %(cluster_pe_queue)s")
+            spec.append("-q %(cluster_pe_queue)s")
         elif options['cluster_queue'] != "NONE":
             spec.append("-q %(cluster_queue)s")
             # TO DO: sort out in Parameters.py to allow none values for configparser:
