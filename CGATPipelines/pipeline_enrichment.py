@@ -408,10 +408,9 @@ def runGsea(infile, outfile):
     p_no = PARAMS['stats_gsea_display_num']
     l_no = PARAMS['stats_gsea_ngeneset']
 
-    statement = '''basename %(infile)s .processed |
-                   awk '{split($0,a,"/"); print a[1]}'
-                   | xargs mkdir; cd $(basename %(infile)s .processed | awk '{split($0,a,"/"); print a[1]}')
-                   ; xvfb-run cgat runGSEA -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
+    statement = '''dir=$(basename %(infile)s .processed | awk '{split($0,a,"/"); print a[1]}') &&
+                   mkdir $dir && cd $dir &&
+                   xvfb-run cgat runGSEA -f ../%(infile)s -g %(geneset)s -m %(min_size)s -x %(max_size)s
                    -s %(seed)s -n %(no)s -d %(p_no)s -l %(l_no)s'''
     P.run()
 
