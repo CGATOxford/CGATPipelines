@@ -71,7 +71,7 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
         if "cluster_pe_queue" in options and multithread:
             spec.append(
                 "-q %(cluster_pe_queue)s")
-        elif options['cluster_queue'] != "NONE":
+        elif len(options['cluster_queue']) > 0:
             spec.append("-q %(cluster_queue)s")
 
     elif queue_manager.lower() == "slurm":
