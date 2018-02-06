@@ -216,37 +216,9 @@ def connect():
 
     return dbh
 
-# Helper functions mapping tracks to conditions, etc
-# determine the location of the input files (reads).
-try:
-    PARAMS["input"]
-except KeyError:
-    DATADIR = "."
-else:
-    if PARAMS["input"] == 0:
-        DATADIR = "."
-    elif PARAMS["input"] == 1:
-        DATADIR = "data.dir"
-    else:
-        DATADIR = PARAMS["input"]  # not recommended practise.
-
-
 # Determine whether the gemone is paired
 
 SPLICED_MAPPING = PARAMS["bam_paired_end"]
-
-
-#########################################################################
-# define input files
-#########################################################################
-
-SEQUENCESUFFIXES = ("*.bam")
-
-SEQUENCEFILES = tuple([os.path.join(DATADIR, suffix_name)
-                       for suffix_name in SEQUENCESUFFIXES])
-
-SEQUENCEFILES_REGEX = regex(
-    r"(.*).bam$")
 
 
 #########################################################################
@@ -255,8 +227,8 @@ SEQUENCEFILES_REGEX = regex(
 
 
 @follows(mkdir("nreads.dir"))
-@transform(SEQUENCEFILES,
-           SEQUENCEFILES_REGEX,
+@transform("*.bam",
+           suffix(".bam"),
            r"nreads.dir/\1.nreads")
 def countReads(infile, outfile):
     '''Count number of reads in input files.'''
@@ -275,8 +247,8 @@ def countReads(infile, outfile):
 
 
 @follows(mkdir("StrandSpec.dir"))
-@transform(SEQUENCEFILES,
-           SEQUENCEFILES_REGEX,
+@transform("*.bam",
+           suffix(".bam"),
            r"StrandSpec.dir/\1.strand")
 def strandSpecificity(infile, outfile):
     '''This function will determine the strand specificity of your library
@@ -290,7 +262,7 @@ def strandSpecificity(infile, outfile):
 
 
 @follows(mkdir("BamFiles.dir"))
-@transform(SEQUENCEFILES,
+@transform("*.bam",
            regex("(.*).bam$"),
            r"BamFiles.dir/\1.bam")
 def intBam(infile, outfile):
@@ -758,6 +730,7 @@ def loadCountReads(infiles, outfile):
     PipelineBamStats.loadCountReads(infiles, outfile)
 
 
+@active_if(SPLICED_MAPPING)
 @P.add_doc(PipelineBamStats.loadTranscriptProfile)
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
 @follows(loadCountReads)
@@ -823,7 +796,7 @@ def renderJupyterReport():
                                                'Jupyter_report'))
 
     statement = ''' cp %(report_path)s/* Jupyter_report.dir/ ; cd Jupyter_report.dir/;
-                    jupyter nbconvert --ExecutePreprocessor.timeout=None --to html --execute *.ipynb;
+                    jupyter nbconvert --ExecutePreprocessor.timeout=None --allow-errors --to html --execute *.ipynb;
                     mkdir _site;
                     mv -t _site *.html cgat_logo.jpeg oxford.png'''
 

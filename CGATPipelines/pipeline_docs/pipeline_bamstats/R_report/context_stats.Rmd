@@ -64,7 +64,7 @@ setwd("./..")
 mydb <- dbConnect(RSQLite::SQLite(), "csvdb")
 db <- dbGetQuery(mydb, 'SELECT * FROM context_stats;')
 
-db_rna <- db[,c("track",'protein_coding_gene','IG_gene','TR_gene',
+db_rna <- db[,c("track",'protein_coding_gene',
                   'unclassified_noncoding_RNA','unclassified_RNA',
                   'long_noncoding_RNA','pseudogene',
                   'short_noncoding_RNA','repeats','intergenic')]
@@ -78,7 +78,7 @@ DT::datatable(as.data.frame(db_rna, class = 'cell-border stripe'))
 db <- dbGetQuery(mydb, 'SELECT * FROM context_stats;')
 
 
-db <- db[,c("track",'protein_coding_gene','IG_gene','TR_gene',
+db <- db[,c("track",'protein_coding_gene',
                   'unclassified_noncoding_RNA','unclassified_RNA',
                   'long_noncoding_RNA','pseudogene',
                   'short_noncoding_RNA','repeats','intergenic')]
