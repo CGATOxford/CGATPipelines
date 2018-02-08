@@ -175,7 +175,7 @@ import CGATPipelines.Pipeline as P
 import CGATPipelines.PipelineMapping as PipelineMapping
 import CGATPipelines.PipelineMappingQC as PipelineMappingQC
 import CGATPipelines.PipelineExome as PipelineExome
-import PipelineExomeAncestry as PipelineExomeAncestry
+import CGATPipelines.PipelineExomeAncestry as PipelineExomeAncestry
 import decimal
 import pandas as pd
 
