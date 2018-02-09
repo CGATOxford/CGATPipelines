@@ -19,7 +19,7 @@ import CGAT.Experiment as E
 try:
     import drmaa
     HAS_DRMAA = True
-except:
+except (ImportError, RuntimeError):
 # the following does not work on Travis
 #except ImportError or RuntimeError:
     HAS_DRMAA = False

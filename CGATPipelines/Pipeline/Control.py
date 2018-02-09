@@ -41,7 +41,7 @@ except ImportError:
 try:
     import drmaa
     HAS_DRMAA = True
-except:
+except (ImportError, RuntimeError):
 # the following does not work on Travis
 #except ImportError or RuntimeError:
     HAS_DRMAA = False
@@ -900,6 +900,12 @@ def main(args=sys.argv):
 
                     # create the session proxy
                     startSession()
+
+                elif not options.without_cluster and not HAS_DRMAA:
+                    E.critical("DRMAA API not found so cannot talk to a cluster.")
+                    E.critical("Please use --local to run the pipeline"
+                               " on this host: {}".format(os.uname()[1]))
+                    sys.exit(-1)
 
                 #
                 #   make sure we are not logging at the same time in
