@@ -231,7 +231,7 @@ source ${CONDA_INSTALL_DIR}/bin/activate
 hash -r
 
 # install cgat environment
-conda install --quiet --yes 'conda=4.3'
+conda install --quiet --yes 'conda=4.3.33'
 conda info -a
 
 log "installing conda CGAT environment"
