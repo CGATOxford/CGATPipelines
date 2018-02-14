@@ -15,3 +15,4 @@ dependencies:
 - bashlex=0.12
 - pandoc=1.19.2
 - multiqc=1.4
+- sphinx=1.6.7
