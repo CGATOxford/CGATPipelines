@@ -84,8 +84,6 @@ R packages are satisfied by running::
 
       cgatflow <name> check
 
-See :ref:`ExternalDependencies` for more information.
-
 .. _PipelineRunning:
 
 Running a pipeline
@@ -143,6 +141,18 @@ appropriately, for example::
    nice -19 nohup cgatflow <name> make full -v5 -c1
 
 This will keep the pipeline running if you close the terminal.
+
+Fastq naming convention
+-----------------------
+
+Most of our pipelines assume that input :term:`fastq` files follows the following
+naming convention::
+
+   sample1-condition-R1.fastq.1.gz
+   sample1-condition-R2.fastq.2.gz
+
+If that is not the case, please make sure you use the cgat_tsv2links.py_ script
+before running a CGAT pipeline.
 
 Additional pipeline options
 ---------------------------
@@ -304,6 +314,5 @@ repository and the second command updates your local version with
 these changes.
 
 .. _PipelineReporting:
-
-
+.. _cgat_tsv2links.py: https://github.com/CGATOxford/CGATPipelines/blob/master/scripts/cgat_tsv2links.py
  
