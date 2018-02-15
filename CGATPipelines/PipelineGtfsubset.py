@@ -124,7 +124,8 @@ def connectToUCSC(host="genome-mysql.cse.ucsc.edu",
 def getRepeatDataFromUCSC(dbhandle,
                           repclasses,
                           outfile,
-                          remove_contigs_regex=None):
+                          remove_contigs_regex=None,
+                          job_memory="4G"):
     '''download data from UCSC database and write to `outfile` in
     :term:`gff` format.
 
@@ -202,7 +203,8 @@ def getRepeatDataFromUCSC(dbhandle,
     os.unlink(tmpfilename)
 
 
-def buildGenomicContext(infiles, outfile, distance=10):
+def buildGenomicContext(infiles, outfile, distance=10,
+                        job_memory="4G"):
 
     '''build a :term:`bed` formatted file with genomic context.
     The output is a bed formatted file, annotating genomic segments
@@ -295,7 +297,7 @@ def buildGenomicContext(infiles, outfile, distance=10):
         os.unlink(x)
 
 
-def buildFlatGeneSet(infile, outfile):
+def buildFlatGeneSet(infile, outfile, job_memory="4G"):
     '''build a flattened gene set.
     All transcripts in a gene are merged into a single transcript by
     combining overlapping exons.
@@ -337,7 +339,8 @@ def buildFlatGeneSet(infile, outfile):
     P.run()
 
 
-def loadGeneInformation(infile, outfile, only_proteincoding=False):
+def loadGeneInformation(infile, outfile, only_proteincoding=False,
+                        job_memory="4G"):
     '''load gene-related attributes from :term:`gtf` file into database.
     This method takes transcript-associated features from an
     :term:`gtf` file and collects the gene-related attributes in the
@@ -354,7 +357,6 @@ def loadGeneInformation(infile, outfile, only_proteincoding=False):
        If True, only consider protein coding genes.
     '''
 
-    job_memory = "4G"
     table = P.toTable(outfile)
 
     if only_proteincoding:

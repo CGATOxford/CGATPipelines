@@ -525,7 +525,7 @@ def buildCpGBed(infile, outfile):
       genome.  The BED file is then indexed using tabix
     '''
 
-    job_memory = "10G"
+    job_memory = PARAMS["job_highmemory"]
 
     statement = '''
     cgat fasta2bed
@@ -570,6 +570,8 @@ def buildUCSCGeneSet(infile, outfile):
        geneset in :term:`gtf` format.
 
     '''
+
+    job_memory = PARAMS["job_memory"]
 
     statement = ['''zcat %(infile)s
     | grep 'transcript_id'
@@ -766,6 +768,9 @@ def loadTranscripts(infile, outfile):
        Logfile. The table name is derived from `outfile`.
 
     '''
+
+    job_memory = PARAMS["job_memory"]
+
     load_statement = P.build_load_statement(
         P.toTable(outfile),
         options="--add-index=gene_id "
@@ -785,7 +790,8 @@ def loadTranscripts(infile, outfile):
            suffix("ensembl.dir/geneset_all.gtf.gz"),
            PARAMS['interface_geneset_flat_gtf'])
 def buildFlatGeneSet(infile, outfile):
-    PipelineGtfsubset.buildFlatGeneSet(infile, outfile)
+    PipelineGtfsubset.buildFlatGeneSet(infile, outfile,
+                                       job_memory=PARAMS["job_highmemory"])
 
 ####################################################################
 # Geneset derived annotations
@@ -802,6 +808,8 @@ def buildRefFlat(infile, outfile):
 
     tmpflat = P.getTempFilename(".")
 
+    job_memory = PARAMS["job_memory"]
+
     statement = '''
     gtfToGenePred -genePredExt -geneNameAsName2 %(infile)s %(tmpflat)s;
     paste <(cut -f 12 %(tmpflat)s) <(cut -f 1-10 %(tmpflat)s)
@@ -815,7 +823,7 @@ def buildRefFlat(infile, outfile):
             buildNonCodingExonTranscript,
             buildLincRNAExonTranscript),
            regex('.*geneset_(.*)_exons.gtf.gz'),
-           r'geneset.dir/\1_transript_region.bed.gz')
+           r'geneset.dir/\1_transcript_region.bed.gz')
 def buildTranscriptRegions(infile, outfile):
     """
     export a table of seleno cysteine transcripts.
@@ -833,6 +841,8 @@ def buildTranscriptRegions(infile, outfile):
        Output filename with genomic regions in :term:`bed` format.
 
     """
+
+    job_memory = PARAMS["job_memory"]
 
     statement = """
     gunzip < %(infile)s
@@ -867,6 +877,9 @@ def buildGeneRegions(infile, outfile):
        Output filename with genomic regions in :term:`bed` format.
 
     """
+
+    job_memory = PARAMS["job_memory"]
+
     statement = """
     gunzip < %(infile)s
     | cgat gtf2gtf
@@ -903,6 +916,8 @@ def buildTranscriptTSS(infile, outfile):
        Output filename with genomic regions in :term:`bed` format.
 
     """
+
+    job_memory = PARAMS["job_memory"]
 
     statement = """
     gunzip < %(infile)s
@@ -942,6 +957,8 @@ def buildGeneTSSInterval(infile, outfile):
 
     """
 
+    job_memory = PARAMS["job_memory"]
+
     statement = """
     gunzip < %(infile)s
     | cgat gtf2gtf
@@ -970,7 +987,7 @@ def buildGeneTSSInterval(infile, outfile):
             buildNonCodingExonTranscript,
             buildLincRNAExonTranscript),
            regex('.*geneset_(.*)_exons.gtf.gz'),
-           r'geneset.dir/\1_transript_tts.bed.gz')
+           r'geneset.dir/\1_transcript_tts.bed.gz')
 def buildTranscriptTTS(infile, outfile):
     """build a :term:`bed` file with transcription termination sites.
 
@@ -989,6 +1006,8 @@ def buildTranscriptTTS(infile, outfile):
        Output filename with genomic regions in :term:`bed` format.
 
     """
+
+    job_memory = PARAMS["job_memory"]
 
     statement = """
     gunzip < %(infile)s
@@ -1029,6 +1048,8 @@ def buildGeneTSS(infile, outfile):
 
     """
 
+    job_memory = PARAMS["job_memory"]
+
     statement = """gunzip < %(infile)s
     | cgat gtf2gtf
     --method=merge-transcripts
@@ -1065,6 +1086,9 @@ def buildGeneTTS(infile, outfile):
        Output filename with genomic regions in :term:`bed` format.
 
     """
+
+    job_memory = PARAMS["job_memory"]
+
     statement = """gunzip < %(infile)s
     | cgat gtf2gtf
     --method=merge-transcripts
@@ -1096,6 +1120,8 @@ def buildIntergenicRegions(infiles, outfile):
 
     infile, contigs = infiles
 
+    job_memory = PARAMS["job_memory"]
+
     statement = '''zcat %(infile)s
     | sort -k1,1 -k2,2n
     | complementBed -i stdin -g %(contigs)s
@@ -1112,7 +1138,8 @@ def buildIntergenicRegions(infiles, outfile):
            "ensembl.dir/gene_info.load")
 def loadGeneInformation(infile, outfile):
     '''load the transcript set.'''
-    PipelineGtfsubset.loadGeneInformation(infile, outfile)
+    PipelineGtfsubset.loadGeneInformation(infile, outfile,
+                                          job_memory=PARAMS["job_highmemory"])
 
 
 @follows(loadGeneInformation)
@@ -1147,6 +1174,8 @@ def identifyProteinCodingGenes(outfile):
            regex(".*"),
            PARAMS['interface_utr_all_gtf'])
 def buildUtrGeneSet(infile, outfile):
+
+    job_memory = PARAMS["job_memory"]
 
     statement = "zcat %(infile)s | grep 'utr' | gzip > %(outfile)s"
 
@@ -1184,6 +1213,8 @@ def buildIntronGeneModels(infiles, outfile):
     '''
 
     infile, genes_tsv, filename_exons = infiles
+
+    job_memory = PARAMS["job_memory"]
 
     statement = '''
     zcat %(infile)s
@@ -1229,7 +1260,8 @@ def importRNAAnnotationFromUCSC(outfile):
         dbhandle=connectToUCSC(),
         repclasses=P.asList(PARAMS["ucsc_rnatypes"]),
         outfile=outfile,
-        remove_contigs_regex=PARAMS["ncbi_remove_contigs"])
+        remove_contigs_regex=PARAMS["ncbi_remove_contigs"],
+        job_memory=PARAMS["job_memory"])
 
 
 @follows(mkdir('ucsc.dir'))
@@ -1241,7 +1273,8 @@ def importRepeatsFromUCSC(outfile):
     PipelineGtfsubset.getRepeatDataFromUCSC(
         dbhandle=connectToUCSC(),
         repclasses=P.asList(PARAMS["ucsc_repeattypes"]),
-        outfile=outfile)
+        outfile=outfile,
+        job_memory=PARAMS["job_memory"])
 
 
 @jobs_limit(PARAMS.get("jobs_limit_db", 1), "db")
@@ -1263,6 +1296,9 @@ def loadRepeats(infile, outfile):
         derived from outfile.
 
     """
+
+    job_memory = PARAMS["job_memory"]
+
     load_statement = P.build_load_statement(
         P.toTable(outfile),
         options="--add-index=class "
@@ -1341,6 +1377,9 @@ def loadmiRNATranscripts(infile, outfile):
        Logfile. The table name is derived from `outfile`.
 
     '''
+
+    job_memory = PARAMS["job_memory"]
+
     load_statement = P.build_load_statement(
         P.toTable(outfile),
         options="--allow-empty-file "
@@ -1370,7 +1409,8 @@ def createGO(infile, outfile):
     and runs the runGO.py "filename-dump" option.
     This calls DumpGOFromDatabase from GO.py
     '''
-    PipelineGO.createGOFromENSEMBL(infile, outfile)
+    PipelineGO.createGOFromENSEMBL(infile, outfile,
+                                   job_memory=PARAMS["job_highmemory"])
 
 
 @P.add_doc(PipelineGO.createGOSlimFromENSEMBL)
@@ -1382,7 +1422,8 @@ def createGOSlim(infile, outfile):
     Downloads GO slim annotations from ensembl
     '''
     E.warn(PARAMS['go_url_goslim'])
-    PipelineGO.createGOSlimFromENSEMBL(infile, outfile)
+    PipelineGO.createGOSlimFromENSEMBL(infile, outfile,
+                                       job_memory=PARAMS["job_highmemory"])
 
 
 @P.add_doc(P.load)
@@ -1412,7 +1453,8 @@ def annotateGenome(infile, outfile):
     """
     PipelineGeneset.annotateGenome(infile,
                                    outfile,
-                                   only_proteincoding=True)
+                                   only_proteincoding=True,
+                                   job_memory=PARAMS["job_memory"])
 
 
 @P.add_doc(PipelineGeneset.annotateGeneStructure)
@@ -1426,7 +1468,8 @@ def annotateGeneStructure(infile, outfile):
     """
     PipelineGeneset.annotateGeneStructure(infile,
                                           outfile,
-                                          only_proteincoding=True)
+                                          only_proteincoding=True,
+                                          job_memory=PARAMS["job_memory"])
 
 
 @follows(mkdir('enrichment.dir'))
@@ -1448,6 +1491,9 @@ def buildGeneTerritories(infile, outfile):
     enrichment_territories_radius : int
        see :term:`PARAMS`
     """
+
+    job_memory = PARAMS["job_highmemory"]
+
     statement = '''
     zcat %(infile)s
     | cgat gtf2gtf
@@ -1488,7 +1534,8 @@ def buildGenomicFunctionalAnnotation(infiles, outfiles):
     PipelineGeneset.buildGenomicFunctionalAnnotation(
         territories_gtf_file,
         dbh=connect(),
-        outfiles=outfiles)
+        outfiles=outfiles,
+        job_memory=PARAMS["job_memory"])
 
 
 @P.add_doc(PipelineGtfsubset.buildGenomicContext)
@@ -1500,7 +1547,8 @@ def buildGenomicFunctionalAnnotation(infiles, outfiles):
         buildIntronGeneModels),
        PARAMS["interface_genomic_context_bed"])
 def buildGenomicContext(infiles, outfile):
-    PipelineGtfsubset.buildGenomicContext(infiles, outfile)
+    PipelineGtfsubset.buildGenomicContext(infiles, outfile,
+                                          job_memory=PARAMS["job_memory"])
 
 
 ##############################################################

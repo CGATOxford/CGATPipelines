@@ -53,7 +53,8 @@ def mapUCSCToEnsembl(genome):
 
 
 def annotateGenome(infile, outfile,
-                   only_proteincoding=False):
+                   only_proteincoding=False,
+                   job_memory="4G"):
     '''annotate genomic regions with reference gene set.
 
     The method applies the following filters to an ENSEMBL gene set:
@@ -120,7 +121,8 @@ def annotateGenome(infile, outfile,
 
 
 def annotateGeneStructure(infile, outfile,
-                          only_proteincoding=False):
+                          only_proteincoding=False,
+                          job_memory="4G"):
     """annotate genomic regions with gene structure.
 
     The method applies the following filters to an ENSEMBL gene set:
@@ -1439,7 +1441,8 @@ def sortGTF(infile, outfile, order="contig+gene"):
     P.run()
 
 
-def buildGenomicFunctionalAnnotation(gtffile, dbh, outfiles):
+def buildGenomicFunctionalAnnotation(gtffile, dbh, outfiles,
+                                     job_memory="4G"):
     '''output a bed file with functional annotations.
 
     The genomic region a gene covers is taken from the `gtffile`.
