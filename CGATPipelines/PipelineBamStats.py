@@ -502,7 +502,7 @@ def summarizeTagsWithinContext(tagfile,
                                contextfile,
                                outfile,
                                min_overlap=0.5,
-                               job_memory="4G"):
+                               job_memory="15G"):
     '''count occurances of tags in genomic context.
 
     Examines the genomic context to where tags align.

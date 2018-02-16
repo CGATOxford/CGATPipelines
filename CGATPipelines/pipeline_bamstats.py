@@ -559,7 +559,7 @@ def buildIntronLevelReadCounts(infiles, outfile):
 
 @active_if(SPLICED_MAPPING)
 @transform(intBam,
-           regex("BamFiles.dir/(.*).bam$"),
+           regex("BamFiles.dir/(\S+).bam$"),
            add_inputs(PARAMS["annotations_interface_geneset_coding_exons_gtf"]),
            r"Paired_QC.dir/\1.transcriptprofile.gz")
 def buildTranscriptProfiles(infiles, outfile):
@@ -754,7 +754,8 @@ def loadStrandSpecificity(infiles, outfile):
 # These tasks allow ruffus to pipeline tasks together
 
 
-@follows(loadPicardStats,
+@follows(buildTranscriptProfiles,
+         loadPicardStats,
          loadPicardDuplicationStats,
          loadBAMStats,
          loadContextStats,
@@ -796,7 +797,7 @@ def renderJupyterReport():
                                                'Jupyter_report'))
 
     statement = ''' cp %(report_path)s/* Jupyter_report.dir/ ; cd Jupyter_report.dir/;
-                    jupyter nbconvert --ExecutePreprocessor.timeout=None --allow-errors --to html --execute *.ipynb;
+                    jupyter nbconvert --ExecutePreprocessor.timeout=None --to html --execute *.ipynb --allow-errors;
                     mkdir _site;
                     mv -t _site *.html cgat_logo.jpeg oxford.png'''
 
