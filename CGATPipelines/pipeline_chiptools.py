@@ -258,7 +258,8 @@ def findPeaks(infile, outfile):
     input_bam = df_slice['bamControl'].values[0]
     input_bam = input_bam.strip(".bam")
 
-    statement = '''cd homer/Tag.dir/;
+    statement = '''sleep 30 &&
+                   cd homer/Tag.dir/;
                    findPeaks %(directory)s -style %(homer_findpeaks_style)s -o %(homer_findpeaks_output)s
                    %(homer_findpeaks_options)s -i %(input_bam)s &> %(directory)s.findpeaks.log'''
     P.run()
