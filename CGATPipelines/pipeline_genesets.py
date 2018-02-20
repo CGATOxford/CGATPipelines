@@ -769,7 +769,7 @@ def loadTranscripts(infile, outfile):
 
     '''
 
-    job_memory = PARAMS["job_memory"]
+    job_memory = PARAMS["job_highmemory"]
 
     load_statement = P.build_load_statement(
         P.toTable(outfile),
@@ -779,7 +779,7 @@ def loadTranscripts(infile, outfile):
 
     statement = '''
     gunzip < %(infile)s
-    | cgat gtf2tsv
+    | cgat gtf2tsv -f
     | %(load_statement)s
     > %(outfile)s'''
     P.run()
@@ -1548,7 +1548,7 @@ def buildGenomicFunctionalAnnotation(infiles, outfiles):
        PARAMS["interface_genomic_context_bed"])
 def buildGenomicContext(infiles, outfile):
     PipelineGtfsubset.buildGenomicContext(infiles, outfile,
-                                          job_memory=PARAMS["job_memory"])
+                                          job_memory=PARAMS["job_highmemory"])
 
 
 ##############################################################
