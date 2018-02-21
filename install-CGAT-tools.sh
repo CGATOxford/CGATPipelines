@@ -223,10 +223,12 @@ cd $CGAT_HOME
 
 log "downloading miniconda"
 # download and install conda
-wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+#wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+# Conda 4.4 breaks everything again
+curl -o Miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-4.3.31-Linux-x86_64.sh
 
 log "installing miniconda"
-bash Miniconda3-latest-Linux-x86_64.sh -b -p $CONDA_INSTALL_DIR
+bash Miniconda.sh -b -p $CONDA_INSTALL_DIR
 source ${CONDA_INSTALL_DIR}/bin/activate
 hash -r
 
