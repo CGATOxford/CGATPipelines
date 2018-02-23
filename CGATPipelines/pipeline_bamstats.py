@@ -270,7 +270,7 @@ def intBam(infile, outfile):
     If there is no sequence quality then make a softlink. Picard tools
     has an issue when quality score infomation is missing'''
 
-    if PARAMS["bam_sequence_stipped"] is True:
+    if PARAMS["bam_sequence_stripped"] is True:
         PipelineBamStats.addPseudoSequenceQuality(infile,
                                                   outfile)
     else:
