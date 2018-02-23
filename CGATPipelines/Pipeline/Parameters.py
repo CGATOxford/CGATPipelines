@@ -431,13 +431,6 @@ def getParameters(filenames=["pipeline.ini", ],
         if os.path.exists(fn):
             filenames.insert(0, fn)
 
-    if user_ini:
-        # read configuration from a users home directory
-        fn = os.path.join(os.path.expanduser("~"),
-                          ".cgat")
-        if os.path.exists(fn):
-            filenames.insert(0, fn)
-
     if default_ini:
         # The link between CGATPipelines and Pipeline.py
         # needs to severed at one point.
@@ -447,6 +440,14 @@ def getParameters(filenames=["pipeline.ini", ],
                          os.path.join(CGATPIPELINES_PIPELINE_DIR,
                                       'configuration',
                                       'pipeline.ini'))
+
+    if user_ini:
+        # read configuration from a users home directory
+        fn = os.path.join(os.path.expanduser("~"),
+                          ".cgat")
+        if os.path.exists(fn):
+            index = filenames.index('pipeline.ini')
+            filenames.insert(index,fn)
 
     # IMS: Several legacy scripts call this with a string as input
     # rather than a list. Check for this and correct
