@@ -446,8 +446,11 @@ def getParameters(filenames=["pipeline.ini", ],
         fn = os.path.join(os.path.expanduser("~"),
                           ".cgat")
         if os.path.exists(fn):
-            index = filenames.index('pipeline.ini')
-            filenames.insert(index,fn)
+            if 'pipeline.ini' in filenames:
+                index = filenames.index('pipeline.ini')
+                filenames.insert(index,fn)
+            else:
+                filenames.append(fn)
 
     # IMS: Several legacy scripts call this with a string as input
     # rather than a list. Check for this and correct
