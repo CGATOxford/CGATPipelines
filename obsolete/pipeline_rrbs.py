@@ -1,23 +1,15 @@
 """====================
 rrbs pipeline
 ====================
+The purpose of this pipeline is to perform RRBS data for project 34, including:
+1. Mapping reads
+2. Calling methylation status of bases
+3. Obtaining summary statistics
+4. Metagene profile plots
+5. Plots to summarise methylation over features of interest
+6. Differential methylation analysis, via M3D
+7. "spike-in" in-silico power analysis
 
-
-
-######## UPDATE THIS SECTION ############
-(See the readqc pipeline for details of the readqc functions
-(target ``readqc``).)
-
-The purpose of this pipeline is to pre-process reads (target ``full``).
-
-Implemented tasks are:
-
-   * :meth:`removeContaminants` - remove contaminants from read sets
-   * :meth:`trim` - trim reads by a certain amount
-   * :meth:`filter` - filter reads by quality score
-   * :meth:`sample` - sample a certain proportion of reads
-
-Individual tasks are enabled in the configuration file.
 Usage
 =====
 
@@ -28,25 +20,6 @@ Configuration
 -------------
 
 No general configuration required.
-
-Removing contaminants
----------------------
-
-Use the task :meth:`removeContaminants` to remove contaminants from read
-sets.
-
-Contaminant sequences are listed in the file
-:file:`contaminants.fasta`.  If not given, a file with standard
-Illumina adapators will be created to remove adaptor contamination.
-
-The task will create output files called :file:`nocontaminants-<infile>`.
-
-The pipeline can then be re-run in order to add stats on the
-contaminant-removed files.
-
-.. note::
-
-   Colour space filtering has not been implemented yet.
 
 Input
 -----
@@ -83,40 +56,13 @@ software to be in the path:
 +---------------+----------+------------------------------------------------+
 |*Program*      |*Version* |*Purpose*                                       |
 +---------------+----------+------------------------------------------------+
-|fastqc         |>=0.9.0   |read quality control                            |
+|bismark        |>=0.19.0  |Map reads and call methylation status           |
 +---------------+----------+------------------------------------------------+
-|sra-tools      |          |extracting reads from .sra files                |
-+---------------+----------+------------------------------------------------+
-|picard         |>=1.38    |bam/sam files. The .jar files need to be in your|
-|               |          | CLASSPATH environment variable.                |
-+---------------+----------+------------------------------------------------+
-
-Pipeline output
-===============
-
-The major output is a set of HTML pages and plots reporting on the
-quality of the sequence archive
 
 Example
 =======
-
-Example data is available at ?
-To run the example, simply unpack and untar::
-
-TODO
-====
-document design file
-document power analysis options
-parameterise power analysis?
-clean up bash code for coverage analysis, i.e replace with python
-
-Code
-====
-
 """
 
-###################################################
-###################################################
 ###################################################
 # load modules
 ###################################################
