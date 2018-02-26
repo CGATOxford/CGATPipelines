@@ -1,35 +1,6 @@
 '''
 PipelineRrbs.py - Utility functions for analysing rrbs sequence data
 =====================================================================
-
-
-Mapping reads is a common task in pipelines. Different pipelines
-combine different sources of input (:term:`fastq` files, :term:`sra` files)
-of different data (single end, paired end) with different mapping
-algorithms (bowtie, tophat, stampy). This module provides utility
-functions to abstract some of these variations.
-
-The pipeline does not know what kind of data it gets (a :term:`sra` archive
-might contain single end or paired end data or both).
-
-A pipeline might get several input data (:term:`fastq` and :term:`sra`
-formatted files at the same time).
-
-The module currently is able to deal with:
-
-   * tophat mapping against genome
-   * bowtie mapping against transcriptome, genome and junctions
-   * bwa against genome
-   * stampy against genome
-
-It implements:
-   * .sra: paired-end and single-end
-   * .fastq: paired-end and single-end
-   * .csfasta: colour-space, single-end
-
-Code
-----
-
 '''
 import os
 import re
