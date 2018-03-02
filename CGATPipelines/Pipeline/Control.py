@@ -337,12 +337,15 @@ def peekParameters(workingdir,
             return {}
 
     statement = "python %s -f -v 0 dump" % pipeline
+
+    os.environ.update({'BASH_ENV': os.path.join(os.environ['HOME'],'.bashrc')})
     process = subprocess.Popen(statement,
                                cwd=workingdir,
                                shell=True,
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
+                               stderr=subprocess.PIPE,
+                               env=os.environ.copy())
 
     # process.stdin.close()
     stdout, stderr = process.communicate()
