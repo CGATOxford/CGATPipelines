@@ -1076,38 +1076,6 @@ def loadBAMStats(infiles, outfile):
         P.run()
 
 
-def buildPicardRnaSeqMetrics(infiles, strand, outfile):
-    '''run picard:RNASeqMetrics
-    Arguments
-    ---------
-    infiles : string
-        Input filename in :term:`BAM` format.
-        Genome file in refflat format
-            (http://genome.ucsc.edu/goldenPath/gbdDescriptionsOld.html#RefFlat)
-    outfile : string
-        Output filename with picard output.
-    '''
-    job_memory = PICARD_MEMORY
-    picard_opts = '-Xmx%(job_memory)s -XX:+UseParNewGC -XX:+UseConcMarkSweepGC' % locals()
-    job_threads = 20
-    infile, genome = infiles
-
-    if BamTools.getNumReads(infile) == 0:
-        E.warn("no reads in %s - no metrics" % infile)
-        P.touch(outfile)
-        return
-
-    statement = '''picard %(picard_opts)s CollectRnaSeqMetrics
-    REF_FLAT=%(genome)s
-    INPUT=%(infile)s
-    ASSUME_SORTED=true
-    OUTPUT=%(outfile)s
-    STRAND=%(strand)s
-    VALIDATION_STRINGENCY=SILENT
-    '''
-    P.run()
-
-
 def loadPicardRnaSeqMetrics(infiles, outfiles):
     '''load picard rna stats into database.
     Loads tables into the database
