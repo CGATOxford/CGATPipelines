@@ -64,7 +64,7 @@ dependencies:
 - shortstack=3.8.3
 - sickle-trim=1.33
 - six=1.11.0
-- snpeff=4.1l
+- snpeff=4.3.1t
 - sqlalchemy=1.1.13
 - star=2.5.3a
 - stringtie=1.3.3

@@ -687,11 +687,11 @@ def loadNDR(infile, outfile):
            r"variants/all_samples.snpeff.vcf")
 def annotateVariantsSNPeff(infile, outfile):
     '''Annotate variants using SNPeff'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotation_memory"]
     job_threads = PARAMS["annotation_threads"]
     snpeff_genome = PARAMS["annotation_snpeff_genome"]
     config = PARAMS["annotation_snpeff_config"]
-    statement = '''snpEff eff
+    statement = '''snpEff -Xmx%(job_memory)s eff
                    -c %(config)s
                    -v %(snpeff_genome)s
                    -o gatk %(infile)s > %(outfile)s''' % locals()
