@@ -267,51 +267,66 @@ class FeatureCountsQuantifier(Quantifier):
         else:
             raise ValueError("level must be gene_id or transcript_id!")
 
-        tmpdir = P.getTempDir()
-
-        # need to unzip the annotations for featureCounts
-        annotations_tmp = os.path.join(tmpdir,
-                                       'geneset.gtf')
-        bam_tmp = os.path.join(tmpdir,
-                               os.path.basename(bamfile))
-
-        # -p -B specifies count fragments rather than reads, and both
-        # reads must map to the feature
-        # for legacy reasons look at feature_counts_paired
-        if BamTools.isPaired(bamfile):
-            # select paired end mode, additional options
-            paired_options = "-p -B"
-            # sort by read name
-            paired_processing = \
-                """samtools
-                sort -@ %(job_threads)i -n -o %(bam_tmp)s %(bamfile)s;
-                checkpoint; """ % locals()
-            bamfile = bam_tmp
-        else:
-            paired_options = ""
-            paired_processing = ""
-
         # raw featureCounts output saved to ".raw" file
         outfile_raw = P.snip(outfile, ".gz") + ".raw"
         outfile_dir = os.path.dirname(outfile)
         if not os.path.exists(outfile_dir):
             os.makedirs(outfile_dir)
 
-        statement = '''mkdir %(tmpdir)s;
-                       zcat %(annotations)s > %(annotations_tmp)s;
-                       checkpoint;
-                       %(paired_processing)s
-                       featureCounts %(options)s
-                                     -T %(job_threads)i
-                                     -s %(strand)s
-                                     -a %(annotations_tmp)s
-                                     %(paired_options)s
-                                     -o %(outfile_raw)s -g %(level)s
-                                     %(bamfile)s
-                        >& %(outfile)s.log;
-                        rm -rf %(tmpdir)s; checkpoint;
-                        gzip -f %(outfile_raw)s
-        '''
+        # -p -B specifies count fragments rather than reads, and both
+        # reads must map to the feature
+        # for legacy reasons look at feature_counts_paired
+        if BamTools.isPaired(bamfile):
+
+            # select paired end mode, additional options
+            paired_options = "-p -B"
+
+            # sort by read name
+            paired_processing = \
+                """samtools
+                   sort -@ %(job_threads)i -n -o $bam_tmp %(bamfile)s;
+                   checkpoint;
+                   """ % locals()
+
+            # NEI - creating separate statements for paired and single-end
+            # data seems cleaner to me. There are multiple temp files for
+            # paired-end data that need to be accessed within the statement
+            # and isn't obvious to me how these can be accessed via string subs
+            statement = '''annotations_tmp=`mktemp -p %(local_tmpdir)s`;
+                           zcat %(annotations)s > $annotations_tmp;
+                           checkpoint;
+                           bam_tmp=`mktemp -p %(local_tmpdir)s`;
+                           checkpoint;
+                           %(paired_processing)s
+                           featureCounts %(options)s
+                                        -T %(job_threads)i
+                                        -s %(strand)s
+                                        -a $annotations_tmp
+                                        %(paired_options)s
+                                        -o %(outfile_raw)s -g %(level)s
+                                        $bam_tmp
+                           >& %(outfile)s.log;
+                           checkpoint;
+                           sed -i '2s/\S*$/%(bamfile)s/g' %(outfile_raw)s; 
+                           checkpoint;
+                           gzip -f %(outfile_raw)s;
+                           rm -rf $annotations_tmp $bam_tmp
+                        '''
+        else:
+            statement = '''annotations_tmp=`mktemp -p %(local_tmpdir)s`;
+                           zcat %(annotations)s > $annotations_tmp;
+                           checkpoint;
+                           featureCounts %(options)s
+                                        -T %(job_threads)i
+                                        -s %(strand)s
+                                        -a $annotations_tmp
+                                        -o %(outfile_raw)s -g %(level)s
+                                        %(bamfile)s
+                           >& %(outfile)s.log;
+                           checkpoint;
+                           gzip -f %(outfile_raw)s;
+                           rm -rf $annotations_tmp
+                        '''
         P.run()
 
         # parse output to extract counts
