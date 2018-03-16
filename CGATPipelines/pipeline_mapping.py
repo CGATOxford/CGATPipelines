@@ -1911,7 +1911,7 @@ if "merge_pattern_input" in PARAMS and PARAMS["merge_pattern_input"]:
 
     @collate(countReads,
              regex("%s.nreads" % PARAMS["merge_pattern_input"]),
-             r"%s.nreads" % PARAMS["merge_pattern_output"],
+             r"nreads.dir/%s.nreads" % PARAMS["merge_pattern_output"],
              )
     def mergeReadCounts(infiles, outfile):
         '''merge read counts files from the same experiment using
@@ -1969,13 +1969,16 @@ def loadReadCounts(infiles, outfile):
        Output filename, the table name is derived from `outfile`
 
     '''
+    # ensure no duplication of input/output when
+    # mergeReadCounts isn't performed on a pattern
+    infiles = set(infiles)
 
     outf = P.getTempFile(".")
     outf.write("track\ttotal_reads\n")
     for infile in infiles:
-        track = P.snip(infile, ".nreads")
-        lines = IOTools.openFile(infile).readlines()
-        nreads = int(lines[0][:-1].split("\t")[1])
+        track = os.path.basename(P.snip(infile, ".nreads"))
+        line = IOTools.openFile(infile).readline()
+        nreads = int(line[:-1].split("\t")[1])
         outf.write("%s\t%i\n" % (track, nreads))
     outf.close()
 
