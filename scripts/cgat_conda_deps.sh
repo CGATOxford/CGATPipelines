@@ -32,6 +32,7 @@ TMP_DEPS=$(mktemp)
 # dictionary with production CGAT pipelines
 declare -A CGAT_PIPELINES
 CGAT_PIPELINES[bamstats]="pipeline_bamstats.py"
+CGAT_PIPELINES[chiptools]="pipeline_chiptools.py"
 CGAT_PIPELINES[enrichment]="pipeline_enrichment.py"
 CGAT_PIPELINES[genesets]="pipeline_genesets.py"
 CGAT_PIPELINES[intervals]="pipeline_intervals.py"
@@ -276,6 +277,26 @@ MISC_DEPS[wc]="coreutils"
 MISC_DEPS[wget]="wget"
 MISC_DEPS[wigToBigWig]="ucsc-wigtobigwig"
 MISC_DEPS[zcat]="ignore" # gzip not available in conda
+MISC_DEPS[annotatePeaks.pl]="homer"
+MISC_DEPS[bamCompare]="deeptools"
+MISC_DEPS[bamCoverage]="deeptools"
+MISC_DEPS[bamPEFragmentSize]="deeptools"
+MISC_DEPS[computeMatrix]="deeptools"
+MISC_DEPS[findMotifsGenome.pl]="homer"
+MISC_DEPS[findPeaks]="homer"
+MISC_DEPS[getDiffExpression.pl]="homer"
+MISC_DEPS[getDifferentialPeaksReplicates.pl]="homer"
+MISC_DEPS[makeTagDirectory]="homer"
+MISC_DEPS[multiBamSummary]="deeptools"
+MISC_DEPS[multiBigwigSummary]="deeptools"
+MISC_DEPS[plotCorrelation]="deeptools"
+MISC_DEPS[plotCoverage]="deeptools"
+MISC_DEPS[plotFingerprint]="deeptools"
+MISC_DEPS[plotHeatmap]="deeptools"
+MISC_DEPS[plotPCA]="deeptools"
+MISC_DEPS[plotProfile]="deeptools"
+MISC_DEPS[pos2bed.pl]="homer"
+MISC_DEPS[picard]="picard"
 
 
 # function to print the name of production pipelines
