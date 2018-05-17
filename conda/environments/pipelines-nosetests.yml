@@ -15,7 +15,6 @@ dependencies:
 - brewer2mpl=1.4.1
 - cgat-report=0.7.6.1
 - future=0.16.0
-- gcc=4.8.5
 - httplib2=0.10.3
 - intermine=1.09.09
 - matplotlib=2.1.0

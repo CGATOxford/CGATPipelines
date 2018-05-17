@@ -9,7 +9,6 @@ channels:
 dependencies:
 # system deps
 - nomkl
-- gcc
 - zlib
 # bioinformatics tools
 # python deps
