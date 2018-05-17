@@ -234,7 +234,7 @@ source ${CONDA_INSTALL_DIR}/bin/activate
 hash -r
 
 # install cgat environment
-conda install --quiet --yes 'conda=4.3.33'
+#conda install --quiet --yes 'conda=4.3.33'
 # Conda 4.4 breaks everything again
 # Conda 4.5 looks better
 conda update --all --yes
