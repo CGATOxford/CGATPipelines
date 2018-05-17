@@ -223,9 +223,10 @@ cd $CGAT_HOME
 
 log "downloading miniconda"
 # download and install conda
-#wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+curl -o Miniconda.sh -O http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
 # Conda 4.4 breaks everything again
-curl -o Miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-4.3.31-Linux-x86_64.sh
+# Conda 4.5 looks better
+#curl -o Miniconda.sh -O https://repo.continuum.io/miniconda/Miniconda3-4.3.31-Linux-x86_64.sh
 
 log "installing miniconda"
 bash Miniconda.sh -b -p $CONDA_INSTALL_DIR
@@ -234,8 +235,10 @@ hash -r
 
 # install cgat environment
 conda install --quiet --yes 'conda=4.3.33'
+# Conda 4.4 breaks everything again
+# Conda 4.5 looks better
+conda update --all --yes
 conda info -a
-
 log "installing conda CGAT environment"
 
 # Now using conda environment files:
