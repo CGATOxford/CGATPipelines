@@ -729,6 +729,13 @@ if [[ ${RELEASE_PIPELINES} -ne 0 ]] ; then
 }
 
 
+# test whether a C/C++ compiler is available
+test_compilers() {
+   which gcc &> /dev/null || report_error " C compiler not found "
+   which g++ &> /dev/null || report_error " C++ compiler not found "
+}
+
+
 # function to display help message
 help_message() {
 echo
@@ -778,6 +785,8 @@ exit 1
 } # help_message
 
 # the script starts here
+
+test_compilers
 
 if [[ $# -eq 0 ]] ; then
 
