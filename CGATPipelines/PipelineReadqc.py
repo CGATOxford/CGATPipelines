@@ -247,22 +247,21 @@ def buildExperimentReadQuality(infiles, outfile, datadir):
         raise ValueError("received no data")
 
     for track, status, header, rows in data:
-        T = track
+        T = track.replace("-", "_").replace(".", "_")
         rows = [list(map(float, x.split("\t"))) for x in rows]
         header = header.split("\t")
         if first:
             first = False
             df_out = pd.DataFrame(rows)
             df_out.columns = header
-            df_out.rename(columns={"Count": track}, inplace=True)
+            df_out.rename(columns={"Count": T}, inplace=True)
         else:
             df = pd.DataFrame(rows)
             df.columns = header
-            df.rename(columns={"Count": track}, inplace=True)
+            df.rename(columns={"Count": T}, inplace=True)
             df_out = df_out.merge(df, how="outer", on="Quality", sort=True)
 
-    df_out.set_index("Quality", inplace=True)
-    df_out = pd.DataFrame(df_out.sum(axis=1))
-    df_out.columns = ["_".join(T.split("-")[:-1]), ]
+    # SLV: is this really required?
+    #df_out = pd.DataFrame(df_out.sum(axis=1))
 
-    df_out.to_csv(IOTools.openFile(outfile, "w"), sep="\t")
+    df_out.to_csv(IOTools.openFile(outfile, "w"), sep="\t", index=False)

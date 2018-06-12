@@ -373,7 +373,7 @@ def runFastqc(infiles, outfile):
 @transform(runFastqc, suffix(".fastqc"), "_fastqc.load")
 def loadFastqc(infile, outfile):
     '''load FASTQC stats into database.'''
-    track = P.snip(infile, ".fastqc")
+    track = P.snip(infile.replace("processed.dir/", ""), ".fastqc")
     filename = os.path.join(
         PARAMS["exportdir"], "fastqc", track + "*_fastqc", "fastqc_data.txt")
 
@@ -441,7 +441,7 @@ def buildFastQCSummaryBasicStatistics(infiles, outfile):
 
 @follows(mkdir("experiment.dir"), loadFastqc)
 @collate(runFastqc,
-         regex("(processed.dir/)*(.*)-([^-]*).fastqc"),
+         regex("(processed.dir/)*(.*).fastqc"),
          r"experiment.dir/\2_per_sequence_quality.tsv")
 def buildExperimentLevelReadQuality(infiles, outfile):
     """
