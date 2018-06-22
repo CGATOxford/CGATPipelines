@@ -343,6 +343,9 @@ if [[ -z ${TRAVIS_INSTALL} ]] ; then
       # revert setup.py if downloaded with git
       [[ $CODE_DOWNLOAD_TYPE -ge 1 ]] && git checkout -- setup.py
 
+      # environment pinning
+      python scripts/conda.py
+
    fi # if INSTALL_DEVEL
 
    # check whether conda create went fine
@@ -736,6 +739,20 @@ test_compilers() {
 }
 
 
+# clean up environment
+# deliberately use brute force
+cleanup_env() {
+   set +e
+   source deactivate >& /dev/null || true
+   source deactivate >& /dev/null || true
+   unset -f conda || true
+   unset PYTHONPATH || true
+   module purge >& /dev/null || true
+   mymodule purge >& /dev/null || true
+   set -e
+}
+
+
 # function to display help message
 help_message() {
 echo
@@ -786,6 +803,7 @@ exit 1
 
 # the script starts here
 
+cleanup_env
 test_compilers
 
 if [[ $# -eq 0 ]] ; then
@@ -983,8 +1001,8 @@ fi
 # sanity check 3: make sure there is space available in the destination folder (20 GB)
 [[ -z ${TRAVIS_INSTALL} ]] && \
 mkdir -p ${CGAT_HOME} && \
-[[ `df --block-size=1 ${CGAT_HOME} | awk '/\// {print $3}'` -lt 21474836480  ]] && \
-   report_error " Not enought disk space available on the installation folder: "$CGAT_HOME
+[[ `df --block-size=1 ${CGAT_HOME} | awk '/\// {print $4}'` -lt 21474836480  ]] && \
+   report_error " Not enough disk space available on the installation folder: "$CGAT_HOME
 
 # perform actions according to the input parameters processed
 if [[ $TRAVIS_INSTALL ]] || [[ $JENKINS_INSTALL ]] ; then
