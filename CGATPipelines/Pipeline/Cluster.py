@@ -47,8 +47,13 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
 
         # see: ? cannot find documentation on the SGE native spec
 
-        spec = ["-V",
-                "-N %s" % job_name]
+        # -V does not prevent compute nodes to override job environment
+        # therefore here we enfornce "submission env" == "runtime env"
+        jt.jobEnvironment = os.environ.copy()
+        jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
+                                                           '.bashrc')})
+
+        spec = ["-N %s" % job_name]
 
         if options["cluster_priority"]:
             spec.append("-p %(cluster_priority)i")
@@ -141,7 +146,7 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
 
         # There is no equivalent to sge -V option for pbs-drmaa
         # recreating this...
-        jt.jobEnvironment = os.environ
+        jt.jobEnvironment = os.environ.copy()
         jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
                                                            '.bashrc')})
 
@@ -214,7 +219,7 @@ def setupDrmaaJobTemplate(drmaa_session, options, job_name, job_memory):
             pass
 
         # As for torque, there is no equivalent to sge -V option for pbs-drmaa:
-        jt.jobEnvironment = os.environ
+        jt.jobEnvironment = os.environ.copy()
         jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
                                                            '.bashrc')})
 

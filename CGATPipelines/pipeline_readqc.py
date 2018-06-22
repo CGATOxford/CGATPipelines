@@ -366,6 +366,7 @@ def runFastqc(infiles, outfile):
                                   "reconciled.dir/trimmed")
 
     statement = m.build((infiles,), outfile)
+    job_memory = "8G"
     P.run()
 
 

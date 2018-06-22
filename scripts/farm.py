@@ -705,15 +705,9 @@ def runDRMAA(data, environment):
         jt.remoteCommand = job_path
 
         # update the environment
-        e = {'BASH_ENV': options.bashrc}
-        if environment:
-            for en in environment:
-                try:
-                    e[en] = os.environ[en]
-                except KeyError:
-                    raise KeyError(
-                        "could not export environment variable '%s'" % en)
-        jt.jobEnvironment = e
+        jt.jobEnvironment = os.environ.copy()
+        jt.jobEnvironment.update({'BASH_ENV': os.path.join(os.environ['HOME'],
+                                                           '.bashrc')})
 
         # SNS: Native specifation setting abstracted
         # to Pipeline/Cluster.setupDrmaaJobTemplate()
