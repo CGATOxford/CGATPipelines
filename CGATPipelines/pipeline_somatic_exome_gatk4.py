@@ -1,6 +1,6 @@
 """
 ===========================
-Pipeline GATK4
+Pipeline gatk4
 ===========================
 
 .. Replace the documentation below with your own description of the
@@ -70,8 +70,64 @@ PARAMS = P.getParameters(
      "pipeline.ini"])
 
 
-# ---------------------------------------------------
-# Specific pipeline tasks
+########## Read QC ########## 
+
+@follows(mkdir("fastqc"))
+@transform("*.fastq.*.gz", regex(r"(\S+).fastq.(\S+).gz"), r"fastqc/\1_read\2_fastqc.log")
+def run_fastqc(infile, outfile):
+    '''Run fastqc on raw reads '''
+    statement = '''fastqc -o fastqc --nogroup --extract %(infile)s >& %(outfile)s '''
+    P.run()
+
+
+@follows(mkdir("report"))
+@merge(run_fastqc, "report/fastqc.html")
+def fastqc_report(infiles, outfile):
+    statement = '''LANG=en_GB.UTF-8 multiqc fastqc 
+                        --filename report/fastqc &> %(outfile)s.log '''
+    P.run()
+
+
+########## Trimming ########## 
+
+
+@follows(mkdir("trimmed"))
+@transform("*.fastq.1.gz", regex(r"(\S+).fastq.1.gz"), r"trimmed/\1.trim.fastq.1.gz")
+def trim_reads(infile, outfile):
+    '''trim reads to find guide RNA '''
+    job_threads = int(PARAMS['trim_threads'])
+    infile2 = infile.replace(".fastq.1.gz", ".fastq.2.gz")
+    outfile2 = outfile.replace(".fastq.1.gz", ".fastq.2.gz")
+    outfile1_unpaired = outfile.replace(".fastq.1.gz", ".unpaired.fastq.1.gz")
+    outfile2_unpaired = outfile.replace(".fastq.1.gz", ".unpaired.fastq.2.gz")
+    statement = '''trimmomatic PE 
+                    -threads %(trim_threads)s
+                    -trimlog %(outfile)s.log
+                    %(infile)s %(infile2)s
+                    %(outfile)s %(outfile1_unpaired)s
+                    %(outfile2)s %(outfile2_unpaired)s
+                    %(trim_options)s
+                    ''' 
+    P.run()
+
+@follows(trim_reads)
+@transform("trimmed/*.fastq.*.gz", regex(r"trimmed/(\S+).trim.fastq.(\S+).gz"), r"trimmed/\1_read\2_fastqc.log")
+def run_trimmed_fastqc(infile, outfile):
+    '''Run fastqc on trimmed reads '''
+    statement = '''fastqc -o trimmed --nogroup --extract %(infile)s >& %(outfile)s'''
+    P.run()
+
+@follows(mkdir("report"))
+@merge(run_trimmed_fastqc, "report/trimming_statistics.html")
+def trimmed_fastqc_report(infiles, outfile):
+    statement = '''LANG=en_GB.UTF-8 multiqc trimmed/*.log trimmed/
+                        --filename report/trimming_statistics &> %(outfile)s.log'''
+    P.run()
+    
+    
+########## Mapping ########## 
+
+
 @follows(mkdir("unmapped_bam"))
 @transform("*.fastq.1.gz",
            regex(r"(.*).fastq.1.gz"),
@@ -95,6 +151,7 @@ def FastQtoSam(infile, outfile):
                     PL=ILLUMINA'''
     P.run()
 
+
 @follows(mkdir("rg_fastq"))
 @transform(FastQtoSam,
            regex(r"unmapped_bam/(.*).unal.bam"),
@@ -107,6 +164,7 @@ def SamToFastQ(infile, outfile):
                     I=%(infile)s
                     FASTQ=%(outfile)s SECOND_END_FASTQ=%(outfile2)s'''
     P.run()
+
 
 @follows(mkdir("mapping"))
 @transform(SamToFastQ,
@@ -122,6 +180,7 @@ def bwamem(infile, outfile):
                     %(infile)s  %(infile2)s
                     | samtools view -b - > %(outfile)s 2> %(outfile)s.log'''
     P.run()
+
 
 @follows(mkdir("merge_bam_alignment"))
 @transform(bwamem,
@@ -185,7 +244,7 @@ def mark_duplicates(infile, outfile):
 def bqsr(infile, outfile):
     '''creates a base score recalibration table'''
     # the command line statement we want to execute
-    statement = ''' GATK BaseRecalibrator 
+    statement = ''' gatk BaseRecalibrator 
                     -I=%(infile)s
                     -R=%(bwa_index)s 
                     --known-sites %(dbsnp)s
@@ -205,7 +264,7 @@ def apply_bqsr(infile, outfile):
     # the command line statement we want to execute
     infile_bam = "mark_duplicates/" + P.snip(os.path.basename(infile), "bqsr.table") + "md.bam"
     
-    statement = '''GATK ApplyBQSR 
+    statement = '''gatk ApplyBQSR 
                    -R=%(bwa_index)s
                    -I=%(infile_bam)s
                    --bqsr-recal-file %(infile)s 
@@ -246,7 +305,7 @@ def Mutect2(infile,outfile):
     basename2 = basename.split("_")
     infile_control = "apply_bqsr/" + basename2[0] + "_1-control.recalibrated.bam"
     samplename_control = basename2[0] + "_1-control"
-    statement = '''GATK  Mutect2 
+    statement = '''gatk Mutect2 
                      -R=%(bwa_index)s
                      -I=%(infile_tumour)s
                      -tumor %(samplename_tumour)s
@@ -261,7 +320,7 @@ def Mutect2(infile,outfile):
            regex(r"mutect2/(.*).vcf"),
                 r"filter_mutect/\1.filtered.vcf")
 def FilterMutect(infile,outfile):
-    statement = '''GATK FilterMutectCalls
+    statement = '''gatk FilterMutectCalls
                     -V %(infile)s
                     -O %(outfile)s'''
 
