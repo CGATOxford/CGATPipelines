@@ -61,6 +61,7 @@ import os
 import gzip
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
+import vcf
 
 # load options from the config file
 PARAMS = P.getParameters(
@@ -399,35 +400,133 @@ def bqsr_report(infiles, outfile):
     
 @follows(mkdir("mutect2"))
 @transform(apply_bqsr, 
-           regex( r"apply_bqsr/(\S+).recalibrated.bam",
+           regex( r"apply_bqsr/(\S+).recalibrated.bam"),
                 r"mutect2/\1.vcf")
 def Mutect2(infile,outfile):
     samplename_tumour = P.snip(os.path.basename(infile),".recalibrated.bam")
     roi_intervals = PARAMS["mutect_intervals"]
     statement = '''gatk Mutect2 
                      -R=%(bwa_index)s
-                     -I=%(infile_tumour)s
+                     -I=%(infile)s
                      -tumor %(samplename_tumour)s
                      -L %(roi_intervals)s
-                     %(mutects_options)s
+                     %(mutect_options)s
                      -O=%(outfile)s'''   
                      
     P.run()
-                     
+    
+################## Contamination ###################
+    
+@follows(mkdir("Contamination"))
+@transform(apply_bqsr, 
+           regex( r"apply_bqsr/(\S+).recalibrated.bam"),
+                r"Contamination/\1_pileup.table")
+def PileupSummaries(infile,outfile):
+    common_snp = PARAMS["gatk_snps"]
+    statement = '''gatk GetPileupSummaries 
+                    -I=%(infile)s
+                    -V=%(common_snp)s
+                    -O=%(outfile)s'''
+                    
+    P.run()
+    
+@follows(PileupSummaries)
+@transform(PileupSummaries,
+           regex( r"Contamination/(\S+)_pileup.table"),
+               r"Contamination/\1_contamination.table")
+def CalculateContamination(infile, outfile):
+    statement='''gatk CalculateContamination 
+                -I=%(infile)s
+                -O=%(outfile)s'''
+
+    P.run()
+
+################## Filter Mutect ###################
+
+
 @follows(mkdir("filter_mutect"))     
-@transform(Mutect2, 
-           regex(r"mutect2/(.*).vcf"),
-                r"filter_mutect/\1.filtered.vcf")
-def FilterMutect(infile,outfile):
-    statement = '''gatk FilterMutectCalls
-                    -V %(infile)s
+@transform(Mutect2, regex(r"mutect2/(.*).vcf"),
+           add_inputs(CalculateContamination), r"filter_mutect/\1.filtered.vcf")
+def FilterMutect(infiles,outfile):
+    
+    vcf_file = infiles[0]
+    
+    if PARAMS['gatk_contamination'] == 1:
+        contamination_file = infiles[1]
+        
+        statement = '''gatk FilterMutectCalls
+                        -V %(vcf_file)s
+                        --contamination-table %(contamination_file)s
+                        -O %(outfile)s'''
+                        
+    else:
+        
+        statement = '''gatk FilterMutectCalls
+                    -V %(vcf_file)s
                     -O %(outfile)s'''
+        
 
 
     P.run()
 
 ################## Variant annotation ###################
+    
 
+@follows(mkdir("annovar_annotation"))     
+@transform(FilterMutect, 
+           regex(r"filter_mutect/(.*).filtered.vcf"),
+                r"annovar_annotation/\1.hg38_multianno.vcf")
+def annovar_annotate(infile,outfile):
+    '''annotate variants using Annovar vcf file input'''
+    basename = P.snip(outfile, ".hg38_multianno.vcf")
+    statement = '''module() {  eval `/usr/bin/modulecmd bash $*`; } &&
+                   module load annovar/2018-03-06 &&
+                    table_annovar.pl
+                    %(infile)s
+                    /databank/indices/annovar/humandb
+                    --buildver hg38
+                    --remove
+                    --outfile %(basename)s
+                    -protocol %(annovar_protocol)s
+                    -operation %(annovar_operation)s
+                    -vcfinput'''
+    P.run()
+    
+@transform(annovar_annotate, 
+           regex(r"annovar_annotation/(.*).hg38_multianno.vcf"),
+                r"annovar_annotation/\1.tsv")
+def VariantsToTable(infile,outfile):
+    '''converts the vcf file into a tab-separated file while splitting the INFO and FORMAT field'''
+    vcf_reader = vcf.Reader(open(infile))
+    # requires installation of pyvcf
+
+    list_IDs = []
+    list_desc = []
+    list_cstring = []
+    list_cstring2 = []
+        
+    for k,v in vcf_reader.infos.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring.append("-F %s" % k)
+            
+    for k,v in vcf_reader.formats.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring2.append("-GF %s" % k)
+    
+    cstring = " ".join(list_cstring)
+    cstring2 = " ".join(list_cstring2)
+    
+    statement = '''gatk VariantsToTable
+                    -R %(bwa_index)s
+                   -V %(infile)s
+                   -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER 
+                   %(cstring)s
+                   %(cstring2)s
+                   --show-filtered=true
+                   -O %(outfile)s'''
+    P.run()
 
 ################## Variant Filtering ####################
 
