@@ -178,6 +178,8 @@ import CGATPipelines.PipelineExome as PipelineExome
 import CGATPipelines.PipelineExomeAncestry as PipelineExomeAncestry
 import decimal
 import pandas as pd
+import vcf
+import numpy as np
 
 ###############################################################################
 ###############################################################################
@@ -196,9 +198,6 @@ matches = glob.glob("*.fastq.1.gz") + glob.glob(
     "*.fastq.gz") + glob.glob("*.sra") + glob.glob("*.csfasta.gz")
 
 
-def getGATKOptions():
-    return "-l mem_free=1.4G"
-
 ###############################################################################
 ###############################################################################
 ###############################################################################
@@ -211,7 +210,6 @@ def getGATKOptions():
 @files(PARAMS["roi_bed"], "roi.load")
 def loadROI(infile, outfile):
     '''Import regions of interest bed file into SQLite.'''
-    scriptsdir = PARAMS["general_scriptsdir"]
     header = "chr,start,stop,feature"
     tablename = P.toTable(outfile)
     statement = '''cat %(infile)s
@@ -230,7 +228,6 @@ def loadROI(infile, outfile):
 @files(PARAMS["roi_to_gene"], "roi2gene.load")
 def loadROI2Gene(infile, outfile):
     '''Import genes mapping to regions of interest bed file into SQLite.'''
-    scriptsdir = PARAMS["general_scriptsdir"]
     tablename = P.toTable(outfile)
     statement = '''cat %(infile)s
             | cgat csv2db %(csv2db_options)s
@@ -247,7 +244,6 @@ def loadROI2Gene(infile, outfile):
 @files(PARAMS["samples"], "samples.load")
 def loadSamples(infile, outfile):
     '''Import sample information into SQLite.'''
-    scriptsdir = PARAMS["general_scriptsdir"]
     tablename = P.toTable(outfile)
     statement = '''cat %(infile)s
             | cgat csv2db %(csv2db_options)s
@@ -268,7 +264,7 @@ def loadSamples(infile, outfile):
 def mapReads(infiles, outfile):
     '''Map reads to the genome using BWA-MEM (output=SAM), convert to BAM,
     sort and index BAM file'''
-    job_options = "-l mem_free=8G"
+    job_memory = PARAMS["bwa_memory"]
     job_threads = PARAMS["bwa_threads"]
     track = P.snip(os.path.basename(outfile), ".bam")
     m = PipelineMapping.BWAMEM(remove_unique=PARAMS["bwa_remove_non_unique"])
@@ -284,7 +280,7 @@ def mapReads(infiles, outfile):
 @transform(mapReads, regex(r"bam/(\S+).bam"), r"bam/\1.picard_stats")
 def PicardAlignStats(infile, outfile):
     '''Run Picard CollectMultipleMetrics on each BAM file'''
-    genome = PARAMS["bwa_index_dir"] + "/" + PARAMS["genome"] + ".fa"
+    genome = PARAMS["bwa_indexed_genome"]
     PipelineMappingQC.buildPicardAlignmentStats(infile, outfile, genome)
 
 ###############################################################################
@@ -315,16 +311,17 @@ def GATKReadGroups(infile, outfile):
 
     track = re.sub(r'-\w+-\w+\.bam', '', os.path.basename(infile))
     tmpdir_gatk = P.getTempDir('.')
-    job_options = getGATKOptions()
+    job_memory = PARAMS["gatk_memory"]
     job_threads = PARAMS["gatk_threads"]
     library = PARAMS["readgroup_library"]
     platform = PARAMS["readgroup_platform"]
     platform_unit = PARAMS["readgroup_platform_unit"]
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     PipelineExome.GATKReadGroups(infile, outfile, genome,
                                  library, platform,
                                  platform_unit, track)
-    IOTools.zapFile(infile)
+    if PARAMS["zap_files"]:
+        IOTools.zapFile(infile)
 
 ###############################################################################
 ###############################################################################
@@ -338,7 +335,9 @@ def GATKReadGroups(infile, outfile):
 def RemoveDuplicatesLane(infile, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
     PipelineMappingQC.buildPicardDuplicateStats(infile, outfile)
-    IOTools.zapFile(infile)
+
+    if PARAMS["zap_files"]:
+        IOTools.zapFile(infile)
 
 ###############################################################################
 
@@ -349,44 +348,30 @@ def loadPicardDuplicateStatsLane(infiles, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
     PipelineMappingQC.loadPicardDuplicateStats(infiles, outfile)
 
+
 ###############################################################################
 
 
 @transform(RemoveDuplicatesLane,
            regex(r"gatk/(\S+).dedup.bam"),
-           r"gatk/\1.realigned2.bam")
-def GATKIndelRealignLane(infile, outfile):
-    '''realigns around indels using GATK'''
-    threads = PARAMS["gatk_threads"]
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
-    intervals = PARAMS["roi_intervals"]
-    padding = PARAMS["roi_padding"]
-    PipelineExome.GATKIndelRealign(infile, outfile, genome, intervals, padding,
-                                   threads)
-    IOTools.zapFile(infile)
-
-###############################################################################
-
-
-@transform(GATKIndelRealignLane,
-           regex(r"gatk/(\S+).realigned2.bam"),
            r"gatk/\1.bqsr.bam")
 def GATKBaseRecal(infile, outfile):
     '''recalibrates base quality scores using GATK'''
-    intrack = P.snip(os.path.basename(infile), ".bam")
-    outtrack = P.snip(os.path.basename(outfile), ".bam")
+    #intrack = P.snip(os.path.basename(infile), ".bam")
+    #outtrack = P.snip(os.path.basename(outfile), ".bam")
     dbsnp = PARAMS["gatk_dbsnp"]
     solid_options = PARAMS["gatk_solid_options"]
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     intervals = PARAMS["roi_intervals"]
     padding = PARAMS["roi_padding"]
     if PARAMS["targetted"]:
         shutil.copyfile(infile, outfile)
-        shutil.copyfile(intrack + ".bai", outtrack + ".bai")
+        shutil.copyfile(infile + ".bai", outfile + ".bai")
     else:
         PipelineExome.GATKBaseRecal(infile, outfile, genome, intervals,
                                     padding, dbsnp, solid_options)
-    IOTools.zapFile(infile)
+    if PARAMS["zap_files"]:
+        IOTools.zapFile(infile)
 
 ###############################################################################
 ###############################################################################
@@ -410,8 +395,9 @@ def mergeBAMs(infiles, outfile):
     statement += '''samtools index %(outfile)s ;''' % locals()
     P.run()
 
-    for inputfile in infiles:
-        IOTools.zapFile(inputfile)
+    if PARAMS["zap_files"]:
+        for inputfile in infiles:
+            IOTools.zapFile(inputfile)
 
 ###############################################################################
 ###############################################################################
@@ -444,31 +430,6 @@ def loadPicardDuplicateStatsSample(infiles, outfile):
     '''Merge Picard duplicate stats into single table and load into SQLite.'''
     PipelineMappingQC.loadPicardDuplicateStats(infiles, outfile)
 
-###############################################################################
-###############################################################################
-###############################################################################
-# Realign sample-by-sample
-
-
-@transform(RemoveDuplicatesSample,
-           regex(r"gatk/(\S+).dedup2.bam"),
-           add_inputs(r"gatk/\1.merged.bam.count"),
-           r"gatk/\1.realigned.bam")
-def GATKIndelRealignSample(infiles, outfile):
-    '''realigns around indels using GATK'''
-    infile, countfile = infiles
-    threads = PARAMS["gatk_threads"]
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
-    intervals = PARAMS["roi_intervals"]
-    padding = PARAMS["roi_padding"]
-    countf = open(countfile, "r")
-    if countf.read() > '1':
-        PipelineExome.GATKIndelRealign(infiles[0], outfile, genome, intervals,
-                                       padding, threads)
-    else:
-        shutil.copyfile(infile, outfile)
-        shutil.copyfile(infile + ".bai", outfile + ".bai")
-#    IOTools.zapFile(infile)
 
 ###############################################################################
 ###############################################################################
@@ -476,8 +437,8 @@ def GATKIndelRealignSample(infiles, outfile):
 # Coverage of targetted area
 
 
-@transform(GATKIndelRealignSample,
-           regex(r"gatk/(\S+).realigned.bam"),
+@transform(RemoveDuplicatesSample,
+           regex(r"gatk/(\S+).dedup2.bam"),
            r"gatk/\1.cov")
 def buildCoverageStats(infile, outfile):
     '''Generate coverage statistics for regions of interest from a bed
@@ -503,7 +464,7 @@ def loadCoverageStats(infiles, outfile):
 
 
 @follows(mkdir("xy_ratio"))
-@transform(GATKIndelRealignSample,
+@transform(RemoveDuplicatesSample,
            regex(r"gatk/(\S+).realigned.bam"),
            r"xy_ratio/\1.sex")
 def calcXYratio(infile, outfile):
@@ -543,12 +504,12 @@ def loadXYRatio(infile, outfile):
 
 
 @follows(mkdir("variants"))
-@transform(GATKIndelRealignSample, regex(r"gatk/(\S+).realigned.bam"),
+@transform(RemoveDuplicatesSample, regex(r"gatk/(\S+).dedup2.bam"),
            r"variants/\1.haplotypeCaller.g.vcf")
 def haplotypeCaller(infile, outfile):
     '''Call SNVs and indels using GATK HaplotypeCaller in individuals'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
-    job_options = getGATKOptions()
+    genome = PARAMS["gatk_genome"]
+    job_memory = PARAMS["gatk_memory"]
     job_threads = PARAMS["gatk_threads"]
     dbsnp = PARAMS["gatk_dbsnp"]
     intervals = PARAMS["roi_intervals"]
@@ -563,7 +524,7 @@ def haplotypeCaller(infile, outfile):
 @merge(haplotypeCaller, "variants/all_samples.vcf")
 def genotypeGVCFs(infiles, outfile):
     '''Joint genotyping of all samples together'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     inputfiles = " --variant ".join(infiles)
     options = PARAMS["gatk_genotype_options"]
     PipelineExome.genotypeGVCFs(inputfiles, outfile, genome, options)
@@ -589,14 +550,14 @@ def SelectExonicHapmapVariants(infile, outfile):
 
 
 @follows(SelectExonicHapmapVariants)
-@transform(GATKIndelRealignSample,
+@transform(RemoveDuplicatesSample,
            regex(r"gatk/(\S+).realigned.bam"),
            add_inputs("hapmap/hapmap_exome.bed"),
            r"hapmap/\1.hapmap.vcf")
 def HapMapGenotype(infiles, outfile):
     '''Genotype HapMap SNPs using HaplotypeCaller in each individual'''
     infile, intervals = infiles
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     dbsnp = PARAMS["gatk_dbsnp"]
     padding = PARAMS["hapmap_padding"]
     options = PARAMS["hapmap_hc_options"]
@@ -705,7 +666,7 @@ def annotateVariantsSNPeff(infile, outfile):
            r"variants/all_samples.snpeff.table")
 def vcfToTableSnpEff(infile, outfile):
     '''Converts vcf to tab-delimited file'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     columns = PARAMS["annotation_snpeff_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -722,7 +683,7 @@ def loadTableSnpEff(infile, outfile):
 # GATK Variant Annotator
 
 
-@merge(GATKIndelRealignSample, "gatk/all_samples.list")
+@merge(RemoveDuplicatesSample, "gatk/all_samples.list")
 def listOfBAMs(infiles, outfile):
     '''generates a file containing a list of BAMs for use in VQSR'''
     with IOTools.openFile(outfile, "w") as outf:
@@ -740,7 +701,7 @@ def listOfBAMs(infiles, outfile):
 def variantAnnotator(infiles, outfile):
     '''Annotate variant file using GATK VariantAnnotator'''
     vcffile, bamlist, snpeff_file = infiles
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     dbsnp = PARAMS["gatk_dbsnp"]
     annotations = PARAMS["gatk_variant_annotations"]
     PipelineExome.variantAnnotator(vcffile, bamlist, outfile, genome,
@@ -756,9 +717,9 @@ def variantAnnotator(infiles, outfile):
            r"variants/all_samples.snp_vqsr.recal")
 def variantRecalibratorSnps(infile, outfile):
     '''Create variant recalibration file'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     dbsnp = PARAMS["gatk_dbsnp"]
-    job_options = getGATKOptions()
+    job_memory = PARAMS["gatk_memory"]
     job_threads = PARAMS["gatk_threads"]
     track = P.snip(outfile, ".recal")
     kgenomes = PARAMS["gatk_kgenomes"]
@@ -780,7 +741,7 @@ def variantRecalibratorSnps(infile, outfile):
 def applyVariantRecalibrationSnps(infiles, outfile):
     '''Perform variant quality score recalibration using GATK '''
     vcf, recal, tranches = infiles
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     mode = 'SNP'
     PipelineExome.applyVariantRecalibration(vcf, recal, tranches,
                                             outfile, genome, mode)
@@ -794,8 +755,8 @@ def applyVariantRecalibrationSnps(infiles, outfile):
            r"variants/all_samples.vqsr.recal")
 def variantRecalibratorIndels(infile, outfile):
     '''Create variant recalibration file'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
-    job_options = getGATKOptions()
+    genome = PARAMS["gatk_genome"]
+    job_memory = PARAMS["gatk_memory"]
     job_threads = PARAMS["gatk_threads"]
     track = P.snip(outfile, ".recal")
     mills = PARAMS["gatk_mills"]
@@ -816,7 +777,7 @@ def variantRecalibratorIndels(infile, outfile):
 def applyVariantRecalibrationIndels(infiles, outfile):
     '''Perform variant quality score recalibration using GATK '''
     vcf, recal, tranches = infiles
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     mode = 'INDEL'
     PipelineExome.applyVariantRecalibration(vcf, recal, tranches,
                                             outfile, genome, mode)
@@ -825,21 +786,23 @@ def applyVariantRecalibrationIndels(infiles, outfile):
 ###############################################################################
 # SnpSift
 
-@transform(applyVariantRecalibrationIndels,
-           regex(r"variants/all_samples.vqsr.vcf"),
+@transform(applyVariantRecalibrationSnps,
+           regex(r"variants/all_samples.snp_vqsr.vcf"),
            r"variants/all_samples_dbnsfp.snpsift.vcf")
 def annotateVariantsDBNSFP(infile, outfile):
     '''Add annotations using SNPsift'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = PARAMS["annotation_threads"]
     dbNSFP = PARAMS["annotation_dbnsfp"]
+    config = PARAMS["annotation_config"]
+    genome = PARAMS["annotation_snpsift_genome"]
     dbN_annotators = PARAMS["annotation_dbnsfpannotators"]
     if len(dbN_annotators) == 0:
         annostring = ""
     else:
         annostring = "-f %s" % dbN_annotators
 
-    statement = """SnpSift.sh dbnsfp -db %(dbNSFP)s -v %(infile)s
+    statement = """SnpSift dbnsfp -db %(dbNSFP)s -config %(config)s  -v %(infile)s
                    %(annostring)s >
                    %(outfile)s;"""
     P.run()
@@ -850,11 +813,11 @@ def annotateVariantsDBNSFP(infile, outfile):
            r"variants/all_samples_clinvar.snpsift.vcf")
 def annotateVariantsClinvar(infile, outfile):
     '''Add annotations using SNPsift'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = PARAMS["annotation_threads"]
     clinvar = PARAMS["annotation_clinvar"]
     intout = outfile.replace("samples", "samples_clinvar")
-    statement = """SnpSift.sh annotate %(clinvar)s
+    statement = """SnpSift annotate %(clinvar)s
                 %(infile)s > %(outfile)s;"""
     P.run()
 
@@ -864,10 +827,10 @@ def annotateVariantsClinvar(infile, outfile):
            r"variants/all_samples_exac.snpsift.vcf")
 def annotateVariantsExAC(infile, outfile):
     '''Add annotations using SNPsift'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = PARAMS["annotation_threads"]
     exac = PARAMS["annotation_exac"]
-    statement = """SnpSift.sh annotate
+    statement = """SnpSift annotate
                 %(exac)s
                 %(infile)s > %(outfile)s;"""
     P.run()
@@ -878,11 +841,11 @@ def annotateVariantsExAC(infile, outfile):
            r"variants/all_samples_gwasc.snpsift.vcf")
 def annotateVariantsGWASC(infile, outfile):
     '''Add annotations using SNPsift'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = PARAMS["annotation_threads"]
 
     gwas_catalog = PARAMS["annotation_gwas_catalog"]
-    statement = """SnpSift.sh gwasCat -db %(gwas_catalog)s
+    statement = """SnpSift gwasCat -db %(gwas_catalog)s
                    %(infile)s > %(outfile)s;"""
     P.run()
 
@@ -892,15 +855,11 @@ def annotateVariantsGWASC(infile, outfile):
            r"variants/all_samples_phastcons.snpsift.vcf")
 def annotateVariantsPhastcons(infile, outfile):
     '''Add annotations using SNPsift'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = PARAMS["annotation_threads"]
-    genomeind = "%s/%s.fa.fai" % (
-        PARAMS['general_genome_dir'],
-        PARAMS['general_genome'])
     phastcons = PARAMS["annotation_phastcons"]
     intout = outfile.replace("samples", "samples_phastc")
-    statement = """ln -sf %(genomeind)s %(phastcons)s/genome.fai;
-                   SnpSift.sh phastCons %(phastcons)s %(infile)s >
+    statement = """SnpSift phastCons %(phastcons)s %(infile)s >
                    %(outfile)s;"""
     P.run()
 
@@ -910,7 +869,7 @@ def annotateVariantsPhastcons(infile, outfile):
            r"variants/all_samples_1000G.snpsift.vcf")
 def annotateVariants1000G(infile, outfile):
     '''Add annotations using SNPsift'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = PARAMS["annotation_threads"]
 
     vcfs = []
@@ -928,9 +887,9 @@ def annotateVariants1000G(infile, outfile):
     tempout = P.getTempFilename(".")
 
     for vcf in vcfs:
-        statement = """SnpSift.sh annotate
+        statement = """SnpSift annotate
                        %(vcf)s
-                       %(tempin)s > %(tempout)s;
+                       %(tempin)s 1> %(tempout)s 2>> %(tempout)s.stderr;
                        mv %(tempout)s %(tempin)s"""
         P.run()
 
@@ -942,11 +901,11 @@ def annotateVariants1000G(infile, outfile):
            r"variants/all_samples_dbsnp.snpsift.vcf")
 def annotateVariantsDBSNP(infile, outfile):
     '''Add annotations using SNPsift'''
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = PARAMS["annotation_threads"]
 
     dbsnp = PARAMS["annotation_dbsnp"]
-    statement = """SnpSift.sh annotate
+    statement = """SnpSift annotate
                 %(dbsnp)s
                 %(infile)s > %(outfile)s;"""
 
@@ -968,7 +927,7 @@ def annotateVariantsVEP(infile, outfile):
     '''
     # infile - VCF
     # outfile - VCF with vep annotations
-    job_options = "-l mem_free=6G"
+    job_memory = PARAMS["annotations_memory"]
     job_threads = 4
 
     VEP = PARAMS["annotation_vepannotators"].split(",")
@@ -979,8 +938,7 @@ def annotateVariantsVEP(infile, outfile):
     vep_assembly = PARAMS["annotation_vepassembly"]
     if len(vep_annotators) != 0:
         annostring = vep_annotators
-        statement = '''perl %(vep_path)s/variant_effect_predictor.pl
-                       --cache --dir %(vep_cache)s --vcf
+        statement = '''vep --cache --dir %(vep_cache)s --vcf
                        --species %(vep_species)s
                        --fork 2
                        --assembly %(vep_assembly)s --input_file %(infile)s
@@ -990,7 +948,7 @@ def annotateVariantsVEP(infile, outfile):
 
 
 @follows(mkdir("variant_tables"))
-@transform(GATKIndelRealignSample, regex(r"gatk/(.*).realigned.bam"),
+@transform(RemoveDuplicatesSample, regex(r"gatk/(\S+).dedup2.bam"),
            add_inputs(annotateVariantsVEP), r"variant_tables/\1.tsv")
 def makeAnnotationsTables(infiles, outfile):
     '''
@@ -1000,31 +958,32 @@ def makeAnnotationsTables(infiles, outfile):
     '''
     bamname = infiles[0]
     inputvcf = infiles[1]
-    TF = P.getTempFilename(".")
-    samplename = bamname.replace(".realigned.bam",
+    samplename = bamname.replace(".dedup2.bam",
                                  ".bam").replace("gatk/", "")
 
-    statement = '''bcftools view -h %(inputvcf)s |
-                   awk -F '=|,' '$1=="##INFO" || $1=="##FORMAT"
-                   {printf("%%s\\t%%s\\n", $3, $9)}'
-                   | sed 's/>//g' > %(TF)s'''
-    P.run()
-    cols = []
-    colds = []
-    cols2 = []
-    for line in IOTools.openFile(TF).readlines():
-        if line.split("\t")[0] != "Samples":
-            cols.append("[%%%s]" % line.split("\t")[0])
-            colds.append(line.split("\t")[1].strip().replace(" ", "_"))
-            cols2.append(line.split("\t")[0])
-    l1 = "\t".join(cols2)
-    l2 = "\t".join(colds)
+    vcf_reader = vcf.Reader(open(inputvcf))
+
+    list_IDs = []
+    list_desc = []
+    list_cstring = []
+    for k, v in vcf_reader.formats.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring.append("[%%%s]" % k)
+            list_desc.append(v.desc.strip().replace(" ", "_"))
+
+    for k, v in vcf_reader.infos.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring.append("[%%%s]" % k)
+            list_desc.append(v.desc.strip().replace(" ", "_"))
+
     out = open(outfile, "w")
     out.write('''CHROM\tPOS\tQUAL\tID\tFILTER\tREF1\tALT\tGT\t%s\n\
                  chromosome\tposition\tquality\tid\tfilter\tref\talt\t\
-                 genotype\t%s\n''' % (l1, l2))
+                 genotype\t%s\n''' % ("\t".join(list_IDs), "\t".join(list_desc)))
     out.close()
-    cstring = "\\t".join(cols)
+    cstring = "\\t".join(list_cstring)
     cstring = "%CHROM\\t%POS\\t%QUAL\\t%ID\\t%FILTER\\t%REF\\t\
                %ALT\\t[%GT]\\t" + cstring
     if PARAMS['test'] == 1:
@@ -1447,7 +1406,7 @@ TABULATION_INPUT = {0: annotateVariantsVEP, 1: findGenes}
            r"variants/all_samples.snpsift.table")
 def vcfToTable(infile, outfile):
     '''Converts vcf to tab-delimited file'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1564,8 +1523,8 @@ def confirmParentage(infiles, outfile):
            r"variants/\1.filtered.vcf")
 def deNovoVariants(infiles, outfile):
     '''Filter de novo variants based on provided jexl expression'''
-    job_options = getGATKOptions()
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    job_memory = PARAMS["gatk_memory"]
+    genome = PARAMS["gatk_genome"]
     pedfile, infile = infiles
     pedigree = csv.DictReader(
         IOTools.openFile(pedfile), delimiter='\t', fieldnames=[
@@ -1584,7 +1543,7 @@ def deNovoVariants(infiles, outfile):
            r"variants/\1.filtered.table")
 def tabulateDeNovos(infile, outfile):
     '''Tabulate de novo variants'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1609,7 +1568,7 @@ def loadDeNovos(infile, outfile):
 def lowerStringencyDeNovos(infiles, outfile):
     '''Filter lower stringency de novo variants based on provided jexl
     expression'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     pedfile, infile = infiles
     pedigree = csv.DictReader(
         IOTools.openFile(pedfile), delimiter='\t', fieldnames=[
@@ -1629,7 +1588,7 @@ def lowerStringencyDeNovos(infiles, outfile):
            r"variants/\1.denovos.table")
 def tabulateLowerStringencyDeNovos(infile, outfile):
     '''Tabulate lower stringency de novo variants'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1657,7 +1616,7 @@ def loadLowerStringencyDeNovos(infile, outfile):
 def dominantVariants(infiles, outfile):
     '''Filter variants according to autosomal dominant disease model'''
     pedfile, infile = infiles
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     pedigree = csv.DictReader(open(pedfile), delimiter='\t',
                               fieldnames=['family', 'sample', 'father',
                                           'mother', 'sex', 'status'])
@@ -1690,7 +1649,7 @@ def dominantVariants(infiles, outfile):
            r"variants/\1.dominant.table")
 def tabulateDoms(infile, outfile):
     '''Tabulate dominant disease candidate variants'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1719,7 +1678,7 @@ def loadDoms(infile, outfile):
            r"variants/\1.recessive.vcf")
 def recessiveVariants(infiles, outfile):
     '''Filter variants according to autosomal recessive disease model'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     pedfile, infile = infiles
     pedigree = csv.DictReader(open(pedfile), delimiter='\t',
                               fieldnames=['family', 'sample', 'father',
@@ -1763,7 +1722,7 @@ def recessiveVariants(infiles, outfile):
            r"variants/\1.recessive.table")
 def tabulateRecs(infile, outfile):
     '''Tabulate potential homozygous recessive disease variants'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1791,7 +1750,7 @@ def loadRecs(infile, outfile):
 def xlinkedVariants(infiles, outfile):
     '''Find maternally inherited X chromosome variants in male patients'''
     track = P.snip(os.path.basename(outfile), ".vcf")
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     pedfile, infile = infiles
     pedigree = csv.DictReader(open(pedfile), delimiter='\t',
                               fieldnames=['family', 'sample', 'father',
@@ -1847,7 +1806,7 @@ def xlinkedVariants(infiles, outfile):
            r"variants/\1.xlinked.table")
 def tabulateXs(infile, outfile):
     '''Tabulate potential X-linked disease variants'''
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     columns = PARAMS["gatk_vcf_to_table"]
     PipelineExome.vcfToTable(infile, outfile, genome, columns)
 
@@ -1879,7 +1838,7 @@ def loadXs(infile, outfile):
 def phasing(infiles, outfile):
     '''phase variants with GATK'''
     infile, pedfile, bamlist = infiles
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     statement = '''GenomeAnalysisTK -T PhaseByTransmission
                    -R %(genome)s
                    -V %(infile)s
@@ -1898,7 +1857,7 @@ def readbackedphasing(infiles, outfile):
     '''phase variants with ReadBackedPhasing'''
     job_memory = "32G"
     infile, bamlist = infiles
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     statement = '''GenomeAnalysisTK -T ReadBackedPhasing -nt 4
                    -R %(genome)s
                    -I %(bamlist)s
@@ -1957,7 +1916,7 @@ def candidateCoverage(infile, outfile):
     all_exons = PARAMS["coverage_all_exons"]
     candidates = PARAMS["coverage_candidates"]
     candidates = candidates.replace(",", " -e ")
-    genome = PARAMS["genome_dir"] + "/" + PARAMS["gatkgenome"] + ".fa"
+    genome = PARAMS["gatk_genome"]
     threshold = PARAMS["coverage_threshold"]
     statement = '''zcat %(all_exons)s | grep -e %(candidates)s
                    | awk '{print $1 ":" $4 "-" $5}' - | sed 's/chr//' - >
@@ -1976,9 +1935,12 @@ def candidateCoverage(infile, outfile):
 @transform(candidateCoverage, regex(r"candidate.sample_interval_summary"), r"candidate_coverage_plot.pdf")
 def candidateCoveragePlots(infile, outfile):
     '''Produce plots of coverage'''
-    rscript = PARAMS["coverage_rscript"]
+    scriptsdir = PARAMS["pipeline_scriptsdir"]
     threshold = PARAMS["coverage_threshold"]
-    statement = '''Rscript %(rscript)s %(infile)s candidate_gene_names.txt %(threshold)s %(outfile)s ;'''
+    statement = '''Rscript %(scriptsdir)s/coverage.r
+                            %(infile)s
+                            candidate_gene_names.txt
+                            %(threshold)s %(outfile)s'''
     P.run()
 
 ###############################################################################
@@ -2002,7 +1964,6 @@ def buildVCFstats(infile, outfile):
 @merge(buildVCFstats, "vcf_stats.load")
 def loadVCFstats(infiles, outfile):
     '''Import variant statistics into SQLite'''
-    scriptsdir = PARAMS["general_scriptsdir"]
     filenames = " ".join(infiles)
     tablename = P.toTable(outfile)
     E.info("Loading vcf stats...")
@@ -2050,7 +2011,6 @@ def mapping():
 
 @follows(GATKBaseRecal,
          loadPicardDuplicateStatsLane,
-         GATKIndelRealignSample,
          loadCoverageStats)
 def gatk():
     pass

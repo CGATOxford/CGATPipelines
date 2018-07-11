@@ -147,8 +147,7 @@ def haplotypeCaller(infile, outfile, genome,
     job_options = getGATKOptions()
     job_threads = 3
 
-    statement = '''GenomeAnalysisTK
-                    -T HaplotypeCaller
+    statement = ''' GenomeAnalysisTK -T HaplotypeCaller
                     -ERC GVCF
                     -variant_index_type LINEAR
                     -variant_index_parameter 128000

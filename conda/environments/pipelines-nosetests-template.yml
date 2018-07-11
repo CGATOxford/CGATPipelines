@@ -31,6 +31,7 @@ dependencies:
 - pybigwig
 - pysam
 - python-drmaa
+- pyvcf
 - rpy2
 - ruffus
 - scikit-learn

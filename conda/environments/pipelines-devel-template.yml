@@ -30,6 +30,7 @@ dependencies:
 - pybedtools
 - pysam=0.13.0
 - python-drmaa
+- pyvcf
 - rpy2=2.8.5
 - ruffus
 - scikit-learn

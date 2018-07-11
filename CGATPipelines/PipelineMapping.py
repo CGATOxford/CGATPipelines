@@ -1610,7 +1610,7 @@ class BWA(Mapper):
             bwa sampe %%(bwa_sampe_options)s %(index_prefix)s
                       %(tmpdir)s/%(track1)s.sai %(tmpdir)s/%(track2)s.sai
                       %(infiles1)s %(infiles2)s
-            | samtools view -bS -
+            | samtools view -bS -h
             > %(tmpdir)s/%(track)s.bam 2>>%(outfile)s.bwa.log;
             ''' % locals())
         else:
@@ -1672,7 +1672,7 @@ class BWA(Mapper):
                 %(unique_cmd)s
                 %(strip_cmd)s
                 %(set_nh_cmd)s
-                | samtools sort -o %(outfile)s 2>>%(outfile)s.bwa.log;
+                | samtools sort -T %(tmpdir)s -o %(outfile)s 2>>%(outfile)s.bwa.log;
                 samtools index %(outfile)s;''' % locals()
 
         return statement
@@ -1737,7 +1737,7 @@ class BWAMEM(BWA):
         tmpdir_fastq = self.tmpdir_fastq
 
         track = P.snip(os.path.basename(outfile), ".bam")
-
+        
         if nfiles == 1:
             infiles = ",".join([self.quoteFile(x[0]) for x in infiles])
 
