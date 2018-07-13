@@ -46,9 +46,11 @@ def GATKReadGroups(infile, outfile, genome,
                    library="unknown", platform="Illumina",
                    platform_unit="1", track="unknown"):
     '''Reorders BAM according to reference fasta and adds read groups'''
+    '''To see the read group information for a BAM file, use:'''
+    '''samtools view -H sample.bam | grep '@RG' - no RG currently available '''
 
     if track == 'unknown':
-        track = P.snip(os.path.basename(infile), ".bam")
+        track = P.snip(os.path.basename(infile), ".dedup.bam")
     tmpdir_gatk = P.getTempDir('.')
     job_options = getGATKOptions()
     job_threads = 3
@@ -78,32 +80,6 @@ def GATKReadGroups(infile, outfile, genome,
 
     P.run()
 
-##############################################################################
-
-
-def GATKIndelRealign(infile, outfile, genome, intervals, padding, threads=4):
-    '''Realigns BAMs around indels using GATK'''
-
-    intervalfile = outfile.replace(".bam", ".intervals")
-    job_options = getGATKOptions()
-    job_threads = 3
-
-    statement = '''GenomeAnalysisTK
-                    -T RealignerTargetCreator
-                    -o %(intervalfile)s
-                    --num_threads %(threads)s
-                    -R %(genome)s
-                    -L %(intervals)s
-                    -ip %(padding)s
-                    -I %(infile)s; ''' % locals()
-
-    statement += '''GenomeAnalysisTK
-                    -T IndelRealigner
-                    -o %(outfile)s
-                    -R %(genome)s
-                    -I %(infile)s
-                    -targetIntervals %(intervalfile)s;''' % locals()
-    P.run()
 
 ##############################################################################
 
@@ -112,7 +88,7 @@ def GATKBaseRecal(infile, outfile, genome, intervals, padding, dbsnp,
                   solid_options=""):
     '''Recalibrates base quality scores using GATK'''
 
-    track = P.snip(os.path.basename(infile), ".bam")
+    track = P.snip(os.path.basename(infile), ".dedup.bam")
     tmpdir_gatk = P.getTempDir('.')
     job_options = getGATKOptions()
     job_threads = 3
@@ -229,6 +205,58 @@ def mutectSNPCaller(infile, outfile, mutect_log, genome, cosmic,
 ##############################################################################
 
 
+def MuTect2Caller(outfile, mutect_log, genome, cosmic,
+                  dbsnp, job_memory, job_threads,
+                  roi_intervals,
+                  infile=None, infile_tumour=None, infile_control=None,
+                  quality=20, max_alt_qual=150, max_alt=5,
+                  max_fraction=0.05, minReadsPerAlignmentStart=5,
+                  tumor_LOD=6.3, normal_LOD=2.2, strand_LOD=2):
+    '''Call SNVs and indels using Broad's MuTect2'''
+    '''Needs GATK3.6 and higher - used GATK3.8-1'''
+
+    #job_memory = "4G"
+    #job_threads = 2
+
+    if infile:
+
+        statement = '''GenomeAnalysisTK
+                       -T MuTect2
+                       -R %(genome)s
+                       -I:tumor %(infile)s
+                       --dbsnp %(dbsnp)s
+                       --cosmic %(cosmic)s
+                       --artifact_detection_mode 
+                       -L %(roi_intervals)s
+                       -o %(outfile)s''' % locals()
+
+    elif infile_tumour and infile_control:
+        statement = '''GenomeAnalysisTK
+                   -T MuTect2
+                   -R %(genome)s
+                   -I:tumor %(infile_tumour)s
+                   -I:normal %(infile_control)s
+                   --dbsnp %(dbsnp)s
+                   --cosmic %(cosmic)s
+                   -L %(roi_intervals)s
+                   -o %(outfile)s
+                   --min_base_quality_score %(quality)s
+                   --max_alt_alleles_in_normal_qscore_sum %(max_alt_qual)s
+                   --max_alt_alleles_in_normal_count %(max_alt)s
+                   --max_alt_allele_in_normal_fraction %(max_fraction)s
+                   --minReadsPerAlignmentStart %(minReadsPerAlignmentStart)s
+                   --tumor_lod %(tumor_LOD)s
+                   --normal_lod %(normal_LOD)s ''' % locals()
+    else:
+        raise ValueError("Input files not valid")
+
+    statement += " > %(mutect_log)s " % locals()
+
+    P.run()
+
+##############################################################################
+
+
 def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
                        outdir, job_memory, job_threads):
     '''Call INDELs using Strelka'''
@@ -245,7 +273,7 @@ def strelkaINDELCaller(infile_control, infile_tumor, outfile, genome, config,
 ##############################################################################
 
 
-def variantAnnotator(vcffile, bamlist, outfile, genome,
+def variantAnnotator(vcffile, bamfile, outfile, genome,
                      dbsnp, annotations="", snpeff_file=""):
     '''Annotate variant file using GATK VariantAnnotator'''
     job_options = getGATKOptions()
@@ -259,9 +287,11 @@ def variantAnnotator(vcffile, bamlist, outfile, genome,
             anno = " -A " + " -A ".join(anno)
     else:
         anno = ""
-    statement = '''GenomeAnalysisTK -T VariantAnnotator
+
+    statement = '''GenomeAnalysisTK
+                    -T VariantAnnotator
                     -R %(genome)s
-                    -I %(bamlist)s
+                    -I %(bamfile)s
                     -A SnpEff
                     --snpEffFile %(snpeff_file)s
                     -o %(outfile)s
@@ -275,7 +305,7 @@ def variantAnnotator(vcffile, bamlist, outfile, genome,
 
 
 def variantRecalibrator(infile, outfile, genome, mode, dbsnp=None,
-                        kgenomes=None, hapmap=None, omni=None, mills=None):
+                        kgenomes=None, hapmap=None, omni=None, mills=None, track=None):
     '''Create variant recalibration file'''
     job_options = getGATKOptions()
     job_threads = 3
@@ -439,13 +469,14 @@ def guessSex(infile, outfile):
 
 
 def filterMutect(infile, outfile, logfile,
-                 control_id, tumour_id,
                  min_t_alt, min_n_depth,
                  max_n_alt_freq, min_t_alt_freq,
                  min_ratio):
-    ''' filter the mutect snps'''
+    ''' filter MuTect2 snps and indels'''
 
     reasons = collections.Counter()
+    control_id = "NORMAL"
+    tumour_id = "TUMOR"
 
     def comp(base):
         '''return complementary base'''
@@ -468,17 +499,17 @@ def filterMutect(infile, outfile, logfile,
                     # write out all comment lines
                     outf.write(line)
 
-                else:
+                if line.startswith('chr'):
                     values = line.split("\t")
 
                     if values[6] == "PASS":
                         t_values = values[tumor_col].split(":")
                         t_ref, t_alt = list(
-                            map(float, (t_values[2].split(","))))
+                            map(float, (t_values[1].split(","))))
                         t_depth = t_alt + t_ref
                         n_values = values[control_col].split(":")
                         n_ref, n_alt = list(
-                            map(float, (n_values[2].split(","))))
+                            map(float, (n_values[1].split(","))))
                         n_depth = n_alt + n_ref
                         np.seterr(divide='ignore')
 
