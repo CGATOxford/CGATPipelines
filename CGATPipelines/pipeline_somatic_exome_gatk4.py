@@ -59,6 +59,9 @@ from ruffus import *
 import sys
 import os
 import gzip
+import vcf
+import collections
+import CGAT.IOTools as IOTools
 import CGAT.Experiment as E
 import CGATPipelines.Pipeline as P
 
@@ -85,13 +88,12 @@ def run_fastqc(infile, outfile):
 @merge(run_fastqc, "report/fastqc.html")
 def fastqc_report(infiles, outfile):
     statement = '''LANG=en_GB.UTF-8 multiqc fastqc 
-                    --filename report/fastqc &> %(outfile)s.log '''
+                    --filename report/fastqc -f &> %(outfile)s.log'''
     P.run()
 
 
 
 @follows(mkdir("unmapped_bam"))
-@follows(fastqc_report)
 @transform("*.fastq.*.gz",
            regex(r"(.*).fastq.1.gz"),
            r"unmapped_bam/\1.ubam")
@@ -204,13 +206,12 @@ def mapping_qc(infile, outfile):
 @merge(mapping_qc, "report/mapping_statistics.html")
 def mapping_report(infiles, outfile):
     statement = '''LANG=en_GB.UTF-8 multiqc mapping_qc/
-                        --filename report/mapping_statistics &> %(outfile)s.log'''
+                        --filename report/mapping_statistics -f &> %(outfile)s.log'''
     P.run()
     
 ############################################################################### 
 
 @follows(mkdir("merge_bam_alignment"))
-@follows(mapping_report)
 @transform(bwamem,
            regex(r"mapping/(.*).bam"),
            r"merge_bam_alignment/\1.mergali.bam")
@@ -218,9 +219,9 @@ def merge_bam_alignment(infile, outfile):
     '''merges the unmapped and mapped bam files'''
     infile2 = infile.replace("mapping", "unmapped_bam").replace(".bam", ".ubam")
     # the command line statement we want to execute
-    job_memory = '64G'
+    job_memory = '32G'
     # export JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=${TMPDIR}" &&
-    statement = ''' picard -Xmx64G MergeBamAlignment 
+    statement = ''' picard -Xmx32G MergeBamAlignment 
                     USE_JDK_DEFLATER=true
                     USE_JDK_INFLATER=true
                     TMP_DIR=${TMPDIR}/${USER}
@@ -288,7 +289,6 @@ def bqsr(infile, outfile):
     
     
 @follows(mkdir("apply_bqsr"))
-@follows(mark_duplicates)
 @transform(bqsr,
            regex(r"bqsr/(.*).bqsr.table"),
                  r"apply_bqsr/\1.recalibrated.bam")
@@ -303,8 +303,6 @@ def apply_bqsr(infile, outfile):
                    --bqsr-recal-file %(infile)s 
                    -O=%(outfile)s
                    >& %(outfile)s.log''' 
-
-
 
     P.run()
     
@@ -343,7 +341,7 @@ def HsMetrics(infile, outfile):
     '''runs Picard hybrid selection summary metrics'''
     job_threads = 4
     job_memory = PARAMS["picard_memory"]
-    target_intervals = PARAMS["picard_targets"]
+    target_intervals = PARAMS["picard_regions"]
     bait_intervals = PARAMS["picard_baits"]
     logfile = outfile.replace(".txt",".log")
     statement = '''picard -Xmx%(job_memory)s CollectHsMetrics
@@ -363,20 +361,17 @@ def HsMetrics(infile, outfile):
 @merge(bqsr_qc, "report/bqsr_statistics.html")
 def bqsr_report(infiles, outfile):
     statement = '''LANG=en_GB.UTF-8 multiqc bqsr_qc/ HsMetrics/
-                        --filename report/bqsr_statistics &> %(outfile)s.log'''
+                        --filename report/bqsr_statistics -f &> %(outfile)s.log'''
     P.run()
 
 ########### Variant calling  ##############################
   
 @follows(mkdir("mutect2"))
-@follows(bqsr_report)
 @transform(apply_bqsr,
            regex(r"apply_bqsr/(.*)(-tumour).recalibrated.bam"),
            r"mutect2/\1.pid")
 def patientID(infiles, outfile):
-    '''makes and empty file for patient ID'''
-    '''patient sample names should start with capital letters followed by numbers'''
-    '''might need to change it for different patient names'''
+    '''makes and empty file for patient ID based on the tumour samples'''
     to_cluster = False
     statement = '''touch %(outfile)s'''
     P.run()
@@ -386,6 +381,7 @@ def patientID(infiles, outfile):
                 r"mutect2/\1.vcf")
 def Mutect2(infile,outfile):
     '''calls somatic SNPs and indels using Mutect2, GATK4'''
+    '''control must be called _1-control'''
     basename = P.snip(os.path.basename(infile),".pid")
     infile_tumour = "apply_bqsr/" + basename + "-tumour.recalibrated.bam"   
     samplename_tumour = basename + "-tumour"   
@@ -402,39 +398,103 @@ def Mutect2(infile,outfile):
                       %(mutect_options)s
                      -O=%(outfile)s'''      
     P.run()
-                     
-@follows(mkdir("filter_mutect"))     
-@transform(Mutect2, 
+
+#################### Calculate Contamination #############################
+
+@follows(mkdir("Contamination"))
+@transform(apply_bqsr,
+           regex(r"apply_bqsr/(\S+).recalibrated.bam"),
+                r"Contamination/\1_pileup.table")
+def PileupSummaries(infile,outfile):
+    '''comparison to population germline resource'''
+    common_snp = PARAMS["mutect_snps"]
+    statement = '''gatk GetPileupSummaries
+                    -I=%(infile)s
+                    -V=%(common_snp)s
+                    -O=%(outfile)s'''
+                   
+    P.run()
+
+@transform(PileupSummaries,
+           regex(r"Contamination/(\S+)-tumour_pileup.table"),
+               r"Contamination/\1_contamination.table")
+def CalculateContamination(infile, outfile):
+    '''estimation of cross-sample contamination'''
+    basename = P.snip(infile,"-tumour_pileup.table")
+    basename2 = basename.split("_")
+    infile_control = basename2[0] + "_1-control_pileup.table"
+    statement='''gatk CalculateContamination
+                -I=%(infile)s
+                -matched %(infile_control)s
+                -O=%(outfile)s'''
+    P.run()
+ 
+################### Filter Mutect ################################
+            
+@follows(mkdir("filter_mutect"))
+@follows(CalculateContamination) 
+@transform(Mutect2,
            regex(r"mutect2/(.*).vcf"),
-                r"filter_mutect/\1.filtered.vcf")
+           r"filter_mutect/\1.filtered.vcf")
 def FilterMutect(infile,outfile):
-    '''variant filtering using GATK4'''
-    statement = '''gatk FilterMutectCalls
+    '''adds flags to the FILTER field of the vcf'''
+    basename = P.snip(os.path.basename(infile),".vcf")
+    contamination_file = "Contamination/" + basename + "_contamination.table"
+    
+    if PARAMS['mutect_contamination'] == 1:
+       statement = '''gatk FilterMutectCalls
+                        -V %(infile)s
+                        --contamination-table %(contamination_file)s
+                        %(mutect_filtering_options)s
+                        -O %(outfile)s'''
+                        
+    else:
+       statement = '''gatk FilterMutectCalls
                     -V %(infile)s
+                    %(mutect_filtering_options)s
                     -O %(outfile)s'''
+    P.run()
+
+
+@transform(apply_bqsr,
+           regex(r"apply_bqsr/(.*)-tumour.recalibrated.bam"),
+           r"filter_mutect/\1-tumour.artifacts.txt") 
+def CollectSequencingArtifactMetrics(infile, outfile):
+    # collect metrics on sequence context artifacts
+    basename = P.snip(outfile, ".txt")
+   
+    statement = '''gatk CollectSequencingArtifactMetrics
+                -I %(infile)s
+                -O %(basename)s
+                --FILE_EXTENSION ".txt"
+                -R %(bwa_index)s'''         
+    P.run()
+    
+
+@follows(CollectSequencingArtifactMetrics)
+@transform(FilterMutect,
+           regex(r"filter_mutect/(.*).filtered.vcf"),
+           r"filter_mutect/\1.artifact_filtered.vcf") 
+def FilterByOrientationBias(infile,outfile):
+    # orientation bias filtering (oxidation of G to 8-oxoguanine resulting in G→T transversion during library preparation)
+    basename = P.snip(outfile, ".artifact_filtered.vcf")
+    artifacts = basename + "-tumour.artifacts.pre_adapter_detail_metrics.txt"
+    statement = '''gatk FilterByOrientationBias
+                -AM G/T
+                -V %(infile)s
+                -P %(artifacts)s
+                -O %(outfile)s'''
     P.run()
 
 ################## Variant annotation ###################
 
 @follows(mkdir("annovar_annotation"))     
-@transform(FilterMutect, 
-           regex(r"filter_mutect/(.*).filtered.vcf"),
-                r"annovar_annotation/\1.avinput")
-def annovar_table(infile,outfile):
-    
-    statement = '''module() {  eval `/usr/bin/modulecmd bash $*`; } &&
-                   module load annovar/2018-03-06 &&
-                    convert2annovar.pl
-                    -format vcf4
-                    %(infile)s
-                    --outfile %(outfile)s'''
-    P.run()
-    
-@transform(annovar_table, 
-           regex(r"annovar_annotation/(.*).avinput"),
-                r"annovar_annotation/\1.txt")
-def annovar_annotation(infile,outfile):
-    basename = P.snip(outfile, ".txt")
+@transform(FilterByOrientationBias, 
+           regex(r"filter_mutect/(.*).artifact_filtered.vcf"),
+                r"annovar_annotation/\1.hg38_multianno.vcf")
+def annovar_annotate(infile,outfile):
+    '''annotate variants using Annovar vcf file input'''
+    basename = P.snip(outfile, ".hg38_multianno.vcf")
     statement = '''module() {  eval `/usr/bin/modulecmd bash $*`; } &&
                    module load annovar/2018-03-06 &&
                     table_annovar.pl
@@ -444,17 +504,156 @@ def annovar_annotation(infile,outfile):
                     --remove
                     --outfile %(basename)s
                     -protocol %(annovar_protocol)s
-                    -operation %(annovar_operation)s'''
+                    -operation %(annovar_operation)s
+                    -vcfinput'''
     P.run()
 
+
+@follows(mkdir("table_variants"))    
+@transform(annovar_annotate, 
+           regex(r"annovar_annotation/(.*).hg38_multianno.vcf"),
+                r"table_variants/\1.tsv")
+def VariantsToTable(infile,outfile):
+    '''converts the vcf file into a tab-separated file while splitting the INFO and FORMAT field'''
+    vcf_reader = vcf.Reader(open(infile))
+    # requires installation of pyvcf
+
+    list_IDs = []
+    list_desc = []
+    list_cstring = []
+    list_cstring2 = []
+        
+    for k,v in vcf_reader.infos.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring.append("-F %s" % k)
+            
+    for k,v in vcf_reader.formats.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring2.append("-GF %s" % k)
+    
+    cstring = " ".join(list_cstring)
+    cstring2 = " ".join(list_cstring2)
+    
+    statement = '''gatk VariantsToTable
+                    -R %(bwa_index)s
+                   -V %(infile)s
+                   -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER 
+                   %(cstring)s
+                   %(cstring2)s
+                   --show-filtered=true
+                   -O %(outfile)s'''
+    P.run()
+    
+    
+@transform(VariantsToTable,
+           regex("table_variants/(\S+).tsv"),
+           r"table_variants/\1.table.tsv")
+def Table(infile,outfile):
+    '''replace \x3d by = and \x3b by ;'''
+    
+    statement = '''sed -e 's/\\\\x3d/=/g' %(infile)s |
+                    sed -e 's/\\\\x3b/;/g' > %(outfile)s'''
+    P.run()    
+
 ################## Variant Filtering ####################
+    
+@transform(Table, 
+           regex(r"table_variants/(.*).table.tsv"),
+                r"table_variants/\1.filtered_table.tsv")
+def FilteredTable(infile,outfile):
+    '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
+    
+    logfile = outfile.replace(".tsv", ".log")    
+    reasons = collections.Counter()
+
+    with IOTools.openFile(outfile, "w") as outf:
+        with IOTools.openFile(infile, "r") as inf:
+            for line in inf.readlines():
+                if line.startswith('CHROM'):
+                    outf.write(line)
+
+                if line.startswith('chr'):
+                    values = line.split("\t")
+                        
+                    if not ',' in values[6]:                       
+                        outf.write(line)
+                        reasons["Variants written"] += 1
+                        
+                    else:                
+                        reasons["Multiple FILTER flags"] += 1
+
+    with IOTools.openFile(logfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(("reason", "count")))
+        for reason in reasons:
+            outf.write("%s\t%i\n" % (reason, reasons[reason]))
 
 
-################## Variant export #######################
+################## Abbreviations #######################
 
-                     
-         
-def full(bqsr):
+@merge(annovar_annotate, 
+       "table_variants/abbreviations.tsv")
+def Abbreviations(infiles,outfile):
+    '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
+    infile = infiles[0]
+    
+    with IOTools.openFile(outfile, "w") as outf:
+        with IOTools.openFile(infile, "r") as inf:
+            for line in inf.readlines():
+                if line.startswith('##FILTER'):
+                    outf.write(line)
+                if line.startswith('##FORMAT'):
+                    outf.write(line)
+                if line.startswith('##INFO'):
+                    outf.write(line)
+                      
+##########################################################################       
+
+@follows(run_fastqc, fastqc_report)
+def fastQC():
+    pass
+ 
+@follows(FastQtoSam, trim_reads, SamToFastQ)
+def Read_Groups():
+    pass
+ 
+@follows(bwamem, mapping_qc, mapping_report, merge_bam_alignment, merge_sam)
+def Mapping():
+    pass
+ 
+@follows(mark_duplicates, bqsr, apply_bqsr)
+def Post_mapping_processing():
+    pass
+ 
+@follows(bqsr_qc, HsMetrics, bqsr_report)
+def bamQC():
+    pass
+ 
+@follows(PileupSummaries, CalculateContamination)
+def Contamination():
+    pass
+ 
+@follows(patientID, Mutect2, Contamination, FilterMutect)
+def Mutect():
+    pass
+   
+@follows(CollectSequencingArtifactMetrics, FilterByOrientationBias)
+def Artifacts():
+    pass
+ 
+@follows(annovar_annotate)
+def Annotation():
+    pass
+ 
+@follows(VariantsToTable, Table, FilteredTable, Abbreviations)
+def Variant_Tables():
+    pass
+ 
+  
+@follows(fastQC, Read_Groups, Mapping, Post_mapping_processing, bamQC, Contamination,
+Mutect, Artifacts, Annotation, Variant_Tables)
+def full():
     pass
 
 
