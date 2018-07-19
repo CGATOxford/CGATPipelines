@@ -363,13 +363,15 @@ if [[ -z ${TRAVIS_INSTALL} ]] ; then
    else
       clear
       echo 
-      echo " The code successfully installed!"
+      echo " The code was successfully installed!"
       echo
       echo " To activate the CGAT environment type: "
-      echo " $ source $CONDA_INSTALL_DIR/bin/activate $CONDA_INSTALL_ENV"
+      echo " $ source $CONDA_INSTALL_DIR/etc/profile.d/conda.sh"
+      echo " $ conda activate base"
+      echo " $ conda activate $CONDA_INSTALL_ENV"
       echo
       echo " To deactivate the environment, use:"
-      echo " $ source deactivate"
+      echo " $ conda deactivate"
       echo
    fi # if-$ conda create
 
@@ -747,8 +749,10 @@ cleanup_env() {
    source deactivate >& /dev/null || true
    unset -f conda || true
    unset PYTHONPATH || true
-   module purge >& /dev/null || true
-   mymodule purge >& /dev/null || true
+   # Next actions disabled. Please see:
+   # https://github.com/cgat-developers/cgat-core/issues/44
+   #module purge >& /dev/null || true
+   #mymodule purge >& /dev/null || true
    set -e
 }
 
