@@ -237,7 +237,6 @@ def merge_bam_alignment(infile, outfile):
            r"merge_sam/\1.mergsam.bam")
 def merge_sam(infiles, outfile):
     '''merges the files from different flow cell lanes into one'''
-    #need to write code that will take multiple infiles and merge them
     job_memory = '32G'
     statement = '''picard -Xmx32G MergeSamFiles
                     USE_JDK_DEFLATER=true
@@ -246,9 +245,7 @@ def merge_sam(infiles, outfile):
     
     for e in infiles:
         statement = statement + ' I={}'.format(e)
-    statement = statement + ' O={}'.format(outfile)
-    # the command line statement we want to execute
-            
+    statement = statement + ' O={}'.format(outfile)            
     P.run()
  
 
@@ -259,7 +256,6 @@ def merge_sam(infiles, outfile):
 def mark_duplicates(infile, outfile):
     '''marks duplicates'''
     outfile2 = outfile.replace(".md.bam", ".md.txt")
-    # the command line statement we want to execute
     job_memory = '16G'
     statement = '''picard -Xmx16G MarkDuplicates
                     USE_JDK_DEFLATER=true
@@ -277,14 +273,12 @@ def mark_duplicates(infile, outfile):
            r"bqsr/\1.bqsr.table")
 def bqsr(infile, outfile):
     '''creates a base score recalibration table'''
-    # the command line statement we want to execute
     statement = ''' gatk BaseRecalibrator 
                     -I=%(infile)s
                     -R=%(bwa_index)s 
                     --known-sites %(dbsnp)s
                     -O=%(outfile)s
-                    >& %(outfile)s.log'''
-                    
+                    >& %(outfile)s.log'''                    
     P.run()
     
     
@@ -294,7 +288,6 @@ def bqsr(infile, outfile):
                  r"apply_bqsr/\1.recalibrated.bam")
 def apply_bqsr(infile, outfile):
     '''recalibrates the bam files'''
-    # the command line statement we want to execute
     infile_bam = "mark_duplicates/" + P.snip(os.path.basename(infile), "bqsr.table") + "md.bam"
     
     statement = '''gatk ApplyBQSR 
@@ -303,7 +296,6 @@ def apply_bqsr(infile, outfile):
                    --bqsr-recal-file %(infile)s 
                    -O=%(outfile)s
                    >& %(outfile)s.log''' 
-
     P.run()
     
 #### Final Bam QC ######
@@ -314,7 +306,6 @@ def apply_bqsr(infile, outfile):
            r"bqsr_qc/\1.txt")
 def bqsr_qc(infile, outfile):
     '''runs Picard alignment summary matrix'''
-    # the command line statement we want to execute
     job_threads = 4
     job_memory = PARAMS["picard_memory"]
     basename = P.snip(outfile, "txt")
@@ -401,14 +392,15 @@ def Mutect2(infile,outfile):
 
 #################### Calculate Contamination #############################
 
-@follows(mkdir("Contamination"))
+@follows(mkdir("contamination"))
 @transform(apply_bqsr,
            regex(r"apply_bqsr/(\S+).recalibrated.bam"),
-                r"Contamination/\1_pileup.table")
+                r"contamination/\1_pileup.table")
 def PileupSummaries(infile,outfile):
     '''comparison to population germline resource'''
     common_snp = PARAMS["mutect_snps"]
     statement = '''gatk GetPileupSummaries
+                    -R=%(bwa_index)s
                     -I=%(infile)s
                     -V=%(common_snp)s
                     -O=%(outfile)s'''
@@ -416,8 +408,8 @@ def PileupSummaries(infile,outfile):
     P.run()
 
 @transform(PileupSummaries,
-           regex(r"Contamination/(\S+)-tumour_pileup.table"),
-               r"Contamination/\1_contamination.table")
+           regex(r"contamination/(\S+)-tumour_pileup.table"),
+               r"contamination/\1_contamination.table")
 def CalculateContamination(infile, outfile):
     '''estimation of cross-sample contamination'''
     basename = P.snip(infile,"-tumour_pileup.table")
@@ -439,7 +431,7 @@ def CalculateContamination(infile, outfile):
 def FilterMutect(infile,outfile):
     '''adds flags to the FILTER field of the vcf'''
     basename = P.snip(os.path.basename(infile),".vcf")
-    contamination_file = "Contamination/" + basename + "_contamination.table"
+    contamination_file = "contamination/" + basename + "_contamination.table"
     
     if PARAMS['mutect_contamination'] == 1:
        statement = '''gatk FilterMutectCalls
@@ -476,7 +468,7 @@ def CollectSequencingArtifactMetrics(infile, outfile):
            regex(r"filter_mutect/(.*).filtered.vcf"),
            r"filter_mutect/\1.artifact_filtered.vcf") 
 def FilterByOrientationBias(infile,outfile):
-    # orientation bias filtering (oxidation of G to 8-oxoguanine resulting in G→T transversion during library preparation)
+    '''orientation bias filtering (oxidation of G to 8-oxoguanine resulting in G→T transversion during library preparation)'''
     basename = P.snip(outfile, ".artifact_filtered.vcf")
     artifacts = basename + "-tumour.artifacts.pre_adapter_detail_metrics.txt"
     statement = '''gatk FilterByOrientationBias
@@ -488,9 +480,21 @@ def FilterByOrientationBias(infile,outfile):
 
 ################## Variant annotation ###################
 
-@follows(mkdir("annovar_annotation"))     
-@transform(FilterByOrientationBias, 
+@follows(mkdir("bcftools_norm"))
+@transform(FilterByOrientationBias,
            regex(r"filter_mutect/(.*).artifact_filtered.vcf"),
+           r"bcftools_norm/\1.bcf_normalised.vcf")
+def bcftools(infile, outfile):
+    '''Splits multiallelic sites into multiple lines'''
+    statement = '''bcftools norm -m-both
+                    -o %(outfile)s
+                    %(infile)s''' 
+    P.run()
+
+
+@follows(mkdir("annovar_annotation"))     
+@transform(bcftools, 
+           regex(r"bcftools_norm/(.*).bcf_normalised.vcf"),
                 r"annovar_annotation/\1.hg38_multianno.vcf")
 def annovar_annotate(infile,outfile):
     '''annotate variants using Annovar vcf file input'''
@@ -508,6 +512,7 @@ def annovar_annotate(infile,outfile):
                     -vcfinput'''
     P.run()
 
+################## Vcf to table ###################
 
 @follows(mkdir("table_variants"))    
 @transform(annovar_annotate, 
@@ -551,7 +556,7 @@ def VariantsToTable(infile,outfile):
            regex("table_variants/(\S+).tsv"),
            r"table_variants/\1.table.tsv")
 def Table(infile,outfile):
-    '''replace \x3d by = and \x3b by ;'''
+    '''replace \x3d with = and \x3b with ;'''
     
     statement = '''sed -e 's/\\\\x3d/=/g' %(infile)s |
                     sed -e 's/\\\\x3b/;/g' > %(outfile)s'''
@@ -563,7 +568,7 @@ def Table(infile,outfile):
            regex(r"table_variants/(.*).table.tsv"),
                 r"table_variants/\1.filtered_table.tsv")
 def FilteredTable(infile,outfile):
-    '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
+    '''filters the variants for PASS (somatic) flags, single flags in the FILTER field and t_lod>=3.5'''
     
     logfile = outfile.replace(".tsv", ".log")    
     reasons = collections.Counter()
@@ -577,12 +582,14 @@ def FilteredTable(infile,outfile):
                 if line.startswith('chr'):
                     values = line.split("\t")
                         
-                    if not ',' in values[6]:                       
-                        outf.write(line)
-                        reasons["Variants written"] += 1
+                    if not ',' in values[6]:
+                        if float(values[18]) >= 3.5:
+                            if not "clustered_events" in values[6]:
+                                outf.write(line)
+                                reasons["Variants written"] += 1
                         
                     else:                
-                        reasons["Multiple FILTER flags"] += 1
+                        reasons["Multiple FILTER flags or clustered_events"] += 1
 
     with IOTools.openFile(logfile, "w") as outf:
         outf.write("%s\n" % "\t".join(("reason", "count")))
@@ -595,7 +602,7 @@ def FilteredTable(infile,outfile):
 @merge(annovar_annotate, 
        "table_variants/abbreviations.tsv")
 def Abbreviations(infiles,outfile):
-    '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
+    '''get a list of abbreviations'''
     infile = infiles[0]
     
     with IOTools.openFile(outfile, "w") as outf:
@@ -642,7 +649,8 @@ def Mutect():
 def Artifacts():
     pass
  
-@follows(annovar_annotate)
+@follows(bcftools,
+annovar_annotate)
 def Annotation():
     pass
  
