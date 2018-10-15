@@ -1,14 +1,16 @@
 """
 ==============================
-Pipeline tumour only  gatk4
+Pipeline tumour only UMI gatk4
 ==============================
 
 Overview
 ========
 
-This pipeline calls 'somatic' variants from tumour with no matched normal. 
-Can be used for whole exome sequencing data and
-targetted panels using the GATK4 best practice pipelines.
+This pipeline calls 'somatic' variants from tumour samples with no matched normal.
+Can be used for whole exome sequencing or targetted panels.
+Specific for libraries prepared with Rubicon Genomics Tag-Seq Library preparation
+kit. This pipeline pre-processes, cimputed consensus sequence from read families and
+detects variants using the GATK4 best practice pipelines.
 
 Usage
 =====
@@ -45,14 +47,13 @@ gatk4
 picard
 samtools
 bwa
-
+connor
 
 Pipeline output
 ===============
 
 annotated VCF file
 Tab-delimted file of filtered variants
-List of column header descriptions
 
 
 Code
@@ -93,12 +94,13 @@ def run_fastqc(infile, outfile):
 @merge(run_fastqc, "report/fastqc.html")
 def fastqc_report(infiles, outfile):
     statement = '''LANG=en_GB.UTF-8 multiqc fastqc 
-                    --filename report/fastqc -f &> %(outfile)s.log '''
+                    --filename report/fastqc &> %(outfile)s.log '''
     P.run()
 
-########## FastQ to Sam ########## 
+########## Read Groups ##########
 
 @follows(mkdir("unmapped_bam"))
+@follows(fastqc_report)
 @transform("*.fastq.gz",
            regex(r"(.*)_R1_001.fastq.gz"),
            r"unmapped_bam/\1.ubam")
@@ -124,28 +126,9 @@ def FastQtoSam(infile, outfile):
                     '''
     P.run()
 
-########## Trimming ########## 
-
-@follows(mkdir("trimmed"))
-@transform(FastQtoSam,
-           regex(r"unmapped_bam/(\S+).ubam"),
-           r"trimmed/\1.trim.ubam")
-def trim_reads(infile, outfile):
-    '''mark adapters'''
-    job_threads = int(PARAMS['trim_threads'])
-    statement = '''picard MarkIlluminaAdapters
-                    USE_JDK_DEFLATER=true
-                    USE_JDK_INFLATER=true
-                    I=%(infile)s
-                    O=%(outfile)s
-                    M=%(outfile)s.metrics.txt
-                    TMP_DIR=${TMPDIR}/${USER}
-                    ''' 
-    P.run()
-
 @follows(mkdir("rg_fastq"))
-@transform(trim_reads,
-           regex(r"trimmed/(.*).trim.ubam"),
+@transform(FastQtoSam,
+           regex(r"unmapped_bam/(.*).ubam"),
            r"rg_fastq/\1.rg.fastq.1.gz")
 def SamToFastQ(infile, outfile):
     '''returns a pair of fastq files'''
@@ -213,12 +196,13 @@ def mapping_qc(infile, outfile):
 @merge(mapping_qc, "report/mapping_statistics.html")
 def mapping_report(infiles, outfile):
     statement = '''LANG=en_GB.UTF-8 multiqc mapping_qc/
-                        --filename report/mapping_statistics -f &> %(outfile)s.log'''
+                        --filename report/mapping_statistics &> %(outfile)s.log'''
     P.run()
     
-######## Combingin lanes froms sequencer ######
-
+########## Merging Alignments ##########
+    
 @follows(mkdir("merge_bam_alignment"))
+@follows(mapping_report)
 @transform(bwamem,
            regex(r"mapping/(.*).bam"),
            r"merge_bam_alignment/\1.mergali.bam")
@@ -254,32 +238,39 @@ def merge_sam(infiles, outfile):
     # the command line statement we want to execute
             
     P.run()
- 
-########  Mark Duplicates ######
-
-@follows(mkdir("mark_duplicates"))
+    
+@follows(merge_sam)
 @transform(merge_sam,
            regex(r"merge_sam/(.*).mergsam.bam"),
-           r"mark_duplicates/\1.md.bam")
-def mark_duplicates(infile, outfile):
-    '''marks duplicates'''
-    outfile2 = outfile.replace(".md.bam", ".md.txt")
-    # the command line statement we want to execute
-    job_memory = '16G'
-    statement = '''picard -Xmx16G MarkDuplicates
-                    USE_JDK_DEFLATER=true
-                    USE_JDK_INFLATER=true
-                    TMP_DIR=${TMPDIR}/${USER}
-                    I=%(infile)s
-                    O=%(outfile)s 
-                    M=%(outfile2)s
-                    REMOVE_DUPLICATES=true
-                    >& %(outfile)s.log'''        
+           r"merge_sam/\1.mergsam.bam.bai")
+def bam_index(infile, outfile):
+    statement = '''samtools index %(infile)s'''
+
+    P.run()
+
+
+    #### Consensus Sequence ######
+@follows(bam_index)
+@follows(mkdir('Connor'))
+@transform(merge_sam,
+           regex(r"merge_sam/(.*).mergsam.bam"),
+           r"Connor/\1_connor.bam")
+def Connor(infile, outfile):
+    statement = '''PATH=/t1-data/user/akennedy/py36-v1/conda-install/envs/connor/bin &&
+                     CONDA_PREFIX=/t1-data/user/akennedy/py36-v1/conda-install/envs/connor &&
+                     connor %(infile)s
+                     -f %(connor_consensus)s
+                     -s %(connor_readfamily)s
+                     %(connor_options)s
+                     %(outfile)s'''
+ 
     P.run()
     
+    #### Base Quality Score Recalibration ######
+    
 @follows(mkdir("bqsr"))
-@transform(mark_duplicates,
-           regex(r"mark_duplicates/(.*).md.bam"),
+@transform(Connor,
+           regex(r"Connor/(.*)_connor.bam"),
            r"bqsr/\1.bqsr.table")
 def bqsr(infile, outfile):
     '''creates a base score recalibration table'''
@@ -295,13 +286,14 @@ def bqsr(infile, outfile):
     
     
 @follows(mkdir("apply_bqsr"))
+@follows(Connor)
 @transform(bqsr,
            regex(r"bqsr/(.*).bqsr.table"),
                  r"apply_bqsr/\1.recalibrated.bam")
 def apply_bqsr(infile, outfile):
     '''recalibrates the bam files'''
     # the command line statement we want to execute
-    infile_bam = "mark_duplicates/" + P.snip(os.path.basename(infile), "bqsr.table") + "md.bam"
+    infile_bam = "Connor/" + P.snip(os.path.basename(infile), ".bqsr.table") + "_connor.bam"
     
     statement = '''gatk ApplyBQSR 
                    -R=%(bwa_index)s
@@ -375,10 +367,38 @@ def HsMetrics(infile, outfile):
 @merge(bqsr_qc, "report/bqsr_statistics.html")
 def bqsr_report(infiles, outfile):
     statement = '''LANG=en_GB.UTF-8 multiqc bqsr_qc/ HsMetrics/
-                        --filename report/bqsr_statistics -f &> %(outfile)s.log'''
+                        --filename report/bqsr_statistics &> %(outfile)s.log'''
     P.run()
+ 
     
-    #### Variant Calling ######
+       
+# =============================================================================
+# @follows(mkdir("report"))
+# @merge(HsMetrics, "report/hsmetrics_statistics.html")
+# def HsMetrics_report(infiles, outfile):
+#     statement = '''LANG=en_GB.UTF-8 multiqc HsMetrics/
+#                         --filename report/hsmetrics_statistics &> %(outfile)s.log'''
+#     P.run()
+# =============================================================================
+    
+########### Variant calling  ##############################
+  
+# =============================================================================
+# @follows(mkdir("mutect2"))
+# @follows(bqsr_report)
+# @transform(apply_bqsr,
+#            regex(r"apply_bqsr/(.*)(-tumour).recalibrated.bam"),
+#            r"mutect2/\1.pid")
+# def patientID(infiles, outfile):
+#     '''makes and empty file for patient ID'''
+#     '''patient sample names should start with capital letters followed by numbers'''
+#     '''might need to change it for different patient names'''
+#     to_cluster = False
+#     statement = '''touch %(outfile)s'''
+#     P.run()
+# =============================================================================
+
+########## Mutect2 ##########
     
 @follows(mkdir("mutect2"))
 @transform(apply_bqsr, 
@@ -412,6 +432,7 @@ def PileupSummaries(infile,outfile):
                     
     P.run()
     
+@follows(PileupSummaries)
 @transform(PileupSummaries,
            regex( r"Contamination/(\S+)_pileup.table"),
                r"Contamination/\1_contamination.table")
@@ -448,9 +469,8 @@ def FilterMutect(infile,outfile):
     P.run()
      
 
-@transform(apply_bqsr,
-           regex(r"apply_bqsr/(.*).recalibrated.bam"),
-           r"filter_mutect/\1.artifacts.pre_adapter_detail_metrics.txt")
+@transform(apply_bqsr,regex(r"apply_bqsr/(.*).recalibrated.bam"),
+           r"filter_mutect/\1.artifacts.txt")
 
 def CollectSequencingArtifactMetrics(infile, outfile):
     
@@ -465,8 +485,7 @@ def CollectSequencingArtifactMetrics(infile, outfile):
     P.run()
     
 @follows(CollectSequencingArtifactMetrics)
-@transform(FilterMutect, 
-           regex(r"filter_mutect/(.*).filtered.vcf"),
+@transform(FilterMutect, regex(r"filter_mutect/(.*).filtered.vcf"),
            r"filter_mutect/\1.artifact_filtered.vcf")
 def FilterByOrientationBias(infile,outfile):
     
@@ -482,26 +501,13 @@ def FilterByOrientationBias(infile,outfile):
                 -O %(outfile)s'''
 
     P.run()
-################## bcftools norm ###################
-    
-@follows(mkdir("bcftools_norm"))
-@transform(FilterByOrientationBias,
-           regex(r"filter_mutect/(.*).artifact_filtered.vcf"),
-           r"bcftools_norm/\1.bcf_normalised.vcf")
-def bcftools(infile, outfile):
-    '''Splits multiallelic sites into multiple lines'''
-    statement = '''bcftools norm -m-both
-                    -o %(outfile)s
-                    %(infile)s'''
-    
-    P.run()
     
 ################## Variant annotation ###################
     
 
 @follows(mkdir("annovar_annotation"))     
-@transform(bcftools, 
-           regex(r"bcftools_norm/(.*).bcf_normalised.vcf"),
+@transform(FilterByOrientationBias, 
+           regex(r"filter_mutect/(.*).artifact_filtered.vcf"),
                 r"annovar_annotation/\1.hg38_multianno.vcf")
 def annovar_annotate(infile,outfile):
     '''annotate variants using Annovar vcf file input'''
@@ -568,7 +574,6 @@ def Table(infile,outfile):
     P.run()   
 
 ################## Variant Filtering ####################
-
 @transform(Table, 
            regex(r"table_variants/(.*).table.tsv"),
                 r"table_variants/\1.filtered_table.tsv")
@@ -598,9 +603,11 @@ def FilteredTable(infile,outfile):
         outf.write("%s\n" % "\t".join(("reason", "count")))
         for reason in reasons:
             outf.write("%s\t%i\n" % (reason, reasons[reason]))
+
+
+########## Header Definitions ##########
     
-################## Variant export #######################
-            
+@follows(FilteredTable)
 @merge(annovar_annotate, 
        "table_variants/abbreviations.tsv")
 def Abbreviations(infiles,outfile):
@@ -616,53 +623,14 @@ def Abbreviations(infiles,outfile):
                     outf.write(line)
                 if line.startswith('##INFO'):
                     outf.write(line)
-                      
-@follows(fastqc_report)
-def fastQC():
-    pass
 
-@follows(FastQtoSam, trim_reads, SamToFastQ)
-def Read_Groups():
-    pass
-
-@follows(bwamem, mapping_qc, mapping_report, merge_bam_alignment, merge_sam)
-def Mapping():
-    pass
-
-@follows(mark_duplicates, bqsr, apply_bqsr)
-def Post_mapping_processing():
-    pass
-
-@follows(bqsr_qc, HsMetrics, bqsr_report)
-def bamQC():
-    pass
-
-@follows(PileupSummaries, CalculateContamination)
-def Contamination():
-    pass
-
-@follows(Contamination, Mutect2, FilterMutect)
-def Mutect():
-    pass
-    
-@follows(CollectSequencingArtifactMetrics, FilterByOrientationBias)
-def Artifacts():
-    pass
-
-@follows(bcftools,annovar_annotate)
-def Annotation():
-    pass
-
-@follows(VariantsToTable, Table, FilteredTable, Abbreviations)
-def Variant_Tables():
-    pass
-
-   
-@follows(fastQC, Read_Groups, Mapping, Post_mapping_processing, bamQC, Contamination,
-Mutect, Artifacts, Annotation, Variant_Tables)
+@follows()
 def full():
     pass
 
+################################################################################
+    ################################################################################
+    ######################################################################
 
 def main(argv=None):
     if argv is None:

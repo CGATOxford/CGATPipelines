@@ -216,7 +216,7 @@ def mapping_report(infiles, outfile):
                         --filename report/mapping_statistics -f &> %(outfile)s.log'''
     P.run()
     
-######## Combingin lanes froms sequencer ######
+######## Combining lanes froms sequencer ######
 
 @follows(mkdir("merge_bam_alignment"))
 @transform(bwamem,
@@ -273,7 +273,6 @@ def mark_duplicates(infile, outfile):
                     I=%(infile)s
                     O=%(outfile)s 
                     M=%(outfile2)s
-                    REMOVE_DUPLICATES=true
                     >& %(outfile)s.log'''        
     P.run()
     
@@ -382,7 +381,7 @@ def bqsr_report(infiles, outfile):
     
 @follows(mkdir("mutect2"))
 @transform(apply_bqsr, 
-           regex( r"apply_bqsr/(\S+).recalibrated.bam"),
+           regex(r"apply_bqsr/(\S+).recalibrated.bam"),
                 r"mutect2/\1.vcf")
 def Mutect2(infile,outfile):
     samplename_tumour = P.snip(os.path.basename(infile),".recalibrated.bam")
@@ -395,6 +394,24 @@ def Mutect2(infile,outfile):
                      %(mutect_options)s
                      -O=%(outfile)s'''   
                      
+    P.run()
+    
+@follows(mkdir("vardict"))
+@transform(apply_bqsr, 
+           regex(r"apply_bqsr/(\S+).recalibrated.bam"),
+                r"vardict/\1_vardict.vcf")
+def VarDict(infile, outfile):
+    basename = P.snip(os.path.basename(infile),".recalibrated.bam")
+    statement = '''vardict -G %(bwa_index)s
+                    -f %(vardict_vaf)s
+                    -N %(basename)s
+                    -b %(infile)s
+                    %(vardict_options)s
+                    %(vardict_bed)s | 
+                    teststrandbias.R |
+                    var2vcf_valid.pl -N %(basename)s -f %(vardict_vaf)s
+                    > %(outfile)s'''
+
     P.run()
     
 ################## Contamination ###################
@@ -450,7 +467,7 @@ def FilterMutect(infile,outfile):
 
 @transform(apply_bqsr,
            regex(r"apply_bqsr/(.*).recalibrated.bam"),
-           r"filter_mutect/\1.artifacts.pre_adapter_detail_metrics.txt")
+           r"filter_mutect/\1.artifacts.txt")
 
 def CollectSequencingArtifactMetrics(infile, outfile):
     
@@ -465,8 +482,7 @@ def CollectSequencingArtifactMetrics(infile, outfile):
     P.run()
     
 @follows(CollectSequencingArtifactMetrics)
-@transform(FilterMutect, 
-           regex(r"filter_mutect/(.*).filtered.vcf"),
+@transform(FilterMutect, regex(r"filter_mutect/(.*).filtered.vcf"),
            r"filter_mutect/\1.artifact_filtered.vcf")
 def FilterByOrientationBias(infile,outfile):
     
@@ -482,28 +498,85 @@ def FilterByOrientationBias(infile,outfile):
                 -O %(outfile)s'''
 
     P.run()
-################## bcftools norm ###################
+    
+################## bcftools norm Mutect2 ###################
     
 @follows(mkdir("bcftools_norm"))
 @transform(FilterByOrientationBias,
            regex(r"filter_mutect/(.*).artifact_filtered.vcf"),
-           r"bcftools_norm/\1.bcf_normalised.vcf")
-def bcftools(infile, outfile):
+           r"bcftools_norm/\1.bcf_mutect.vcf")
+def bcftools_mutect(infile, outfile):
     '''Splits multiallelic sites into multiple lines'''
     statement = '''bcftools norm -m-both
                     -o %(outfile)s
                     %(infile)s'''
     
     P.run()
+################## bcftools norm VarDict ###################
     
-################## Variant annotation ###################
+@follows(mkdir("bcftools_norm"))
+@transform(VarDict,
+           regex(r"vardict/(.*)_vardict.vcf"),
+           r"bcftools_norm/\1.bcf_vardict.vcf")
+def bcftools_vardict(infile, outfile):
+    '''Splits multiallelic sites into multiple lines'''
+    statement = '''bcftools norm -m-both
+                    -o %(outfile)s
+                    %(infile)s'''
+    
+    P.run()    
+################## Variant annotation Mutect2 ###################
     
 
-@follows(mkdir("annovar_annotation"))     
-@transform(bcftools, 
-           regex(r"bcftools_norm/(.*).bcf_normalised.vcf"),
-                r"annovar_annotation/\1.hg38_multianno.vcf")
-def annovar_annotate(infile,outfile):
+@follows(mkdir("annovar_annotation_mutect"))     
+@transform(bcftools_mutect, 
+           regex(r"bcftools_norm/(.*).bcf_mutect.vcf"),
+                r"annovar_annotation_mutect/\1.hg38_multianno.vcf")
+def annovar_annotate_mutect(infile,outfile):
+    '''annotate variants using Annovar vcf file input'''
+    basename = P.snip(outfile, ".hg38_multianno.vcf")
+    statement = '''module() {  eval `/usr/bin/modulecmd bash $*`; } &&
+                   module load annovar/2018-03-06 &&
+                    table_annovar.pl
+                    %(infile)s
+                    /databank/indices/annovar/humandb
+                    --buildver hg38
+                    --remove
+                    --outfile %(basename)s
+                    -protocol %(annovar_protocol)s
+                    -operation %(annovar_operation)s
+                    -vcfinput'''
+                    
+    P.run()
+    
+################## bgzip vcf_files ###################
+
+@transform(annovar_annotate_mutect,
+            regex(r"annovar_annotation_mutect(.*).hg38_multianno.vcf"),
+                 r"annovar_annotation_mutect/\1.hg38_multianno.vcf.gz")
+def bgzip_mutect(infile,outfile):   
+    statement = '''bgzip -c %(infile)s > %(outfile)s'''
+    
+    P.run()
+    
+    ################## index vcf_files ###################
+    
+@transform(bgzip_mutect,
+           regex(r"annovar_annotation_mutect/(.*).hg38_multianno.vcf.gz"),
+               r"annovar_annotation_mutect/\1.hg38_multianno.vcf.gz.csi")
+def index_vcf_mutect(infile, outfile):
+    statement = '''tabix -f %(infile)s'''
+    
+    P.run()
+    
+################## Variant annotation VarDict ###################
+    
+
+@follows(mkdir("annovar_annotation_vardict"))     
+@transform(bcftools_vardict, 
+           regex(r"bcftools_norm/(.*).bcf_vardict.vcf"),
+                r"annovar_annotation_vardict/\1.hg38_multianno.vcf")
+def annovar_annotate_vardict(infile,outfile):
     '''annotate variants using Annovar vcf file input'''
     basename = P.snip(outfile, ".hg38_multianno.vcf")
     statement = '''module() {  eval `/usr/bin/modulecmd bash $*`; } &&
@@ -519,12 +592,224 @@ def annovar_annotate(infile,outfile):
                     -vcfinput'''
     P.run()
     
+    ################## bgzip vcf_files ###################
 
-@follows(mkdir("table_variants"))    
-@transform(annovar_annotate, 
-           regex(r"annovar_annotation/(.*).hg38_multianno.vcf"),
-                r"table_variants/\1.tsv")
-def VariantsToTable(infile,outfile):
+@transform(annovar_annotate_vardict,
+            regex(r"annovar_annotation_vardict(.*).hg38_multianno.vcf"),
+                 r"annovar_annotation_vardict/\1.hg38_multianno.vcf.gz")
+def bgzip_vardict(infile,outfile):   
+    statement = '''bgzip -c %(infile)s > %(outfile)s'''
+    
+    P.run()
+    
+    ################## index vcf_files ###################
+    
+@transform(bgzip_vardict,
+           regex(r"annovar_annotation_vardict/(.*).hg38_multianno.vcf.gz"),
+               r"annovar_annotation_vardict/\1.hg38_multianno.vcf.gz.csi")
+def index_vcf_vardict(infile, outfile):
+    statement = '''tabix -f %(infile)s'''
+    
+    P.run()
+    
+################## Intersection between VCF files ###################
+    
+@follows(index_vcf_vardict)
+@follows(index_vcf_mutect)
+@follows(mkdir('vcf_intersect'))
+@transform(bgzip_vardict,
+           regex(r"annovar_annotation_vardict/(.*).hg38_multianno.vcf.gz"),
+           r"vcf_intersect/\1.vardict_intersect.vcf")
+def Intersect(infile,outfile):
+    '''intersect Mutect2 and VarDict VCF Files, keeps VarDict columns'''
+    infile2 = infile.replace("annovar_annotation_vardict", "annovar_annotation_mutect")
+    
+    statement = '''bcftools isec 
+                  -c none
+                   %(infile)s
+                   %(infile2)s
+                   -n=2
+                   -w1
+                   > %(outfile)s
+                   
+                    '''
+    P.run()
+    
+    
+################## Edit VCF File ###################
+    
+@transform(Intersect,
+           regex(r"vcf_intersect/(.*).vardict_intersect.vcf"),
+           r"vcf_intersect/\1.vardict_intersect_contig.vcf")
+
+def Edit_intersect(infile,outfile):
+    '''removes headers with contig'''
+    
+    statement = '''egrep -v "^##contig" %(infile)s >%(outfile)s'''
+    
+    P.run()
+
+################## Make tables for Intersect ###################
+
+@transform(Edit_intersect,
+           regex(r"vcf_intersect/(.*).vardict_intersect_contig.vcf"),
+                r"vcf_intersect/\1_intersect.tsv")
+def VariantsToTableIntersect(infile, outfile):
+    '''converts the intersected vcf file into a tab-separated file while splitting
+    the INFO and FORMAT fields'''
+    vcf_reader = vcf.Reader(open(infile))
+    # requires installation of pyvcf
+
+    list_IDs = []
+    list_desc = []
+    list_cstring = []
+    list_cstring2 = []
+        
+    for k,v in vcf_reader.infos.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring.append("-F %s" % k)
+            
+    for k,v in vcf_reader.formats.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring2.append("-GF %s" % k)
+    
+    cstring = " ".join(list_cstring)
+    cstring2 = " ".join(list_cstring2)
+    
+    statement = '''gatk VariantsToTable
+                    -R %(bwa_index)s
+                   -V %(infile)s
+                   -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER 
+                   %(cstring)s
+                   %(cstring2)s
+                   --show-filtered=true
+                   -O %(outfile)s'''
+    P.run()
+    
+    ################## Make tables Intersect ###################
+
+@transform(VariantsToTableIntersect,
+           regex("vcf_intersect/(.*)_intersect.tsv"),
+           r"vcf_intersect/\1_intersect.table.tsv")
+def Table_intersect(infile,outfile):
+    '''replace \x3d by = and \x3b by ;'''
+    
+    statement = '''sed -e 's/\\\\x3d/=/g' %(infile)s |
+                    sed -e 's/\\\\x3b/;/g' > %(outfile)s'''
+    P.run()  
+    
+
+################## Make tables Mutect2 ###################
+    
+    
+    
+@follows(mkdir("table_variants_mutect"))    
+@transform(annovar_annotate_mutect, 
+           regex(r"annovar_annotation_mutect/(.*).hg38_multianno.vcf"),
+                r"table_variants_mutect/\1_mutect.tsv")
+def VariantsToTable_mutect(infile,outfile):
+    '''converts the vcf file into a tab-separated file while splitting the 
+    INFO and FORMAT field'''
+    vcf_reader = vcf.Reader(open(infile))
+    # requires installation of pyvcf
+
+    list_IDs = []
+    list_desc = []
+    list_cstring = []
+    list_cstring2 = []
+        
+    for k,v in vcf_reader.infos.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring.append("-F %s" % k)
+            
+    for k,v in vcf_reader.formats.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring2.append("-GF %s" % k)
+    
+    cstring = " ".join(list_cstring)
+    cstring2 = " ".join(list_cstring2)
+    
+    statement = '''gatk VariantsToTable
+                    -R %(bwa_index)s
+                   -V %(infile)s
+                   -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER 
+                   %(cstring)s
+                   %(cstring2)s
+                   --show-filtered=true
+                   -O %(outfile)s'''
+    P.run()
+    
+@transform(VariantsToTable_mutect,
+           regex("table_variants_mutect/(\S+)_mutect.tsv"),
+           r"table_variants_mutect/\1_mutect.table.tsv")
+def Table_mutect(infile,outfile):
+    '''replace \x3d by = and \x3b by ;'''
+    
+    statement = '''sed -e 's/\\\\x3d/=/g' %(infile)s |
+                    sed -e 's/\\\\x3b/;/g' > %(outfile)s'''
+    P.run()   
+
+################## Variant Filtering ####################
+
+@transform(Table_mutect, 
+           regex(r"table_variants_mutect/(.*)_mutect.table.tsv"),
+                r"table_variants_mutect/\1_mutect.filtered_table.tsv")
+def FilteredTable_mutect(infile,outfile):
+    '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
+    
+    logfile = outfile.replace(".tsv", ".log")    
+    reasons = collections.Counter()
+
+    with IOTools.openFile(outfile, "w") as outf:
+        with IOTools.openFile(infile, "r") as inf:
+            for line in inf.readlines():
+                if line.startswith('CHROM'):
+                    outf.write(line)
+
+                if line.startswith('chr'):
+                    values = line.split("\t")
+                        
+                    if not ',' in values[6]:                       
+                        outf.write(line)
+                        reasons["Variants written"] += 1
+                        
+                    else:                
+                        reasons["Multiple FILTER flags"] += 1
+
+    with IOTools.openFile(logfile, "w") as outf:
+        outf.write("%s\n" % "\t".join(("reason", "count")))
+        for reason in reasons:
+            outf.write("%s\t%i\n" % (reason, reasons[reason]))
+    
+################## Variant export #######################
+            
+@merge(annovar_annotate_mutect, 
+       "table_variants_mutect/abbreviations_mutect.tsv")
+def Abbreviations_mutect(infiles,outfile):
+    '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
+    infile = infiles[0]
+    
+    with IOTools.openFile(outfile, "w") as outf:
+        with IOTools.openFile(infile, "r") as inf:
+            for line in inf.readlines():
+                if line.startswith('##FILTER'):
+                    outf.write(line)
+                if line.startswith('##FORMAT'):
+                    outf.write(line)
+                if line.startswith('##INFO'):
+                    outf.write(line)
+
+################## Make tables VarDict ###################
+    
+@follows(mkdir("table_variants_vardict"))    
+@transform(annovar_annotate_vardict, 
+           regex(r"annovar_annotation_vardict/(.*).hg38_multianno.vcf"),
+                r"table_variants_vardict/\1_vardict.tsv")
+def VariantsToTable_vardict(infile,outfile):
     '''converts the vcf file into a tab-separated file while splitting the INFO and FORMAT field'''
     vcf_reader = vcf.Reader(open(infile))
     # requires installation of pyvcf
@@ -557,22 +842,22 @@ def VariantsToTable(infile,outfile):
                    -O %(outfile)s'''
     P.run()
     
-@transform(VariantsToTable,
-           regex("table_variants/(\S+).tsv"),
-           r"table_variants/\1.table.tsv")
-def Table(infile,outfile):
+@transform(VariantsToTable_vardict,
+           regex("table_variants_vardict/(\S+)_vardict.tsv"),
+           r"table_variants_vardict/\1_vardict.table.tsv")
+def Table_vardict(infile,outfile):
     '''replace \x3d by = and \x3b by ;'''
     
     statement = '''sed -e 's/\\\\x3d/=/g' %(infile)s |
                     sed -e 's/\\\\x3b/;/g' > %(outfile)s'''
     P.run()   
 
-################## Variant Filtering ####################
+################## Variant Filtering VarDict ####################
 
-@transform(Table, 
-           regex(r"table_variants/(.*).table.tsv"),
-                r"table_variants/\1.filtered_table.tsv")
-def FilteredTable(infile,outfile):
+@transform(Table_vardict, 
+           regex(r"table_variants_vardict/(.*)_vardict.table.tsv"),
+                r"table_variants_vardict/\1_vardict.filtered_table.tsv")
+def FilteredTable_vardict(infile,outfile):
     '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
     
     logfile = outfile.replace(".tsv", ".log")    
@@ -599,11 +884,11 @@ def FilteredTable(infile,outfile):
         for reason in reasons:
             outf.write("%s\t%i\n" % (reason, reasons[reason]))
     
-################## Variant export #######################
+################## Variant export vardict #######################
             
-@merge(annovar_annotate, 
-       "table_variants/abbreviations.tsv")
-def Abbreviations(infiles,outfile):
+@merge(annovar_annotate_vardict, 
+       "table_variants_vardict/abbreviations_vardict.tsv")
+def Abbreviations_vardict(infiles,outfile):
     '''filters the variants for PASS (somatic) flags and single flags in the FILTER field'''
     infile = infiles[0]
     
@@ -615,8 +900,8 @@ def Abbreviations(infiles,outfile):
                 if line.startswith('##FORMAT'):
                     outf.write(line)
                 if line.startswith('##INFO'):
-                    outf.write(line)
-                      
+                    outf.write(line)  
+                    
 @follows(fastqc_report)
 def fastQC():
     pass
@@ -644,22 +929,33 @@ def Contamination():
 @follows(Contamination, Mutect2, FilterMutect)
 def Mutect():
     pass
+
+@follows(VarDict)
+def Vardict():
+    pass
     
 @follows(CollectSequencingArtifactMetrics, FilterByOrientationBias)
 def Artifacts():
     pass
 
-@follows(bcftools,annovar_annotate)
+@follows(bcftools_mutect, bcftools_vardict, annovar_annotate_mutect, annovar_annotate_vardict)
 def Annotation():
     pass
 
-@follows(VariantsToTable, Table, FilteredTable, Abbreviations)
-def Variant_Tables():
+@follows(VariantsToTable_mutect, Table_mutect, FilteredTable_mutect, Abbreviations_mutect)
+def Variant_Tables_Mutect():
     pass
 
+@follows(VariantsToTable_vardict, Table_vardict, FilteredTable_vardict, Abbreviations_vardict)
+def Variant_Tables_VarDict():
+    pass
+
+@follows(bgzip_mutect, bgzip_vardict, index_vcf_mutect, index_vcf_vardict, Intersect, VariantsToTableIntersect, Table_intersect)
+def vcf_intersect():
+    pass
    
 @follows(fastQC, Read_Groups, Mapping, Post_mapping_processing, bamQC, Contamination,
-Mutect, Artifacts, Annotation, Variant_Tables)
+Mutect, Vardict, Artifacts, Annotation, Variant_Tables_Mutect, Variant_Tables_VarDict, vcf_intersect)
 def full():
     pass
 
