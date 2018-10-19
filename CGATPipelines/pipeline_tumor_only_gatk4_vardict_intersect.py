@@ -313,6 +313,7 @@ def apply_bqsr(infile, outfile):
 
     P.run()
     
+    
 #### Final Bam QC ######
     
 @follows(mkdir("bqsr_qc"))
@@ -341,8 +342,30 @@ def bqsr_qc(infile, outfile):
     
 
 
-
-
+    ####Pindel_config ######
+    
+@follows(mkdir("pindel"))
+@follows(apply_bqsr)
+@transform(bqsr_qc,
+           regex(r"bqsr_qc/(.*).txt"),
+                r"pindel/\1_config.txt")
+def pindel_config(infile, outfile):
+    
+    basename = P.snip(os.path.basename(infile), ".txt")
+    size_metrics = "bqsr_qc/" + basename + ".insert_size_metrics"
+    bamfile = "apply_bqsr/" + basename + ".recalibrated.bam"
+    
+    with IOTools.openFile(size_metrics, "r") as inf:
+        lines = inf.readlines()
+        values = lines[7].split("\t")
+        median_size = values[0]
+        inf.close()
+                
+    with IOTools.openFile(outfile, "w") as outf:
+        line = bamfile  + "\t" + median_size + "\t" + basename + "\n" 
+        outf.write(line)
+    
+          
 #### CollectHsMetrics ######
     
 @follows((mkdir("HsMetrics")))
@@ -412,6 +435,39 @@ def VarDict(infile, outfile):
                     var2vcf_valid.pl -N %(basename)s -f %(vardict_vaf)s
                     > %(outfile)s'''
 
+    P.run()
+    
+ ################## Pindel ###################
+ 
+@transform(pindel_config,
+           regex(r"pindel/(.*)_config.txt"),
+           r"pindel/\1_pindel_BP")
+def Pindel(infile, outfile):
+    basename = P.snip(os.path.basename(infile),"_config.txt")
+    outfile2  = P.snip(outfile, "_BP")
+    statement = '''pindel
+                 -f %(pindel_genome)s
+                 -i %(infile)s
+                 -c %(pindel_chromosome)s
+                 -o %(outfile2)s'''
+                 
+    P.run()
+################## pindel2vcf ###################
+
+@transform(Pindel,
+           regex(r"pindel/(.*)_pindel_BP"),
+           r"pindel/\1_pindel.vcf")
+def pindel2vcf(infile, outfile):
+    basename = P.snip(outfile,".vcf")
+    statement = '''pindel2vcf
+                    -P %(basename)s
+                    -G
+                    -r %(pindel_genome)s
+                    -R %(pindel_genome_build)s
+                    -d %(pindel_genome_date)s
+                    --min_supporting_reads %(pindel_mut_reads)s
+                    -v %(outfile)s'''
+                    
     P.run()
     
 ################## Contamination ###################
@@ -525,6 +581,8 @@ def bcftools_vardict(infile, outfile):
                     %(infile)s'''
     
     P.run()    
+    
+    
 ################## Variant annotation Mutect2 ###################
     
 
