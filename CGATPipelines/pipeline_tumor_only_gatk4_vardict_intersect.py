@@ -375,9 +375,13 @@ def pindel_config(infile, outfile):
 def HsMetrics(infile, outfile):
     '''runs Picard hybrid selection summary metrics'''
     job_threads = 4
+    basename = P.snip(outfile,"_enrichment.txt")
+    base_coverage_file = basename + ".base_coverage.txt"
+    target_coverage_file = basename + ".target_coverage.txt"
     job_memory = PARAMS["picard_memory"]
     target_intervals = PARAMS["picard_targets"]
     bait_intervals = PARAMS["picard_baits"]
+    coverage_cap = PARAMS["picard_coverage"]
     logfile = outfile.replace(".txt",".log")
     statement = '''picard -Xmx%(job_memory)s CollectHsMetrics
                     USE_JDK_DEFLATER=true
@@ -385,6 +389,9 @@ def HsMetrics(infile, outfile):
                     TMP_DIR=${TMPDIR}/${USER}
                     INPUT=%(infile)s
                     REFERENCE_SEQUENCE=%(bwa_index)s
+                    PER_BASE_COVERAGE=%(base_coverage_file)s
+                    PER_TARGET_COVERAGE=%(target_coverage_file)s
+                    COVERAGE_CAP=%(coverage_cap)s
                     BAIT_INTERVALS=%(bait_intervals)s
                     TARGET_INTERVALS=%(target_intervals)s
                     OUTPUT= %(outfile)s 2> %(logfile)s'''
@@ -669,7 +676,30 @@ def index_vcf_vardict(infile, outfile):
     statement = '''tabix -f %(infile)s'''
     
     P.run()
+ ################## Variant annotation Pindel ###################
     
+
+@follows(mkdir("annovar_annotation_pindel"))     
+@transform(pindel2vcf, 
+           regex(r"pindel/(.*)_pindel.vcf"),
+                r"annovar_annotation_pindel/\1.hg38_multianno.vcf")
+def annovar_annotate_pindel(infile,outfile):
+    '''annotate variants using Annovar vcf file input'''
+    basename = P.snip(outfile, ".hg38_multianno.vcf")
+    statement = '''module() {  eval `/usr/bin/modulecmd bash $*`; } &&
+                   module load annovar/2018-03-06 &&
+                    table_annovar.pl
+                    %(infile)s
+                    /databank/indices/annovar/humandb
+                    --buildver hg38
+                    --remove
+                    --outfile %(basename)s
+                    -protocol %(annovar_protocol)s
+                    -operation %(annovar_operation)s
+                    -vcfinput'''
+                    
+    P.run()
+   
 ################## Intersection between VCF files ###################
     
 @follows(index_vcf_vardict)
@@ -758,7 +788,190 @@ def Table_intersect(infile,outfile):
                     sed -e 's/\\\\x3b/;/g' > %(outfile)s'''
     P.run()  
     
+    ################## Filtering Intersect Table ###################
 
+@follows(mkdir("table_variants_intersect"))
+@transform(Table_intersect,
+           regex("vcf_intersect/(.*)_intersect.table.tsv"),
+           r"table_variants_intersect/\1_intersect_synonm_table.tsv")
+def Filter_synonymous(infile, outfile):
+    '''remove synonymous, off-target variants'''
+    statement ='''sed 's/nonsynonymous/missense/g' %(infile)s | grep -v 'synonymous\|ncRNA' | 
+                    sed 's/missense/nonsynonymous/g' | grep 'CHROM\|exonic\|splicing' > %(outfile)s'''
+    P.run()
+
+@transform(Filter_synonymous,
+           regex("table_variants_intersect/(.*)_intersect_synonm_table.tsv"),
+           r"table_variants_intersect/\1_intersect_filter_coverage.tsv")
+def Filter_coverage(infile, outfile):
+    '''filter variant table on defined filter strategy'''
+    
+    vaf = PARAMS['filtering_vaf']
+    coverage = PARAMS['filtering_coverage']
+    npm1_coverage = PARAMS['filtering_npm1']
+
+    with IOTools.openFile(outfile, "w") as outf:
+       with IOTools.openFile(infile, "r") as inf:
+           for line in inf.readlines():
+               if line.startswith('CHROM'):
+                   outf.write(line)
+                    
+               if line.startswith('chr'):
+                   values = line.split("\t")
+                   if 'NPM1' in values[43]:
+                       if int(values[9]) >= npm1_coverage:
+                           if float(values[12]) >= vaf:
+                               outf.write(line)
+                               
+                   else:
+                       if int(values[9]) >=coverage:
+                           if float(values[12])>=vaf:
+                               outf.write(line)
+                               
+@transform(Filter_coverage,
+          regex("table_variants_intersect/(.*)_intersect_filter_coverage.tsv"),
+          r"table_variants_intersect/\1_intersect_filtered_table.tsv")
+def Filter_population_study(infile, outfile):
+    '''Filters based on population study'''
+    
+    population = PARAMS['filtering_population']
+    
+    with IOTools.openFile(outfile, "w") as outf:
+       with IOTools.openFile(infile, "r") as inf:
+           for line in inf.readlines():
+               if line.startswith('CHROM'):
+                   outf.write(line)
+                    
+               if line.startswith('chr'):
+                   values = line.split("\t")
+                   if values[48]=='.':
+                       outf.write(line)
+                   
+                   if values[48]!='.':
+                       if float(values[48]) <=population:
+                           outf.write(line)
+                           
+@transform(Filter_population_study,
+           regex("table_variants_intersect/(.*)_intersect_filtered_table.tsv"),
+           r"table_variants_intersect/\1_intersect_final_table.tsv")
+def Filter_PASS(infile, outfile):
+    '''Filters based on PASS'''  
+    
+    with IOTools.openFile(outfile, "w") as outf:
+       with IOTools.openFile(infile, "r") as inf:
+           for line in inf.readlines():
+               if line.startswith('CHROM'):
+                   outf.write(line)
+                    
+               if line.startswith('chr'):
+                   values = line.split("\t")
+                   if values[6]=='PASS':
+                       outf.write(line)
+                    
+@transform(Filter_PASS,
+          regex("table_variants_intersect/(.*)_intersect_final_table.tsv"),
+          r"table_variants_intersect/\1_intersect_test.table.tsv")
+def population_test(infile,outfile):
+    
+    population = PARAMS['filtering_population']   
+    
+    with IOTools.openFile(outfile, "w") as outf:
+       with IOTools.openFile(infile, "r") as inf:
+           for line in inf.readlines():
+               if line.startswith('CHROM'):
+                   outf.write(line)                    
+
+               if line.startswith('chr'):
+                   values = line.split("\t")
+                   if values[48]!='.':
+                       if float(values[48]) <=population:
+                           outf.write(line)
+                           
+                   elif values[57]!='.':
+                       if float(values[57]) <=population:
+                           outf.write(line)
+                           
+                   elif values[58]!='.':
+                       if float(values[58]) <=population:
+                           outf.write(line)
+                           
+                   elif values[48]=='.' and values[57]=='.' and values[58]=='.':
+                       outf.write(line)
+                       
+                    
+                               
+################## Make tables for Pindel ###################
+    
+@follows(mkdir("table_variants_pindel"))
+@transform(annovar_annotate_pindel,
+           regex(r"annovar_annotation_pindel/(.*).hg38_multianno.vcf"),
+                r"table_variants_pindel/\1_pindel.tsv")
+
+def VariantsToTablePindel(infile, outfile):
+    '''converts the intersected vcf file into a tab-separated file while splitting
+    the INFO and FORMAT fields'''
+    vcf_reader = vcf.Reader(open(infile))
+    # requires installation of pyvcf
+
+    list_IDs = []
+    list_desc = []
+    list_cstring = []
+    list_cstring2 = []
+        
+    for k,v in vcf_reader.infos.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring.append("-F %s" % k)
+            
+    for k,v in vcf_reader.formats.items():
+        if k != "Samples":
+            list_IDs.append(k)
+            list_cstring2.append("-GF %s" % k)
+    
+    cstring = " ".join(list_cstring)
+    cstring2 = " ".join(list_cstring2)
+    
+    statement = '''gatk VariantsToTable
+                    -R %(bwa_index)s
+                   -V %(infile)s
+                   -F CHROM -F POS -F ID -F REF -F ALT -F QUAL -F FILTER 
+                   %(cstring)s
+                   %(cstring2)s
+                   --show-filtered=true
+                   -O %(outfile)s'''
+    P.run() 
+    
+@transform(VariantsToTablePindel,
+           regex("table_variants_pindel/(\S+)_pindel.tsv"),
+           r"table_variants_pindel/\1_pindel.table.tsv")
+def Table_pindel(infile,outfile):
+    '''replace \x3d by = and \x3b by ;'''
+    
+    statement = '''sed -e 's/\\\\x3d/=/g' %(infile)s |
+                    sed -e 's/\\\\x3b/;/g' > %(outfile)s'''
+    P.run()   
+    
+################## Make tables for FLT3-ITD ###################
+@transform(Table_pindel,
+           regex("table_variants_pindel/(\S+)_pindel.table.tsv"),
+           r"table_variants_pindel/\1_FLT3.tsv")
+def FLT3_table(infile, outfile):
+    '''limits pindel table to FLT3_ITD'''
+
+    with IOTools.openFile(outfile, "w") as outf:
+       with IOTools.openFile(infile, "r") as inf:
+           for line in inf.readlines():
+               if line.startswith('CHROM'):
+                   outf.write(line)
+                    
+               if line.startswith('chr'):
+                   values = line.split("\t")
+                   
+                   if 'FLT3' in values[16]:
+                       if 'exonic' in values[15]:
+                           if 'nonframeshift_insertion' in values[18]:
+                               outf.write(line)
+                               
 ################## Make tables Mutect2 ###################
     
     
@@ -991,12 +1204,16 @@ def Mutect():
 @follows(VarDict)
 def Vardict():
     pass
+
+@follows(pindel2vcf)
+def Pindel_indel():
+    pass
     
 @follows(CollectSequencingArtifactMetrics, FilterByOrientationBias)
 def Artifacts():
     pass
 
-@follows(bcftools_mutect, bcftools_vardict, annovar_annotate_mutect, annovar_annotate_vardict)
+@follows(bcftools_mutect, bcftools_vardict, annovar_annotate_mutect, annovar_annotate_vardict, annovar_annotate_pindel)
 def Annotation():
     pass
 
@@ -1008,12 +1225,16 @@ def Variant_Tables_Mutect():
 def Variant_Tables_VarDict():
     pass
 
-@follows(bgzip_mutect, bgzip_vardict, index_vcf_mutect, index_vcf_vardict, Intersect, VariantsToTableIntersect, Table_intersect)
-def vcf_intersect():
+@follows(bgzip_mutect, bgzip_vardict, index_vcf_mutect, index_vcf_vardict, Intersect, VariantsToTableIntersect, Table_intersect, Filter_synonymous, Filter_coverage, Filter_population_study, Filter_PASS, population_test)
+def Variant_Tables_intersect():
+    pass
+
+@follows(VariantsToTablePindel, Table_pindel, FLT3_table)
+def Variant_Tables_Pindel():
     pass
    
 @follows(fastQC, Read_Groups, Mapping, Post_mapping_processing, bamQC, Contamination,
-Mutect, Vardict, Artifacts, Annotation, Variant_Tables_Mutect, Variant_Tables_VarDict, vcf_intersect)
+Mutect, Vardict, Pindel_indel, Artifacts, Annotation, Variant_Tables_Mutect, Variant_Tables_VarDict, Variant_Tables_intersect, Variant_Tables_Pindel)
 def full():
     pass
 
