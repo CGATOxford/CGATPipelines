@@ -332,8 +332,11 @@ def HsMetrics(infile, outfile):
     '''runs Picard hybrid selection summary metrics'''
     job_threads = 4
     job_memory = PARAMS["picard_memory"]
+    basename = P.snip(outfile,"_enrichment.txt")
+    target_coverage_file = basename + ".target_coverage.txt"
     target_intervals = PARAMS["picard_regions"]
     bait_intervals = PARAMS["picard_baits"]
+    coverage_cap = PARAMS["picard_coverage"]
     logfile = outfile.replace(".txt",".log")
     statement = '''picard -Xmx%(job_memory)s CollectHsMetrics
                     USE_JDK_DEFLATER=true
@@ -341,6 +344,8 @@ def HsMetrics(infile, outfile):
                     TMP_DIR=${TMPDIR}/${USER}
                     INPUT=%(infile)s
                     REFERENCE_SEQUENCE=%(bwa_index)s
+                    PER_TARGET_COVERAGE=%(target_coverage_file)s
+                    COVERAGE_CAP=%(coverage_cap)s
                     BAIT_INTERVALS=%(bait_intervals)s
                     TARGET_INTERVALS=%(target_intervals)s
                     OUTPUT= %(outfile)s 2> %(logfile)s'''
@@ -450,10 +455,10 @@ def FilterMutect(infile,outfile):
 
 @transform(apply_bqsr,
            regex(r"apply_bqsr/(.*)-tumour.recalibrated.bam"),
-           r"filter_mutect/\1-tumour.artifacts.txt") 
+           r"filter_mutect/\1-tumour.artifacts.pre_adapter_detail_metrics.txt") 
 def CollectSequencingArtifactMetrics(infile, outfile):
     # collect metrics on sequence context artifacts
-    basename = P.snip(outfile, ".txt")
+    basename = P.snip(outfile, ".pre_adapter_detail_metrics.txt")
    
     statement = '''gatk CollectSequencingArtifactMetrics
                 -I %(infile)s
@@ -649,8 +654,7 @@ def Mutect():
 def Artifacts():
     pass
  
-@follows(bcftools,
-annovar_annotate)
+@follows(bcftools, annovar_annotate)
 def Annotation():
     pass
  
